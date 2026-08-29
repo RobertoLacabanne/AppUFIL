@@ -125,7 +125,19 @@ def cmd_exportar(a):
 def cmd_verificar(a):
     from . import verificacion
     cx = _cx(a)
-    fallas = verificacion.correr(cx)
+    if a.completo:
+        r = verificacion.verificar_integridad(cx, completo=True)
+        print(f"  integridad: {r['revisados']} originales rehasheados, {r['ok']} intactos")
+        fallas = r["fallas"] + [f for f in verificacion.correr(cx) if "ORIGINAL" not in f]
+    else:
+        fallas = verificacion.correr(cx)
+        r = cx.execute("""SELECT COUNT(*) c, MIN(verificado_en) v FROM integridad""").fetchone()
+        tot = cx.execute("SELECT COUNT(*) FROM archivo").fetchone()[0]
+        print(f"  integridad: {r['c']} de {tot} originales verificados alguna vez"
+              f"{'; el más viejo, ' + str(r['v'])[:16].replace('T', ' ') if r['v'] else ''}")
+        if r["c"] < tot:
+            print(f"  faltan {tot - r['c']}: se van cubriendo solos corriendo `verificar` "
+                  f"otra vez, o de una con --completo")
     for f in fallas:
         print(f"  ✗ {f}")
     if not fallas:
@@ -205,6 +217,8 @@ def main(argv=None) -> int:
     s.set_defaults(func=cmd_exportar)
 
     s = sub.add_parser("verificar", help="chequea las invariantes del pliego")
+    s.add_argument("--completo", action="store_true",
+                   help="rehashea TODOS los originales, no sólo los más postergados")
     s.set_defaults(func=cmd_verificar)
 
     s = sub.add_parser("servir", help="Capa 6: interfaz web local")

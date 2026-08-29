@@ -33,12 +33,15 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from . import config
+import pytesseract
+
 from .capa1_texto import Palabra, palabras_de
 from .capa2_campos import PARSERS, normalizar_cotejo
 from .db import ahora
 
 MARGEN_IZQ = 8.0        # puntos que se toleran a la izquierda del rótulo
-PENALIZA_UNICA = 0.6    # factor de confianza cuando una sola ruta vio el valor
+PENALIZA_UNICA = 0.6          # confianza cuando una sola ruta vio el valor
+PENALIZA_DISCREPANCIA = 0.7   # cuando la relectura focalizada discrepa sin seguridad
 
 
 def cargar_perfil(nombre: str) -> dict:
@@ -58,6 +61,7 @@ class Hallazgo:
     caja: tuple[float, float, float, float] | None
     conf: float
     lectura_id: int | None
+    region: tuple[float, float, float, float] | None = None   # dónde se buscó
 
 
 # ────────────────────────────────────────────────── geometría sobre palabras ──
@@ -160,7 +164,7 @@ def extraer_de_ruta(paginas: list[tuple[int, int, list[Palabra]]], perfil: dict
 
     hallazgos: dict[str, Hallazgo] = {}
     for spec in perfil["campos"]:
-        h = Hallazgo(None, None, "ausente", None, None, 0.0, None)
+        h = Hallazgo(None, None, "ausente", None, None, 0.0, None, None)
         for nro, lid, palabras in paginas:
             caja_rot = _buscar_rotulo(palabras, spec["rotulo"])
             if not caja_rot:
@@ -176,13 +180,65 @@ def extraer_de_ruta(paginas: list[tuple[int, int, list[Palabra]]], perfil: dict
                 conf = min(p.conf for p in dentro)
             else:
                 caja, conf = region, 0.0
-            h = Hallazgo(literal, norm, motivo, nro, caja, conf, lid)
+            h = Hallazgo(literal, norm, motivo, nro, caja, conf, lid, region)
             break
         hallazgos[spec["nombre"]] = h
     return hallazgos, camara, aplica
 
 
 # ──────────────────────────────────────────────────────── cotejo y guardado ──
+# ─────────────────────────────────────────────────── relectura focalizada ──
+# Lista de caracteres admisibles por tipo de campo. NO es adivinar el valor: es
+# decirle al motor qué alfabeto usa ESE renglón del formulario, y lo sabemos porque lo
+# dice el perfil. Un campo de fecha no tiene letras. Restringir el alfabeto es lo que
+# le permite a Tesseract distinguir el 7 del 1 en un escaneo mediocre.
+#
+# El riesgo es real y conviene tenerlo escrito: con el alfabeto restringido, un glifo
+# ilegible puede salir como un dígito equivocado pero con confianza alta. Por eso la
+# relectura focalizada NO manda. Entra al cotejo como una ruta más, y si discrepa con
+# las otras el campo queda en conflicto en lugar de resolverse.
+LISTA_CARACTERES = {
+    "fecha":     "0123456789/-. ",
+    "monto":     "0123456789.,$ ",
+    "documento": "0123456789-. ",
+}
+
+
+def relectura_focal(png: Path, escala: float, region_pt, tipo: str) -> Hallazgo | None:
+    """Recorta el campo del render, lo agranda, lo binariza y lo relee con atención."""
+    from PIL import Image
+
+    from .preproceso import para_campo
+
+    caja_px = tuple(v * escala for v in region_pt)
+    cfg = "--oem 1 --psm 7"
+    lista = LISTA_CARACTERES.get(tipo)
+    if lista:
+        cfg += f" -c tessedit_char_whitelist={lista}"
+    try:
+        with Image.open(png) as im:
+            recorte = para_campo(im, caja_px)
+        datos = pytesseract.image_to_data(recorte, lang=config.OCR_IDIOMA, config=cfg,
+                                          output_type=pytesseract.Output.DICT)
+    except Exception:
+        return None
+
+    piezas, confs = [], []
+    for i, t in enumerate(datos["text"]):
+        t = (t or "").strip()
+        try:
+            c = float(datos["conf"][i])
+        except (TypeError, ValueError):
+            c = -1.0
+        if t and c >= 0:
+            piezas.append(t); confs.append(c / 100.0)
+    if not piezas:
+        return None
+    literal, norm, motivo = PARSERS.get(tipo, PARSERS["texto"])(" ".join(piezas))
+    return Hallazgo(literal, norm, motivo, None, None,
+                    min(confs) if confs else 0.0, None, region_pt)
+
+
 def _elegir_motivo(motivos: list[str]) -> str:
     for preferido in ("ambiguo", "ilegible", "ausente"):
         if preferido in motivos:
@@ -234,12 +290,60 @@ def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> d
     cx.execute("DELETE FROM conflicto WHERE documento_id=?", (doc_id,))
     cx.execute("DELETE FROM campo WHERE documento_id=?", (doc_id,))
 
+    # Render de la página, para la relectura focalizada.
+    render = cx.execute("""SELECT nro, render, render_escala FROM pagina
+                            WHERE sha256=? AND render IS NOT NULL ORDER BY nro""",
+                        (sha,)).fetchall()
+    por_pagina = {r["nro"]: (Path(r["render"]), r["render_escala"] or config.ESCALA_RENDER)
+                  for r in render}
+
     n_campos = n_conf = n_rev = 0
     for spec in perfil["campos"]:
         campo = spec["nombre"]
         critico = campo in config.CAMPOS_CRITICOS
         por = {ruta: res[0][campo] for ruta, res in resultados.items()}
+
         con_valor = {r: h for r, h in por.items() if h.norm is not None}
+
+        # ── Tercera lectura: desempate sobre el campo agrandado y binarizado ──
+        # Se recorta ajustado AL VALOR que encontraron las rutas de página, no a toda
+        # la zona de búsqueda: la zona incluye el filete del formulario, que al
+        # binarizar se vuelve una barra negra que el motor lee como caracteres.
+        #
+        # Y sólo se hace cuando hace falta. Medido sobre el corpus de prueba, correrla
+        # de rutina EMPEORA el resultado: cuando las dos rutas de página coinciden con
+        # confianza alta ya están bien, y una tercera opinión ruidosa sólo convierte
+        # lecturas correctas en conflictos. Donde sí rinde es justo donde hay duda.
+        foco_discrepa = False
+        conf_pagina = max((h.conf for h in con_valor.values()), default=0.0)
+        hay_duda = (not con_valor
+                    or len({h.norm for h in con_valor.values()}) > 1
+                    or conf_pagina < config.UMBRAL_CONFIANZA)
+        # Sólo en campos de alfabeto restringido (fecha, monto, documento). En texto
+        # libre la relectura no aporta —medido: pierde contra la lectura de página— y
+        # además no hay lista de caracteres que le dé ventaja.
+        if critico and hay_duda and spec["parser"] in LISTA_CARACTERES and config.RELECTURA_FOCAL:
+            ref = next((h for h in por.values() if h.pagina and (h.caja or h.region)), None)
+            if ref and ref.pagina in por_pagina:
+                cajas = [h.caja for h in con_valor.values() if h.caja]
+                if cajas:
+                    recorte = (min(c[0] for c in cajas) - 3, min(c[1] for c in cajas) - 3,
+                               max(c[2] for c in cajas) + 3, max(c[3] for c in cajas) + 3)
+                else:
+                    recorte = ref.region or ref.caja
+                png, esc = por_pagina[ref.pagina]
+                foc = relectura_focal(png, esc, recorte, spec["parser"])
+                if foc and foc.norm is not None:
+                    # Llegamos acá sólo porque el campo YA era dudoso, así que iba a la
+                    # cola de todos modos. Entonces la relectura entra al cotejo sin
+                    # más filtro: si discrepa, el campo queda en conflicto y el operador
+                    # ve las dos lecturas y elige. Mostrarle dos candidatas —una de las
+                    # cuales suele ser la correcta— le cuesta el mismo clic que mostrarle
+                    # una sola lectura dudosa, y le ahorra tipear.
+                    foc.pagina, foc.caja = ref.pagina, (ref.caja or ref.region)
+                    por["ocr_focal"] = foc
+                    con_valor["ocr_focal"] = foc
+
         valores = {h.norm for h in con_valor.values()}
 
         # ── discrepancia entre rutas: no se elige, se marca ──
@@ -281,7 +385,9 @@ def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> d
         mejor = max(con_valor.values(), key=lambda h: h.conf)
         unica = len(con_valor) == 1
         conf = mejor.conf * (PENALIZA_UNICA if unica else 1.0)
-        revisar = conf < config.UMBRAL_CONFIANZA or (unica and critico)
+        if foco_discrepa:
+            conf *= PENALIZA_DISCREPANCIA
+        revisar = (conf < config.UMBRAL_CONFIANZA or (unica and critico) or foco_discrepa)
         estado = "a_revisar" if revisar else "automatico"
         ruta_mejor = next(r for r, h in con_valor.items() if h is mejor)
 
@@ -294,7 +400,8 @@ def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> d
              round(conf, 4), mejor.lectura_id, estado)).lastrowid
         cx.execute("INSERT INTO normalizacion (campo_id,tipo,valor_norm,nota) VALUES (?,?,?,?)",
                    (cid, spec["parser"], mejor.norm,
-                    "lectura única" if unica else f"{len(con_valor)} rutas conformes"))
+                    ("lectura única" if unica else f"{len(con_valor)} rutas conformes")
+                    + (" · la relectura focalizada discrepa" if foco_discrepa else "")))
         n_campos += 1
         n_rev += int(revisar)
 

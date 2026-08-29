@@ -9,6 +9,7 @@ services:
     build: .
     image: ufil-analisis:0.1
     container_name: ufil
+    user: "10001:10001"           # sin privilegios: root ignoraría el 0444 de los originales
     # Sin red hacia afuera. El contenedor no puede salir a internet ni queriendo.
     network_mode: bridge
     ports:

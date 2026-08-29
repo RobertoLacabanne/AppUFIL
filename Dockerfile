@@ -9,6 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         tesseract-ocr tesseract-ocr-spa \
     && rm -rf /var/lib/apt/lists/*
 
+# Usuario sin privilegios. Importa de verdad: los originales se guardan en modo 0444,
+# y root ignora ese permiso. Corriendo como `ufil`, un intento de sobrescribir un
+# original falla de entrada en vez de depender de que después lo detecte `verificar`.
+RUN useradd --create-home --uid 10001 ufil
+
 WORKDIR /app
 COPY requisitos.txt .
 RUN pip install --no-cache-dir -r requisitos.txt
@@ -20,6 +25,9 @@ COPY pruebas/ ./pruebas/
 COPY herramientas/ ./herramientas/
 
 # El corpus se monta en solo lectura (restricción 2); los derivados van a /app/datos.
+RUN mkdir -p /app/datos && chown -R ufil:ufil /app
+USER ufil
+
 VOLUME ["/corpus", "/app/datos"]
 ENV UFIL_DATOS=/app/datos PYTHONUNBUFFERED=1
 EXPOSE 8713

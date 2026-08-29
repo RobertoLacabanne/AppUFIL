@@ -16,6 +16,11 @@ Definición operativa, que es lo que importa:
                      la confianza en el sistema entero.
   omisión            el sistema no devolvió valor y la referencia tenía uno.
   nulo correcto      ni el sistema ni la referencia tenían valor.
+
+Y una métrica más, que la exactitud sola no captura: RESCATABLE. De los campos que
+quedaron en la cola por conflicto entre rutas, en cuántos alguna de las lecturas
+ofrecidas era la correcta. Mide si la cola se resuelve ELIGIENDO o hay que TIPEAR, que
+para el que revisa es la diferencia entre una tecla y quince.
 """
 from __future__ import annotations
 
@@ -34,6 +39,19 @@ UMBRAL_SILENCIOSOS = {"nombre": 1, "documento": 0, "fecha_inicio": 0, "fecha_fin
 COLUMNAS_REF = {"nombre": "nombre", "documento": "documento",
                 "fecha_inicio": "fecha_inicio", "fecha_fin": "fecha_fin",
                 "monto": "monto_centavos"}
+
+
+def _solo_valor(campo: str, literal: str | None) -> str | None:
+    """Normaliza una variante de conflicto igual que el pipeline, para poder compararla."""
+    if literal is None:
+        return None
+    from .capa2_campos import PARSERS
+    tipo = {"monto": "monto", "documento": "documento", "nombre": "nombre",
+            "fecha_inicio": "fecha", "fecha_fin": "fecha"}.get(campo, "texto")
+    _, norm, _ = PARSERS[tipo](literal)
+    if campo == "documento" and norm:
+        norm = norm.split(":", 1)[1]
+    return norm
 
 
 def _canon(campo: str, valor: str | None) -> str:
@@ -55,7 +73,15 @@ def evaluar(cx: sqlite3.Connection, referencia_csv: Path) -> dict:
 
     campos = list(config.CAMPOS_CRITICOS)
     tabla = {c: {"acierto": 0, "error_marcado": 0, "error_silencioso": 0,
-                 "omision": 0, "nulo_correcto": 0, "sin_referencia": 0} for c in campos}
+                 "omision": 0, "nulo_correcto": 0, "sin_referencia": 0,
+                 "en_conflicto": 0, "rescatable": 0} for c in campos}
+
+    # Variantes ofrecidas en cada conflicto abierto, por (documento, campo).
+    variantes: dict[tuple[int, str], list[str]] = {}
+    for v in cx.execute("""SELECT k.documento_id, k.campo_nombre, v.valor
+                             FROM conflicto k JOIN conflicto_variante v ON v.conflicto_id = k.id
+                            WHERE k.estado = 'abierto'"""):
+        variantes.setdefault((v["documento_id"], v["campo_nombre"]), []).append(v["valor"])
     detalle: list[dict] = []
 
     filas = cx.execute("""
@@ -89,6 +115,14 @@ def evaluar(cx: sqlite3.Connection, referencia_csv: Path) -> dict:
             clase = "error_marcado" if marcado else "error_silencioso"
 
         tabla[campo][clase] += 1
+
+        if f["nulo_motivo"] == "conflicto":
+            tabla[campo]["en_conflicto"] += 1
+            ofrecidas = variantes.get((f["documento_id"], campo), [])
+            if esperado and any(_canon(campo, _solo_valor(campo, v)) == esperado
+                                for v in ofrecidas):
+                tabla[campo]["rescatable"] += 1
+
         if clase in ("error_silencioso", "error_marcado", "omision"):
             detalle.append({
                 "archivo": archivo, "documento_id": f["documento_id"], "campo": campo,
@@ -107,6 +141,8 @@ def evaluar(cx: sqlite3.Connection, referencia_csv: Path) -> dict:
         aprueba &= ok_exac and ok_sil
         resumen[campo] = {
             **t, "con_referencia": con_ref, "exactitud": round(exactitud, 4),
+            "rescate": (round(t["rescatable"] / t["en_conflicto"], 3)
+                        if t["en_conflicto"] else None),
             "umbral_exactitud": UMBRAL_EXACTITUD[campo],
             "umbral_silenciosos": UMBRAL_SILENCIOSOS[campo],
             "cumple_exactitud": ok_exac, "cumple_silenciosos": ok_sil,
@@ -130,6 +166,11 @@ def informe_texto(res: dict) -> str:
     L.append("-" * 92)
     sil = sum(t["error_silencioso"] for t in res["por_campo"].values())
     L.append(f"errores silenciosos en total: {sil}")
+    conf = sum(t["en_conflicto"] for t in res["por_campo"].values())
+    resc = sum(t["rescatable"] for t in res["por_campo"].values())
+    if conf:
+        L.append(f"campos en conflicto: {conf} · de esos, con la lectura correcta entre las "
+                 f"ofrecidas: {resc} ({100*resc/conf:.0f}%) — se resuelven eligiendo, sin tipear")
     L.append("")
     L.append("VEREDICTO: " + ("cumple los umbrales propuestos"
                               if res["aprueba"] else "NO alcanza los umbrales propuestos"))

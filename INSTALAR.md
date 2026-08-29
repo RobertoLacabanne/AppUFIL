@@ -73,8 +73,18 @@ python3 -m ufil.cli servir
 
 ## Procesar un lote
 
-Desde la interfaz todavía no se dispara el procesamiento: se hace por línea de comandos,
-una vez por lote.
+**Lo normal es hacerlo desde la interfaz**, sin tocar la terminal:
+
+1. **Cargar escaneos** → poner el nombre del lote y quién carga.
+2. Arrastrar los PDF (o elegirlos). Se ve archivo por archivo qué pasó con cada uno.
+3. **Procesar**. Barra de progreso, etapa actual y cuánto falta. Se puede cerrar la
+   pestaña: el trabajo sigue.
+4. **Panel** para ver el estado, **Cola de revisión** para resolver lo dudoso.
+
+Sólo se procesa lo que falta, así que subir un lote nuevo la semana que viene no
+reprocesa lo de esta semana.
+
+### Por línea de comandos, si hace falta
 
 ```bash
 # Con Docker, adelante de cada comando: docker compose exec ufil
@@ -84,9 +94,6 @@ python3 -m ufil.cli leer          # OCR: alrededor de 1,7 s por página en CPU
 python3 -m ufil.cli extraer
 python3 -m ufil.cli identidad
 ```
-
-Y después, en la interfaz: **Panel** para ver el estado, **Cola de revisión** para
-resolver lo que quedó dudoso.
 
 ### Todo junto
 
@@ -110,7 +117,9 @@ python3 -m ufil.cli evaluar banco-de-prueba/referencia.csv --detalle 20
 ```
 
 `verificar` devuelve error si algo falla, así que se puede colgar de una tarea
-programada y enterarse solo.
+programada y enterarse solo. Conviene correrlo seguido: cada corrida rehashea los 250
+originales que hace más tiempo que no se revisan, y reporta cuántos del total llevan
+verificación y desde cuándo.
 
 ---
 
@@ -143,9 +152,17 @@ aparece solo en la interfaz, en la pestaña **Consultas**.
 ## Preguntas frecuentes
 
 **¿Puede el sistema modificar los documentos originales?**
-No. La ingesta los abre en modo lectura y `docker-compose.yml` monta el corpus con
-`:ro`, así que el kernel tampoco lo permitiría. `ufil verificar` rehashea una muestra
-en cada corrida y avisa si alguno cambió.
+No, y hay tres barreras superpuestas. La ingesta abre en modo lectura; los PDF que se
+suben por la interfaz se guardan en modo `0444` y el contenedor corre como usuario sin
+privilegios, así que un intento de sobrescribir falla; y el corpus montado se monta
+`:ro`, que lo hace cumplir el kernel.
+
+Con una salvedad que conviene saber: **el modo `0444` no frena a root.** Si alguien
+entra con permisos de administrador puede sobrescribir cualquier cosa. Por eso el
+sistema no se apoya sólo en los permisos: `ufil verificar` rehashea los originales y
+avisa si alguno cambió, **empezando siempre por los que hace más tiempo que no se
+miran**, así con el uso normal el acervo entero queda cubierto. `ufil verificar
+--completo` los rehashea todos de una.
 
 **¿Sale a internet?**
 No. No hay ninguna llamada de red en el código, las fuentes tipográficas se sirven

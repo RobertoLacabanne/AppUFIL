@@ -13,6 +13,57 @@ from pathlib import Path
 
 from . import config
 from .capa0_ingesta import sha256_de
+from .db import ahora
+
+
+# Cuántos originales se rehashean por corrida. Se empieza siempre por los que hace más
+# tiempo que no se miran, así la cobertura avanza sola hasta dar la vuelta completa.
+POR_CORRIDA = 250
+
+
+def verificar_integridad(cx: sqlite3.Connection, *, cuantos: int = POR_CORRIDA,
+                         completo: bool = False) -> dict:
+    """
+    Rehashea originales y compara contra el hash de ingesta.
+
+    NO es un muestreo al azar. Se ordenan por antigüedad de verificación —los que nunca
+    se miraron primero— y se toma un lote. Corriéndolo seguido, el acervo entero queda
+    cubierto y se sabe con números cuánto y desde cuándo.
+    """
+    total = cx.execute("SELECT COUNT(*) FROM archivo").fetchone()[0]
+    sql = """SELECT a.sha256, a.ruta_original, a.nombre, i.verificado_en
+               FROM archivo a LEFT JOIN integridad i ON i.sha256 = a.sha256
+              ORDER BY (i.verificado_en IS NOT NULL), i.verificado_en, a.nombre"""
+    filas = cx.execute(sql).fetchall()
+    if not completo:
+        filas = filas[:cuantos]
+
+    fallas, ok = [], 0
+    for f in filas:
+        p = Path(f["ruta_original"])
+        if not p.exists():
+            detalle = f"original desaparecido: {f['nombre']} ({p})"
+            fallas.append(detalle)
+            estado = 0
+        elif sha256_de(p) != f["sha256"]:
+            detalle = (f"¡EL ORIGINAL CAMBIÓ! {f['nombre']} ya no coincide con su hash "
+                       f"de ingesta ({p})")
+            fallas.append(detalle)
+            estado = 0
+        else:
+            detalle, estado, ok = None, 1, ok + 1
+        cx.execute("""INSERT INTO integridad (sha256, verificado_en, ok, detalle)
+                      VALUES (?,?,?,?)
+                      ON CONFLICT(sha256) DO UPDATE SET verificado_en=excluded.verificado_en,
+                          ok=excluded.ok, detalle=excluded.detalle""",
+                   (f["sha256"], ahora(), estado, detalle))
+    cx.commit()
+
+    cubiertos = cx.execute("SELECT COUNT(*) FROM integridad").fetchone()[0]
+    mas_viejo = cx.execute("SELECT MIN(verificado_en) FROM integridad").fetchone()[0]
+    return {"revisados": len(filas), "ok": ok, "fallas": fallas, "total": total,
+            "cubiertos": cubiertos, "mas_viejo": mas_viejo,
+            "sin_verificar_nunca": total - cubiertos}
 
 
 def correr(cx: sqlite3.Connection) -> list[str]:
@@ -51,16 +102,8 @@ def correr(cx: sqlite3.Connection) -> list[str]:
     if n:
         fallas.append(f"{n} fusiones aplicadas sin constancia de quién las confirmó")
 
-    # ── Restricción 2: el original es inmutable. Se rehashea una muestra. ──
-    muestra = cx.execute("""SELECT sha256, ruta_original FROM archivo
-                             ORDER BY RANDOM() LIMIT 12""").fetchall()
-    for f in muestra:
-        p = Path(f["ruta_original"])
-        if not p.exists():
-            fallas.append(f"original desaparecido: {p}")
-            continue
-        if sha256_de(p) != f["sha256"]:
-            fallas.append(f"¡EL ORIGINAL CAMBIÓ! {p} ya no coincide con su hash de ingesta")
+    # ── Restricción 2: el original es inmutable ──
+    fallas.extend(verificar_integridad(cx)["fallas"])
 
     # ── Los derivados nunca viven adentro del corpus ──
     for f in cx.execute("SELECT DISTINCT ruta_original FROM archivo LIMIT 50"):

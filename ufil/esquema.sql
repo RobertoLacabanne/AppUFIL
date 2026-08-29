@@ -28,6 +28,18 @@ CREATE TABLE IF NOT EXISTS duplicado (
   PRIMARY KEY (sha256, ruta_original)
 );
 
+-- Control de integridad de los originales. La restricción 2 no puede depender de un
+-- muestreo al azar: sobre miles de archivos, mirar doce por corrida es no mirar.
+-- Acá se registra cuándo se rehashó cada archivo, y `ufil verificar` empieza siempre
+-- por los que hace más tiempo que no se miran. Así la cobertura avanza sola y se puede
+-- decir con números cuánto del acervo está verificado y desde cuándo.
+CREATE TABLE IF NOT EXISTS integridad (
+  sha256        TEXT PRIMARY KEY REFERENCES archivo(sha256),
+  verificado_en TEXT NOT NULL,
+  ok            INTEGER NOT NULL,
+  detalle       TEXT
+);
+
 CREATE TABLE IF NOT EXISTS procedencia (
   sha256          TEXT PRIMARY KEY REFERENCES archivo(sha256),
   legajo          TEXT,
@@ -74,6 +86,16 @@ CREATE TABLE IF NOT EXISTS palabra (
   conf       REAL
 );
 CREATE INDEX IF NOT EXISTS ix_palabra_lectura ON palabra(lectura_id, orden);
+
+-- Índice de texto completo sobre lo leído de cada página. `remove_diacritics 2` hace
+-- que buscar "locacion" encuentre "locación": el que busca no tiene por qué acordarse
+-- de dónde iba la tilde, y el OCR tampoco es confiable con ellas.
+CREATE VIRTUAL TABLE IF NOT EXISTS pagina_texto USING fts5(
+  texto,
+  sha256 UNINDEXED,
+  nro    UNINDEXED,
+  tokenize = "unicode61 remove_diacritics 2"
+);
 
 -- ────────────────────────────────────────── CAPA 2: DOCUMENTO Y CARRIL DE DATOS ──
 CREATE TABLE IF NOT EXISTS documento (

@@ -25,13 +25,18 @@ from . import config, db
 from . import capa3_identidad as c3
 from . import capa4_analisis as c4
 from . import capa5_interpretacion as c5
+from . import busqueda
+from .almacen import ArchivoInvalido, guardar
 from .db import ahora
+from .trabajo import Procesador
 
 RUTA_BASE: Path | None = None
+PROCESADOR: Procesador | None = None
 
 
 def _cx() -> sqlite3.Connection:
-    return db.abrir(RUTA_BASE)
+    """Conexión por petición. El esquema ya se aplicó al arrancar, no se toca acá."""
+    return db.conectar(RUTA_BASE)
 
 
 # ─────────────────────────────────────────────────────────────────── consultas ──
@@ -100,6 +105,73 @@ def api_documento(cx, doc_id: int) -> dict:
              WHERE f.interpretacion_id=?""", (i["id"],))]
     return {"documento": dict(d), "campos": campos, "conflictos": conflictos,
             "paginas": paginas, "interpretaciones": interp}
+
+
+
+def api_persona(cx, persona_id: int) -> dict:
+    """
+    Todo lo que sabemos de un contratado, en una pantalla.
+
+    Es la vista que un fiscal pide primero: quién es, cuántos contratos tuvo, cuándo,
+    por cuánto, y cuáles se pisan. Los datos salen del carril de datos; las hipótesis
+    van aparte, abajo, con sus fuentes.
+    """
+    p = cx.execute("SELECT * FROM persona WHERE id=?", (persona_id,)).fetchone()
+    if not p:
+        raise KeyError("persona inexistente")
+
+    contratos = [dict(r) for r in cx.execute("""
+        SELECT * FROM v_contrato WHERE persona_id=? ORDER BY inicio, documento_id""",
+        (persona_id,))]
+    alias = [dict(r) for r in cx.execute("""
+        SELECT nombre_literal, COUNT(*) AS veces FROM persona_alias
+         WHERE persona_id=? GROUP BY nombre_literal ORDER BY veces DESC""", (persona_id,))]
+
+    solapes = [dict(r) for r in cx.execute("""
+        SELECT a.documento_id AS doc_a, b.documento_id AS doc_b,
+               a.archivo AS archivo_a, b.archivo AS archivo_b,
+               CASE WHEN a.camara = b.camara THEN 'intracámara' ELSE 'intercámara' END AS cruce,
+               MAX(a.inicio, b.inicio) AS desde, MIN(a.fin, b.fin) AS hasta,
+               CAST(julianday(MIN(a.fin,b.fin)) - julianday(MAX(a.inicio,b.inicio)) + 1
+                    AS INTEGER) AS dias
+          FROM v_contrato a JOIN v_contrato b
+            ON a.persona_id=b.persona_id AND a.documento_id < b.documento_id
+         WHERE a.persona_id=? AND a.inicio IS NOT NULL AND a.fin IS NOT NULL
+           AND b.inicio IS NOT NULL AND b.fin IS NOT NULL
+           AND a.inicio <= b.fin AND b.inicio <= a.fin
+         ORDER BY dias DESC""", (persona_id,))]
+
+    ids = [c["documento_id"] for c in contratos] or [-1]
+    marcas = ",".join("?" * len(ids))
+    interp = [dict(r) for r in cx.execute(f"""
+        SELECT DISTINCT i.* FROM interpretacion i
+          JOIN interpretacion_fuente f ON f.interpretacion_id = i.id
+         WHERE f.documento_id IN ({marcas}) ORDER BY i.clase, i.id""", ids)]
+    for i in interp:
+        i["fuentes"] = [dict(r) for r in cx.execute("""
+            SELECT f.documento_id, f.nota, a.nombre AS archivo
+              FROM interpretacion_fuente f
+              LEFT JOIN documento d ON d.id = f.documento_id
+              LEFT JOIN archivo a ON a.sha256 = d.sha256
+             WHERE f.interpretacion_id=? LIMIT 12""", (i["id"],))]
+
+    con_monto = [c for c in contratos if c["monto_centavos"] is not None]
+    return {
+        "persona": dict(p),
+        "alias": alias,
+        "contratos": contratos,
+        "solapes": solapes,
+        "interpretaciones": interp,
+        "totales": {
+            "contratos": len(contratos),
+            "sin_monto": len(contratos) - len(con_monto),
+            "sin_fechas": sum(1 for c in contratos if not (c["inicio"] and c["fin"])),
+            "acumulado_centavos": sum(c["monto_centavos"] for c in con_monto),
+            "camaras": sorted({c["camara"] for c in contratos if c["camara"]}),
+            "desde": min((c["inicio"] for c in contratos if c["inicio"]), default=None),
+            "hasta": max((c["fin"] for c in contratos if c["fin"]), default=None),
+        },
+    }
 
 
 def api_cola(cx, limite=400) -> list[dict]:
@@ -207,6 +279,10 @@ class Manejador(BaseHTTPRequestHandler):
                         cur = cx.execute("SELECT * FROM v_contrato ORDER BY documento_id")
                         cols = [d[0] for d in cur.description]
                         return self._json([dict(zip(cols, f)) for f in cur.fetchall()])
+                    if ruta == "/api/persona":
+                        return self._json(api_persona(cx, int(q["id"][0])))
+                    if ruta == "/api/buscar":
+                        return self._json(busqueda.buscar(cx, q.get("q", [""])[0]))
                     if ruta == "/api/documento":
                         return self._json(api_documento(cx, int(q["id"][0])))
                     if ruta == "/api/cola":
@@ -221,6 +297,20 @@ class Manejador(BaseHTTPRequestHandler):
                               FROM fusion_propuesta f WHERE f.estado='pendiente' ORDER BY f.score DESC""")])
                     if ruta == "/api/interpretaciones":
                         return self._json(api_interpretaciones(cx))
+                    if ruta == "/api/trabajo":
+                        est = PROCESADOR.estado.como_dict() if PROCESADOR else {"estado": "inactivo"}
+                        est["sin_leer"] = cx.execute(
+                            """SELECT COUNT(*) FROM archivo a
+                                WHERE (SELECT COUNT(*) FROM pagina p JOIN lectura l
+                                        ON l.pagina_id=p.id WHERE p.sha256=a.sha256) = 0"""
+                        ).fetchone()[0]
+                        est["lotes"] = [dict(r) for r in cx.execute(
+                            """SELECT p.lote, COUNT(*) AS archivos,
+                                      SUM(a.paginas) AS paginas,
+                                      MAX(a.ingerido_en) AS ultimo
+                                 FROM procedencia p JOIN archivo a ON a.sha256=p.sha256
+                                GROUP BY p.lote ORDER BY ultimo DESC""")]
+                        return self._json(est)
                     if ruta == "/api/excepciones":
                         return self._json([dict(r) for r in cx.execute(
                             "SELECT * FROM excepcion WHERE estado='abierta' ORDER BY id DESC LIMIT 200")])
@@ -235,9 +325,43 @@ class Manejador(BaseHTTPRequestHandler):
     def do_POST(self):
         u = urlparse(self.path)
         largo = int(self.headers.get("Content-Length", 0))
-        cuerpo = json.loads(self.rfile.read(largo) or b"{}")
+
+        # La subida manda el PDF crudo en el cuerpo, con los metadatos en la URL. Es a
+        # propósito: evita parsear multipart (que salió de la biblioteca estándar) y da
+        # progreso archivo por archivo sin esfuerzo.
+        if u.path == "/api/subir":
+            q = parse_qs(u.query)
+            datos = self.rfile.read(largo) if largo else b""
+            cx = _cx()
+            try:
+                g = guardar(cx, datos, q.get("nombre", ["sin-nombre.pdf"])[0],
+                            lote=(q.get("lote", ["sin-lote"])[0] or "sin-lote").strip(),
+                            legajo=(q.get("legajo", [None])[0] or None),
+                            acta=(q.get("acta", [None])[0] or None),
+                            domicilio=(q.get("domicilio", [None])[0] or None),
+                            operador=(q.get("operador", [None])[0] or None))
+                return self._json({"ok": True, "sha256": g.sha256, "nombre": g.nombre,
+                                   "paginas": g.paginas, "duplicado": g.duplicado})
+            except ArchivoInvalido as e:
+                return self._json({"ok": False, "error": str(e)}, 400)
+            except Exception as e:
+                traceback.print_exc()
+                return self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
+            finally:
+                cx.close()
+
+        try:
+            cuerpo = json.loads(self.rfile.read(largo) or b"{}")
+        except json.JSONDecodeError:
+            return self._json({"error": "cuerpo JSON inválido"}, 400)
         cx = _cx()
         try:
+            if u.path == "/api/procesar":
+                if PROCESADOR is None:
+                    return self._json({"error": "procesador no disponible"}, 500)
+                return self._json(PROCESADOR.arrancar(
+                    perfil=cuerpo.get("perfil", "contrato_legislatura"),
+                    con_vlm=bool(cuerpo.get("vlm"))))
             if u.path == "/api/campo":
                 return self._json(api_decidir_campo(
                     cx, int(cuerpo["campo_id"]), cuerpo["accion"],
@@ -246,6 +370,8 @@ class Manejador(BaseHTTPRequestHandler):
                 c3.decidir_fusion(cx, int(cuerpo["id"]), bool(cuerpo["aceptar"]),
                                   cuerpo.get("quien", ""))
                 return self._json({"ok": True})
+            if u.path == "/api/reindexar":
+                return self._json({"paginas": busqueda.reindexar(cx)})
             if u.path == "/api/interpretar":
                 return self._json(c5.regenerar(cx))
             if u.path == "/api/exportar":
@@ -263,8 +389,10 @@ class Manejador(BaseHTTPRequestHandler):
 
 
 def servir(base: Path | None, puerto: int = 8713, host: str = "127.0.0.1") -> None:
-    global RUTA_BASE
+    global RUTA_BASE, PROCESADOR
     RUTA_BASE = base
+    db.abrir(base).close()          # el esquema se aplica UNA vez, acá
+    PROCESADOR = Procesador(base)
     srv = ThreadingHTTPServer((host, puerto), Manejador)
     print(f"  UFIL · análisis documental")
     print(f"  http://{host}:{puerto}")

@@ -399,6 +399,370 @@ async function vConsultas(id) {
     : ''}`);
 }
 
+
+
+/* ── Búsqueda ──────────────────────────────────────────────────────────── */
+function resaltar(fragmento) {
+  return esc(fragmento).replace(/\[\[/g, '<mark>').replace(/\]\]/g, '</mark>');
+}
+
+async function vBuscar(q) {
+  q = q ? decodeURIComponent(q) : '';
+  const r = q ? await api('/api/buscar?q=' + encodeURIComponent(q)) : null;
+  vista.innerHTML = bloque('f. 0010', 'Buscar', `
+    <h2>Buscar en el corpus</h2>
+    <form id="f-buscar" style="display:flex; gap:8px; margin:12px 0 6px; flex-wrap:wrap">
+      <input type="text" id="q" value="${esc(q)}" style="flex:1; min-width:260px; font-size:14px"
+        placeholder="un apellido, un CUIL, una palabra del contrato…" autocomplete="off">
+      <button class="boton" type="submit">Buscar</button>
+    </form>
+    <p class="prosa" style="font-size:13px">Sin tildes está bien: <span class="mono">locacion</span>
+      encuentra <span class="mono">locación</span>. Entre comillas busca la frase exacta.</p>
+    ${r ? resultadosHTML(r) : '<div class="vacio">Escribí algo y dale a Buscar.</div>'}`);
+
+  const form = $('#f-buscar');
+  form.onsubmit = e => { e.preventDefault();
+    location.hash = '#/buscar/' + encodeURIComponent($('#q').value.trim()); };
+  if (!q) $('#q').focus();
+}
+
+function resultadosHTML(r) {
+  if (r.aviso) return `<div class="aviso"><span class="sello alerta">Atención</span>
+    <span>${esc(r.aviso)}</span></div>`;
+  const nada = !r.campos.length && !r.paginas.length;
+  if (nada) return `<div class="vacio">Sin coincidencias para «${esc(r.consulta)}».</div>`;
+  return `
+    ${r.campos.length ? `
+      <h3 style="margin-top:22px">En los datos extraídos <span class="rotulo">(${r.campos.length})</span></h3>
+      <p class="prosa" style="font-size:13px">Esto son <strong>contratos</strong>: el dato ya
+        está leído y anclado.</p>
+      ${tabla([
+        {t:'Archivo', k:'archivo', c:'fol'},
+        {t:'Campo', k:'campo'},
+        {t:'Valor leído', c:'mono', r:f => esc(f.valor_literal)},
+        {t:'Contratado/a', r:f => esc(f.nombre_literal || '—')},
+        {t:'Período', c:'mono', r:f => f.inicio ? `${esc(f.inicio)} → ${esc(f.fin || '?')}` : '—'},
+        {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '—' : esc(fmtPesos(f.monto_centavos))},
+      ], r.campos, {alClic:true})}` : ''}
+    ${r.paginas.length ? `
+      <h3 style="margin-top:24px">En el texto de los folios <span class="rotulo">(${r.paginas.length})</span></h3>
+      <p class="prosa" style="font-size:13px">Esto son <strong>lugares donde mirar</strong>:
+        apareció en la página, sin que sea un campo extraído.</p>
+      <div class="hallazgos">${r.paginas.map(p => `
+        <a class="hallazgo" href="#/documento/${p.documento_id}">
+          <span class="fol">${esc(p.archivo)} · f. ${p.nro}</span>
+          <span class="frag">${resaltar(p.fragmento)}</span>
+        </a>`).join('')}</div>` : ''}`;
+}
+
+/* ── Personas ──────────────────────────────────────────────────────────── */
+async function vPersonas() {
+  const filas = await api('/api/documentos');
+  vista.innerHTML = bloque('f. 0011', 'Personas', `
+    <h2>Contratados</h2>
+    <p class="prosa">Agrupados por documento cuando lo hay. <strong>Los que no tienen
+      documento legible aparecen sueltos</strong>, uno por contrato: sin clave fuerte el
+      sistema no los junta solo, y eso es a propósito.</p>
+    ${tabla([
+      {t:'Contratado/a', k:'contratado'},
+      {t:'Documento', c:'mono', r:f => f.documento ? esc(f.documento) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Contratos', k:'contratos', c:'num'},
+      {t:'Sin monto', c:'num', r:f => f.contratos_sin_monto ? `<span class="marca">${f.contratos_sin_monto}</span>` : '0'},
+      {t:'Acumulado', c:'num', r:f => esc(fmtPesos(f.acumulado_centavos))},
+      {t:'Cámaras', r:f => esc(f.camaras || '—')},
+      {t:'Desde', k:'primer_inicio', c:'mono'},
+      {t:'Hasta', k:'ultimo_fin', c:'mono'},
+      {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
+    ], filas, {alClic:true})}`);
+  vista.querySelectorAll('tbody tr').forEach(tr =>
+    tr.onclick = () => location.hash = '#/persona/' + filas[+tr.dataset.i].persona_id);
+}
+
+/* Cronología de tramos: un renglón por contrato sobre un eje temporal común.
+   Un solo tono para los contratos; el rojo de estado marca SÓLO la superposición,
+   que es lo que el gráfico existe para mostrar. La cámara va como texto, no como
+   color: la identidad nunca depende del color solo. */
+function cronologia(contratos, solapes) {
+  const conFechas = contratos.filter(c => c.inicio && c.fin);
+  if (conFechas.length < 1) return '';
+  const dia = 86400000;
+  const t0 = Math.min(...conFechas.map(c => +new Date(c.inicio)));
+  const t1 = Math.max(...conFechas.map(c => +new Date(c.fin)));
+  const margen = Math.max((t1 - t0) * 0.03, 10 * dia);
+  const a = t0 - margen, b = t1 + margen;
+  const x = t => (100 * (t - a) / (b - a));
+
+  const anios = [];
+  for (let y = new Date(a).getFullYear(); y <= new Date(b).getFullYear(); y++) {
+    const t = +new Date(y, 0, 1);
+    if (t >= a && t <= b) anios.push({y, izq: x(t)});
+  }
+
+  const tramos = conFechas.map(c => {
+    const i = +new Date(c.inicio), f = +new Date(c.fin);
+    const solapa = solapes.some(s => s.doc_a === c.documento_id || s.doc_b === c.documento_id);
+    const dias = Math.round((f - i) / dia) + 1;
+    return `<div class="tramo-fila">
+      <div class="tramo-rot">
+        <span class="mono">Cám. ${esc(c.camara || '?')}</span>
+        <span class="fol">${esc(c.archivo.replace('.pdf',''))}</span>
+      </div>
+      <div class="tramo-pista">
+        ${anios.map(n => `<i class="guia" style="left:${n.izq}%"></i>`).join('')}
+        <a class="tramo${solapa ? ' solapa' : ''}" href="#/documento/${c.documento_id}"
+           style="left:${x(i)}%; width:${Math.max(x(f) - x(i), 0.7)}%"
+           title="${esc(c.inicio)} → ${esc(c.fin)} · ${dias} días · ${esc(c.cargo || 'sin cargo')}${
+             c.monto_centavos != null ? ' · ' + fmtPesos(c.monto_centavos) : ''}"></a>
+      </div>
+      <div class="tramo-dato mono">${esc(c.inicio)} → ${esc(c.fin)}</div>
+    </div>`;
+  }).join('');
+
+  const sinFechas = contratos.length - conFechas.length;
+  return `
+    <div class="cronologia">
+      <div class="tramo-fila eje">
+        <div class="tramo-rot"></div>
+        <div class="tramo-pista">${anios.map(n =>
+          `<span class="anio" style="left:${n.izq}%">${n.y}</span>`).join('')}</div>
+        <div class="tramo-dato"></div>
+      </div>
+      ${tramos}
+    </div>
+    <div class="leyenda">
+      <span><i class="mues"></i> contrato</span>
+      <span><i class="mues solapa"></i> se pisa con otro de la misma persona</span>
+      ${sinFechas ? `<span class="marca">${sinFechas} contrato${sinFechas===1?'':'s'} sin
+        fechas firmes, fuera del gráfico</span>` : ''}
+    </div>`;
+}
+
+async function vPersona(id) {
+  const d = await api('/api/persona?id=' + id);
+  const t = d.totales;
+  const nombre = d.alias[0] ? d.alias[0].nombre_literal : '(sin nombre legible)';
+  const otros = d.alias.slice(1);
+
+  vista.innerHTML = bloque('f. ' + String(id).padStart(4,'0'), 'Ficha', `
+    <h2>${esc(nombre)}</h2>
+    <p class="prosa" style="font-size:13.5px">
+      ${d.persona.clave_fuerte
+        ? `Documento <span class="mono">${esc(d.persona.doc_tipo)} ${esc(d.persona.doc_numero)}</span> ·
+           los contratos se agruparon por clave fuerte.`
+        : `<strong>Sin documento legible.</strong> Este contratado no se agrupó con ningún otro:
+           el nombre solo nunca alcanza para decir que dos contratos son de la misma persona.`}
+      ${otros.length ? `<br>También aparece escrito como ${otros.map(o =>
+        `<span class="mono">${esc(o.nombre_literal)}</span>`).join(', ')}.` : ''}</p>
+
+    <div class="cifras" style="margin:14px 0 4px">
+      <div class="cifra"><b>${t.contratos}</b><span>contratos</span></div>
+      <div class="cifra"><b>${esc(fmtPesos(t.acumulado_centavos) || '—')}</b><span>acumulado</span></div>
+      <div class="cifra ${d.solapes.length ? 'alerta' : ''}"><b>${d.solapes.length}</b><span>superposiciones</span></div>
+      <div class="cifra"><b>${esc((t.camaras || []).join(' + ') || '—')}</b><span>cámaras</span></div>
+      <div class="cifra ${t.sin_monto ? 'alerta' : ''}"><b>${t.sin_monto}</b><span>sin monto legible</span></div>
+    </div>
+    ${t.sin_monto || t.sin_fechas ? `<p class="prosa" style="font-size:12.5px">
+      El acumulado suma sólo los contratos con monto firme: hay ${t.sin_monto} sin monto y
+      ${t.sin_fechas} sin fechas completas. <strong>Es un piso, no un total.</strong></p>` : ''}
+
+    <h3 style="margin-top:24px">Cronología</h3>
+    ${cronologia(d.contratos, d.solapes)}
+
+    ${d.solapes.length ? `
+      <h3 style="margin-top:26px">Períodos que se pisan</h3>
+      ${tabla([
+        {t:'Folios', c:'fol', r:f => `${esc(f.archivo_a)}<br>${esc(f.archivo_b)}`},
+        {t:'Cruce', r:f => f.cruce === 'intercámara' ? `<span class="marca">${esc(f.cruce)}</span>` : esc(f.cruce)},
+        {t:'Desde', k:'desde', c:'mono'},
+        {t:'Hasta', k:'hasta', c:'mono'},
+        {t:'Días', k:'dias', c:'num'},
+      ], d.solapes)}` : ''}
+
+    <h3 style="margin-top:26px">Contratos</h3>
+    ${tabla([
+      {t:'Archivo', k:'archivo', c:'fol'},
+      {t:'Cámara', k:'camara'},
+      {t:'Cargo', r:f => esc(f.cargo || '—')},
+      {t:'Inicio', k:'inicio', c:'mono'},
+      {t:'Fin', r:f => f.fin ? `<span class="mono">${esc(f.fin)}</span>` : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '<span class="nulo">Ø sin dato</span>' : esc(fmtPesos(f.monto_centavos))},
+      {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
+    ], d.contratos, {alClic:true})}
+
+    ${d.interpretaciones.length ? `
+      <div style="margin-top:26px">
+        <span class="rotulo">Carril de interpretación</span>
+        <p class="prosa" style="font-size:13px;margin:6px 0 12px">Nada de esto se leyó de un
+          papel. Son hipótesis armadas cruzando los datos de arriba, y pueden estar mal.</p>
+        ${d.interpretaciones.map(interpHTML).join('')}
+      </div>` : ''}`);
+
+  const tablas = vista.querySelectorAll('.tabla-env table');
+  const ultima = tablas[tablas.length - 1];
+  if (ultima) ultima.querySelectorAll('tbody tr').forEach(tr =>
+    tr.onclick = () => location.hash = '#/documento/' + d.contratos[+tr.dataset.i].documento_id);
+}
+
+/* ── Carga de escaneos ─────────────────────────────────────────────────── */
+let subiendo = false;
+
+async function vIngesta() {
+  const t = await api('/api/trabajo');
+  const lote = localStorage.getItem('ufil.lote') || '';
+  vista.innerHTML = bloque('f. 0000', 'Ingesta', `
+    <h2>Cargar escaneos</h2>
+    <p class="prosa">Arrastrá acá los PDF escaneados, o elegilos. Se guardan tal cual
+      llegaron, bajo su propio hash y en solo lectura: <strong>el archivo que subís no se
+      vuelve a tocar nunca más</strong>. Si un PDF ya estaba, no se duplica — se anota que
+      apareció de nuevo y se sigue.</p>
+
+    <div class="campos-lote">
+      <label>Lote <input type="text" id="i-lote" value="${esc(lote)}"
+        placeholder="contratos-camara-A-2024"></label>
+      <label>Legajo <input type="text" id="i-legajo" placeholder="opcional"></label>
+      <label>Quién carga <input type="text" id="i-operador"
+        value="${esc(localStorage.getItem('ufil.revisor') || '')}" placeholder="apellido.nombre"></label>
+    </div>
+
+    <div class="soltar" id="soltar" tabindex="0" role="button"
+         aria-label="Soltar archivos PDF acá o presionar para elegirlos">
+      <b>Soltá los PDF acá</b>
+      <span>o hacé clic para elegirlos · sólo PDF · hasta 200 MB cada uno</span>
+      <input type="file" id="i-archivos" accept="application/pdf,.pdf" multiple hidden>
+    </div>
+    <div id="subidas"></div>
+
+    <div style="display:flex; gap:10px; align-items:center; margin-top:18px; flex-wrap:wrap">
+      <button class="boton" id="b-procesar" ${t.sin_leer ? '' : 'disabled'}>
+        Procesar ${t.sin_leer || 0} documento${t.sin_leer === 1 ? '' : 's'} sin leer</button>
+      <span class="rotulo" id="estado-trabajo"></span>
+    </div>
+    <div id="progreso"></div>
+
+    ${t.lotes && t.lotes.length ? `
+      <h3 style="margin-top:26px">Lotes cargados</h3>
+      ${tabla([
+        {t:'Lote', k:'lote'},
+        {t:'Archivos', k:'archivos', c:'num'},
+        {t:'Páginas', k:'paginas', c:'num'},
+        {t:'Última carga', c:'fol', r:f => esc(String(f.ultimo || '').slice(0,16).replace('T',' '))},
+      ], t.lotes)}` : ''}`);
+
+  const zona = $('#soltar'), input = $('#i-archivos');
+  zona.onclick = () => input.click();
+  zona.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } };
+  input.onchange = () => subir([...input.files]);
+  ['dragenter','dragover'].forEach(ev => zona.addEventListener(ev, e => {
+    e.preventDefault(); zona.classList.add('encima'); }));
+  ['dragleave','drop'].forEach(ev => zona.addEventListener(ev, e => {
+    e.preventDefault(); zona.classList.remove('encima'); }));
+  zona.addEventListener('drop', e => subir([...e.dataTransfer.files]));
+
+  $('#b-procesar').onclick = async () => {
+    const r = await api('/api/procesar', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({})});
+    if (!r.ok) return alert(r.motivo || 'No se pudo arrancar');
+    seguirTrabajo();
+  };
+  if (t.estado === 'corriendo') seguirTrabajo(); else pintarTrabajo(t);
+}
+
+async function subir(archivos) {
+  if (subiendo || !archivos.length) return;
+  const pdfs = archivos.filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+  const salteados = archivos.length - pdfs.length;
+  if (!pdfs.length) return alert('Ninguno de esos archivos es un PDF.');
+
+  const lote = ($('#i-lote').value || '').trim();
+  if (!lote) { $('#i-lote').focus(); return alert('Poné un nombre de lote antes de subir.'); }
+  localStorage.setItem('ufil.lote', lote);
+  const operador = ($('#i-operador').value || '').trim();
+  if (operador) localStorage.setItem('ufil.revisor', operador);
+
+  subiendo = true;
+  const caja = $('#subidas');
+  caja.innerHTML = `<div class="lista-subida"></div>`;
+  const lista = caja.firstElementChild;
+  let nuevos = 0, dups = 0, fallos = 0;
+
+  for (const [i, f] of pdfs.entries()) {
+    const fila = document.createElement('div');
+    fila.className = 'subida';
+    fila.innerHTML = `<span class="fol">${i+1}/${pdfs.length}</span>
+      <span class="nom">${esc(f.name)}</span><span class="res">subiendo…</span>`;
+    lista.appendChild(fila);
+    fila.scrollIntoView({block:'nearest'});
+    try {
+      const q = new URLSearchParams({nombre: f.name, lote,
+        legajo: ($('#i-legajo').value || '').trim(), operador});
+      const r = await fetch('/api/subir?' + q, {method:'POST',
+        headers:{'Content-Type':'application/pdf'}, body: f});
+      const j = await r.json();
+      if (!r.ok || !j.ok) { fallos++; fila.querySelector('.res').innerHTML =
+        `<span class="marca">${esc(j.error || 'error')}</span>`; }
+      else if (j.duplicado) { dups++; fila.querySelector('.res').innerHTML =
+        `<span class="nulo">ya estaba</span>`; }
+      else { nuevos++; fila.querySelector('.res').innerHTML =
+        `<span class="ok-txt">${j.paginas} pág.</span>`; }
+    } catch (e) {
+      fallos++; fila.querySelector('.res').innerHTML = `<span class="marca">${esc(e.message)}</span>`;
+    }
+  }
+  subiendo = false;
+  const resumen = document.createElement('p');
+  resumen.className = 'prosa';
+  resumen.style.marginTop = '12px';
+  resumen.innerHTML = `<strong>${nuevos} nuevo${nuevos===1?'':'s'}</strong>, ${dups} ya estaban` +
+    (fallos ? `, <span class="marca">${fallos} con error</span>` : '') +
+    (salteados ? `, ${salteados} salteados por no ser PDF` : '') +
+    `. Ahora tocá <em>Procesar</em>.`;
+  caja.appendChild(resumen);
+
+  const b = $('#b-procesar');
+  const t = await api('/api/trabajo');
+  b.disabled = !t.sin_leer;
+  b.textContent = `Procesar ${t.sin_leer} documento${t.sin_leer===1?'':'s'} sin leer`;
+  refrescarCuentas();
+}
+
+function pintarTrabajo(t) {
+  const p = $('#progreso'); if (!p) return;
+  if (t.estado === 'inactivo') { p.innerHTML = ''; return; }
+  const pct = t.total ? Math.round(100 * t.hecho / t.total) : 0;
+  const falta = t.faltan_segundos != null
+    ? ` · faltan ~${t.faltan_segundos > 90 ? Math.round(t.faltan_segundos/60)+' min' : t.faltan_segundos+' s'}`
+    : '';
+  p.innerHTML = `
+    <div class="progreso">
+      <div class="cab"><span class="rotulo">${esc(t.etapa || t.estado)}</span>
+        <span class="mono">${t.hecho}/${t.total}${esc(falta)}</span></div>
+      <div class="riel"><i style="width:${pct}%"></i></div>
+      ${t.estado === 'terminado' ? `<p class="prosa" style="font-size:13px;margin:10px 0 0">
+         <strong>Listo.</strong> ${esc(t.mensaje)} · ${t.segundos} s.
+         <a href="#/panel">Ver el panel</a> · <a href="#/cola">Ir a la cola</a></p>` : ''}
+      ${t.estado === 'error' ? `<div class="aviso" style="margin-top:10px">
+         <span class="sello alerta">Error</span><span>${esc(t.mensaje)}</span></div>` : ''}
+      ${(t.errores || []).length ? `<details style="margin-top:10px"><summary class="rotulo">
+         ${t.errores.length} documento(s) con problemas</summary>
+         <ul style="margin-top:8px">${t.errores.slice(0,20).map(e =>
+           `<li>${esc(e.etapa)}: ${esc(e.detalle)}</li>`).join('')}</ul></details>` : ''}
+    </div>`;
+}
+
+let temporizador = null;
+async function seguirTrabajo() {
+  clearTimeout(temporizador);
+  const t = await api('/api/trabajo');
+  pintarTrabajo(t);
+  const b = $('#b-procesar');
+  if (b) b.disabled = t.estado === 'corriendo' || !t.sin_leer;
+  if (t.estado === 'corriendo') {
+    temporizador = setTimeout(seguirTrabajo, 1500);
+  } else {
+    refrescarCuentas();
+  }
+}
+
 /* ── ruteo ─────────────────────────────────────────────────────────────── */
 async function refrescarCuentas() {
   try {
@@ -415,7 +779,11 @@ async function refrescarCuentas() {
 
 const rutas = [
   [/^#\/panel$/,                 vPanel],
+  [/^#\/ingesta$/,               vIngesta],
   [/^#\/contratos$/,             vContratos],
+  [/^#\/personas$/,              vPersonas],
+  [/^#\/persona\/(\d+)$/,        vPersona],
+  [/^#\/buscar\/?(.*)$/,         vBuscar],
   [/^#\/superposiciones$/,       vSuperposiciones],
   [/^#\/documento\/(\d+)$/,      vDocumento],
   [/^#\/cola$/,                  vCola],

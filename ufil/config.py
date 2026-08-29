@@ -36,6 +36,21 @@ OCR_CONFIG = {
 # Umbral por debajo del cual la celda se marca con trama en la interfaz.
 UMBRAL_CONFIANZA = 0.85
 
+# Confianza mínima que le exigimos a la relectura focalizada para que su discrepancia
+# levante un CONFLICTO. Por debajo de esto, discrepar sólo castiga la confianza del
+# campo y lo manda a revisión. El motivo es empírico: con el alfabeto restringido la
+# relectura es muy buena cuando está segura y bastante ruidosa cuando no, y un
+# conflicto por ruido le cuesta al equipo el mismo tiempo que uno de verdad.
+UMBRAL_FOCAL_CONFLICTO = 0.80
+
+# Relectura focalizada de campos dudosos. Medida sobre el corpus sintético de 200 DPI:
+# como tercera opinión de rutina PIERDE contra la lectura de página (84,6% contra
+# 94,7%), porque agrandar y binarizar un recorte no agrega información que no esté en
+# el píxel. Queda encendida sólo como DESEMPATE de campos ya dudosos y de alfabeto
+# restringido, donde no cuesta exactitud y ofrece una segunda candidata para elegir.
+# Sobre escaneos reales de 300 DPI puede rendir distinto: hay que volver a medirlo.
+RELECTURA_FOCAL = True
+
 # Campos críticos: los únicos que exigen doble lectura y tolerancia cero al
 # error silencioso (ver docs/00-fase-0.md §6).
 CAMPOS_CRITICOS = ("nombre", "documento", "fecha_inicio", "fecha_fin", "monto")

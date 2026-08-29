@@ -12,10 +12,10 @@ legajo se hace después, a mano, sobre la documentación original.
 
 ## Estado
 
-**Fase 1 — el piloto del Caso A corre de punta a punta.** Ingesta con hash y
-procedencia, lectura con coordenadas por dos rutas, extracción anclada con cotejo entre
-rutas, resolución de identidad, cruces SQL, interfaz web y exportación a `.xlsx` y
-`.rtf`.
+**Corre de punta a punta, y se opera desde la interfaz.** Se arrastran los PDF
+escaneados a la pantalla de carga, se procesa en segundo plano con barra de progreso, y
+a partir de ahí se trabaja: buscar en todo el corpus, ficha por contratado con
+cronología, cola de revisión por teclado, cruces y exportación a `.xlsx` y `.rtf`.
 
 Medido sobre 50 contratos sintéticos: **86 % de campos críticos resueltos sin
 intervención y cero errores silenciosos**, pero **por debajo de los umbrales de
@@ -27,11 +27,19 @@ exactitud** propuestos en la Fase 0. El detalle honesto, con lo que falta, está
 ## Arrancar
 
 ```bash
-./scripts/descargar-fuentes.sh          # una vez, con internet
-python3 herramientas/generar_fixtures.py --cantidad 50   # corpus de prueba
+./scripts/descargar-fuentes.sh    # una vez, con internet
+python3 -m ufil.cli servir        # http://127.0.0.1:8713
+```
+
+Y desde ahí: **Cargar escaneos** → arrastrar los PDF → **Procesar**. Nada más.
+
+Para probarlo sin documentos reales, hay un generador de corpus sintético con verdad
+conocida:
+
+```bash
+python3 herramientas/generar_fixtures.py --cantidad 50
 python3 -m ufil.cli piloto datos/corpus-sintetico --lote piloto-01 \
         --referencia datos/corpus-sintetico/referencia.csv
-python3 -m ufil.cli servir               # http://127.0.0.1:8713
 ```
 
 Instalación en la máquina de la fiscalía, paso por paso: [`INSTALAR.md`](INSTALAR.md).
@@ -79,7 +87,7 @@ por accidente.
 | 3 | `capa3_identidad.py` | Clave fuerte automática; fusiones por similitud **sólo propuestas** |
 | 4 | `consultas/*.sql` · `capa4_analisis.py` | Cruces determinísticos, cada uno un archivo versionado |
 | 5 | `capa5_interpretacion.py` | El otro carril. Hoy, reglas; mañana, un LLM local |
-| 6 | `servidor.py` · `web/` | Interfaz local, sin dependencias ni build |
+| 6 | `servidor.py` · `web/` · `almacen.py` · `trabajo.py` · `busqueda.py` | Carga de escaneos, procesamiento en segundo plano, búsqueda e interfaz local — sin dependencias ni build |
 | 7 | `capa7_export.py` | `.xlsx` y `.rtf` con cita de archivo y foja |
 
 ---
@@ -91,6 +99,7 @@ por accidente.
 | [`docs/00-fase-0.md`](docs/00-fase-0.md) | Preguntas abiertas, decisión construir/adoptar, stack y umbrales de calidad |
 | [`docs/01-identidad-visual.md`](docs/01-identidad-visual.md) | El sistema visual: por qué la tipografía es la etiqueta de procedencia |
 | [`docs/02-fase-1.md`](docs/02-fase-1.md) | **Qué se construyó, qué mide y qué falta.** Con los números. |
+| [`docs/03-carga-y-trabajo.md`](docs/03-carga-y-trabajo.md) | Carga desde la interfaz, búsqueda, ficha del contratado, y un experimento de lectura que salió mal. |
 | [`docs/identidad/guia-visual.html`](docs/identidad/guia-visual.html) | La guía visual, se abre con doble clic |
 | [`INSTALAR.md`](INSTALAR.md) | Instalación en dos etapas y operación diaria |
 
