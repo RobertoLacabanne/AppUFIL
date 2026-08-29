@@ -1,0 +1,23 @@
+# Material de legajo: NUNCA se versiona.
+banco-de-prueba/paginas/
+banco-de-prueba/referencia.csv
+banco-de-prueba/resultados/
+corpus/
+originales/
+derivados/
+*.pdf
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Modelos y pesos: viajan en disco externo, no en git.
+modelos/
+*.gguf
+*.safetensors
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+.DS_Store

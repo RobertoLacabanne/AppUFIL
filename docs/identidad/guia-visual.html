@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retícula de Expediente — UFIL Paraná</title>
+<style>
+:root{color-scheme:light dark}
+html,body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<style>
+/* Fuentes servidas desde disco. Ninguna llamada de red (restricción 1).
+   Se obtienen una sola vez con ./scripts/descargar-fuentes.sh */
+@font-face{font-family:'Archivo';src:url('../../assets/fuentes/Archivo[wdth,wght].ttf') format('truetype-variations');font-weight:400 700;font-style:normal;font-display:swap}
+@font-face{font-family:'Archivo';src:url('../../assets/fuentes/Archivo-Italic[wdth,wght].ttf') format('truetype-variations');font-weight:400 700;font-style:italic;font-display:swap}
+@font-face{font-family:'Source Serif 4';src:url('../../assets/fuentes/SourceSerif4[opsz,wght].ttf') format('truetype-variations');font-weight:400 700;font-style:normal;font-display:swap}
+@font-face{font-family:'Source Serif 4';src:url('../../assets/fuentes/SourceSerif4-Italic[opsz,wght].ttf') format('truetype-variations');font-weight:400 700;font-style:italic;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('../../assets/fuentes/IBMPlexMono-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('../../assets/fuentes/IBMPlexMono-Medium.ttf') format('truetype');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('../../assets/fuentes/IBMPlexMono-SemiBold.ttf') format('truetype');font-weight:600;font-style:normal;font-display:swap}
+</style>
+<style>
+:root{
+  --tinta:#1B1D21; --tinta-2:#5A5D64; --tinta-3:#84868C;
+  --papel:#FCFBF9; --papel-2:#F1EFEA; --papel-3:#E7E4DD;
+  --filete:#CFCBC2; --filete-2:#E3E0D9;
+  --sello:#23477A; --sello-suave:#DCE4F0;
+  --interp:#E9EDF3; --interp-filete:#7F97B8;
+  --verde:#2C5946; --ambar:#8A6714; --lapiz:#96301F; --lapiz-suave:#F4E2DE;
+  --sans:'Archivo','Helvetica Neue',Arial,sans-serif;
+  --serif:'Source Serif 4',Georgia,'Times New Roman',serif;
+  --mono:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;
+  --canaleta:112px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --tinta:#E6E3DC; --tinta-2:#9B9A95; --tinta-3:#75767A;
+  --papel:#16181B; --papel-2:#1E2126; --papel-3:#272B31;
+  --filete:#33373D; --filete-2:#25292E;
+  --sello:#7EA3D6; --sello-suave:#1C2836;
+  --interp:#1B2028; --interp-filete:#4A5E7A;
+  --verde:#79B79B; --ambar:#D0A63F; --lapiz:#E08472; --lapiz-suave:#31201D;
+}}
+:root[data-theme="dark"]{
+  --tinta:#E6E3DC; --tinta-2:#9B9A95; --tinta-3:#75767A;
+  --papel:#16181B; --papel-2:#1E2126; --papel-3:#272B31;
+  --filete:#33373D; --filete-2:#25292E;
+  --sello:#7EA3D6; --sello-suave:#1C2836;
+  --interp:#1B2028; --interp-filete:#4A5E7A;
+  --verde:#79B79B; --ambar:#D0A63F; --lapiz:#E08472; --lapiz-suave:#31201D;
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--papel); color:var(--tinta);
+  font-family:var(--sans); font-size:13px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.hoja{max-width:1140px; margin:0 auto; padding:0 28px 96px}
+
+/* ── Retícula de expediente: canaleta de marginalia + cuerpo ───────────── */
+.bloque{
+  display:grid; grid-template-columns:var(--canaleta) 1fr;
+  border-top:1px solid var(--filete); padding-top:18px; margin-top:44px;
+}
+.marginalia{
+  border-right:1px solid var(--filete-2); padding-right:16px;
+  font-family:var(--mono); font-size:11px; color:var(--tinta-3);
+  display:flex; flex-direction:column; gap:6px; text-align:right;
+}
+.cuerpo{padding-left:24px; min-width:0}
+.folio{font-variant-numeric:tabular-nums; letter-spacing:.02em}
+
+h1,h2,h3{margin:0; text-wrap:balance; font-weight:600}
+h2{font-size:24px; letter-spacing:-.015em; line-height:1.2}
+h3{font-size:15px; letter-spacing:.005em; margin-bottom:8px}
+p{margin:0 0 12px; max-width:68ch}
+.prosa{font-family:var(--serif); font-size:15px; line-height:1.62; color:var(--tinta-2)}
+.prosa strong{color:var(--tinta); font-weight:600}
+
+.rotulo{
+  font-size:10px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--tinta-3);
+}
+
+/* ── El sello: doble filete, versalitas, sin rotación ──────────────────── */
+.sello{
+  display:inline-block; padding:5px 11px 4px;
+  border:1px solid currentColor; outline:1px solid currentColor; outline-offset:2px;
+  font-size:10px; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--sello); background:transparent;
+}
+.sello.alerta{color:var(--lapiz)}
+
+/* ── Cabecera ──────────────────────────────────────────────────────────── */
+.masthead{
+  display:grid; grid-template-columns:var(--canaleta) 1fr auto; gap:0;
+  align-items:end; padding:56px 0 20px; border-bottom:2px solid var(--tinta);
+}
+.masthead .marginalia{border-right:none; padding-right:16px}
+.masthead h1{
+  font-size:34px; letter-spacing:-.025em; line-height:1.02; padding-left:24px;
+}
+.masthead .sub{
+  padding-left:24px; margin-top:8px; font-size:12px; color:var(--tinta-2);
+  letter-spacing:.01em;
+}
+.aviso{
+  margin-top:20px; display:flex; gap:14px; align-items:baseline;
+  border-left:3px solid var(--lapiz); background:var(--lapiz-suave);
+  padding:10px 14px; font-size:12px; color:var(--tinta);
+}
+
+/* ── Los dos carriles ──────────────────────────────────────────────────── */
+.carriles{display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--filete)}
+@media (max-width:860px){.carriles{grid-template-columns:1fr}}
+.carril{padding:18px 20px 22px}
+.carril--dato{background:var(--papel); border-right:1px solid var(--filete)}
+.carril--interp{
+  background:var(--interp); border-left:3px solid var(--interp-filete);
+}
+@media (max-width:860px){.carril--dato{border-right:none;border-bottom:1px solid var(--filete)}}
+.carril h3{display:flex; align-items:center; gap:10px; margin-bottom:14px}
+.carril h3 .rotulo{color:inherit}
+
+.campo{
+  display:grid; grid-template-columns:112px 1fr; gap:12px; align-items:baseline;
+  padding:7px 0; border-bottom:1px solid var(--filete-2);
+}
+.campo:last-of-type{border-bottom:none}
+.campo dt{font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--tinta-3)}
+.campo dd{margin:0; font-family:var(--mono); font-size:13px; font-variant-numeric:tabular-nums}
+
+/* ficha de anclaje: el único radio del sistema */
+.ancla{
+  font-family:var(--mono); font-size:10px; letter-spacing:.02em;
+  border:1px solid var(--filete); border-radius:2px; background:var(--papel-2);
+  color:var(--sello); padding:1px 5px; margin-left:8px; cursor:pointer;
+  white-space:nowrap; font-variant-numeric:tabular-nums;
+}
+.ancla:hover{background:var(--sello-suave); border-color:var(--sello)}
+.ancla[aria-pressed="true"]{background:var(--sello); border-color:var(--sello); color:var(--papel)}
+:focus-visible{outline:2px solid var(--sello); outline-offset:2px}
+
+.interp-texto{
+  font-family:var(--serif); font-style:italic; font-size:15px; line-height:1.6;
+  color:var(--tinta); margin:0 0 14px;
+}
+.fuentes{display:flex; flex-wrap:wrap; gap:6px; padding-top:10px; border-top:1px solid var(--interp-filete)}
+.chip{
+  font-family:var(--mono); font-size:10px; padding:2px 6px; border-radius:2px;
+  border:1px solid var(--interp-filete); color:var(--tinta-2); background:transparent;
+}
+
+/* ── Estados ───────────────────────────────────────────────────────────── */
+.nulo{
+  font-family:var(--sans); font-size:10.5px; font-weight:600; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--tinta-3);
+  background:var(--papel-2); border:1px solid var(--filete-2); padding:2px 7px;
+}
+.conflicto{border-left:3px solid var(--lapiz); padding-left:12px; margin-left:-15px}
+.conflicto .ruta{
+  display:flex; gap:10px; align-items:baseline; font-family:var(--mono); font-size:12.5px;
+}
+.conflicto .ruta span:first-child{
+  font-family:var(--sans); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--tinta-3); width:74px; flex:none;
+}
+.baja-confianza{
+  background-image:repeating-linear-gradient(-45deg,transparent 0 5px,rgba(138,103,20,.16) 5px 6px);
+}
+
+.barra{display:inline-flex; gap:2px; vertical-align:middle; margin-right:7px}
+.barra i{width:5px; height:11px; background:var(--filete); display:block}
+.barra i.on{background:var(--verde)}
+.barra.media i.on{background:var(--ambar)}
+.barra.baja i.on{background:var(--lapiz)}
+
+/* ── Tipografía: las tres voces ────────────────────────────────────────── */
+.voces{display:grid; grid-template-columns:repeat(3,1fr); gap:0; border:1px solid var(--filete)}
+@media (max-width:860px){.voces{grid-template-columns:1fr}}
+.voz{padding:18px 20px; border-right:1px solid var(--filete)}
+.voz:last-child{border-right:none}
+.voz .muestra{font-size:30px; line-height:1.15; margin:10px 0 12px; letter-spacing:-.02em}
+.voz .nota{font-size:11.5px; color:var(--tinta-2); max-width:32ch}
+.v-sans .muestra{font-family:var(--sans); font-weight:600}
+.v-serif .muestra{font-family:var(--serif)}
+.v-mono .muestra{font-family:var(--mono); font-size:25px; font-variant-numeric:tabular-nums}
+
+/* ── Paleta ────────────────────────────────────────────────────────────── */
+.paleta{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--filete); border:1px solid var(--filete)}
+.tono{background:var(--papel); padding:0}
+.tono .swatch{height:52px; border-bottom:1px solid var(--filete)}
+.tono .meta{padding:7px 10px 9px}
+.tono b{display:block; font-size:11px; font-weight:600; letter-spacing:.01em}
+.tono code{font-family:var(--mono); font-size:10.5px; color:var(--tinta-3)}
+
+/* ── Visor de folio ────────────────────────────────────────────────────── */
+.visor{display:grid; grid-template-columns:1fr 372px; gap:0; border:1px solid var(--filete)}
+@media (max-width:900px){.visor{grid-template-columns:1fr}}
+.visor .datos{padding:18px 20px; border-right:1px solid var(--filete)}
+.visor .lamina{background:var(--papel-2); padding:16px; display:flex; flex-direction:column; gap:10px}
+.visor svg{width:100%; height:auto; display:block; border:1px solid var(--filete); background:#FDFCFA}
+#marco{transition:x .28s cubic-bezier(.4,0,.2,1),y .28s cubic-bezier(.4,0,.2,1),width .28s,height .28s}
+@media (prefers-reduced-motion:reduce){#marco{transition:none}}
+.pie-lamina{font-family:var(--mono); font-size:10.5px; color:var(--tinta-2); display:flex; justify-content:space-between; gap:10px}
+
+/* ── Tablas ────────────────────────────────────────────────────────────── */
+.tabla-env{overflow-x:auto; border:1px solid var(--filete)}
+table{border-collapse:collapse; width:100%; font-size:12.5px}
+thead th{
+  text-align:left; font-size:10px; font-weight:600; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--tinta-3);
+  padding:9px 12px; border-bottom:1px solid var(--tinta); white-space:nowrap;
+}
+tbody td{padding:8px 12px; border-bottom:1px solid var(--filete-2); vertical-align:baseline}
+tbody tr:last-child td{border-bottom:none}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+.fol{font-family:var(--mono); font-size:10.5px; color:var(--tinta-3); font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--papel-2)}
+.marca-sup{color:var(--lapiz); font-weight:600}
+
+/* ── Cola de revisión ──────────────────────────────────────────────────── */
+.cola{border:1px solid var(--filete)}
+.cola-fila{display:grid; grid-template-columns:var(--canaleta) 1fr 190px; border-bottom:1px solid var(--filete-2)}
+.cola-fila:last-child{border-bottom:none}
+.cola-fila.foco{background:var(--papel-2); box-shadow:inset 3px 0 0 var(--sello)}
+.cola-fila .marginalia{padding:12px 16px 12px 0; border-right:1px solid var(--filete-2)}
+.cola-fila .med{padding:12px 20px}
+.cola-fila .acc{padding:12px 16px; border-left:1px solid var(--filete-2); display:flex; flex-direction:column; gap:6px}
+.tecla{
+  display:inline-flex; align-items:center; gap:8px; font-size:11.5px; color:var(--tinta-2);
+}
+kbd{
+  font-family:var(--mono); font-size:10.5px; border:1px solid var(--filete);
+  border-bottom-width:2px; padding:1px 5px; background:var(--papel); color:var(--tinta);
+}
+
+.pie{
+  margin-top:56px; padding-top:16px; border-top:2px solid var(--tinta);
+  font-size:11.5px; color:var(--tinta-2); display:flex; flex-wrap:wrap; gap:24px;
+  justify-content:space-between;
+}
+.pie code{font-family:var(--mono); font-size:11px}
+.cod{font-family:var(--mono); font-size:12px; background:var(--papel-2); padding:1px 4px}
+.sql{font-family:var(--mono); font-size:12.5px; margin:0; padding:11px 14px;
+  background:var(--papel-2); border-left:3px solid var(--sello); color:var(--tinta);
+  overflow-x:auto; letter-spacing:.01em}
+.sql b{color:var(--sello); font-weight:600}
+
+@media (max-width:860px){
+  .paleta{grid-template-columns:repeat(2,1fr)}
+  .tres-estados{grid-template-columns:1fr !important}
+  .tres-estados>div{border-right:none !important; border-bottom:1px solid var(--filete)}
+  .tres-estados>div:last-child{border-bottom:none}
+}
+@media (max-width:900px){
+  .visor .datos{border-right:none; border-bottom:1px solid var(--filete)}
+}
+@media (max-width:620px){
+  :root{--canaleta:64px}
+  .hoja{padding:0 16px 72px}
+  .masthead{grid-template-columns:1fr; gap:12px}
+  .masthead .marginalia{flex-direction:row; gap:14px; text-align:left; padding:0}
+  .masthead h1,.masthead .sub{padding-left:0}
+  .cola-fila{grid-template-columns:1fr}
+  .cola-fila .marginalia{flex-direction:row; gap:12px; text-align:left; border-right:none; padding:12px 0 0}
+  .cola-fila .acc{border-left:none; border-top:1px solid var(--filete-2)}
+}
+</style>
+
+</head>
+<body>
+<div class="hoja">
+
+  <header class="masthead">
+    <div class="marginalia">
+      <span class="folio">f. 0001</span>
+      <span>v. 0.1</span>
+    </div>
+    <div>
+      <h1>Retícula de expediente</h1>
+      <div class="sub">Sistema visual · Análisis documental offline · UFIL Paraná — MPF Entre Ríos</div>
+    </div>
+    <div style="padding-bottom:4px"><span class="sello">Fase 0 — Propuesta</span></div>
+  </header>
+
+  <div class="aviso">
+    <span class="sello alerta" style="flex:none">Datos de muestra</span>
+    <span>Ningún valor de esta página proviene de un documento real. Los nombres son
+    ficticios y los números de documento están enmascarados. Es una demostración de
+    forma, no de contenido.</span>
+  </div>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section class="bloque">
+    <div class="marginalia">
+      <span class="folio">f. 0002</span>
+      <span class="rotulo" style="text-align:right">Regla 1</span>
+    </div>
+    <div class="cuerpo">
+      <h2>Los dos carriles</h2>
+      <p class="prosa" style="margin-top:10px">
+        Es la única regla que la interfaz tiene que enseñar sin explicarla. A la
+        izquierda, <strong>lo que dice el papel</strong>: monoespaciada, con su anclaje,
+        sobre fondo de papel. A la derecha, <strong>lo que el sistema piensa</strong>:
+        serif en bastardilla, sobre un fondo distinto, con las fuentes que la sostienen
+        colgadas abajo. Un fiscal mira la pantalla desde un metro y ya sabe cuál es cuál.
+      </p>
+
+      <div class="carriles">
+        <div class="carril carril--dato">
+          <h3><span class="rotulo">Carril de datos</span> <span class="sello">Leído</span></h3>
+          <dl style="margin:0">
+            <div class="campo">
+              <dt>Contratado/a</dt>
+              <dd>ALMADA, Rosa I.<button class="ancla" data-marco="0">A-0142 · f.3 · ▣</button></dd>
+            </div>
+            <div class="campo">
+              <dt>Documento</dt>
+              <dd>27-XXXXXXXX-4<button class="ancla" data-marco="1">A-0142 · f.3 · ▣</button></dd>
+            </div>
+            <div class="campo">
+              <dt>Inicio</dt>
+              <dd>2021-03-01<button class="ancla" data-marco="1">A-0142 · f.7 · ▣</button></dd>
+            </div>
+            <div class="campo">
+              <dt>Fin</dt>
+              <dd><span class="nulo">Ø Ilegible</span></dd>
+            </div>
+            <div class="campo">
+              <dt>Monto</dt>
+              <dd class="baja-confianza">182.400,00<button class="ancla" data-marco="2">A-0142 · f.7 · ▣</button></dd>
+            </div>
+          </dl>
+          <div style="margin-top:14px; display:flex; align-items:center; gap:8px">
+            <span class="barra media"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>
+            <span style="font-family:var(--mono);font-size:11px">0,71</span>
+            <span class="rotulo">confianza del registro</span>
+          </div>
+        </div>
+
+        <div class="carril carril--interp">
+          <h3><span class="rotulo">Carril de interpretación</span> <span class="sello">Conjetura</span></h3>
+          <p class="interp-texto">
+            El período de esta contratación se superpone con otro contrato de la misma
+            persona en la cámara opuesta. La superposición abarcaría unos cuatro meses.
+            El monto está por encima del rango habitual para el cargo declarado, aunque
+            la lectura del monto tiene confianza baja y conviene verificarla en el folio
+            antes de sacar conclusiones.
+          </p>
+          <div class="fuentes">
+            <span class="chip">A-0142 f.7</span>
+            <span class="chip">B-0067 f.2</span>
+            <span class="chip">consulta: superposición</span>
+            <span class="chip">n=1.284 contratos</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="prosa" style="margin-top:18px">
+        Fijate en el detalle que hace toda la diferencia: en el carril de interpretación
+        <strong>no hay una sola cifra en monoespaciada</strong>. Las cifras en mono son
+        datos leídos. Si el sistema estima algo, lo dice con palabras y lo respalda con
+        fichas, nunca con un número que parezca medido.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section class="bloque">
+    <div class="marginalia">
+      <span class="folio">f. 0003</span>
+      <span class="rotulo" style="text-align:right">Tipografía</span>
+    </div>
+    <div class="cuerpo">
+      <h2>Las tres voces</h2>
+      <p class="prosa" style="margin-top:10px">
+        La familia tipográfica <strong>es</strong> la etiqueta de procedencia. No hace
+        falta un ícono ni un color: la forma de la letra ya dice de dónde salió eso que
+        estás leyendo.
+      </p>
+      <div class="voces">
+        <div class="voz v-sans">
+          <span class="rotulo">La aplicación habla</span>
+          <div class="muestra">Archivo</div>
+          <div class="nota">Grotesca de Omnibus-Type, fundición argentina. Rótulos,
+          encabezados, botones. Todo lo que dice el sistema por sí mismo.</div>
+        </div>
+        <div class="voz v-serif">
+          <span class="rotulo">El documento habla</span>
+          <div class="muestra">Source Serif</div>
+          <div class="nota">Transcripciones y, en bastardilla, la interpretación.
+          Es texto para leer seguido, no para escanear con la vista.</div>
+        </div>
+        <div class="voz v-mono">
+          <span class="rotulo">El dato habla</span>
+          <div class="muestra">182.400,00</div>
+          <div class="nota">IBM Plex Mono, cifras tabulares. Si está en mono, se leyó
+          de un papel y tiene anclaje. Sin excepciones.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section class="bloque">
+    <div class="marginalia">
+      <span class="folio">f. 0004</span>
+      <span class="rotulo" style="text-align:right">Color</span>
+    </div>
+    <div class="cuerpo">
+      <h2>Paleta</h2>
+      <p class="prosa" style="margin-top:10px">
+        Neutros cálidos de papel, <strong>un solo acento</strong> —el azul del tampón de
+        sello— y tres semánticos que no compiten con él. El rojo óxido es el lápiz del
+        corrector: es el único color que levanta la voz, y grita una sola cosa.
+      </p>
+      <div class="paleta">
+        <div class="tono"><div class="swatch" style="background:#1B1D21"></div><div class="meta"><b>Tinta</b><code>#1B1D21</code></div></div>
+        <div class="tono"><div class="swatch" style="background:#FCFBF9"></div><div class="meta"><b>Papel</b><code>#FCFBF9</code></div></div>
+        <div class="tono"><div class="swatch" style="background:#F1EFEA"></div><div class="meta"><b>Papel hundido</b><code>#F1EFEA</code></div></div>
+        <div class="tono"><div class="swatch" style="background:#23477A"></div><div class="meta"><b>Azul tampón · acento</b><code>#23477A</code></div></div>
+        <div class="tono"><div class="swatch" style="background:#E9EDF3"></div><div class="meta"><b>Fondo interpretación</b><code>#E9EDF3</code></div></div>
+        <div class="tono"><div class="swatch" style="background:#2C5946"></div><div class="meta"><b>Verificado</b><code>#2C5946</code></div></div>
+        <div class="tono"><div class="swatch" style="background:#8A6714"></div><div class="meta"><b>Confianza baja</b><code>#8A6714</code></div></div>
+        <div class="tono"><div class="swatch" style="background:#96301F"></div><div class="meta"><b>Conflicto</b><code>#96301F</code></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section class="bloque">
+    <div class="marginalia">
+      <span class="folio">f. 0005</span>
+      <span class="rotulo" style="text-align:right">Regla 2</span>
+    </div>
+    <div class="cuerpo">
+      <h2>Cuando el sistema no sabe</h2>
+      <p class="prosa" style="margin-top:10px">
+        Tres formas para tres situaciones distintas. Ninguna de las tres se parece a un
+        campo lleno, y ninguna se resuelve sola.
+      </p>
+
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0; border:1px solid var(--filete)" class="tres-estados">
+        <div style="padding:18px 20px; border-right:1px solid var(--filete)">
+          <span class="rotulo">Confianza</span>
+          <div style="margin:12px 0 10px; display:flex; flex-direction:column; gap:9px; font-family:var(--mono); font-size:12.5px">
+            <div><span class="barra"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>0,97 &nbsp;<span style="color:var(--verde)">alta</span></div>
+            <div><span class="barra media"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>0,71 &nbsp;<span style="color:var(--ambar)">media</span></div>
+            <div class="baja-confianza" style="padding:2px 4px"><span class="barra baja"><i class="on"></i><i></i><i></i><i></i><i></i></span>0,28 &nbsp;<span style="color:var(--lapiz)">baja</span></div>
+          </div>
+          <div class="nota" style="font-size:11.5px; color:var(--tinta-2)">Por debajo de 0,85 la
+          celda se cubre con trama. La trama se ve de lejos; el número está para cuando
+          te acercás.</div>
+        </div>
+
+        <div style="padding:18px 20px; border-right:1px solid var(--filete)">
+          <span class="rotulo">Nulo con motivo</span>
+          <div style="margin:12px 0 10px; display:flex; flex-direction:column; gap:8px; align-items:flex-start">
+            <span class="nulo">Ø Ilegible</span>
+            <span class="nulo">Ø Ausente</span>
+            <span class="nulo">Ø Ambiguo</span>
+          </div>
+          <div class="nota" style="font-size:11.5px; color:var(--tinta-2)">Una celda vacía es
+          ambigua: no sabés si el sistema no leyó o si el papel no decía. Entonces el
+          nulo se escribe. La ausencia también es un dato.</div>
+        </div>
+
+        <div style="padding:18px 20px">
+          <span class="rotulo">Conflicto entre rutas</span>
+          <div class="conflicto" style="margin:12px 0 10px 0">
+            <div class="ruta"><span>Tesseract</span><span>182.400,00</span></div>
+            <div class="ruta"><span>VLM</span><span>132.400,00</span></div>
+          </div>
+          <div class="nota" style="font-size:11.5px; color:var(--tinta-2)">Las dos lecturas no
+          coinciden. La interfaz <b>no elige</b>: muestra las dos, no guarda ninguna
+          como dato y manda el campo a la cola.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section class="bloque">
+    <div class="marginalia">
+      <span class="folio">f. 0006</span>
+      <span class="rotulo" style="text-align:right">Pantalla</span>
+    </div>
+    <div class="cuerpo">
+      <h2>Visor: el dato al lado del folio</h2>
+      <p class="prosa" style="margin-top:10px">
+        Tocá cualquier ficha de anclaje y el recuadro se mueve al lugar exacto del folio
+        de donde se leyó ese valor. Ese clic es toda la restricción 4 del pliego:
+        <strong>media hora de buscar el papel convertida en dos segundos.</strong>
+      </p>
+
+      <div class="visor">
+        <div class="datos">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:14px">
+            <h3 style="margin:0">Contrato A-0142</h3>
+            <span class="sello">En revisión</span>
+          </div>
+          <dl style="margin:0">
+            <div class="campo">
+              <dt>Contratado/a</dt>
+              <dd>ALMADA, Rosa I.<button class="ancla" data-marco="0" aria-pressed="true">f.3 · ▣</button></dd>
+            </div>
+            <div class="campo">
+              <dt>Cámara</dt>
+              <dd>Cámara A</dd>
+            </div>
+            <div class="campo">
+              <dt>Inicio</dt>
+              <dd>2021-03-01<button class="ancla" data-marco="1">f.7 · ▣</button></dd>
+            </div>
+            <div class="campo">
+              <dt>Fin</dt>
+              <dd>2021-12-31<button class="ancla" data-marco="2">f.7 · ▣</button></dd>
+            </div>
+            <div class="campo">
+              <dt>Monto</dt>
+              <dd class="num" style="text-align:left">182.400,00<button class="ancla" data-marco="3">f.7 · ▣</button></dd>
+            </div>
+            <div class="campo">
+              <dt>Ruta</dt>
+              <dd style="font-size:11.5px; color:var(--tinta-2)">vlm · doble lectura conforme</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="lamina">
+          <svg viewBox="0 0 360 470" role="img" aria-label="Esquema de un folio escaneado con el recuadro de anclaje resaltado">
+            <rect x="0" y="0" width="360" height="470" fill="#FDFCFA"/>
+            <text x="330" y="26" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="9" fill="#84868C">f. 0007</text>
+            <line x1="30" y1="36" x2="330" y2="36" stroke="#CFCBC2" stroke-width="1"/>
+            <text x="30" y="60" font-family="Archivo, sans-serif" font-size="11" font-weight="600" letter-spacing="1.6" fill="#5A5D64">CONTRATO DE LOCACIÓN DE SERVICIOS</text>
+            <g fill="#DEDBD4">
+              <rect x="30" y="76" width="300" height="4"/><rect x="30" y="86" width="272" height="4"/>
+              <rect x="30" y="96" width="288" height="4"/>
+            </g>
+            <text x="34" y="128" font-family="Archivo, sans-serif" font-size="8" letter-spacing="1" fill="#84868C">APELLIDO Y NOMBRE</text>
+            <text x="34" y="146" font-family="IBM Plex Mono, monospace" font-size="12" fill="#1B1D21">ALMADA, Rosa I.</text>
+            <line x1="30" y1="154" x2="215" y2="154" stroke="#CFCBC2"/>
+            <text x="238" y="128" font-family="Archivo, sans-serif" font-size="8" letter-spacing="1" fill="#84868C">CUIL</text>
+            <text x="238" y="146" font-family="IBM Plex Mono, monospace" font-size="11" fill="#1B1D21">27-XXXXXXXX-4</text>
+            <line x1="234" y1="154" x2="330" y2="154" stroke="#CFCBC2"/>
+            <g fill="#DEDBD4">
+              <rect x="30" y="176" width="300" height="4"/><rect x="30" y="186" width="310" height="4"/>
+              <rect x="30" y="196" width="246" height="4"/>
+            </g>
+            <text x="34" y="234" font-family="Archivo, sans-serif" font-size="8" letter-spacing="1" fill="#84868C">DESDE</text>
+            <text x="34" y="252" font-family="IBM Plex Mono, monospace" font-size="12" fill="#1B1D21">01/03/2021</text>
+            <line x1="30" y1="260" x2="140" y2="260" stroke="#CFCBC2"/>
+            <text x="184" y="234" font-family="Archivo, sans-serif" font-size="8" letter-spacing="1" fill="#84868C">HASTA</text>
+            <text x="184" y="252" font-family="IBM Plex Mono, monospace" font-size="12" fill="#1B1D21">31/12/2021</text>
+            <line x1="180" y1="260" x2="290" y2="260" stroke="#CFCBC2"/>
+            <text x="34" y="298" font-family="Archivo, sans-serif" font-size="8" letter-spacing="1" fill="#84868C">RETRIBUCIÓN MENSUAL</text>
+            <text x="34" y="318" font-family="IBM Plex Mono, monospace" font-size="14" fill="#1B1D21">$ 182.400,00</text>
+            <line x1="30" y1="326" x2="200" y2="326" stroke="#CFCBC2"/>
+            <g fill="#DEDBD4">
+              <rect x="30" y="352" width="300" height="4"/><rect x="30" y="362" width="290" height="4"/>
+              <rect x="30" y="372" width="180" height="4"/>
+            </g>
+            <path d="M232 418 q14 -22 30 -6 t28 -10" fill="none" stroke="#3A3D44" stroke-width="1.3" opacity=".55"/>
+            <line x1="220" y1="432" x2="330" y2="432" stroke="#CFCBC2"/>
+            <text x="220" y="444" font-family="Archivo, sans-serif" font-size="7.5" letter-spacing="1" fill="#84868C">FIRMA</text>
+            <rect id="marco" x="30" y="116" width="192" height="42" fill="#23477A" fill-opacity=".07" stroke="#23477A" stroke-width="1.5"/>
+          </svg>
+          <div class="pie-lamina">
+            <span id="pie-campo">campo: contratado/a</span>
+            <span id="pie-coords">f.3 · [30,116,192,42]</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section class="bloque">
+    <div class="marginalia">
+      <span class="folio">f. 0007</span>
+      <span class="rotulo" style="text-align:right">Pantalla</span>
+    </div>
+    <div class="cuerpo">
+      <h2>Tablero de superposiciones</h2>
+      <p class="prosa" style="margin-top:10px">
+        La consulta central del Caso A. Cada fila es un par de contratos de la misma
+        persona cuyos períodos se pisan. La foliatura vive en la primera columna, como
+        en el expediente: es la dirección para ir a ver.
+      </p>
+      <div class="tabla-env">
+        <table>
+          <thead>
+            <tr>
+              <th>Folios</th><th>Contratado/a</th><th>Documento</th><th>Cruce</th>
+              <th class="num">Días</th><th class="num">Monto A</th><th class="num">Monto B</th><th class="num">Acumulado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="fol">A-0142 / B-0067</td>
+              <td>ALMADA, Rosa I.</td>
+              <td class="num" style="text-align:left">27-XXXXXXXX-4</td>
+              <td><span class="marca-sup">intercámara</span></td>
+              <td class="num">122</td><td class="num">182.400,00</td><td class="num">164.900,00</td><td class="num">347.300,00</td>
+            </tr>
+            <tr>
+              <td class="fol">A-0219 / A-0301</td>
+              <td>BENÍTEZ, Julio C.</td>
+              <td class="num" style="text-align:left">20-XXXXXXXX-1</td>
+              <td>intracámara</td>
+              <td class="num">61</td><td class="num">96.750,00</td><td class="num">96.750,00</td><td class="num">193.500,00</td>
+            </tr>
+            <tr>
+              <td class="fol">B-0044 / B-0098</td>
+              <td>CORREA, Silvia N.</td>
+              <td class="num" style="text-align:left"><span class="nulo">Ø Ausente</span></td>
+              <td>intracámara</td>
+              <td class="num">30</td><td class="num">74.200,00</td><td class="num baja-confianza">74.200,00</td><td class="num">148.400,00</td>
+            </tr>
+            <tr>
+              <td class="fol">A-0177 / B-0112</td>
+              <td>DUARTE, Marcelo A.</td>
+              <td class="num" style="text-align:left">20-XXXXXXXX-7</td>
+              <td><span class="marca-sup">intercámara</span></td>
+              <td class="num">243</td><td class="num">210.000,00</td><td class="num">198.500,00</td><td class="num">408.500,00</td>
+            </tr>
+            <tr>
+              <td class="fol">A-0355 / A-0402</td>
+              <td>ESQUIVEL, Ana P.</td>
+              <td class="num" style="text-align:left">27-XXXXXXXX-9</td>
+              <td>intracámara</td>
+              <td class="num">14</td><td class="num">88.300,00</td><td class="num">91.100,00</td><td class="num">179.400,00</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prosa" style="margin-top:14px; font-size:13.5px">
+        Los montos van en cifras tabulares y alineados a la derecha, así una columna se
+        lee como columna. Y nada de esto sale de un modelo: es una consulta, guardada en
+        un archivo <code class="cod">.sql</code> versionado.
+      </p>
+      <pre class="sql">inicio_A &lt;= fin_B <b>AND</b> inicio_B &lt;= fin_A</pre>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+  <section class="bloque">
+    <div class="marginalia">
+      <span class="folio">f. 0008</span>
+      <span class="rotulo" style="text-align:right">Pantalla</span>
+    </div>
+    <div class="cuerpo">
+      <h2>Cola de revisión</h2>
+      <p class="prosa" style="margin-top:10px">
+        Todo lo que el sistema no resolvió cae acá, y se opera con el teclado sin tocar
+        el mouse. Es la contracara de la regla de calidad: <strong>preferimos que el
+        sistema dude mucho y se equivoque callado nunca.</strong> La cola larga es la
+        señal de que está funcionando bien.
+      </p>
+      <div class="cola">
+        <div class="cola-fila foco">
+          <div class="marginalia"><span class="folio">A-0142</span><span>f. 7</span></div>
+          <div class="med">
+            <div style="display:flex; gap:10px; align-items:baseline; margin-bottom:8px">
+              <span class="rotulo">Conflicto entre rutas</span><span class="sello alerta">Monto</span>
+            </div>
+            <div class="conflicto" style="margin-left:0">
+              <div class="ruta"><span>Tesseract</span><span>182.400,00</span></div>
+              <div class="ruta"><span>VLM</span><span>132.400,00</span></div>
+            </div>
+          </div>
+          <div class="acc">
+            <span class="tecla"><kbd>1</kbd> tomar Tesseract</span>
+            <span class="tecla"><kbd>2</kbd> tomar VLM</span>
+            <span class="tecla"><kbd>N</kbd> ninguna, Ø ambiguo</span>
+            <span class="tecla"><kbd>ESP</kbd> ver el folio</span>
+          </div>
+        </div>
+        <div class="cola-fila">
+          <div class="marginalia"><span class="folio">B-0044</span><span>f. 2</span></div>
+          <div class="med">
+            <div style="display:flex; gap:10px; align-items:baseline; margin-bottom:8px">
+              <span class="rotulo">Fusión de identidad propuesta</span><span class="sello">Confirmar</span>
+            </div>
+            <div style="font-family:var(--mono); font-size:12.5px; display:flex; flex-direction:column; gap:3px">
+              <span>CORREA, Silvia N. &nbsp;<span style="color:var(--tinta-3)">— sin documento</span></span>
+              <span>CORREA, Silvia Noemí &nbsp;<span style="color:var(--tinta-3)">— 27-XXXXXXXX-2</span></span>
+            </div>
+          </div>
+          <div class="acc">
+            <span class="tecla"><kbd>F</kbd> fusionar</span>
+            <span class="tecla"><kbd>S</kbd> son distintas</span>
+            <span class="tecla"><kbd>?</kbd> dejar pendiente</span>
+          </div>
+        </div>
+        <div class="cola-fila">
+          <div class="marginalia"><span class="folio">A-0301</span><span>f. 5</span></div>
+          <div class="med">
+            <div style="display:flex; gap:10px; align-items:baseline; margin-bottom:8px">
+              <span class="rotulo">Campo ilegible</span><span class="sello alerta">Fecha de fin</span>
+            </div>
+            <div style="font-size:12.5px; color:var(--tinta-2)">Sello de mesa de entradas
+            superpuesto al campo. Las dos rutas devolvieron Ø.</div>
+          </div>
+          <div class="acc">
+            <span class="tecla"><kbd>ESP</kbd> ver el folio</span>
+            <span class="tecla"><kbd>C</kbd> cargar a mano</span>
+            <span class="tecla"><kbd>X</kbd> Ø ilegible, firme</span>
+          </div>
+        </div>
+      </div>
+      <p class="prosa" style="margin-top:14px; font-size:13.5px">
+        Nótese que <strong>ninguna acción de esta cola es «aceptar todo»</strong>. La
+        fusión de identidades, en particular, no se aplica sola nunca: una fusión errónea
+        inventa un contratado con el doble de contratos, y eso contamina todos los cruces
+        río abajo sin dejar rastro.
+      </p>
+    </div>
+  </section>
+
+  <footer class="pie">
+    <div>
+      <b style="display:block; margin-bottom:4px">Retícula de expediente · v. 0.1</b>
+      Sistema visual del análisis documental offline · UFIL Paraná, MPF Entre Ríos
+    </div>
+    <div style="text-align:right">
+      Archivo · Source Serif 4 · IBM Plex Mono — las tres OFL, servidas desde disco.<br>
+      <code>docs/identidad/guia-visual.html</code> · <code>./scripts/descargar-fuentes.sh</code>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var marcos = [
+    {x:30,  y:116, w:192, h:42, campo:'contratado/a',       folio:'f.3'},
+    {x:30,  y:222, w:112, h:44, campo:'fecha de inicio',    folio:'f.7'},
+    {x:180, y:222, w:112, h:44, campo:'fecha de fin',       folio:'f.7'},
+    {x:30,  y:284, w:172, h:48, campo:'retribución mensual',folio:'f.7'}
+  ];
+  var marco  = document.getElementById('marco');
+  var pieC   = document.getElementById('pie-campo');
+  var pieXY  = document.getElementById('pie-coords');
+  var anclas = document.querySelectorAll('.ancla');
+
+  function ir(i, boton){
+    var m = marcos[i] || marcos[0];
+    marco.setAttribute('x', m.x); marco.setAttribute('y', m.y);
+    marco.setAttribute('width', m.w); marco.setAttribute('height', m.h);
+    pieC.textContent  = 'campo: ' + m.campo;
+    pieXY.textContent = m.folio + ' · [' + m.x + ',' + m.y + ',' + m.w + ',' + m.h + ']';
+    anclas.forEach(function(a){ a.setAttribute('aria-pressed', a === boton ? 'true' : 'false'); });
+  }
+
+  anclas.forEach(function(a){
+    a.setAttribute('type','button');
+    a.addEventListener('click', function(){ ir(parseInt(a.dataset.marco,10), a); });
+  });
+})();
+</script>
+</body>
+</html>
