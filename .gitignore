@@ -1,8 +1,9 @@
 # Material de legajo: NUNCA se versiona.
+datos/
+corpus/
 banco-de-prueba/paginas/
 banco-de-prueba/referencia.csv
 banco-de-prueba/resultados/
-corpus/
 originales/
 derivados/
 *.pdf

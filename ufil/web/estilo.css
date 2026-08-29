@@ -1,0 +1,224 @@
+/* Retícula de expediente — sistema visual del análisis documental de la UFIL Paraná.
+   La familia tipográfica es la etiqueta de procedencia:
+     mono  = dato leído de un papel, con anclaje
+     serif = texto del documento, o interpretación (en bastardilla)
+     sans  = la aplicación hablando.
+   Fuentes servidas desde disco. Ninguna llamada de red. */
+
+@font-face{font-family:'Archivo';src:url('/fuentes/Archivo-Variable.ttf') format('truetype-variations');font-weight:400 700;font-style:normal;font-display:swap}
+@font-face{font-family:'Source Serif 4';src:url('/fuentes/SourceSerif4-Variable.ttf') format('truetype-variations');font-weight:400 700;font-style:normal;font-display:swap}
+@font-face{font-family:'Source Serif 4';src:url('/fuentes/SourceSerif4-Italic-Variable.ttf') format('truetype-variations');font-weight:400 700;font-style:italic;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('/fuentes/IBMPlexMono-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('/fuentes/IBMPlexMono-Medium.ttf') format('truetype');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url('/fuentes/IBMPlexMono-SemiBold.ttf') format('truetype');font-weight:600;font-style:normal;font-display:swap}
+
+:root{
+  --tinta:#1B1D21; --tinta-2:#5A5D64; --tinta-3:#84868C;
+  --papel:#FCFBF9; --papel-2:#F1EFEA; --papel-3:#E7E4DD;
+  --filete:#CFCBC2; --filete-2:#E3E0D9;
+  --sello:#23477A; --sello-suave:#DCE4F0;
+  --interp:#E9EDF3; --interp-filete:#7F97B8;
+  --verde:#2C5946; --ambar:#8A6714; --lapiz:#96301F; --lapiz-suave:#F4E2DE;
+  --sans:'Archivo','Helvetica Neue',Arial,sans-serif;
+  --serif:'Source Serif 4',Georgia,'Times New Roman',serif;
+  --mono:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;
+  --canaleta:112px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]){
+  --tinta:#E6E3DC; --tinta-2:#9B9A95; --tinta-3:#75767A;
+  --papel:#16181B; --papel-2:#1E2126; --papel-3:#272B31;
+  --filete:#33373D; --filete-2:#25292E;
+  --sello:#7EA3D6; --sello-suave:#1C2836;
+  --interp:#1B2028; --interp-filete:#4A5E7A;
+  --verde:#79B79B; --ambar:#D0A63F; --lapiz:#E08472; --lapiz-suave:#31201D;
+}}
+:root[data-tema="oscuro"]{
+  --tinta:#E6E3DC; --tinta-2:#9B9A95; --tinta-3:#75767A;
+  --papel:#16181B; --papel-2:#1E2126; --papel-3:#272B31;
+  --filete:#33373D; --filete-2:#25292E;
+  --sello:#7EA3D6; --sello-suave:#1C2836;
+  --interp:#1B2028; --interp-filete:#4A5E7A;
+  --verde:#79B79B; --ambar:#D0A63F; --lapiz:#E08472; --lapiz-suave:#31201D;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--papel); color:var(--tinta); font-family:var(--sans);
+     font-size:13px; line-height:1.5; -webkit-font-smoothing:antialiased}
+:focus-visible{outline:2px solid var(--sello); outline-offset:2px}
+button{font:inherit; color:inherit}
+
+/* ── Encabezado institucional ─────────────────────────────────────────── */
+.barra{
+  position:sticky; top:0; z-index:20; background:var(--papel);
+  border-bottom:2px solid var(--tinta);
+  display:grid; grid-template-columns:var(--canaleta) 1fr auto; align-items:end;
+  padding:14px 24px 10px; gap:0;
+}
+.barra .titulo{padding-left:24px}
+.barra h1{margin:0; font-size:17px; font-weight:600; letter-spacing:-.015em}
+.barra .sub{font-size:11px; color:var(--tinta-2); margin-top:1px}
+.barra .folio{font-family:var(--mono); font-size:11px; color:var(--tinta-3);
+              text-align:right; padding-right:16px; line-height:1.35}
+.barra .der{display:flex; gap:8px; align-items:center; padding-bottom:2px}
+
+.sello{display:inline-block; padding:4px 9px 3px; border:1px solid currentColor;
+       outline:1px solid currentColor; outline-offset:2px; font-size:9.5px;
+       font-weight:600; letter-spacing:.15em; text-transform:uppercase;
+       color:var(--sello); background:transparent}
+.sello.alerta{color:var(--lapiz)} .sello.ok{color:var(--verde)}
+
+nav{display:flex; gap:0; border-bottom:1px solid var(--filete); padding:0 24px;
+    background:var(--papel); position:sticky; top:59px; z-index:19; overflow-x:auto}
+nav a{padding:9px 15px; text-decoration:none; color:var(--tinta-2); font-size:12px;
+      border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap}
+nav a:hover{color:var(--tinta); background:var(--papel-2)}
+nav a.activo{color:var(--tinta); border-bottom-color:var(--sello); font-weight:600}
+nav .cuenta{font-family:var(--mono); font-size:10px; color:var(--papel);
+            background:var(--lapiz); padding:0 4px; margin-left:6px; border-radius:2px}
+
+main{padding:0 24px 80px}
+.bloque{display:grid; grid-template-columns:var(--canaleta) 1fr;
+        border-top:1px solid var(--filete); padding-top:16px; margin-top:26px}
+.bloque:first-child{border-top:none; margin-top:18px}
+.marginalia{border-right:1px solid var(--filete-2); padding-right:16px; text-align:right;
+            font-family:var(--mono); font-size:10.5px; color:var(--tinta-3);
+            display:flex; flex-direction:column; gap:4px}
+.cuerpo{padding-left:24px; min-width:0}
+h2{margin:0 0 10px; font-size:21px; font-weight:600; letter-spacing:-.015em; text-wrap:balance}
+h3{margin:0 0 8px; font-size:13.5px; font-weight:600}
+.rotulo{font-size:9.5px; font-weight:600; letter-spacing:.13em; text-transform:uppercase;
+        color:var(--tinta-3)}
+.prosa{font-family:var(--serif); font-size:14.5px; line-height:1.6; color:var(--tinta-2);
+       max-width:68ch; margin:0 0 12px}
+.prosa strong{color:var(--tinta)}
+
+/* ── Cifras del panel ─────────────────────────────────────────────────── */
+.cifras{display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr));
+        border:1px solid var(--filete); background:var(--papel)}
+.cifra{padding:12px 14px 13px; border-right:1px solid var(--filete-2)}
+.cifra:last-child{border-right:none}
+.cifra b{display:block; font-family:var(--mono); font-size:23px; font-weight:500;
+         font-variant-numeric:tabular-nums; letter-spacing:-.02em; line-height:1.1}
+.cifra span{display:block; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+            color:var(--tinta-3); margin-top:5px}
+.cifra.alerta b{color:var(--lapiz)} .cifra.ok b{color:var(--verde)}
+
+/* ── Tablas ───────────────────────────────────────────────────────────── */
+.tabla-env{overflow-x:auto; border:1px solid var(--filete); background:var(--papel)}
+table{border-collapse:collapse; width:100%; font-size:12.5px}
+thead th{text-align:left; font-size:9.5px; font-weight:600; letter-spacing:.11em;
+         text-transform:uppercase; color:var(--tinta-3); padding:8px 11px;
+         border-bottom:1px solid var(--tinta); white-space:nowrap;
+         position:sticky; top:0; background:var(--papel)}
+tbody td{padding:7px 11px; border-bottom:1px solid var(--filete-2); vertical-align:baseline}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--papel-2)}
+tbody tr.clic{cursor:pointer}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.fol{font-family:var(--mono); font-size:10.5px; color:var(--tinta-3); white-space:nowrap}
+.marca{color:var(--lapiz); font-weight:600}   /* resaltado en tablas. OJO: no usar como nombre de bloque. */
+
+/* ── Estados del dato ─────────────────────────────────────────────────── */
+.nulo{font-size:10px; font-weight:600; letter-spacing:.11em; text-transform:uppercase;
+      color:var(--tinta-3); background:var(--papel-2); border:1px solid var(--filete-2);
+      padding:1px 6px; white-space:nowrap}
+.nulo.conf{color:var(--lapiz); border-color:var(--lapiz); background:var(--lapiz-suave)}
+.dudoso{background-image:repeating-linear-gradient(-45deg,transparent 0 5px,
+        rgba(138,103,20,.18) 5px 6px)}
+.barra-conf{display:inline-flex; gap:2px; vertical-align:middle; margin-right:6px}
+.barra-conf i{width:4px; height:10px; background:var(--filete); display:block}
+.barra-conf i.on{background:var(--verde)}
+.barra-conf.media i.on{background:var(--ambar)}
+.barra-conf.baja i.on{background:var(--lapiz)}
+
+.ancla{font-family:var(--mono); font-size:10px; border:1px solid var(--filete);
+       border-radius:2px; background:var(--papel-2); color:var(--sello);
+       padding:1px 5px; margin-left:7px; cursor:pointer; white-space:nowrap}
+.ancla:hover{background:var(--sello-suave); border-color:var(--sello)}
+.ancla[aria-pressed="true"]{background:var(--sello); border-color:var(--sello); color:var(--papel)}
+
+/* ── Carril de interpretación ─────────────────────────────────────────── */
+.interp{background:var(--interp); border-left:3px solid var(--interp-filete);
+        padding:13px 16px; margin-bottom:10px}
+.interp .texto{font-family:var(--serif); font-style:italic; font-size:14.5px;
+               line-height:1.58; color:var(--tinta); margin:8px 0 10px; max-width:74ch}
+.interp .fuentes{display:flex; flex-wrap:wrap; gap:5px; padding-top:9px;
+                 border-top:1px solid var(--interp-filete)}
+.chip{font-family:var(--mono); font-size:10px; padding:1px 6px; border-radius:2px;
+      border:1px solid var(--interp-filete); color:var(--tinta-2); background:transparent;
+      cursor:pointer; text-decoration:none}
+.chip:hover{background:var(--sello-suave); color:var(--tinta)}
+.clase{font-size:9.5px; font-weight:600; letter-spacing:.13em; text-transform:uppercase;
+       color:var(--interp-filete)}
+
+/* ── Visor ────────────────────────────────────────────────────────────── */
+.visor{display:grid; grid-template-columns:minmax(0,1fr) minmax(340px,44%); gap:0;
+       border:1px solid var(--filete); background:var(--papel)}
+.visor .datos{padding:16px 18px; border-right:1px solid var(--filete); min-width:0}
+.visor .lamina{background:var(--papel-2); padding:14px; display:flex; flex-direction:column; gap:9px}
+.lienzo{position:relative; background:#fff; border:1px solid var(--filete);
+        box-shadow:0 1px 0 var(--filete)}
+.lienzo img{display:block; width:100%; height:auto}
+.recuadro{position:absolute; border:2px solid var(--sello); background:rgba(35,71,122,.10);
+          transition:all .26s cubic-bezier(.4,0,.2,1); pointer-events:none}
+.recuadro.conf{border-color:var(--lapiz); background:rgba(150,48,31,.10)}
+@media (prefers-reduced-motion:reduce){.recuadro{transition:none}}
+.pie-lamina{font-family:var(--mono); font-size:10px; color:var(--tinta-2);
+            display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap}
+
+.campo{display:grid; grid-template-columns:118px 1fr; gap:10px; align-items:baseline;
+       padding:7px 0; border-bottom:1px solid var(--filete-2)}
+.campo:last-child{border-bottom:none}
+.campo dt{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--tinta-3)}
+.campo dd{margin:0; font-family:var(--mono); font-size:12.5px; word-break:break-word}
+.conflicto{border-left:3px solid var(--lapiz); padding-left:11px}
+.conflicto .ruta{display:flex; gap:9px; align-items:baseline; font-family:var(--mono); font-size:12px}
+.conflicto .ruta span:first-child{font-family:var(--sans); font-size:9px; letter-spacing:.09em;
+       text-transform:uppercase; color:var(--tinta-3); width:66px; flex:none}
+
+/* ── Cola de revisión ─────────────────────────────────────────────────── */
+.cola{border:1px solid var(--filete); background:var(--papel)}
+.fila{display:grid; grid-template-columns:var(--canaleta) minmax(0,1fr) 210px;
+      border-bottom:1px solid var(--filete-2)}
+.fila:last-child{border-bottom:none}
+.fila.foco{background:var(--papel-2); box-shadow:inset 3px 0 0 var(--sello)}
+.fila .marginalia{padding:11px 14px 11px 0}
+.fila .med{padding:11px 18px; min-width:0}
+.fila .acc{padding:11px 14px; border-left:1px solid var(--filete-2);
+           display:flex; flex-direction:column; gap:5px}
+.tecla{display:inline-flex; align-items:center; gap:8px; font-size:11px; color:var(--tinta-2);
+       background:none; border:none; padding:1px 0; cursor:pointer; text-align:left}
+.tecla:hover{color:var(--tinta)}
+kbd{font-family:var(--mono); font-size:10px; border:1px solid var(--filete);
+    border-bottom-width:2px; padding:0 5px; background:var(--papel); color:var(--tinta);
+    min-width:19px; display:inline-block; text-align:center}
+
+input[type=text]{font-family:var(--mono); font-size:12.5px; padding:4px 7px;
+  border:1px solid var(--filete); background:var(--papel); color:var(--tinta); border-radius:0}
+.boton{border:1px solid var(--sello); background:transparent; color:var(--sello);
+       padding:4px 11px; font-size:11px; cursor:pointer; letter-spacing:.03em}
+.boton:hover{background:var(--sello); color:var(--papel)}
+.boton.gris{border-color:var(--filete); color:var(--tinta-2)}
+.boton.gris:hover{background:var(--papel-2); color:var(--tinta)}
+
+pre.sql{font-family:var(--mono); font-size:11.5px; margin:0; padding:12px 14px;
+  background:var(--papel-2); border-left:3px solid var(--sello); color:var(--tinta);
+  overflow-x:auto; white-space:pre; line-height:1.45}
+.aviso{display:flex; gap:12px; align-items:baseline; border-left:3px solid var(--lapiz);
+       background:var(--lapiz-suave); padding:9px 13px; font-size:12px; margin-bottom:14px}
+.vacio{padding:26px; text-align:center; color:var(--tinta-3); font-family:var(--serif);
+       font-style:italic; font-size:14px}
+.cargando{padding:26px; color:var(--tinta-3); font-size:12px}
+
+@media (max-width:1000px){ .visor{grid-template-columns:1fr}
+  .visor .datos{border-right:none; border-bottom:1px solid var(--filete)} }
+@media (max-width:720px){
+  :root{--canaleta:0px}
+  .bloque,.barra{grid-template-columns:1fr}
+  .marginalia{display:none}
+  .cuerpo,.barra .titulo{padding-left:0}
+  .fila{grid-template-columns:1fr}
+  .fila .acc{border-left:none; border-top:1px solid var(--filete-2)}
+}

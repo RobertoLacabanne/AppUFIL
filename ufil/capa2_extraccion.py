@@ -1,0 +1,325 @@
+"""
+Capa 2 — Extracción estructurada con anclaje y doble lectura.
+
+Cómo funciona
+-------------
+El formulario se describe en un PERFIL declarativo (ufil/perfiles/*.json): por cada
+campo, qué rótulo lo precede, dónde buscar el valor respecto de ese rótulo, y con qué
+parser interpretarlo. Adaptar el sistema a un formulario distinto es editar un JSON,
+no tocar código: eso lo puede hacer el escribiente sin llamar a nadie.
+
+Es determinístico y auditable: no hay modelo generativo en el carril de datos, así que
+no hay forma de que aparezca un valor que no esté en la página.
+
+Doble lectura
+-------------
+Cada campo se extrae por TODAS las rutas de lectura disponibles y después se cotejan:
+
+  * dos o más rutas coinciden      -> es un dato
+  * dos o más rutas discrepan      -> es un CONFLICTO; no se guarda ningún valor
+  * una sola ruta encontró el valor-> se guarda, con la confianza penalizada y
+                                      marcado para revisión si el campo es crítico
+  * ninguna ruta lo encontró       -> nulo, con motivo
+
+Esa tercera regla es la que sostiene la promesa del §12: un valor de campo crítico
+leído por una sola ruta puede estar mal, pero nunca está mal EN SILENCIO.
+"""
+from __future__ import annotations
+
+import json
+import sqlite3
+from dataclasses import dataclass
+from difflib import SequenceMatcher
+from pathlib import Path
+
+from . import config
+from .capa1_texto import Palabra, palabras_de
+from .capa2_campos import PARSERS, normalizar_cotejo
+from .db import ahora
+
+MARGEN_IZQ = 8.0        # puntos que se toleran a la izquierda del rótulo
+PENALIZA_UNICA = 0.6    # factor de confianza cuando una sola ruta vio el valor
+
+
+def cargar_perfil(nombre: str) -> dict:
+    return json.loads((config.PERFILES / f"{nombre}.json").read_text(encoding="utf-8"))
+
+
+def perfiles_disponibles() -> list[str]:
+    return sorted(p.stem for p in config.PERFILES.glob("*.json"))
+
+
+@dataclass
+class Hallazgo:
+    literal: str | None
+    norm: str | None
+    motivo: str | None
+    pagina: int | None
+    caja: tuple[float, float, float, float] | None
+    conf: float
+    lectura_id: int | None
+
+
+# ────────────────────────────────────────────────── geometría sobre palabras ──
+def _texto_plano(palabras: list[Palabra]) -> str:
+    return normalizar_cotejo(" ".join(p.texto for p in palabras))
+
+
+SIMILITUD_ROTULO = 0.82   # tolerancia al rótulo mal leído por el OCR
+
+
+def _buscar_rotulo(palabras: list[Palabra], rotulos: list[str]):
+    """
+    Busca la secuencia de palabras del rótulo. Devuelve su recuadro, o None.
+
+    El cotejo es tolerante: "APELLlDO Y NOMBRE" con ele minúscula sigue siendo el
+    rótulo. Esto NO relaja la restricción 3. El rótulo es texto impreso conocido del
+    formulario, que ya sabemos qué dice; lo que se afloja es encontrar dónde está el
+    campo, no qué dice el campo. El valor se lee literal y sin tolerancia ninguna.
+    """
+    normas = [normalizar_cotejo(p.texto) for p in palabras]
+    for rot in rotulos:
+        objetivo = normalizar_cotejo(rot).split()
+        n = len(objetivo)
+        objetivo_txt = " ".join(objetivo)
+        for i in range(len(palabras) - n + 1):
+            ventana = normas[i:i + n]
+            if ventana != objetivo:
+                if SequenceMatcher(None, " ".join(ventana), objetivo_txt).ratio() < SIMILITUD_ROTULO:
+                    continue
+            grupo = palabras[i:i + n]
+            # Un rótulo está en una sola línea: se descarta el falso positivo que
+            # cruza de renglón.
+            if max(g.y0 for g in grupo) - min(g.y0 for g in grupo) > 6:
+                continue
+            return (min(g.x0 for g in grupo), min(g.y0 for g in grupo),
+                    max(g.x1 for g in grupo), max(g.y1 for g in grupo))
+    return None
+
+
+def _region(caja_rotulo, spec: dict):
+    x0, y0, x1, y1 = caja_rotulo
+    if spec.get("region") == "derecha":
+        return (x1 + 2, y0 - 4, x1 + 2 + spec["ancho"], y1 + 4)
+    return (x0 - MARGEN_IZQ, y1 + 1, x0 - MARGEN_IZQ + spec["ancho"], y1 + spec["alto"])
+
+
+def _en_renglones(palabras: list[Palabra]) -> list[Palabra]:
+    """
+    Ordena por renglón y después de izquierda a derecha.
+
+    Agrupar por `round(y/6)` parece equivalente y no lo es: en una página escaneada
+    con medio grado de inclinación, dos palabras del mismo renglón caen a los lados
+    del corte del bucket y salen invertidas. Eso produjo un error silencioso real en
+    la primera corrida ("Héctor ESQUIVEL, D" por "ESQUIVEL, Héctor D."). Acá los
+    renglones se arman por solapamiento vertical, que es lo que un renglón es.
+    """
+    if not palabras:
+        return []
+    restantes = sorted(palabras, key=lambda p: ((p.y0 + p.y1) / 2, p.x0))
+    renglones: list[list[Palabra]] = []
+    for p in restantes:
+        centro = (p.y0 + p.y1) / 2
+        for r in renglones:
+            alto = sum(q.y1 - q.y0 for q in r) / len(r)
+            centro_r = sum((q.y0 + q.y1) / 2 for q in r) / len(r)
+            if abs(centro - centro_r) <= max(alto * 0.6, 3.0):
+                r.append(p)
+                break
+        else:
+            renglones.append([p])
+    salida: list[Palabra] = []
+    for r in sorted(renglones, key=lambda r: min((q.y0 + q.y1) / 2 for q in r)):
+        salida.extend(sorted(r, key=lambda q: q.x0))
+    return salida
+
+
+def _palabras_en(region, palabras: list[Palabra]) -> list[Palabra]:
+    rx0, ry0, rx1, ry1 = region
+    dentro = [p for p in palabras
+              if rx0 <= (p.x0 + p.x1) / 2 <= rx1 and ry0 <= (p.y0 + p.y1) / 2 <= ry1]
+    return _en_renglones(dentro)
+
+
+# ──────────────────────────────────────────────────── extracción por ruta ──
+def extraer_de_ruta(paginas: list[tuple[int, int, list[Palabra]]], perfil: dict
+                    ) -> tuple[dict[str, Hallazgo], str | None, bool]:
+    """
+    paginas: [(nro, lectura_id, palabras), ...] de una misma ruta.
+    Devuelve (hallazgos por campo, cámara detectada, si el perfil aplica).
+    """
+    plano_total = " ".join(_texto_plano(pw) for _, _, pw in paginas)
+    det = perfil.get("deteccion", {}).get("alguno_de", [])
+    aplica = (not det) or any(normalizar_cotejo(t) in plano_total for t in det)
+
+    camara = None
+    for regla in perfil.get("camara", []):
+        if normalizar_cotejo(regla["si_contiene"]) in plano_total:
+            camara = regla["valor"]
+            break
+
+    hallazgos: dict[str, Hallazgo] = {}
+    for spec in perfil["campos"]:
+        h = Hallazgo(None, None, "ausente", None, None, 0.0, None)
+        for nro, lid, palabras in paginas:
+            caja_rot = _buscar_rotulo(palabras, spec["rotulo"])
+            if not caja_rot:
+                continue
+            region = _region(caja_rot, spec)
+            dentro = _palabras_en(region, palabras)
+            bruto = " ".join(p.texto for p in dentro)
+            parser = PARSERS[spec["parser"]]
+            literal, norm, motivo = parser(bruto)
+            if dentro:
+                caja = (min(p.x0 for p in dentro), min(p.y0 for p in dentro),
+                        max(p.x1 for p in dentro), max(p.y1 for p in dentro))
+                conf = min(p.conf for p in dentro)
+            else:
+                caja, conf = region, 0.0
+            h = Hallazgo(literal, norm, motivo, nro, caja, conf, lid)
+            break
+        hallazgos[spec["nombre"]] = h
+    return hallazgos, camara, aplica
+
+
+# ──────────────────────────────────────────────────────── cotejo y guardado ──
+def _elegir_motivo(motivos: list[str]) -> str:
+    for preferido in ("ambiguo", "ilegible", "ausente"):
+        if preferido in motivos:
+            return preferido
+    return "ausente"
+
+
+def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> dict:
+    perfil = cargar_perfil(perfil_nombre)
+
+    # Agrupar las lecturas por ruta.
+    por_ruta: dict[str, list[tuple[int, int, list[Palabra]]]] = {}
+    for r in cx.execute(
+        """SELECT p.nro, l.id AS lid, l.ruta
+             FROM pagina p JOIN lectura l ON l.pagina_id = p.id
+            WHERE p.sha256 = ? ORDER BY p.nro, l.ruta""", (sha,)):
+        por_ruta.setdefault(r["ruta"], []).append((r["nro"], r["lid"], palabras_de(cx, r["lid"])))
+
+    if not por_ruta:
+        raise RuntimeError(f"sin lecturas para {sha}: correr `leer` antes que `extraer`")
+
+    resultados = {ruta: extraer_de_ruta(pgs, perfil) for ruta, pgs in por_ruta.items()}
+    aplica = any(a for _, _, a in resultados.values())
+    camaras = [c for _, c, _ in resultados.values() if c]
+    camara = max(set(camaras), key=camaras.count) if camaras else None
+
+    if not aplica:
+        cx.execute("INSERT INTO excepcion (sha256, clase, detalle, creado_en) VALUES (?,?,?,?)",
+                   (sha, "perfil_no_aplica",
+                    f"ninguna ruta reconoció el perfil {perfil_nombre}", ahora()))
+        cx.commit()
+        return {"documento_id": None, "campos": 0, "conflictos": 0, "a_revisar": 0}
+
+    cur = cx.execute(
+        """INSERT INTO documento (sha256, tipo, perfil, camara, estado)
+           VALUES (?,?,?,?,'extraido')
+           ON CONFLICT(sha256) DO UPDATE SET perfil=excluded.perfil, camara=excluded.camara""",
+        (sha, perfil["tipo"], perfil_nombre, camara))
+    doc_id = cx.execute("SELECT id FROM documento WHERE sha256=?", (sha,)).fetchone()["id"]
+
+    # Orden de borrado: primero lo que apunta a `campo`, después `campo`.
+    sub = "SELECT id FROM campo WHERE documento_id=?"
+    cx.execute(f"DELETE FROM persona_alias        WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute("DELETE FROM interpretacion_fuente WHERE documento_id=?", (doc_id,))
+    cx.execute("DELETE FROM documento_persona     WHERE documento_id=?", (doc_id,))
+    cx.execute(f"DELETE FROM normalizacion        WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute("DELETE FROM conflicto_variante WHERE conflicto_id IN (SELECT id FROM conflicto WHERE documento_id=?)", (doc_id,))
+    cx.execute("DELETE FROM conflicto WHERE documento_id=?", (doc_id,))
+    cx.execute("DELETE FROM campo WHERE documento_id=?", (doc_id,))
+
+    n_campos = n_conf = n_rev = 0
+    for spec in perfil["campos"]:
+        campo = spec["nombre"]
+        critico = campo in config.CAMPOS_CRITICOS
+        por = {ruta: res[0][campo] for ruta, res in resultados.items()}
+        con_valor = {r: h for r, h in por.items() if h.norm is not None}
+        valores = {h.norm for h in con_valor.values()}
+
+        # ── discrepancia entre rutas: no se elige, se marca ──
+        if len(valores) > 1:
+            # El conflicto es sobre QUÉ dice el campo, no sobre DÓNDE está. El anclaje
+            # se conserva igual, así la interfaz puede llevarte al recuadro para que
+            # mires vos cuál de las dos lecturas es la buena.
+            ref = max(con_valor.values(), key=lambda h: h.conf)
+            cx.execute("""INSERT INTO campo (documento_id,nombre,nulo_motivo,pagina_nro,
+                                             x0,y0,x1,y1,estado)
+                          VALUES (?,?,?,?,?,?,?,?,'a_revisar')""",
+                       (doc_id, campo, "conflicto", ref.pagina,
+                        *(ref.caja if ref.caja else (None,)*4)))
+            k = cx.execute("INSERT INTO conflicto (documento_id,campo_nombre) VALUES (?,?)",
+                           (doc_id, campo)).lastrowid
+            for ruta, h in sorted(con_valor.items()):
+                cx.execute(
+                    """INSERT INTO conflicto_variante
+                       (conflicto_id,ruta,valor,confianza,pagina_nro,x0,y0,x1,y1)
+                       VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (k, ruta, h.literal, h.conf, h.pagina, *(h.caja or (None,)*4)))
+            n_campos += 1; n_conf += 1; n_rev += 1
+            continue
+
+        # ── ninguna ruta lo encontró: nulo con motivo ──
+        if not con_valor:
+            motivo = _elegir_motivo([h.motivo or "ausente" for h in por.values()])
+            ref = next((h for h in por.values() if h.caja), None)
+            cx.execute(
+                """INSERT INTO campo (documento_id,nombre,nulo_motivo,pagina_nro,
+                                      x0,y0,x1,y1,estado)
+                   VALUES (?,?,?,?,?,?,?,?,'a_revisar')""",
+                (doc_id, campo, motivo, ref.pagina if ref else None,
+                 *(ref.caja if ref and ref.caja else (None,)*4)))
+            n_campos += 1; n_rev += 1
+            continue
+
+        # ── hay valor: coinciden todas las rutas que lo vieron ──
+        mejor = max(con_valor.values(), key=lambda h: h.conf)
+        unica = len(con_valor) == 1
+        conf = mejor.conf * (PENALIZA_UNICA if unica else 1.0)
+        revisar = conf < config.UMBRAL_CONFIANZA or (unica and critico)
+        estado = "a_revisar" if revisar else "automatico"
+        ruta_mejor = next(r for r, h in con_valor.items() if h is mejor)
+
+        cid = cx.execute(
+            """INSERT INTO campo (documento_id,nombre,valor_literal,pagina_nro,
+                                  x0,y0,x1,y1,ruta,confianza,lectura_id,estado)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (doc_id, campo, mejor.literal, mejor.pagina, *mejor.caja,
+             ruta_mejor + ("+unica" if unica else f"+{len(con_valor)}rutas"),
+             round(conf, 4), mejor.lectura_id, estado)).lastrowid
+        cx.execute("INSERT INTO normalizacion (campo_id,tipo,valor_norm,nota) VALUES (?,?,?,?)",
+                   (cid, spec["parser"], mejor.norm,
+                    "lectura única" if unica else f"{len(con_valor)} rutas conformes"))
+        n_campos += 1
+        n_rev += int(revisar)
+
+    rehechas = reaplicar_revisiones(cx, doc_id, sha)
+    cx.commit()
+    return {"documento_id": doc_id, "campos": n_campos, "conflictos": n_conf,
+            "a_revisar": max(0, n_rev - rehechas), "revisiones_reaplicadas": rehechas}
+
+
+def reaplicar_revisiones(cx: sqlite3.Connection, doc_id: int, sha: str) -> int:
+    """
+    Vuelve a aplicar lo que una persona ya decidió sobre este documento en una corrida
+    anterior. Sin esto, mejorar el perfil de extracción y reprocesar el lote le borraría
+    al equipo todo el trabajo de revisión, que es exactamente lo que no puede pasar.
+    """
+    from .aplicar_revision import aplicar
+    n = 0
+    for r in cx.execute("SELECT * FROM revision_humana WHERE sha256=?", (sha,)).fetchall():
+        c = cx.execute("SELECT id FROM campo WHERE documento_id=? AND nombre=?",
+                       (doc_id, r["campo"])).fetchone()
+        if not c:
+            continue
+        try:
+            aplicar(cx, c["id"], r["accion"], r["valor"], r["quien"], registrar=False)
+            n += 1
+        except Exception:
+            pass          # el campo cambió de forma; queda para revisar de nuevo
+    return n

@@ -1,0 +1,18 @@
+{
+  "nombre": "contrato_legislatura",
+  "tipo": "contrato_personal",
+  "descripcion": "Contrato de locación de servicios de personal de la Legislatura provincial. Perfil declarativo: para adaptarlo a un formulario distinto se edita este archivo, no el código.",
+  "deteccion": { "alguno_de": ["CONTRATO DE LOCACION DE SERVICIOS", "CONTRATO DE LOCACION"] },
+  "camara": [
+    { "si_contiene": "CAMARA DE DIPUTADOS", "valor": "A" },
+    { "si_contiene": "CAMARA DE SENADORES", "valor": "B" }
+  ],
+  "campos": [
+    { "nombre": "nombre",       "rotulo": ["APELLIDO Y NOMBRE"],     "region": "debajo", "ancho": 300, "alto": 34, "parser": "texto" },
+    { "nombre": "documento",    "rotulo": ["CUIL", "CUIT", "DNI"],   "region": "debajo", "ancho": 200, "alto": 34, "parser": "documento" },
+    { "nombre": "cargo",        "rotulo": ["CARGO"],                 "region": "debajo", "ancho": 380, "alto": 34, "parser": "texto" },
+    { "nombre": "fecha_inicio", "rotulo": ["DESDE"],                 "region": "debajo", "ancho": 155, "alto": 34, "parser": "fecha" },
+    { "nombre": "fecha_fin",    "rotulo": ["HASTA"],                 "region": "debajo", "ancho": 155, "alto": 34, "parser": "fecha" },
+    { "nombre": "monto",        "rotulo": ["RETRIBUCION MENSUAL"],   "region": "debajo", "ancho": 230, "alto": 40, "parser": "monto" }
+  ]
+}

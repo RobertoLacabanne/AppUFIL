@@ -1,0 +1,19 @@
+# Levantar el sistema:   docker compose up -d
+# Ver la interfaz:       http://127.0.0.1:8713
+#
+# El corpus se monta :ro — SOLO LECTURA. Es la restricción 2 hecha cumplir por el
+# sistema operativo y no por buena voluntad del código: aunque el programa tuviera un
+# error, el kernel no lo dejaría escribir ahí.
+services:
+  ufil:
+    build: .
+    image: ufil-analisis:0.1
+    container_name: ufil
+    # Sin red hacia afuera. El contenedor no puede salir a internet ni queriendo.
+    network_mode: bridge
+    ports:
+      - "127.0.0.1:8713:8713"       # sólo esta máquina. Nunca 0.0.0.0.
+    volumes:
+      - ./corpus:/corpus:ro
+      - ./datos:/app/datos
+    restart: unless-stopped

@@ -34,6 +34,14 @@ for ruta in "${ARCHIVOS[@]}"; do
   if [ "$nombre" = "OFL.txt" ]; then
     nombre="OFL-$(basename "$(dirname "$ruta")").txt"
   fi
+  # Los corchetes de las fuentes variables complican el escapado de URL en CSS y en
+  # el servidor. Se guardan con un nombre plano.
+  case "$nombre" in
+    "Archivo[wdth,wght].ttf")            nombre="Archivo-Variable.ttf" ;;
+    "Archivo-Italic[wdth,wght].ttf")     nombre="Archivo-Italic-Variable.ttf" ;;
+    "SourceSerif4[opsz,wght].ttf")       nombre="SourceSerif4-Variable.ttf" ;;
+    "SourceSerif4-Italic[opsz,wght].ttf") nombre="SourceSerif4-Italic-Variable.ttf" ;;
+  esac
   # Codificación de corchetes para la URL; en disco se guarda con el nombre original.
   url_ruta="${ruta//\[/%5B}"; url_ruta="${url_ruta//\]/%5D}"
 

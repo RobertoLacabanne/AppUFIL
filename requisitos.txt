@@ -1,0 +1,9 @@
+# Versiones fijas. Se bajan UNA vez en la etapa de instalación y se llevan a la
+# máquina offline. Nada de esto se resuelve en tiempo de ejecución.
+#
+#   pip download -r requisitos.txt -d ruedas/     (máquina con internet)
+#   pip install --no-index --find-links ruedas/ -r requisitos.txt   (máquina offline)
+PyMuPDF==1.24.14
+pytesseract==0.3.13
+pillow==11.0.0
+openpyxl==3.1.5

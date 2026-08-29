@@ -8,51 +8,108 @@ información que hoy no puede abarcar y decida mejor dónde mirar. **No es un si
 gestión del legajo y no produce piezas procesales.** Lo que se incorpora formalmente al
 legajo se hace después, a mano, sobre la documentación original.
 
+---
+
 ## Estado
 
-**Fase 0.** Todavía no hay pipeline. Lo que hay es la decisión de arquitectura, las
-preguntas que faltan responder y el sistema visual.
+**Fase 1 — el piloto del Caso A corre de punta a punta.** Ingesta con hash y
+procedencia, lectura con coordenadas por dos rutas, extracción anclada con cotejo entre
+rutas, resolución de identidad, cruces SQL, interfaz web y exportación a `.xlsx` y
+`.rtf`.
 
-| | |
-|---|---|
-| [`docs/00-fase-0.md`](docs/00-fase-0.md) | Preguntas abiertas, decisión construir/adoptar, stack propuesto y umbrales de calidad. **Empezá por acá.** |
-| [`docs/01-identidad-visual.md`](docs/01-identidad-visual.md) | Especificación del sistema visual. |
-| [`docs/identidad/guia-visual.html`](docs/identidad/guia-visual.html) | La guía corriendo, con maquetas de las pantallas. Se abre con doble clic, no necesita servidor. |
-| [`scripts/descargar-fuentes.sh`](scripts/descargar-fuentes.sh) | Descarga las fuentes. Se corre una sola vez, en instalación, con conexión. |
-| `banco-de-prueba/` | Vacío por ahora. Va la muestra de páginas difíciles con la transcripción manual de referencia. |
+Medido sobre 50 contratos sintéticos: **86 % de campos críticos resueltos sin
+intervención y cero errores silenciosos**, pero **por debajo de los umbrales de
+exactitud** propuestos en la Fase 0. El detalle honesto, con lo que falta, está en
+[`docs/02-fase-1.md`](docs/02-fase-1.md).
+
+---
+
+## Arrancar
+
+```bash
+./scripts/descargar-fuentes.sh          # una vez, con internet
+python3 herramientas/generar_fixtures.py --cantidad 50   # corpus de prueba
+python3 -m ufil.cli piloto datos/corpus-sintetico --lote piloto-01 \
+        --referencia datos/corpus-sintetico/referencia.csv
+python3 -m ufil.cli servir               # http://127.0.0.1:8713
+```
+
+Instalación en la máquina de la fiscalía, paso por paso: [`INSTALAR.md`](INSTALAR.md).
+
+---
 
 ## Las cuatro restricciones que gobiernan todo
 
 1. **Offline total.** Ninguna llamada de red en tiempo de ejecución. Nada por CDN,
-   fuentes tipográficas incluidas. Todo se descarga en la instalación y queda en disco.
-2. **El original es inmutable.** Solo lectura sobre el material fuente. Nunca se
-   reescribe, renombra, mueve ni recomprime. Los derivados van aparte, con el SHA-256
-   del original del que salieron.
+   fuentes tipográficas incluidas. Sin Node ni paso de compilación en la máquina de
+   destino. El servidor escucha sólo en `127.0.0.1`.
+2. **El original es inmutable.** Solo lectura sobre el material fuente. Los derivados
+   van aparte, con el SHA-256 del original del que salieron. En Docker el corpus se
+   monta `:ro`, así que lo hace cumplir el kernel y no la buena voluntad del código.
 3. **Nada se inventa en un campo de datos.** Si un valor no está legible o no está en
-   el documento, se guarda nulo con motivo (`ilegible`, `ausente`, `ambiguo`).
+   el documento, se guarda nulo con motivo (`ilegible`, `ausente`, `ambiguo`). Lo hace
+   cumplir un `CHECK` de la base: o hay valor, o hay motivo. Nunca los dos, nunca ninguno.
 4. **Todo dato numérico o de fecha está anclado a su origen:** archivo, página y
-   coordenadas del recuadro.
+   coordenadas del recuadro. **Un valor sin coordenadas no entra en la base**, por otro
+   `CHECK`.
+
+`python3 -m ufil.cli verificar` comprueba las cuatro después de cada corrida, y devuelve
+error si alguna falla.
 
 ## La regla de los dos carriles
 
-El sistema interpreta, resume e hipotetiza —es la mitad de su valor—, pero eso viaja
-por un carril distinto del dato duro y se distingue de una ojeada.
+- **Carril de datos** (tabla `campo`): lo que se leyó de un documento, con anclaje y
+  confianza. Sin ningún modelo generativo de por medio. En la interfaz: **monoespaciada**.
+- **Carril de interpretación** (tabla `interpretacion`): resúmenes, patrones, anomalías.
+  Puede equivocarse. **No se puede guardar sin al menos una fuente documental**, y la
+  aplicación lo rechaza. En la interfaz: **serif en bastardilla, sobre otro fondo**.
 
-- **Carril de datos:** lo que se leyó de un documento. Con anclaje y confianza. Nunca se
-  completa, nunca se estima, nunca se redondea. En la interfaz: monoespaciada.
-- **Carril de interpretación:** resúmenes, hipótesis, patrones, relevancia sugerida.
-  Puede equivocarse; se presenta como lo que es y cada afirmación linkea a los
-  documentos que la sostienen. En la interfaz: serif en bastardilla, sobre otro fondo.
+La separación es estructural, no una convención de nombres: no hay forma de mezclarlos
+por accidente.
+
+---
+
+## Las capas
+
+| | | |
+|---|---|---|
+| 0 | `capa0_ingesta.py` | Recorrido en solo lectura, SHA-256, duplicados exactos, procedencia |
+| 1 | `capa1_texto.py` · `capa1_vlm.py` | Texto con coordenadas. Ruta nativa, dos rutas de OCR, y el contrato del modelo de visión (**sin implementar**, a propósito) |
+| 2 | `capa2_extraccion.py` · `capa2_campos.py` | Extracción anclada por perfil declarativo + cotejo entre rutas |
+| 3 | `capa3_identidad.py` | Clave fuerte automática; fusiones por similitud **sólo propuestas** |
+| 4 | `consultas/*.sql` · `capa4_analisis.py` | Cruces determinísticos, cada uno un archivo versionado |
+| 5 | `capa5_interpretacion.py` | El otro carril. Hoy, reglas; mañana, un LLM local |
+| 6 | `servidor.py` · `web/` | Interfaz local, sin dependencias ni build |
+| 7 | `capa7_export.py` | `.xlsx` y `.rtf` con cita de archivo y foja |
+
+---
+
+## Documentos
+
+| | |
+|---|---|
+| [`docs/00-fase-0.md`](docs/00-fase-0.md) | Preguntas abiertas, decisión construir/adoptar, stack y umbrales de calidad |
+| [`docs/01-identidad-visual.md`](docs/01-identidad-visual.md) | El sistema visual: por qué la tipografía es la etiqueta de procedencia |
+| [`docs/02-fase-1.md`](docs/02-fase-1.md) | **Qué se construyó, qué mide y qué falta.** Con los números. |
+| [`docs/identidad/guia-visual.html`](docs/identidad/guia-visual.html) | La guía visual, se abre con doble clic |
+| [`INSTALAR.md`](INSTALAR.md) | Instalación en dos etapas y operación diaria |
+
+---
+
+## Lo que decide qué sigue
+
+Falta **una sola respuesta** para destrabar la Fase 2: **qué máquina hay** (CPU, RAM,
+placa de video con VRAM, disco). El Caso A ya corre entero en CPU; la GPU decide si
+entran el modelo de visión y la capa interpretativa en lenguaje natural.
+
+Y falta lo más valioso: **20 contratos reales de muestra** que cubran la variedad —la
+cámara buena y la mala, el año viejo y el nuevo, el escaneo torcido, el que tiene la
+firma encima del monto—. Sin eso, los números de calidad son sobre papel sintético.
 
 ## Decisión de la sección 9, en corto
 
-Para el **Caso B (secuestros masivos): adoptar Datashare (ICIJ)**, no construir. Aleph
-queda descartado: el mantenimiento del Aleph clásico venció el 31/12/2025 y su
+Caso B (secuestros masivos): **adoptar Datashare (ICIJ, AGPL-3.0)**, no construir.
+Aleph queda descartado — el mantenimiento del Aleph clásico venció el 31/12/2025 y su
 sucesor, Aleph Pro, es un producto alojado con despliegue propio bajo licencia paga.
-
-Para el **Caso A (contratos): construir**, que es donde está el problema que ninguna
-plataforma resuelve.
-
-**La capa de ingesta es propia y común a los dos.** El fundamento completo, con las
-limitaciones y el umbral donde esta decisión se da vuelta, está en
-[`docs/00-fase-0.md`](docs/00-fase-0.md).
+Caso A (contratos): **construir**, que es lo que está en este repositorio.
+Fundamento completo en [`docs/00-fase-0.md`](docs/00-fase-0.md).
