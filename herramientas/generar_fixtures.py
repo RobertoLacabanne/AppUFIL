@@ -101,13 +101,49 @@ def dibujar(pdf: Path, d: dict) -> None:
     doc.save(pdf); doc.close()
 
 
-def a_escaneo(pdf_limpio: Path, destino: Path, rng: random.Random, calidad: str) -> None:
-    """Rasteriza y degrada para simular un escaneo. El PDF final es solo imagen."""
-    with fitz.open(pdf_limpio) as doc:
-        pix = doc[0].get_pixmap(matrix=fitz.Matrix(200 / 72, 200 / 72))
-        png = destino.with_suffix(".tmp.png")
-        pix.save(png)
+def hoja_suelta(pdf: Path, titulo: str, lineas: list[str]) -> None:
+    """
+    Una foja de relleno: carátula de expediente o anexo.
 
+    Existe para que el corpus de prueba tenga documentos de VARIAS páginas, que es como
+    van a llegar los contratos reales. Con una sola página, media docena de errores del
+    visor y del anclaje quedan escondidos.
+    """
+    doc = fitz.open()
+    pag = doc.new_page(width=595, height=842)
+    pag.insert_text((60, 96), titulo, fontsize=13, fontname="helv", color=(0.2, 0.21, 0.23))
+    pag.draw_line(fitz.Point(60, 110), fitz.Point(535, 110), color=(0.55, 0.55, 0.55), width=1)
+    y = 150
+    for l in lineas:
+        pag.insert_text((60, y), l, fontsize=10, fontname="times-roman",
+                        color=(0.15, 0.16, 0.18))
+        y += 22
+    doc.save(pdf); doc.close()
+
+
+def a_escaneo(pdf_limpio: Path, destino: Path, rng: random.Random, calidad: str,
+              extras: list[Path] | None = None) -> None:
+    """
+    Rasteriza y degrada para simular un escaneo. El PDF final es solo imagen.
+
+    `extras` son fojas adicionales: una tupla (antes, después) del contrato. Se
+    rasterizan igual, así el documento entero queda como un escaneo de varias hojas.
+    """
+    paginas_fuente = list(extras[0]) + [pdf_limpio] + list(extras[1]) if extras else [pdf_limpio]
+
+    doc = fitz.open()
+    for i, fuente in enumerate(paginas_fuente):
+        with fitz.open(fuente) as f:
+            pix = f[0].get_pixmap(matrix=fitz.Matrix(200 / 72, 200 / 72))
+            png = destino.with_suffix(f".tmp{i}.png")
+            pix.save(png)
+        _degradar_y_pegar(doc, png, destino, rng, calidad, i)
+        png.unlink(missing_ok=True)
+    doc.save(destino, deflate=True); doc.close()
+
+
+def _degradar_y_pegar(doc, png: Path, destino: Path, rng: random.Random,
+                      calidad: str, i: int) -> None:
     im = Image.open(png).convert("L")
     if calidad == "malo":
         im = im.rotate(rng.uniform(-1.4, 1.4), resample=Image.BICUBIC,
@@ -122,14 +158,11 @@ def a_escaneo(pdf_limpio: Path, destino: Path, rng: random.Random, calidad: str)
                        fillcolor=250, expand=False)
         im = im.filter(ImageFilter.GaussianBlur(0.35))
 
-    jpg = destino.with_suffix(".tmp.jpg")
+    jpg = destino.with_suffix(f".tmp{i}.jpg")
     im.convert("RGB").save(jpg, "JPEG", quality={"bueno": 88, "regular": 74, "malo": 58}[calidad])
-
-    doc = fitz.open()
     pag = doc.new_page(width=595, height=842)
     pag.insert_image(fitz.Rect(0, 0, 595, 842), filename=str(jpg))
-    doc.save(destino, deflate=True); doc.close()
-    png.unlink(missing_ok=True); jpg.unlink(missing_ok=True)
+    jpg.unlink(missing_ok=True)
 
 
 def construir_poblacion(rng: random.Random, n: int) -> list[dict]:
@@ -224,6 +257,16 @@ def main() -> int:
     tmp = dest / "_limpio.pdf"
 
     filas = construir_poblacion(rng, a.cantidad)
+    caratula = dest / "_caratula.pdf"
+    anexo = dest / "_anexo.pdf"
+    hoja_suelta(caratula, "EXPEDIENTE ADMINISTRATIVO",
+                ["Actuaciones remitidas por la Dirección de Personal.",
+                 "Se agrega copia del contrato suscripto y su documentación respaldatoria.",
+                 "Fojas útiles: tres."])
+    hoja_suelta(anexo, "ANEXO — CONSTANCIAS",
+                ["Se acompaña constancia de inscripción y declaración jurada.",
+                 "No se registran observaciones de la Dirección de Asuntos Jurídicos."])
+
     referencia = []
     for i, d in enumerate(filas, start=1):
         d["inicio_txt"] = d["inicio"].strftime("%d/%m/%Y")
@@ -231,7 +274,15 @@ def main() -> int:
         d["monto_txt"] = f"$ {d['monto_centavos']//100:,}".replace(",", ".") + ",00"
         nombre_archivo = f"contrato_{d['camara']}_{i:04d}.pdf"
         dibujar(tmp, d)
-        a_escaneo(tmp, dest / nombre_archivo, rng, d["calidad"])
+        # Un tercio de los documentos viene con carátula y anexo, o sea que el
+        # formulario NO está en la primera foja. Es como llegan los expedientes reales.
+        if i % 3 == 0:
+            extras = ([caratula], [anexo]); d["fojas"] = 3
+        elif i % 7 == 0:
+            extras = ([caratula], []); d["fojas"] = 2
+        else:
+            extras = None; d["fojas"] = 1
+        a_escaneo(tmp, dest / nombre_archivo, rng, d["calidad"], extras)
         referencia.append({
             "archivo": nombre_archivo,
             "camara": d["camara"],
@@ -241,8 +292,10 @@ def main() -> int:
             "fecha_fin": d["fin"].isoformat() if d["fin"] else "",
             "monto_centavos": d["monto_centavos"],
             "calidad_simulada": d["calidad"],
+            "fojas": d["fojas"],
         })
     tmp.unlink(missing_ok=True)
+    caratula.unlink(missing_ok=True); anexo.unlink(missing_ok=True)
 
     ref = dest / "referencia.csv"
     with open(ref, "w", newline="", encoding="utf-8") as f:

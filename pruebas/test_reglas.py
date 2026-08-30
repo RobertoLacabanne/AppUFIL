@@ -255,6 +255,101 @@ class OriginalInmutable(unittest.TestCase):
             cx.close()
 
 
+class VariosContratosEnUnArchivo(unittest.TestCase):
+    """
+    Un PDF puede traer varios contratos. Antes producía UN registro que mezclaba el
+    nombre de un contrato con el monto de otro: un contrato inventado, y sin marca.
+    """
+
+    def test_los_tramos_se_arman_bien(self):
+        from ufil.capa2_extraccion import segmentar
+        # Un solo contrato con carátula y anexo: un tramo que abarca todo.
+        self.assertEqual(segmentar([2], [1, 2, 3]), [(1, 3)])
+        # Cinco contratos de dos fojas cada uno.
+        self.assertEqual(segmentar([1, 3, 5, 7, 9], list(range(1, 11))),
+                         [(1, 2), (3, 4), (5, 6), (7, 8), (9, 10)])
+        # La carátula previa se le adjunta al PRIMER contrato, no queda suelta.
+        self.assertEqual(segmentar([2, 5], [1, 2, 3, 4, 5, 6]), [(1, 4), (5, 6)])
+        # Sin formulario reconocido, no hay contratos.
+        self.assertEqual(segmentar([], [1, 2]), [])
+
+    def test_una_caratula_no_arranca_un_contrato_fantasma(self):
+        """Nombrar el formulario no alcanza: hacen falta sus rótulos."""
+        from ufil.capa1_texto import Palabra
+        from ufil.capa2_extraccion import cargar_perfil, pagina_es_formulario
+        perfil = cargar_perfil("contrato_legislatura")
+
+        def palabras(texto):
+            return [Palabra(t, i * 30, 100, i * 30 + 25, 110, 0.9)
+                    for i, t in enumerate(texto.split())]
+
+        caratula = palabras("Se agrega copia del CONTRATO DE LOCACION DE SERVICIOS "
+                            "suscripto y su documentacion respaldatoria")
+        self.assertFalse(pagina_es_formulario(caratula, perfil),
+                         "una carátula que MENCIONA el contrato no es el contrato")
+
+        formulario = palabras("CONTRATO DE LOCACION DE SERVICIOS APELLIDO Y NOMBRE CUIL "
+                              "CARGO DESDE HASTA RETRIBUCION MENSUAL")
+        self.assertTrue(pagina_es_formulario(formulario, perfil))
+
+    def test_un_archivo_puede_tener_varios_documentos(self):
+        """La base tiene que permitirlo: antes `sha256` era único."""
+        tmp = tempfile.TemporaryDirectory()
+        cx = db.abrir(Path(tmp.name) / "t.sqlite")
+        cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,ingerido_en)
+                      VALUES ('mm','/x/m.pdf','m.pdf',1,?)""", (ahora(),))
+        for orden, (d, h) in enumerate([(1, 2), (3, 4), (5, 6)], start=1):
+            cx.execute("""INSERT INTO documento (sha256,orden,pagina_desde,pagina_hasta,
+                                                 tipo,perfil)
+                          VALUES ('mm',?,?,?,'c','p')""", (orden, d, h))
+        self.assertEqual(cx.execute("SELECT COUNT(*) FROM documento").fetchone()[0], 3)
+        with self.assertRaises(sqlite3.IntegrityError):
+            cx.execute("""INSERT INTO documento (sha256,orden,tipo,perfil)
+                          VALUES ('mm',1,'c','p')""")   # mismo orden, no
+        cx.close(); tmp.cleanup()
+
+
+class ContratosRepetidos(BaseTemporal):
+    """El mismo contrato entrando desde archivos distintos infla los acumulados."""
+
+    def _contrato(self, sha, nombre, doc, ini, fin, monto):
+        self.cx.execute("""INSERT OR IGNORE INTO archivo
+                           (sha256,ruta_original,nombre,bytes,ingerido_en)
+                           VALUES (?,?,?,1,?)""", (sha, f"/x/{sha}.pdf", f"{sha}.pdf", ahora()))
+        d = self.cx.execute("""INSERT INTO documento (sha256,orden,tipo,perfil)
+                               VALUES (?,(SELECT COALESCE(MAX(orden),0)+1 FROM documento
+                                          WHERE sha256=?),'c','p')""", (sha, sha)).lastrowid
+        for campo, valor, tipo, norm in (
+            ("nombre", nombre, "nombre", nombre.upper()),
+            ("documento", doc, "documento", f"CUIL:{doc}"),
+            ("fecha_inicio", ini, "fecha", ini),
+            ("fecha_fin", fin, "fecha", fin),
+            ("monto", str(monto), "monto", str(monto)),
+        ):
+            cid = self.cx.execute("""INSERT INTO campo (documento_id,nombre,valor_literal,
+                                         pagina_nro,x0,y0,x1,y1,confianza)
+                                     VALUES (?,?,?,1,0,0,1,1,0.95)""",
+                                  (d, campo, valor)).lastrowid
+            self.cx.execute("""INSERT INTO normalizacion (campo_id,tipo,valor_norm)
+                               VALUES (?,?,?)""", (cid, tipo, norm))
+        self.cx.commit()
+
+    def test_detecta_el_mismo_contrato_llegado_de_dos_archivos(self):
+        from ufil.capa3_identidad import detectar_contratos_repetidos
+        self._contrato("aa1", "PEREZ, Juan", "20111111112", "2021-01-01", "2021-12-31", 10000)
+        self._contrato("bb2", "PEREZ, Juan", "20111111112", "2021-01-01", "2021-12-31", 10000)
+        self.assertEqual(detectar_contratos_repetidos(self.cx), 1)
+        n = self.cx.execute("""SELECT COUNT(*) FROM excepcion
+                                WHERE clase='contrato_repetido'""").fetchone()[0]
+        self.assertEqual(n, 1)
+
+    def test_dos_contratos_distintos_no_son_repetidos(self):
+        from ufil.capa3_identidad import detectar_contratos_repetidos
+        self._contrato("cc1", "PEREZ, Juan", "20111111112", "2021-01-01", "2021-06-30", 10000)
+        self._contrato("cc2", "PEREZ, Juan", "20111111112", "2021-07-01", "2021-12-31", 10000)
+        self.assertEqual(detectar_contratos_repetidos(self.cx), 0)
+
+
 class SubidaDeEscaneos(unittest.TestCase):
     """Lo que llega por la interfaz también es un original inmutable."""
 

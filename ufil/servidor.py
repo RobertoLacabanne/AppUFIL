@@ -31,6 +31,11 @@ from .almacen import ArchivoInvalido, guardar
 from .db import ahora
 from .trabajo import Procesador
 
+class NoEncontrado(Exception):
+    """Lo que se pidió no existe. Se responde 404 y con una explicación, no con una
+    excepción de Python en la cara del que está trabajando."""
+
+
 RUTA_BASE: Path | None = None
 PROCESADOR: Procesador | None = None
 
@@ -104,6 +109,9 @@ def api_panel(cx) -> dict:
              ORDER BY dias DESC LIMIT 3""")],
         "acumulado_centavos": uno("""SELECT COALESCE(SUM(monto_centavos),0) FROM v_contrato"""),
         "personas_ambas_camaras": c4.correr(cx, "03_ambas_camaras")["n"],
+        "contratos_repetidos": c4.correr(cx, "08_contratos_repetidos")["n"],
+        "archivos_con_varios": uno("""SELECT COUNT(*) FROM (SELECT sha256 FROM documento
+                                       GROUP BY sha256 HAVING COUNT(*) > 1)"""),
     }
 
 
@@ -114,7 +122,8 @@ def api_documento(cx, doc_id: int) -> dict:
                         LEFT JOIN procedencia p ON p.sha256=d.sha256
                        WHERE d.id=?""", (doc_id,)).fetchone()
     if not d:
-        raise KeyError("documento inexistente")
+        raise NoEncontrado("No existe ese documento. Puede que se haya reprocesado el "
+                           "lote y los contratos se hayan vuelto a numerar.")
     campos = [dict(r) for r in cx.execute("""
         SELECT c.*, n.valor_norm,
                (SELECT COUNT(*) FROM conflicto k WHERE k.documento_id=c.documento_id
@@ -125,9 +134,15 @@ def api_documento(cx, doc_id: int) -> dict:
     for k in cx.execute("SELECT * FROM conflicto WHERE documento_id=? AND estado='abierto'", (doc_id,)):
         conflictos[k["campo_nombre"]] = [dict(v) for v in cx.execute(
             "SELECT * FROM conflicto_variante WHERE conflicto_id=? ORDER BY ruta", (k["id"],))]
+    # Sólo las páginas de ESTE contrato: un archivo puede traer varios, y mostrar las
+    # del vecino haría que el recuadro caiga sobre el folio equivocado.
     paginas = [dict(r) for r in cx.execute(
-        "SELECT nro, ancho_pt, alto_pt, render_escala FROM pagina WHERE sha256=? ORDER BY nro",
-        (d["sha256"],))]
+        """SELECT nro, ancho_pt, alto_pt, render_escala FROM pagina
+            WHERE sha256=? AND nro BETWEEN ? AND ? ORDER BY nro""",
+        (d["sha256"], d["pagina_desde"] or 1, d["pagina_hasta"] or 99999))]
+    hermanos = [dict(r) for r in cx.execute(
+        """SELECT id, orden, pagina_desde, pagina_hasta FROM documento
+            WHERE sha256=? ORDER BY orden""", (d["sha256"],))]
     interp = [dict(r) for r in cx.execute("""
         SELECT DISTINCT i.* FROM interpretacion i
           JOIN interpretacion_fuente f ON f.interpretacion_id=i.id
@@ -140,7 +155,7 @@ def api_documento(cx, doc_id: int) -> dict:
               LEFT JOIN archivo a ON a.sha256=d2.sha256
              WHERE f.interpretacion_id=?""", (i["id"],))]
     return {"documento": dict(d), "campos": campos, "conflictos": conflictos,
-            "paginas": paginas, "interpretaciones": interp}
+            "paginas": paginas, "hermanos": hermanos, "interpretaciones": interp}
 
 
 
@@ -154,7 +169,8 @@ def api_persona(cx, persona_id: int) -> dict:
     """
     p = cx.execute("SELECT * FROM persona WHERE id=?", (persona_id,)).fetchone()
     if not p:
-        raise KeyError("persona inexistente")
+        raise NoEncontrado("No existe esa persona. Puede que se haya reprocesado el lote "
+                           "y las fichas se hayan vuelto a armar.")
 
     contratos = [dict(r) for r in cx.execute("""
         SELECT * FROM v_contrato WHERE persona_id=? ORDER BY inicio, documento_id""",
@@ -381,6 +397,16 @@ class Manejador(BaseHTTPRequestHandler):
                 finally:
                     cx.close()
             return self._json({"error": "no encontrado"}, 404)
+        except NoEncontrado as e:
+            return self._json({"error": str(e), "no_encontrado": True}, 404)
+        except FileNotFoundError as e:
+            return self._json({"error": str(e), "no_encontrado": True}, 404)
+        except (KeyError, IndexError):
+            return self._json({"error": "Falta un dato en el pedido.",
+                               "no_encontrado": True}, 400)
+        except ValueError:
+            return self._json({"error": "El identificador tiene que ser un número.",
+                               "no_encontrado": True}, 400)
         except Exception as e:
             traceback.print_exc()
             return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
@@ -442,6 +468,8 @@ class Manejador(BaseHTTPRequestHandler):
                 destino = config.DATOS / "export"
                 return self._json({"archivos": c7.exportar(cx, destino)})
             return self._json({"error": "ruta desconocida"}, 404)
+        except NoEncontrado as e:
+            return self._json({"error": str(e), "no_encontrado": True}, 404)
         except (ValueError, KeyError) as e:
             return self._json({"error": str(e)}, 400)
         except Exception as e:

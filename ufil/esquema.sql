@@ -107,13 +107,24 @@ CREATE VIRTUAL TABLE IF NOT EXISTS pagina_texto USING fts5(
 );
 
 -- ────────────────────────────────────────── CAPA 2: DOCUMENTO Y CARRIL DE DATOS ──
+-- Un archivo PDF puede contener VARIOS contratos: así es como sale de un escáner de
+-- oficina cuando se pasa una pila de expedientes de corrido. Por eso el documento NO
+-- es el archivo: es un TRAMO DE PÁGINAS dentro de un archivo.
+--
+-- Antes esto era `sha256 UNIQUE`, o sea un contrato por archivo, y un PDF con cinco
+-- contratos producía un solo registro mezclando campos de contratos distintos. Un
+-- registro inventado, y sin marca. Es la razón por la que existe `orden`.
 CREATE TABLE IF NOT EXISTS documento (
-  id       INTEGER PRIMARY KEY,
-  sha256   TEXT NOT NULL UNIQUE REFERENCES archivo(sha256),
-  tipo     TEXT NOT NULL,               -- contrato_personal
-  perfil   TEXT NOT NULL,               -- perfil de extracción aplicado
-  camara   TEXT,
-  estado   TEXT NOT NULL DEFAULT 'extraido'
+  id            INTEGER PRIMARY KEY,
+  sha256        TEXT NOT NULL REFERENCES archivo(sha256),
+  orden         INTEGER NOT NULL DEFAULT 1,   -- 1º, 2º… contrato dentro del archivo
+  pagina_desde  INTEGER,
+  pagina_hasta  INTEGER,
+  tipo          TEXT NOT NULL,
+  perfil        TEXT NOT NULL,
+  camara        TEXT,
+  estado        TEXT NOT NULL DEFAULT 'extraido',
+  UNIQUE (sha256, orden)
 );
 
 -- EL CARRIL DE DATOS.
@@ -173,12 +184,13 @@ CREATE TABLE IF NOT EXISTS excepcion (
 -- extracción y reprocesamos el lote, el equipo NO pierde la revisión que ya hizo.
 CREATE TABLE IF NOT EXISTS revision_humana (
   sha256 TEXT NOT NULL,
+  orden  INTEGER NOT NULL DEFAULT 1,
   campo  TEXT NOT NULL,
   accion TEXT NOT NULL,              -- verificar | corregir | ilegible | ausente | ambiguo
   valor  TEXT,
   quien  TEXT NOT NULL,
   cuando TEXT NOT NULL,
-  PRIMARY KEY (sha256, campo)
+  PRIMARY KEY (sha256, orden, campo)
 );
 
 -- ───────────────────────────────── CAPA 3: NORMALIZACIÓN E IDENTIDAD (APARTE) ──
@@ -293,6 +305,9 @@ SELECT
   MAX(CASE WHEN c.nombre='fecha_fin'     THEN n.valor_norm    END) AS fin,
   CAST(MAX(CASE WHEN c.nombre='monto'    THEN n.valor_norm    END) AS INTEGER) AS monto_centavos,
   MAX(CASE WHEN c.nombre='cargo'         THEN c.valor_literal END) AS cargo,
+  d.orden         AS orden,
+  d.pagina_desde  AS pagina_desde,
+  d.pagina_hasta  AS pagina_hasta,
   MIN(CASE WHEN c.nombre IN ('nombre','documento','fecha_inicio','fecha_fin','monto')
            THEN c.confianza END)                                   AS confianza_min
 FROM documento d

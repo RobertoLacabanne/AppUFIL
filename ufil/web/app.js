@@ -14,9 +14,21 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 async function api(ruta, opciones) {
-  const r = await fetch(ruta, opciones);
-  const j = await r.json();
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  let r, j;
+  try {
+    r = await fetch(ruta, opciones);
+    j = await r.json();
+  } catch (e) {
+    const err = new Error('No se pudo hablar con el servidor. ¿Sigue corriendo?');
+    err.caido = true;
+    throw err;
+  }
+  if (!r.ok) {
+    const err = new Error(j.error || r.statusText);
+    err.noEncontrado = !!j.no_encontrado;
+    err.estado = r.status;
+    throw err;
+  }
   return j;
 }
 
@@ -131,6 +143,15 @@ async function vPanel() {
         ${p.excluidos ? `y <strong>${n(p.excluidos)} contratos afuera del cruce</strong>
           por faltarles algún dato firme` : ''}.
       </p>
+      ${(p.contratos_repetidos || p.archivos_con_varios) ? `
+        <div class="aviso" style="margin-top:14px">
+          <span class="sello alerta" style="flex:none">Revisar</span>
+          <span>${p.archivos_con_varios ? `<strong>${n(p.archivos_con_varios)} archivo(s)
+            traen varios contratos adentro</strong> y se separaron solos. ` : ''}
+            ${p.contratos_repetidos ? `<strong>${n(p.contratos_repetidos)} contrato(s)
+            aparecen más de una vez</strong> y estarían contándose doble en los acumulados:
+            <a href="#/consultas/08_contratos_repetidos">ver cuáles</a>.` : ''}</span>
+        </div>` : ''}
       ${p.destacados.length ? `
         <h3 style="margin-top:20px">Las superposiciones más largas</h3>
         <div class="destacados">
@@ -247,6 +268,8 @@ async function vDocumento(id) {
   const d = await api('/api/documento?id=' + id);
   const doc = d.documento;
   const anclables = d.campos.filter(c => c.x0 != null);
+  const paginas = d.paginas.length ? d.paginas : [{nro:1, ancho_pt:595, alto_pt:842}];
+  const varios = d.hermanos.length > 1;
 
   const campos = d.campos.map(c => {
     const conf = d.conflictos[c.nombre];
@@ -263,12 +286,23 @@ async function vDocumento(id) {
       <dd>${celdaValor(c)}${ancla}${marca}</dd></div>`;
   }).join('');
 
+  const tiras = paginas.map(p =>
+    `<button class="foja" data-nro="${p.nro}">f. ${p.nro}</button>`).join('');
+
   vista.innerHTML = bloque('f. ' + String(id).padStart(4, '0'), 'Visor', `
-    <h2>${esc(doc.archivo)}</h2>
+    <h2>${esc(doc.archivo)}${varios ? ` <span class="rotulo">contrato ${doc.orden} de ${d.hermanos.length}</span>` : ''}</h2>
     <p class="prosa" style="font-size:13px">
       Cámara ${esc(doc.camara || '—')} · perfil <span class="mono">${esc(doc.perfil)}</span> ·
-      lote ${esc(doc.lote || '—')}<br>
+      lote ${esc(doc.lote || '—')} ·
+      fojas <span class="mono">${doc.pagina_desde}–${doc.pagina_hasta}</span><br>
       <span class="mono" style="font-size:11px">sha256 ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
+    ${varios ? `<div class="aviso"><span class="sello alerta" style="flex:none">Ojo</span>
+      <span>Este PDF trae <strong>${d.hermanos.length} contratos</strong> adentro. Estás
+      viendo el número ${doc.orden}, que ocupa las fojas ${doc.pagina_desde} a
+      ${doc.pagina_hasta}. Los otros:
+      ${d.hermanos.filter(h => h.id !== doc.id).map(h =>
+        `<a href="#/documento/${h.id}">#${h.orden} (f. ${h.pagina_desde}–${h.pagina_hasta})</a>`
+      ).join(' · ')}</span></div>` : ''}
     <div class="visor">
       <div class="datos">
         <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px">
@@ -277,8 +311,9 @@ async function vDocumento(id) {
         ${campos}
       </div>
       <div class="lamina">
+        ${paginas.length > 1 ? `<div class="fojas">${tiras}</div>` : ''}
         <div class="lienzo" id="lienzo">
-          <img src="/pagina?doc=${id}&nro=1" alt="Folio 1 de ${esc(doc.archivo)}">
+          <img id="folio" alt="Foja de ${esc(doc.archivo)}">
           <div class="recuadro" id="recuadro" style="display:none"></div>
         </div>
         <div class="pie-lamina"><span id="pie-campo">tocá una ficha de anclaje</span>
@@ -294,11 +329,40 @@ async function vDocumento(id) {
         ${d.interpretaciones.map(interpHTML).join('')}
       </div>` : ''}`);
 
-  const pag = d.paginas[0] || {ancho_pt: 595, alto_pt: 842};
   const recuadro = $('#recuadro');
+  const folio = $('#folio');
+
+  /* Abrir en la foja donde están los datos, no en la primera. En un expediente la
+     primera suele ser la carátula, y arrancar ahí obliga a un clic de más siempre. */
+  const cuenta = {};
+  anclables.forEach(c => { if (c.pagina_nro) cuenta[c.pagina_nro] = (cuenta[c.pagina_nro] || 0) + 1; });
+  const conDatos = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a])[0];
+  let actual = conDatos ? +conDatos : paginas[0].nro;
+
+  /* Cambiar de foja: la imagen Y las dimensiones de referencia. Usar las de la primera
+     página para todas hacía que el recuadro cayera corrido cuando el escaneo tenía
+     hojas de tamaño distinto. */
+  function verFoja(nro) {
+    actual = nro;
+    folio.src = `/pagina?doc=${id}&nro=${nro}`;
+    folio.alt = `Foja ${nro} de ${doc.archivo}`;
+    vista.querySelectorAll('.foja').forEach(b =>
+      b.setAttribute('aria-current', String(+b.dataset.nro === nro)));
+  }
+  vista.querySelectorAll('.foja').forEach(b => b.onclick = () => {
+    verFoja(+b.dataset.nro);
+    recuadro.style.display = 'none';
+    $('#pie-campo').textContent = 'tocá una ficha de anclaje';
+    $('#pie-xy').textContent = '';
+  });
+  verFoja(actual);
+
   vista.querySelectorAll('.ancla').forEach(b => b.onclick = () => {
     const c = anclables.find(x => x.id === +b.dataset.campo);
     if (!c) return;
+    const nro = c.pagina_nro || paginas[0].nro;
+    if (nro !== actual) verFoja(nro);
+    const pag = paginas.find(p => p.nro === nro) || paginas[0];
     recuadro.style.display = 'block';
     recuadro.style.left   = (100 * c.x0 / pag.ancho_pt) + '%';
     recuadro.style.top    = (100 * c.y0 / pag.alto_pt) + '%';
@@ -306,7 +370,7 @@ async function vDocumento(id) {
     recuadro.style.height = (100 * (c.y1 - c.y0) / pag.alto_pt) + '%';
     recuadro.className = 'recuadro' + (c.nulo_motivo ? ' conf' : '');
     $('#pie-campo').textContent = 'campo: ' + c.nombre + (c.ruta ? ' · ruta ' + c.ruta : '');
-    $('#pie-xy').textContent = `f.${c.pagina_nro} · [${[c.x0,c.y0,c.x1,c.y1].map(v=>Math.round(v)).join(',')}]`;
+    $('#pie-xy').textContent = `f.${nro} · [${[c.x0,c.y0,c.x1,c.y1].map(v=>Math.round(v)).join(',')}]`;
     vista.querySelectorAll('.ancla').forEach(o => o.setAttribute('aria-pressed', o === b));
   });
 }
@@ -704,6 +768,25 @@ async function vIngesta() {
       vuelve a tocar nunca más</strong>. Si un PDF ya estaba, no se duplica — se anota que
       apareció de nuevo y se sigue.</p>
 
+    <div class="consejo">
+      <b>Un PDF por contrato es mejor que un PDF con muchos adentro.</b>
+      <p>El sistema separa igual los contratos que vengan juntos en un mismo PDF, y
+        tarda lo mismo: <span class="mono">25 s</span> contra <span class="mono">28 s</span>
+        para los mismos doce contratos. La diferencia aparece cuando se vuelve a escanear
+        parte de una pila.</p>
+      <p><strong>Con un PDF por contrato</strong>, el sistema reconoce por huella digital
+        los que ya tenía, no los vuelve a leer, y no los cuenta dos veces.
+        <strong>Con todo en un PDF grande</strong> alcanza una hoja de diferencia para que
+        sea un archivo nuevo: se relee entero y los contratos repetidos entran otra vez,
+        inflando los acumulados.</p>
+      <p class="medido">Medido: doce contratos subidos en dos tandas que se pisan en tres.
+        Sueltos → 12 contratos, 0 repetidos. Todo junto → 15 contratos,
+        <span class="marca">3 repetidos</span>.</p>
+      <p>Si igual conviene escanear de corrido —y muchas veces conviene, porque es más
+        rápido en el escáner—, hacelo: el sistema los separa y avisa cuáles quedaron
+        repetidos. Sólo que después hay que resolverlos a mano.</p>
+    </div>
+
     <div class="campos-lote">
       <label>Lote <input type="text" id="i-lote" value="${esc(lote)}"
         placeholder="contratos-camara-A-2024"></label>
@@ -990,10 +1073,19 @@ async function rutear() {
     const m = h.match(re);
     if (m) {
       try { return await fn(m[1]); }
-      catch (e) { return vista.innerHTML =
-        `<div class="bloque"><div class="marginalia"></div><div class="cuerpo">
-         <div class="aviso"><span class="sello alerta">Error</span><span>${esc(e.message)}</span></div>
-         </div></div>`; }
+      catch (e) {
+        // Lo que no existe y lo que se rompió no son lo mismo, y no se muestran igual.
+        const cuerpo = e.noEncontrado
+          ? `<h2>No se encontró</h2>` + vacio('Eso ya no está', esc(e.message),
+              {href:'#/panel', texto:'Volver al panel'})
+          : `<h2>Algo falló</h2>
+             <div class="aviso"><span class="sello alerta">Error</span>
+               <span>${esc(e.message)}</span></div>
+             <p class="prosa">Si se repite, mirá la consola donde corre el servidor: el
+               detalle completo queda ahí. Mientras tanto podés
+               <a href="#/panel">volver al panel</a>.</p>`;
+        return vista.innerHTML = bloque('—', e.noEncontrado ? 'Vacío' : 'Error', cuerpo);
+      }
     }
   }
   location.hash = '#/panel';

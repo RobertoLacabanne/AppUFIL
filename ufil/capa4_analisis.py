@@ -34,7 +34,7 @@ def catalogo() -> list[dict]:
 def correr(cx: sqlite3.Connection, id_consulta: str) -> dict:
     ruta = config.CONSULTAS / f"{id_consulta}.sql"
     if not ruta.exists():
-        raise FileNotFoundError(f"no existe la consulta {id_consulta}")
+        raise FileNotFoundError(f"No existe la consulta «{id_consulta}».")
     sql = ruta.read_text(encoding="utf-8")
     cur = cx.execute(sql)
     columnas = [d[0] for d in cur.description]

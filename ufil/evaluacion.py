@@ -84,6 +84,14 @@ def evaluar(cx: sqlite3.Connection, referencia_csv: Path) -> dict:
         variantes.setdefault((v["documento_id"], v["campo_nombre"]), []).append(v["valor"])
     detalle: list[dict] = []
 
+    # La transcripción de referencia tiene una fila por ARCHIVO. Si un archivo produjo
+    # varios contratos —un PDF con una pila adentro—, no hay forma de saber cuál fila le
+    # corresponde a cuál contrato, así que esos quedan fuera de la medición y se
+    # informan aparte. Medir contra la referencia equivocada sería peor que no medir.
+    multiples = {r["nombre"] for r in cx.execute("""
+        SELECT a.nombre FROM documento d JOIN archivo a ON a.sha256 = d.sha256
+         GROUP BY d.sha256 HAVING COUNT(*) > 1""")}
+
     filas = cx.execute("""
         SELECT a.nombre AS archivo, c.nombre AS campo, c.valor_literal, c.nulo_motivo,
                c.estado, c.confianza, n.valor_norm, d.id AS documento_id
@@ -95,7 +103,7 @@ def evaluar(cx: sqlite3.Connection, referencia_csv: Path) -> dict:
 
     for f in filas:
         campo, archivo = f["campo"], f["archivo"]
-        r = ref.get(archivo)
+        r = None if archivo in multiples else ref.get(archivo)
         if not r:
             tabla[campo]["sin_referencia"] += 1
             continue
@@ -148,7 +156,7 @@ def evaluar(cx: sqlite3.Connection, referencia_csv: Path) -> dict:
             "cumple_exactitud": ok_exac, "cumple_silenciosos": ok_sil,
         }
     return {"por_campo": resumen, "detalle": detalle, "aprueba": aprueba,
-            "documentos": len(ref)}
+            "documentos": len(ref), "archivos_con_varios_contratos": sorted(multiples)}
 
 
 def informe_texto(res: dict) -> str:
@@ -171,6 +179,10 @@ def informe_texto(res: dict) -> str:
     if conf:
         L.append(f"campos en conflicto: {conf} · de esos, con la lectura correcta entre las "
                  f"ofrecidas: {resc} ({100*resc/conf:.0f}%) — se resuelven eligiendo, sin tipear")
+    if res.get("archivos_con_varios_contratos"):
+        n = len(res["archivos_con_varios_contratos"])
+        L.append(f"fuera de la medición: {n} archivo(s) traen varios contratos adentro y la "
+                 f"referencia tiene una sola fila por archivo")
     L.append("")
     L.append("VEREDICTO: " + ("cumple los umbrales propuestos"
                               if res["aprueba"] else "NO alcanza los umbrales propuestos"))

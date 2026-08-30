@@ -49,17 +49,17 @@ def cmd_leer(a):
 def cmd_extraer(a):
     cx = _cx(a)
     shas = [f["sha256"] for f in cx.execute("SELECT sha256 FROM archivo ORDER BY nombre")]
-    tot = {"campos": 0, "conflictos": 0, "a_revisar": 0, "sin_perfil": 0}
+    tot = {"documentos": 0, "campos": 0, "conflictos": 0, "a_revisar": 0, "sin_perfil": 0}
     for i, sha in enumerate(shas, 1):
         r = c2.extraer_documento(cx, sha, a.perfil)
-        if r["documento_id"] is None:
-            tot["sin_perfil"] += 1
-        for k in ("campos", "conflictos", "a_revisar"):
-            tot[k] += r[k]
+        for k in tot:
+            tot[k] += r.get(k, 0)
         print(f"\r  extraídos {i}/{len(shas)}", end="", flush=True)
-    print(f"\r  extraídos {len(shas)}/{len(shas)} · campos {tot['campos']} · "
-          f"conflictos {tot['conflictos']} · a revisar {tot['a_revisar']} · "
-          f"sin perfil {tot['sin_perfil']}")
+    extra = (f" · ¡{tot['documentos'] - len(shas)} contratos de más!"
+             if tot["documentos"] > len(shas) else "")
+    print(f"\r  {len(shas)} archivos -> {tot['documentos']} contratos{extra} · "
+          f"campos {tot['campos']} · conflictos {tot['conflictos']} · "
+          f"a revisar {tot['a_revisar']} · sin perfil {tot['sin_perfil']}")
     return 0
 
 
@@ -67,6 +67,10 @@ def cmd_identidad(a):
     cx = _cx(a)
     print("  " + json.dumps(c3.resolver(cx), ensure_ascii=False))
     print("  " + json.dumps(c3.proponer_fusiones(cx), ensure_ascii=False))
+    rep = c3.detectar_contratos_repetidos(cx)
+    if rep:
+        print(f"  ¡ojo! {rep} contrato(s) aparecen más de una vez: "
+              f"ver la consulta 08_contratos_repetidos")
     return 0
 
 

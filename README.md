@@ -75,6 +75,19 @@ Instalación en la máquina de la fiscalía, paso por paso: [`INSTALAR.md`](INST
 `python3 -m ufil.cli verificar` comprueba las cuatro después de cada corrida, y devuelve
 error si alguna falla.
 
+## Cómo conviene cargar los escaneos
+
+**Un PDF por contrato.** Medido: separar o juntar no cambia ni la velocidad ni la
+exactitud, pero cuando se rescanea parte de una pila, con archivos sueltos el sistema
+reconoce por huella digital los que ya tenía (12 contratos, 0 repetidos) y con todo en un
+PDF grande alcanza una hoja de diferencia para que entre de nuevo (15 contratos, 3
+repetidos inflando los acumulados).
+
+Si igual conviene escanear de corrido, hacelo: **el sistema separa los contratos que
+vengan juntos** —detecta dónde arranca cada formulario y arma un registro por tramo de
+fojas— y **marca los repetidos** para que los resuelva una persona. El detalle está en
+[`docs/05-como-conviene-cargar.md`](docs/05-como-conviene-cargar.md).
+
 ## La regla de los dos carriles
 
 - **Carril de datos** (tabla `campo`): lo que se leyó de un documento, con anclaje y
@@ -94,7 +107,7 @@ por accidente.
 |---|---|---|
 | 0 | `capa0_ingesta.py` | Recorrido en solo lectura, SHA-256, duplicados exactos, procedencia |
 | 1 | `capa1_texto.py` · `capa1_vlm.py` | Texto con coordenadas. Ruta nativa, dos rutas de OCR, y el contrato del modelo de visión (**sin implementar**, a propósito) |
-| 2 | `capa2_extraccion.py` · `capa2_campos.py` | Extracción anclada por perfil declarativo + cotejo entre rutas |
+| 2 | `capa2_extraccion.py` · `capa2_campos.py` | Separa los contratos que vengan juntos en un mismo PDF, y extrae cada uno con anclaje y cotejo entre rutas |
 | 3 | `capa3_identidad.py` | Clave fuerte automática; fusiones por similitud **sólo propuestas** |
 | 4 | `consultas/*.sql` · `capa4_analisis.py` | Cruces determinísticos, cada uno un archivo versionado |
 | 5 | `capa5_interpretacion.py` | El otro carril. Hoy, reglas; mañana, un LLM local |
@@ -111,7 +124,8 @@ por accidente.
 | [`docs/01-identidad-visual.md`](docs/01-identidad-visual.md) | El sistema visual: por qué la tipografía es la etiqueta de procedencia |
 | [`docs/02-fase-1.md`](docs/02-fase-1.md) | **Qué se construyó, qué mide y qué falta.** Con los números. |
 | [`docs/03-carga-y-trabajo.md`](docs/03-carga-y-trabajo.md) | Carga desde la interfaz, búsqueda, ficha del contratado, y un experimento de lectura que salió mal. |
-| [`docs/04-guion-demostracion.md`](docs/04-guion-demostracion.md) | **Cómo mostrarlo en una reunión**, con las preguntas que van a hacer y qué contestar. |
+| [`docs/04-guion-demostracion.md`](docs/04-guion-demostracion.md) | Cómo mostrarlo en una reunión, con las preguntas que van a hacer y qué contestar. |
+| [`docs/05-como-conviene-cargar.md`](docs/05-como-conviene-cargar.md) | **¿Un PDF por contrato o todo junto?** La respuesta, medida. |
 | [`docs/identidad/guia-visual.html`](docs/identidad/guia-visual.html) | La guía visual, se abre con doble clic |
 | [`INSTALAR.md`](INSTALAR.md) | Instalación en dos etapas y operación diaria |
 

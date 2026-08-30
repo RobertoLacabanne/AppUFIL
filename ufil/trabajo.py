@@ -91,21 +91,21 @@ class Procesador:
             shas = [r["sha256"] for r in cx.execute(
                 "SELECT sha256 FROM archivo ORDER BY ingerido_en, nombre")]
             self._fase("extrayendo los campos", len(shas))
-            totales = {"campos": 0, "conflictos": 0, "a_revisar": 0, "sin_perfil": 0}
+            totales = {"documentos": 0, "campos": 0, "conflictos": 0,
+                       "a_revisar": 0, "sin_perfil": 0}
             for sha in shas:
                 try:
                     r = c2.extraer_documento(cx, sha, perfil)
-                    if r["documento_id"] is None:
-                        totales["sin_perfil"] += 1
-                    for k in ("campos", "conflictos", "a_revisar"):
-                        totales[k] += r[k]
+                    for k in totales:
+                        totales[k] += r.get(k, 0)
                 except Exception as e:
                     self._error(cx, sha, "extracción", e)
                 self._avance(cx)
 
             self._fase("resolviendo identidades", 2)
             ident = c3.resolver(cx); self._avance(cx)
-            fus = c3.proponer_fusiones(cx); self._avance(cx)
+            fus = c3.proponer_fusiones(cx)
+            repetidos = c3.detectar_contratos_repetidos(cx); self._avance(cx)
 
             self._fase("indexando para la búsqueda", 1)
             paginas_idx = busqueda.reindexar(cx); self._avance(cx)
@@ -118,10 +118,14 @@ class Procesador:
                 self.estado.etapa = "listo"
                 self.estado.fin = time.time()
                 self.estado.resumen = {**totales, **ident, **fus,
+                                       "contratos_repetidos": repetidos,
                                        "paginas_indexadas": paginas_idx,
                                        "interpretaciones": sum(interp.values())}
+                extra = (f" (¡{totales['documentos'] - len(shas)} más que archivos: "
+                         f"había PDF con varios contratos adentro!)"
+                         if totales["documentos"] > len(shas) else "")
                 self.estado.mensaje = (
-                    f"{len(shas)} documentos · {totales['campos']} campos · "
+                    f"{len(shas)} archivos · {totales['documentos']} contratos{extra} · "
                     f"{totales['a_revisar']} a revisar · {fus['propuestas']} fusiones propuestas")
         except Exception as e:
             traceback.print_exc()

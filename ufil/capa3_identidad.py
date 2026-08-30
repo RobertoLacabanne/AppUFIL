@@ -101,10 +101,12 @@ def identificador(cx, persona_id: int) -> str:
     r = cx.execute("SELECT clave_fuerte FROM persona WHERE id=?", (persona_id,)).fetchone()
     if r and r["clave_fuerte"]:
         return "clave:" + r["clave_fuerte"]
-    d = cx.execute("""SELECT d.sha256 FROM documento_persona dp
+    d = cx.execute("""SELECT d.sha256, d.orden FROM documento_persona dp
                         JOIN documento d ON d.id = dp.documento_id
                        WHERE dp.persona_id=? ORDER BY d.id LIMIT 1""", (persona_id,)).fetchone()
-    return "doc:" + d["sha256"] if d else f"persona:{persona_id}"
+    # Con el orden incluido: un mismo archivo puede traer varios contratos, y cada uno
+    # es una persona distinta cuando no hay documento legible.
+    return f"doc:{d['sha256']}#{d['orden']}" if d else f"persona:{persona_id}"
 
 
 def _persona_por_ident(cx, ident: str):
@@ -112,9 +114,12 @@ def _persona_por_ident(cx, ident: str):
         r = cx.execute("SELECT id FROM persona WHERE clave_fuerte=?", (ident[6:],)).fetchone()
         return r["id"] if r else None
     if ident.startswith("doc:"):
+        resto = ident[4:]
+        sha, _, orden = resto.partition("#")
         r = cx.execute("""SELECT dp.persona_id FROM documento_persona dp
                             JOIN documento d ON d.id = dp.documento_id
-                           WHERE d.sha256=?""", (ident[4:],)).fetchone()
+                           WHERE d.sha256=? AND d.orden=?""",
+                       (sha, int(orden or 1))).fetchone()
         return r["persona_id"] if r else None
     return None
 
@@ -199,6 +204,35 @@ def proponer_fusiones(cx: sqlite3.Connection) -> dict:
             propuestas += 1
     cx.commit()
     return {"propuestas": propuestas, "homonimias": homonimias}
+
+
+def detectar_contratos_repetidos(cx: sqlite3.Connection) -> int:
+    """
+    Marca los contratos que aparecen más de una vez.
+
+    Un archivo repetido se detecta por su huella digital y no entra dos veces. Esto es
+    lo otro: el mismo contrato llegando desde archivos DISTINTOS, que es lo que pasa
+    cuando se rescanea parte de una pila y se sube todo junto en un PDF grande. Los
+    archivos difieren en una página, la huella no los reconoce, y el contrato suma dos
+    veces en los acumulados sin que nadie lo note.
+    """
+    cx.execute("DELETE FROM excepcion WHERE clase='contrato_repetido'")
+    n = 0
+    for r in cx.execute("""
+        SELECT COALESCE(nombre_literal,'(sin nombre)') AS quien, documento_literal AS doc,
+               inicio, fin, COUNT(*) AS veces,
+               GROUP_CONCAT(DISTINCT archivo) AS archivos
+          FROM v_contrato
+         WHERE documento_literal IS NOT NULL AND inicio IS NOT NULL AND fin IS NOT NULL
+         GROUP BY documento_norm, inicio, fin, monto_centavos
+        HAVING COUNT(*) > 1""").fetchall():
+        cx.execute("""INSERT INTO excepcion (clase, detalle, creado_en) VALUES (?,?,?)""",
+                   ("contrato_repetido",
+                    f"{r['quien']} ({r['doc']}) {r['inicio']}→{r['fin']} aparece "
+                    f"{r['veces']} veces, en: {r['archivos']}", ahora()))
+        n += 1
+    cx.commit()
+    return n
 
 
 def decidir_fusion(cx: sqlite3.Connection, propuesta_id: int, aceptar: bool, quien: str) -> None:

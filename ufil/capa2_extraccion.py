@@ -246,63 +246,55 @@ def _elegir_motivo(motivos: list[str]) -> str:
     return "ausente"
 
 
-def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> dict:
-    perfil = cargar_perfil(perfil_nombre)
+# ───────────────────────────────────────────────────────────── segmentación ──
+# Un PDF puede traer VARIOS contratos, que es como sale de un escáner de oficina
+# cuando se pasa una pila de expedientes de corrido. Sin esto, un archivo con cinco
+# contratos producía UN registro que mezclaba el nombre de uno con el monto de otro:
+# un contrato inventado, y sin ninguna marca. El peor error posible en este sistema.
+MIN_ROTULOS_PARA_SER_FORMULARIO = 2
 
-    # Agrupar las lecturas por ruta.
-    por_ruta: dict[str, list[tuple[int, int, list[Palabra]]]] = {}
-    for r in cx.execute(
-        """SELECT p.nro, l.id AS lid, l.ruta
-             FROM pagina p JOIN lectura l ON l.pagina_id = p.id
-            WHERE p.sha256 = ? ORDER BY p.nro, l.ruta""", (sha,)):
-        por_ruta.setdefault(r["ruta"], []).append((r["nro"], r["lid"], palabras_de(cx, r["lid"])))
 
-    if not por_ruta:
-        raise RuntimeError(f"sin lecturas para {sha}: correr `leer` antes que `extraer`")
+def pagina_es_formulario(palabras: list[Palabra], perfil: dict) -> bool:
+    """
+    ¿Esta página es la primera hoja de un contrato?
 
-    resultados = {ruta: extraer_de_ruta(pgs, perfil) for ruta, pgs in por_ruta.items()}
-    aplica = any(a for _, _, a in resultados.values())
-    camaras = [c for _, c, _ in resultados.values() if c]
-    camara = max(set(camaras), key=camaras.count) if camaras else None
+    Pide dos cosas a la vez: el título del formulario Y al menos dos de sus rótulos.
+    Con el título solo no alcanza — una carátula que diga «se agrega copia del contrato
+    de locación de servicios» arrancaría un contrato fantasma.
+    """
+    plano = _texto_plano(palabras)
+    marcas = perfil.get("deteccion", {}).get("alguno_de", [])
+    if marcas and not any(normalizar_cotejo(t) in plano for t in marcas):
+        return False
+    hallados = sum(1 for spec in perfil["campos"] if _buscar_rotulo(palabras, spec["rotulo"]))
+    return hallados >= MIN_ROTULOS_PARA_SER_FORMULARIO
 
-    if not aplica:
-        cx.execute("INSERT INTO excepcion (sha256, clase, detalle, creado_en) VALUES (?,?,?,?)",
-                   (sha, "perfil_no_aplica",
-                    f"ninguna ruta reconoció el perfil {perfil_nombre}", ahora()))
-        cx.commit()
-        return {"documento_id": None, "campos": 0, "conflictos": 0, "a_revisar": 0}
 
-    cur = cx.execute(
-        """INSERT INTO documento (sha256, tipo, perfil, camara, estado)
-           VALUES (?,?,?,?,'extraido')
-           ON CONFLICT(sha256) DO UPDATE SET perfil=excluded.perfil, camara=excluded.camara""",
-        (sha, perfil["tipo"], perfil_nombre, camara))
-    doc_id = cx.execute("SELECT id FROM documento WHERE sha256=?", (sha,)).fetchone()["id"]
+def segmentar(inicios: list[int], todas: list[int]) -> list[tuple[int, int]]:
+    """
+    Convierte las páginas donde arranca un contrato en tramos de páginas.
 
-    # Orden de borrado: primero lo que apunta a `campo`, después `campo`.
-    sub = "SELECT id FROM campo WHERE documento_id=?"
-    cx.execute(f"DELETE FROM persona_alias        WHERE campo_id IN ({sub})", (doc_id,))
-    cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
-    cx.execute("DELETE FROM interpretacion_fuente WHERE documento_id=?", (doc_id,))
-    cx.execute("DELETE FROM documento_persona     WHERE documento_id=?", (doc_id,))
-    cx.execute(f"DELETE FROM normalizacion        WHERE campo_id IN ({sub})", (doc_id,))
-    cx.execute("DELETE FROM conflicto_variante WHERE conflicto_id IN (SELECT id FROM conflicto WHERE documento_id=?)", (doc_id,))
-    cx.execute("DELETE FROM conflicto WHERE documento_id=?", (doc_id,))
-    cx.execute("DELETE FROM campo WHERE documento_id=?", (doc_id,))
+    La carátula que va ANTES del primer contrato se le adjunta a ese primer contrato;
+    el anexo que va después de uno se adjunta a ese. Es como está armado el expediente.
+    """
+    if not inicios:
+        return []
+    primera, ultima = min(todas), max(todas)
+    tramos = []
+    for i, arranque in enumerate(inicios):
+        desde = primera if i == 0 else arranque
+        hasta = (inicios[i + 1] - 1) if i + 1 < len(inicios) else ultima
+        tramos.append((desde, hasta))
+    return tramos
 
-    # Render de la página, para la relectura focalizada.
-    render = cx.execute("""SELECT nro, render, render_escala FROM pagina
-                            WHERE sha256=? AND render IS NOT NULL ORDER BY nro""",
-                        (sha,)).fetchall()
-    por_pagina = {r["nro"]: (Path(r["render"]), r["render_escala"] or config.ESCALA_RENDER)
-                  for r in render}
 
+def _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina) -> dict:
+    """Cotejo entre rutas y guardado de los campos de UN contrato."""
     n_campos = n_conf = n_rev = 0
     for spec in perfil["campos"]:
         campo = spec["nombre"]
         critico = campo in config.CAMPOS_CRITICOS
-        por = {ruta: res[0][campo] for ruta, res in resultados.items()}
-
+        por = {ruta: res[campo] for ruta, res in resultados.items()}
         con_valor = {r: h for r, h in por.items() if h.norm is not None}
 
         # ── Tercera lectura: desempate sobre el campo agrandado y binarizado ──
@@ -335,11 +327,9 @@ def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> d
                 foc = relectura_focal(png, esc, recorte, spec["parser"])
                 if foc and foc.norm is not None:
                     # Llegamos acá sólo porque el campo YA era dudoso, así que iba a la
-                    # cola de todos modos. Entonces la relectura entra al cotejo sin
-                    # más filtro: si discrepa, el campo queda en conflicto y el operador
-                    # ve las dos lecturas y elige. Mostrarle dos candidatas —una de las
-                    # cuales suele ser la correcta— le cuesta el mismo clic que mostrarle
-                    # una sola lectura dudosa, y le ahorra tipear.
+                    # cola de todos modos. Mostrarle al operador dos candidatas —una de
+                    # las cuales suele ser la correcta— le cuesta el mismo clic que
+                    # mostrarle una sola lectura dudosa, y le ahorra tipear.
                     foc.pagina, foc.caja = ref.pagina, (ref.caja or ref.region)
                     por["ocr_focal"] = foc
                     con_valor["ocr_focal"] = foc
@@ -348,23 +338,19 @@ def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> d
 
         # ── discrepancia entre rutas: no se elige, se marca ──
         if len(valores) > 1:
-            # El conflicto es sobre QUÉ dice el campo, no sobre DÓNDE está. El anclaje
-            # se conserva igual, así la interfaz puede llevarte al recuadro para que
-            # mires vos cuál de las dos lecturas es la buena.
             ref = max(con_valor.values(), key=lambda h: h.conf)
             cx.execute("""INSERT INTO campo (documento_id,nombre,nulo_motivo,pagina_nro,
                                              x0,y0,x1,y1,estado)
                           VALUES (?,?,?,?,?,?,?,?,'a_revisar')""",
                        (doc_id, campo, "conflicto", ref.pagina,
-                        *(ref.caja if ref.caja else (None,)*4)))
+                        *(ref.caja if ref.caja else (None,) * 4)))
             k = cx.execute("INSERT INTO conflicto (documento_id,campo_nombre) VALUES (?,?)",
                            (doc_id, campo)).lastrowid
             for ruta, h in sorted(con_valor.items()):
-                cx.execute(
-                    """INSERT INTO conflicto_variante
-                       (conflicto_id,ruta,valor,confianza,pagina_nro,x0,y0,x1,y1)
-                       VALUES (?,?,?,?,?,?,?,?,?)""",
-                    (k, ruta, h.literal, h.conf, h.pagina, *(h.caja or (None,)*4)))
+                cx.execute("""INSERT INTO conflicto_variante
+                              (conflicto_id,ruta,valor,confianza,pagina_nro,x0,y0,x1,y1)
+                              VALUES (?,?,?,?,?,?,?,?,?)""",
+                           (k, ruta, h.literal, h.conf, h.pagina, *(h.caja or (None,) * 4)))
             n_campos += 1; n_conf += 1; n_rev += 1
             continue
 
@@ -372,12 +358,11 @@ def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> d
         if not con_valor:
             motivo = _elegir_motivo([h.motivo or "ausente" for h in por.values()])
             ref = next((h for h in por.values() if h.caja), None)
-            cx.execute(
-                """INSERT INTO campo (documento_id,nombre,nulo_motivo,pagina_nro,
-                                      x0,y0,x1,y1,estado)
-                   VALUES (?,?,?,?,?,?,?,?,'a_revisar')""",
-                (doc_id, campo, motivo, ref.pagina if ref else None,
-                 *(ref.caja if ref and ref.caja else (None,)*4)))
+            cx.execute("""INSERT INTO campo (documento_id,nombre,nulo_motivo,pagina_nro,
+                                             x0,y0,x1,y1,estado)
+                          VALUES (?,?,?,?,?,?,?,?,'a_revisar')""",
+                       (doc_id, campo, motivo, ref.pagina if ref else None,
+                        *(ref.caja if ref and ref.caja else (None,) * 4)))
             n_campos += 1; n_rev += 1
             continue
 
@@ -404,14 +389,106 @@ def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> d
                     + (" · la relectura focalizada discrepa" if foco_discrepa else "")))
         n_campos += 1
         n_rev += int(revisar)
+    return {"campos": n_campos, "conflictos": n_conf, "a_revisar": n_rev}
 
-    rehechas = reaplicar_revisiones(cx, doc_id, sha)
+
+def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> dict:
+    """
+    Extrae TODOS los contratos que haya en un archivo.
+
+    Devuelve el agregado del archivo. `documentos` dice cuántos contratos encontró: si
+    da más de uno, el PDF traía varios adentro y cada uno quedó como un registro
+    separado, con su tramo de páginas.
+    """
+    perfil = cargar_perfil(perfil_nombre)
+
+    # Agrupar las lecturas por ruta.
+    por_ruta: dict[str, list[tuple[int, int, list[Palabra]]]] = {}
+    for r in cx.execute(
+        """SELECT p.nro, l.id AS lid, l.ruta
+             FROM pagina p JOIN lectura l ON l.pagina_id = p.id
+            WHERE p.sha256 = ? ORDER BY p.nro, l.ruta""", (sha,)):
+        por_ruta.setdefault(r["ruta"], []).append((r["nro"], r["lid"], palabras_de(cx, r["lid"])))
+
+    if not por_ruta:
+        raise RuntimeError(f"sin lecturas para {sha}: correr `leer` antes que `extraer`")
+
+    todas = sorted({nro for pgs in por_ruta.values() for nro, _, _ in pgs})
+    # Una página arranca contrato si CUALQUIER ruta la reconoce como formulario. Ser
+    # generoso acá es lo correcto: perder un arranque significa perder un contrato
+    # entero y mezclarlo con el anterior.
+    inicios = sorted({nro for pgs in por_ruta.values() for nro, _, pw in pgs
+                      if pagina_es_formulario(pw, perfil)})
+    tramos = segmentar(inicios, todas)
+
+    if not tramos:
+        cx.execute("INSERT INTO excepcion (sha256, clase, detalle, creado_en) VALUES (?,?,?,?)",
+                   (sha, "perfil_no_aplica",
+                    f"ninguna página se reconoció como formulario {perfil_nombre}", ahora()))
+        cx.commit()
+        return {"documentos": 0, "campos": 0, "conflictos": 0, "a_revisar": 0,
+                "sin_perfil": 1, "revisiones_reaplicadas": 0}
+
+    # Render de las páginas, para la relectura focalizada.
+    por_pagina = {r["nro"]: (Path(r["render"]), r["render_escala"] or config.ESCALA_RENDER)
+                  for r in cx.execute("""SELECT nro, render, render_escala FROM pagina
+                                          WHERE sha256=? AND render IS NOT NULL""", (sha,))}
+
+    # Borrar lo anterior de ESTE archivo, en orden de dependencias.
+    viejos = [f["id"] for f in cx.execute("SELECT id FROM documento WHERE sha256=?", (sha,))]
+    for doc_id in viejos:
+        sub = "SELECT id FROM campo WHERE documento_id=?"
+        cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
+        cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
+        cx.execute("DELETE FROM interpretacion_fuente  WHERE documento_id=?", (doc_id,))
+        cx.execute("DELETE FROM documento_persona      WHERE documento_id=?", (doc_id,))
+        cx.execute(f"DELETE FROM normalizacion         WHERE campo_id IN ({sub})", (doc_id,))
+        cx.execute("""DELETE FROM conflicto_variante WHERE conflicto_id IN
+                      (SELECT id FROM conflicto WHERE documento_id=?)""", (doc_id,))
+        cx.execute("DELETE FROM conflicto WHERE documento_id=?", (doc_id,))
+        cx.execute("DELETE FROM campo     WHERE documento_id=?", (doc_id,))
+    cx.execute("DELETE FROM documento WHERE sha256=?", (sha,))
+
+    total = {"documentos": 0, "campos": 0, "conflictos": 0, "a_revisar": 0,
+             "sin_perfil": 0, "revisiones_reaplicadas": 0}
+    for i, (desde, hasta) in enumerate(tramos, start=1):
+        recorte = {ruta: [(n, l, w) for n, l, w in pgs if desde <= n <= hasta]
+                   for ruta, pgs in por_ruta.items()}
+        recorte = {r: pgs for r, pgs in recorte.items() if pgs}
+        resultados, camaras = {}, []
+        for ruta, pgs in recorte.items():
+            hall, camara, _ = extraer_de_ruta(pgs, perfil)
+            resultados[ruta] = hall
+            if camara:
+                camaras.append(camara)
+        camara = max(set(camaras), key=camaras.count) if camaras else None
+
+        doc_id = cx.execute(
+            """INSERT INTO documento (sha256, orden, pagina_desde, pagina_hasta,
+                                      tipo, perfil, camara, estado)
+               VALUES (?,?,?,?,?,?,?,'extraido')""",
+            (sha, i, desde, hasta, perfil["tipo"], perfil_nombre, camara)).lastrowid
+
+        r = _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina)
+        rehechas = reaplicar_revisiones(cx, doc_id, sha, i)
+        total["documentos"] += 1
+        for k in ("campos", "conflictos"):
+            total[k] += r[k]
+        total["a_revisar"] += max(0, r["a_revisar"] - rehechas)
+        total["revisiones_reaplicadas"] += rehechas
+
+    if len(tramos) > 1:
+        cx.execute("""INSERT INTO excepcion (sha256, clase, detalle, creado_en)
+                      VALUES (?,?,?,?)""",
+                   (sha, "varios_contratos_en_un_archivo",
+                    f"el archivo trae {len(tramos)} contratos; se separaron en "
+                    f"{len(tramos)} registros por tramo de páginas", ahora()))
     cx.commit()
-    return {"documento_id": doc_id, "campos": n_campos, "conflictos": n_conf,
-            "a_revisar": max(0, n_rev - rehechas), "revisiones_reaplicadas": rehechas}
+    return total
 
 
-def reaplicar_revisiones(cx: sqlite3.Connection, doc_id: int, sha: str) -> int:
+def reaplicar_revisiones(cx: sqlite3.Connection, doc_id: int, sha: str,
+                        orden: int = 1) -> int:
     """
     Vuelve a aplicar lo que una persona ya decidió sobre este documento en una corrida
     anterior. Sin esto, mejorar el perfil de extracción y reprocesar el lote le borraría
@@ -419,7 +496,8 @@ def reaplicar_revisiones(cx: sqlite3.Connection, doc_id: int, sha: str) -> int:
     """
     from .aplicar_revision import aplicar
     n = 0
-    for r in cx.execute("SELECT * FROM revision_humana WHERE sha256=?", (sha,)).fetchall():
+    for r in cx.execute("SELECT * FROM revision_humana WHERE sha256=? AND orden=?",
+                        (sha, orden)).fetchall():
         c = cx.execute("SELECT id FROM campo WHERE documento_id=? AND nombre=?",
                        (doc_id, r["campo"])).fetchone()
         if not c:

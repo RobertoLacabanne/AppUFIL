@@ -417,3 +417,21 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
   padding:1px 7px; white-space:nowrap;
 }
 .etiqueta-campo.alerta{border-color:var(--lapiz); color:var(--lapiz); background:var(--lapiz-suave)}
+
+/* ── Selector de foja en el visor ─────────────────────────────────────── */
+.fojas{display:flex; gap:5px; flex-wrap:wrap}
+.foja{font-family:var(--mono); font-size:11px; padding:3px 9px; cursor:pointer;
+  border:1px solid var(--filete); background:var(--papel); color:var(--tinta-2)}
+.foja:hover{border-color:var(--sello); color:var(--tinta)}
+.foja[aria-current="true"]{background:var(--sello); border-color:var(--sello); color:var(--papel)}
+
+/* ── Consejo operativo en la pantalla de carga ────────────────────────── */
+.consejo{border-left:3px solid var(--sello); background:var(--sello-suave);
+  padding:14px 18px; margin:14px 0 18px; max-width:78ch}
+.consejo b{display:block; font-size:14px; margin-bottom:8px}
+.consejo p{font-family:var(--serif); font-size:14px; line-height:1.58;
+  color:var(--tinta-2); margin:0 0 9px; max-width:none}
+.consejo p:last-child{margin-bottom:0}
+.consejo p.medido{font-family:var(--mono); font-size:11.5px; line-height:1.55;
+  background:var(--papel); border:1px solid var(--filete-2); padding:8px 11px}
+.consejo strong{color:var(--tinta)}

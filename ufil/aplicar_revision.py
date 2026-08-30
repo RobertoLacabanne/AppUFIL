@@ -89,13 +89,13 @@ def aplicar(cx: sqlite3.Connection, campo_id: int, accion: str, valor, quien: st
                (quien, ahora(), c["documento_id"], c["nombre"]))
 
     if registrar:
-        sha = cx.execute("SELECT sha256 FROM documento WHERE id=?",
-                         (c["documento_id"],)).fetchone()["sha256"]
-        cx.execute("""INSERT INTO revision_humana (sha256,campo,accion,valor,quien,cuando)
-                      VALUES (?,?,?,?,?,?)
-                      ON CONFLICT(sha256,campo) DO UPDATE SET accion=excluded.accion,
+        d = cx.execute("SELECT sha256, orden FROM documento WHERE id=?",
+                       (c["documento_id"],)).fetchone()
+        cx.execute("""INSERT INTO revision_humana (sha256,orden,campo,accion,valor,quien,cuando)
+                      VALUES (?,?,?,?,?,?,?)
+                      ON CONFLICT(sha256,orden,campo) DO UPDATE SET accion=excluded.accion,
                           valor=excluded.valor, quien=excluded.quien, cuando=excluded.cuando""",
-                   (sha, c["nombre"], accion, str(valor) if valor is not None else None,
-                    quien, ahora()))
+                   (d["sha256"], d["orden"], c["nombre"], accion,
+                    str(valor) if valor is not None else None, quien, ahora()))
     cx.commit()
     return {"ok": True}
