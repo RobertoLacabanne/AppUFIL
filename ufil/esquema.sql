@@ -145,6 +145,13 @@ CREATE TABLE IF NOT EXISTS campo (
   estado        TEXT NOT NULL DEFAULT 'automatico',  -- automatico|verificado|corregido
   revisado_por  TEXT,
   revisado_en   TEXT,
+  -- Lo que había leído la máquina antes de que una persona lo tocara. Se guarda para
+  -- poder DESHACER: en una herramienta de trabajo la gente se equivoca revisando, y no
+  -- tener vuelta atrás obliga a reprocesar el lote entero para arreglar un clic.
+  valor_auto    TEXT,
+  motivo_auto   TEXT,
+  conf_auto     REAL,
+  ruta_auto     TEXT,
   UNIQUE (documento_id, nombre),
   CHECK ((valor_literal IS NULL) <> (nulo_motivo IS NULL)),
   CHECK (valor_literal IS NULL OR (pagina_nro IS NOT NULL AND x0 IS NOT NULL))

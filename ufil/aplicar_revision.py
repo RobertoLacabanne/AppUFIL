@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import sqlite3
 
-from .capa2_campos import PARSERS
+from .capa2_campos import PARSERS   # OJO: no volver a importarlo dentro de `aplicar`:
+                                   # un import local lo vuelve variable de función y
+                                   # rompe las ramas que lo usan antes.
 from .db import ahora
 
-ACCIONES = ("verificar", "corregir", "ilegible", "ausente", "ambiguo")
+ACCIONES = ("verificar", "corregir", "ilegible", "ausente", "ambiguo", "revertir")
 
 
 def _tipo_de(cx, campo_id: int) -> str:
@@ -53,6 +55,42 @@ def aplicar(cx: sqlite3.Connection, campo_id: int, accion: str, valor, quien: st
     if not c:
         raise KeyError("campo inexistente")
 
+    # Antes de tocar nada, guardar lo que había leído la máquina (una sola vez: si ya
+    # está guardado, es porque esto ya se revisó antes y ese es el estado original).
+    if c["valor_auto"] is None and c["motivo_auto"] is None:
+        cx.execute("""UPDATE campo SET valor_auto=?, motivo_auto=?, conf_auto=?, ruta_auto=?
+                       WHERE id=?""",
+                   (c["valor_literal"], c["nulo_motivo"], c["confianza"], c["ruta"], campo_id))
+        c = cx.execute("SELECT * FROM campo WHERE id=?", (campo_id,)).fetchone()
+
+    if accion == "revertir":
+        # Lo que define si hay algo que deshacer es si ALGUIEN lo tocó, no el estado:
+        # un campo puede estar en la cola por dudoso sin que nadie lo haya decidido.
+        if not c["revisado_por"]:
+            raise ValueError("nadie decidió sobre este campo: no hay nada que deshacer")
+        cx.execute("""UPDATE campo SET valor_literal=?, nulo_motivo=?, confianza=?, ruta=?,
+                             estado='automatico', revisado_por=NULL, revisado_en=NULL
+                       WHERE id=?""",
+                   (c["valor_auto"], c["motivo_auto"], c["conf_auto"], c["ruta_auto"], campo_id))
+        cx.execute("DELETE FROM normalizacion WHERE campo_id=?", (campo_id,))
+        if c["valor_auto"] is not None:
+            tipo = _tipo_de(cx, campo_id)
+            _, norm, _ = PARSERS.get(tipo, PARSERS["texto"])(c["valor_auto"])
+            cx.execute("""INSERT INTO normalizacion (campo_id,tipo,valor_norm,nota)
+                          VALUES (?,?,?,'lectura automática restituida')""",
+                       (campo_id, tipo, norm))
+        # Vuelve a la cola si la lectura automática era dudosa.
+        dudoso = (c["motivo_auto"] is not None
+                  or (c["conf_auto"] is not None and c["conf_auto"] < 0.85))
+        cx.execute("UPDATE campo SET estado=? WHERE id=?",
+                   ("a_revisar" if dudoso else "automatico", campo_id))
+        d = cx.execute("SELECT sha256, orden FROM documento WHERE id=?",
+                       (c["documento_id"],)).fetchone()
+        cx.execute("DELETE FROM revision_humana WHERE sha256=? AND orden=? AND campo=?",
+                   (d["sha256"], d["orden"], c["nombre"]))
+        cx.commit()
+        return {"ok": True, "revertido": True}
+
     if accion == "verificar":
         if c["valor_literal"] is None and c["nulo_motivo"] is None:
             raise ValueError("no hay nada que verificar")
@@ -88,7 +126,7 @@ def aplicar(cx: sqlite3.Connection, campo_id: int, accion: str, valor, quien: st
                    WHERE documento_id=? AND campo_nombre=? AND estado='abierto'""",
                (quien, ahora(), c["documento_id"], c["nombre"]))
 
-    if registrar:
+    if registrar and accion != "revertir":
         d = cx.execute("SELECT sha256, orden FROM documento WHERE id=?",
                        (c["documento_id"],)).fetchone()
         cx.execute("""INSERT INTO revision_humana (sha256,orden,campo,accion,valor,quien,cuando)

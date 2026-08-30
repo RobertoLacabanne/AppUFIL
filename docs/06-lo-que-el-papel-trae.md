@@ -119,6 +119,30 @@ ninguna de las dos arranca un contrato.
 
 ---
 
+---
+
+## 7. Revisar sin salir de la pantalla
+
+**Cómo se trabaja:** el escribiente pasa el día en la cola de revisión. Con 42 campos
+repartidos en 25 documentos, cada uno costaba dos navegaciones —ir al folio y volver— y
+además se perdía el lugar en la lista. Ochenta y cuatro saltos de pantalla para revisar
+un lote chico.
+
+**Cómo quedó:** la cola es una vista partida. La lista a la izquierda, y a la derecha la
+foja de la fila que tiene el foco, con una **lupa sobre el campo**: el renglón ampliado,
+que es lo único que hace falta mirar para decidir. `J` y `K` mueven el foco y la imagen
+sigue sola. Después de decidir, el foco queda donde estaba en vez de volver al principio.
+
+Para los campos que el sistema no encontró en ninguna foja no hay recuadro, pero igual
+se muestra el folio: es lo que hay que mirar para cargarlo a mano. En la práctica, ahí
+se ve por qué falló —casi siempre un sello encima del campo.
+
+Y se puede **deshacer**. Un campo revisado guarda lo que había leído la máquina, así que
+una decisión equivocada vuelve atrás con un botón. Sin eso, arreglar un clic obligaba a
+reprocesar el lote entero.
+
+---
+
 ## Lo que sigue faltando
 
 Todo esto está medido sobre papel que generé yo. **Veinte contratos reales van a traer

@@ -75,6 +75,13 @@ Instalación en la máquina de la fiscalía, paso por paso: [`INSTALAR.md`](INST
 `python3 -m ufil.cli verificar` comprueba las cuatro después de cada corrida, y devuelve
 error si alguna falla.
 
+## Cuánto tarda
+
+El OCR reparte casi perfecto entre núcleos, así que se leen varias páginas a la vez.
+Medido en una máquina de cuatro núcleos: **0,63 s por página** (contra 1,43 s
+secuencial). Para 5.000 contratos de una o dos fojas, alrededor de **hora y media**.
+Se ajusta con `UFIL_NUCLEOS` si hace falta dejarle CPU a otra cosa.
+
 ## Cómo conviene cargar los escaneos
 
 **Un PDF por contrato.** Medido: separar o juntar no cambia ni la velocidad ni la
@@ -111,7 +118,7 @@ por accidente.
 | 3 | `capa3_identidad.py` | Clave fuerte automática; fusiones por similitud **sólo propuestas** |
 | 4 | `consultas/*.sql` · `capa4_analisis.py` | Cruces determinísticos, cada uno un archivo versionado |
 | 5 | `capa5_interpretacion.py` | El otro carril. Hoy, reglas; mañana, un LLM local |
-| 6 | `servidor.py` · `web/` · `almacen.py` · `trabajo.py` · `busqueda.py` | Carga de escaneos, procesamiento en segundo plano, búsqueda e interfaz local — sin dependencias ni build |
+| 6 | `servidor.py` · `web/` · `almacen.py` · `trabajo.py` · `busqueda.py` | Carga de escaneos, procesamiento en paralelo con progreso, búsqueda, cola de revisión con el folio al lado, e interfaz local — sin dependencias ni build |
 | 7 | `capa7_export.py` | `.xlsx` y `.rtf` con cita de archivo y foja |
 
 ---

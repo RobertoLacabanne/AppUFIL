@@ -438,3 +438,44 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 
 /* Foja que llegó girada y hubo que enderezar para leerla. */
 .foja[data-girada="1"]{border-style:dashed; border-color:var(--sello); color:var(--sello)}
+
+/* ── Cola partida: la lista y el folio, juntos ────────────────────────── */
+/* Revisar un campo costaba dos navegaciones y perder el lugar en la lista. Acá la foja
+   acompaña a la fila con el foco y no hay que salir de la pantalla. */
+.cola-partida{display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,40%); gap:16px;
+  align-items:start; margin-top:12px}
+.cola-partida .cola{max-height:calc(100vh - 250px); overflow-y:auto}
+.folio-lado{position:sticky; top:150px; display:flex; flex-direction:column; gap:8px;
+  border:1px solid var(--filete); background:var(--papel-2); padding:12px}
+body.con-demo .folio-lado{top:190px}
+
+/* La lupa: el renglón del campo, ampliado. Es lo que hace falta para decidir. */
+.lupa{position:relative; overflow:hidden; height:132px; background:#fff;
+  border:1px solid var(--filete); box-shadow:inset 0 0 0 1px var(--sello-suave)}
+.lupa img{position:absolute; max-width:none; image-rendering:auto}
+.lupa.sin-anclaje{background:var(--papel-3)}
+.lupa.sin-anclaje::after{content:'sin recuadro'; position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--tinta-3)}
+.folio-lado .lienzo{background:#fff}
+.folio-lado .lienzo img{width:100%; display:block}
+.folio-lado .chip{align-self:flex-start}
+
+/* En la cola partida las filas son más compactas: la acción está a la derecha. */
+.cola-partida .fila{grid-template-columns:96px minmax(0,1fr) 170px; cursor:pointer}
+.cola-partida .fila .marginalia{padding:9px 10px 9px 0; font-size:10px}
+.cola-partida .fila .med{padding:9px 12px}
+.cola-partida .fila .acc{padding:9px 10px; gap:3px}
+.cola-partida .tecla{font-size:10.5px}
+
+@media (max-width:1100px){
+  .cola-partida{grid-template-columns:1fr}
+  .folio-lado{position:static}
+  .cola-partida .cola{max-height:none}
+}
+
+/* Deshacer una revisión: discreto, pero siempre a mano. Equivocarse revisando es
+   normal, y sin vuelta atrás habría que reprocesar el lote para arreglar un clic. */
+.deshacer{font-size:10px; border:1px solid var(--filete); background:transparent;
+  color:var(--tinta-3); padding:1px 6px; cursor:pointer; margin-left:4px}
+.deshacer:hover{border-color:var(--lapiz); color:var(--lapiz)}

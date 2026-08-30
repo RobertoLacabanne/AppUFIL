@@ -9,6 +9,8 @@ SELECT
   c.nulo_motivo   AS motivo,
   c.confianza,
   c.pagina_nro,
+  c.x0, c.y0, c.x1, c.y1,
+  c.ruta,
   CASE WHEN k.id IS NOT NULL THEN 'conflicto'
        WHEN c.nulo_motivo IS NOT NULL THEN 'nulo'
        ELSE 'baja confianza' END AS clase

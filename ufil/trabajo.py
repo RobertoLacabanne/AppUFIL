@@ -80,13 +80,24 @@ class Procesador:
                     WHERE (SELECT COUNT(*) FROM pagina p JOIN lectura l ON l.pagina_id=p.id
                             WHERE p.sha256=a.sha256) = 0
                     ORDER BY a.ingerido_en, a.nombre""")]
-            self._fase("leyendo los escaneos", len(pendientes))
-            for sha in pendientes:
+            # El progreso va por PÁGINA, que es la unidad real de trabajo: un lote de
+            # cincuenta archivos donde uno tiene treinta fojas avanzaba a los saltos.
+            paginas = cx.execute("""SELECT COUNT(*) FROM pagina p
+                                     WHERE p.sha256 IN (%s)""" %
+                                 ",".join("?" * len(pendientes)) if pendientes else
+                                 "SELECT 0", pendientes).fetchone()[0] if pendientes else 0
+            self._fase("leyendo los escaneos", paginas)
+
+            def avance(hechas, total):
+                with self._lock:
+                    self.estado.hecho = hechas
+                    self.estado.total = total
+
+            if pendientes:
                 try:
-                    c1.leer_documento(cx, sha, con_vlm=con_vlm)
+                    c1.leer_lote(cx, pendientes, con_vlm=con_vlm, avance=avance)
                 except Exception as e:
-                    self._error(cx, sha, "lectura", e)
-                self._avance(cx)
+                    self._error(cx, pendientes[0], "lectura", e)
 
             shas = [r["sha256"] for r in cx.execute(
                 "SELECT sha256 FROM archivo ORDER BY ingerido_en, nombre")]

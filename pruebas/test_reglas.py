@@ -309,6 +309,63 @@ class VariosContratosEnUnArchivo(unittest.TestCase):
         cx.close(); tmp.cleanup()
 
 
+class DeshacerUnaRevision(BaseTemporal):
+    """Equivocarse revisando es normal. Sin vuelta atrás habría que reprocesar el lote."""
+
+    def _campo(self, nombre="monto", valor="$ 100,00", motivo=None, conf=0.5):
+        cid = self.cx.execute("""INSERT INTO campo (documento_id,nombre,valor_literal,
+                                     nulo_motivo,pagina_nro,x0,y0,x1,y1,confianza,ruta,estado)
+                                 VALUES (?,?,?,?,1,0,0,10,10,?,'ocr_a','a_revisar')""",
+                              (self.doc, nombre, valor, motivo, conf)).lastrowid
+        if valor:
+            self.cx.execute("""INSERT INTO normalizacion (campo_id,tipo,valor_norm)
+                               VALUES (?,'monto','10000')""", (cid,))
+        self.cx.commit()
+        return cid
+
+    def test_deshacer_una_correccion_restituye_lo_que_leyo_la_maquina(self):
+        from ufil.aplicar_revision import aplicar
+        cid = self._campo(valor="$ 100,00")
+        aplicar(self.cx, cid, "corregir", "$ 250,00", "quien.sea")
+        c = self.cx.execute("SELECT * FROM campo WHERE id=?", (cid,)).fetchone()
+        self.assertEqual(c["valor_literal"], "$ 250,00")
+        self.assertEqual(c["estado"], "corregido")
+        self.assertEqual(c["valor_auto"], "$ 100,00", "tiene que guardar lo que había")
+
+        aplicar(self.cx, cid, "revertir", None, "quien.sea")
+        c = self.cx.execute("SELECT * FROM campo WHERE id=?", (cid,)).fetchone()
+        self.assertEqual(c["valor_literal"], "$ 100,00", "tiene que volver lo automático")
+        self.assertIsNone(c["revisado_por"])
+        self.assertEqual(c["estado"], "a_revisar", "y volver a la cola, porque era dudoso")
+
+    def test_deshacer_un_nulo_marcado_a_mano(self):
+        from ufil.aplicar_revision import aplicar
+        cid = self._campo(valor="$ 100,00")
+        aplicar(self.cx, cid, "ilegible", None, "quien.sea")
+        self.assertIsNone(self.cx.execute("SELECT valor_literal FROM campo WHERE id=?",
+                                          (cid,)).fetchone()[0])
+        aplicar(self.cx, cid, "revertir", None, "quien.sea")
+        c = self.cx.execute("SELECT valor_literal, nulo_motivo FROM campo WHERE id=?",
+                            (cid,)).fetchone()
+        self.assertEqual(c["valor_literal"], "$ 100,00")
+        self.assertIsNone(c["nulo_motivo"])
+
+    def test_no_se_puede_deshacer_lo_que_nadie_toco(self):
+        from ufil.aplicar_revision import aplicar
+        cid = self._campo()
+        with self.assertRaises(ValueError):
+            aplicar(self.cx, cid, "revertir", None, "quien.sea")
+
+    def test_deshacer_borra_el_registro_para_que_no_vuelva_al_reprocesar(self):
+        from ufil.aplicar_revision import aplicar
+        cid = self._campo()
+        aplicar(self.cx, cid, "corregir", "$ 250,00", "quien.sea")
+        self.assertEqual(self.cx.execute("SELECT COUNT(*) FROM revision_humana").fetchone()[0], 1)
+        aplicar(self.cx, cid, "revertir", None, "quien.sea")
+        self.assertEqual(self.cx.execute("SELECT COUNT(*) FROM revision_humana").fetchone()[0], 0,
+                         "si no, al reprocesar el lote volvería a aplicarse")
+
+
 class ContratosRepetidos(BaseTemporal):
     """El mismo contrato entrando desde archivos distintos infla los acumulados."""
 

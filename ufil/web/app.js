@@ -288,8 +288,12 @@ async function vDocumento(id) {
     }
     const ancla = c.x0 != null
       ? `<button class="ancla" data-campo="${c.id}">f.${c.pagina_nro} · ▣</button>` : '';
-    const marca = c.estado === 'verificado' || c.estado === 'corregido'
-      ? ' <span class="sello ok" style="font-size:8.5px;padding:1px 5px;outline:none">✓ verificado</span>' : '';
+    const tocado = c.estado === 'verificado' || c.estado === 'corregido';
+    const marca = tocado
+      ? ` <span class="sello ok" style="font-size:8.5px;padding:1px 5px;outline:none">✓ ${
+           c.estado === 'corregido' ? 'cargado a mano' : 'verificado'}</span>` +
+        ` <button class="deshacer" data-campo="${c.id}"
+            title="volver a lo que había leído el sistema">deshacer</button>` : '';
     return `<div class="campo"><dt>${esc(c.nombre)}</dt>
       <dd>${celdaValor(c)}${ancla}${marca}</dd></div>`;
   }).join('');
@@ -346,6 +350,16 @@ async function vDocumento(id) {
         ${d.interpretaciones.map(interpHTML).join('')}
       </div>` : ''}`);
 
+  vista.querySelectorAll('.deshacer').forEach(b => b.onclick = async () => {
+    const quien = revisor(); if (!quien) return;
+    if (!confirm('¿Deshacer esta revisión? El campo vuelve a lo que había leído el sistema.')) return;
+    try {
+      await api('/api/campo', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({campo_id:+b.dataset.campo, accion:'revertir', quien})});
+      await vDocumento(id); refrescarCuentas();
+    } catch (e) { alert('No se pudo deshacer: ' + e.message); }
+  });
+
   const recuadro = $('#recuadro');
   const folio = $('#folio');
 
@@ -392,26 +406,56 @@ async function vDocumento(id) {
   });
 }
 
-/* ── cola de revisión, operable con el teclado ─────────────────────────── */
+/* ── cola de revisión: el folio al lado, sin salir de la pantalla ──────── */
+/* Antes cada campo costaba dos navegaciones (ir al folio y volver) y se perdía el
+   lugar en la lista. Con 42 campos eso son 84 saltos de pantalla. Acá la foja
+   acompaña a la fila que tiene el foco, con una lupa sobre el campo. */
 let colaEstado = {filas: [], foco: 0};
 
-async function vCola() {
+async function vCola(campoId) {
   const filas = await api('/api/cola');
-  colaEstado = {filas, foco: 0};
+  // Se puede enlazar un campo puntual: #/cola/123 abre la cola parada en ese campo.
+  // Sirve para decirle a un compañero "mirá este" sin explicarle dónde está.
+  const pedido = campoId ? filas.findIndex(f => String(f.campo_id) === String(campoId)) : -1;
+  colaEstado = {filas, foco: pedido >= 0 ? pedido : 0};
   if (!filas.length) {
     vista.innerHTML = bloque('f. 0006', 'Cola', `<h2>Cola de revisión</h2>
-      <div class="cola"><div class="vacio">No queda nada por revisar.</div></div>`);
+      ${vacio('No queda nada por revisar',
+        'Todos los campos están resueltos o verificados. Cuando entre un lote nuevo, ' +
+        'lo que el sistema no pueda sostener va a aparecer acá.',
+        {href:'#/panel', texto:'Volver al panel'})}`);
     return;
   }
+  const porDoc = new Set(filas.map(f => f.documento_id)).size;
+
   vista.innerHTML = bloque('f. 0006', 'Cola', `
     <h2>Cola de revisión</h2>
-    <p class="prosa">Todo lo que el sistema no resolvió, ordenado por lo que más daño hace
-      si queda mal. Se opera con el teclado: <kbd>J</kbd>/<kbd>K</kbd> para moverse,
-      las teclas de cada fila para decidir. <strong>Ninguna acción es «aceptar todo».</strong></p>
-    <div class="cola" id="cola">${filas.map(filaCola).join('')}</div>`);
+    <p class="prosa">${filas.length} campos en ${porDoc} documentos, ordenados por lo que
+      más daño hace si queda mal. <strong>El folio está al lado</strong>: no hace falta
+      salir de acá. <kbd>J</kbd>/<kbd>K</kbd> para moverse, las teclas de cada fila para
+      decidir. <strong>Ninguna acción es «aceptar todo».</strong></p>
+    <div class="cola-partida">
+      <div class="cola" id="cola">${filas.map(filaCola).join('')}</div>
+      <aside class="folio-lado" id="folio-lado">
+        <div class="lupa" id="lupa"><img id="lupa-img" alt=""></div>
+        <div class="pie-lamina"><span id="lupa-campo"></span><span id="lupa-xy"></span></div>
+        <div class="lienzo" id="lienzo-cola">
+          <img id="folio-cola" alt="">
+          <div class="recuadro" id="recuadro-cola" style="display:none"></div>
+        </div>
+        <a class="chip" id="ir-doc" href="#/panel">ver el documento completo</a>
+      </aside>
+    </div>`);
+
+  vista.querySelectorAll('[data-accion]').forEach(b => b.onclick = () => {
+    colaEstado.foco = +b.closest('.fila').dataset.i;
+    decidir(+b.dataset.campo, b.dataset.accion, b.dataset.valor);
+  });
+  vista.querySelectorAll('.fila').forEach(f => f.onclick = e => {
+    if (e.target.closest('[data-accion]')) return;
+    colaEstado.foco = +f.dataset.i; pintarFoco();
+  });
   pintarFoco();
-  vista.querySelectorAll('[data-accion]').forEach(b => b.onclick = () =>
-    decidir(+b.dataset.campo, b.dataset.accion, b.dataset.valor));
 }
 
 function filaCola(f, i) {
@@ -441,7 +485,6 @@ function filaCola(f, i) {
       <div style="display:flex;gap:9px;align-items:baseline;margin-bottom:7px;flex-wrap:wrap">
         <span class="rotulo">${esc(f.clase)}</span>
         <span class="etiqueta-campo ${f.clase === 'conflicto' ? 'alerta' : ''}">${esc(f.campo)}</span>
-        <a class="chip" href="#/documento/${f.documento_id}">ver el folio</a>
       </div>
       ${cuerpo}
     </div>
@@ -451,10 +494,71 @@ function filaCola(f, i) {
   </div>`;
 }
 
+/* Encuadra el campo en la lupa: la foja entera a la derecha se ve chica, y lo que hace
+   falta para decidir es leer ESE renglón. */
+function encuadrar(f) {
+  const lupa = $('#lupa'), img = $('#lupa-img');
+  if (!lupa || !img) return;
+  const pag = f.pagina;
+  if (!pag || f.x0 == null) {
+    // Sin recuadro no hay lupa, pero el folio igual sirve: es lo que hay que mirar
+    // para cargar el valor a mano.
+    lupa.classList.add('sin-anclaje');
+    img.removeAttribute('src');
+    $('#lupa-campo').textContent = 'el sistema no encontró este campo en la foja';
+    $('#lupa-xy').textContent = 'mirá el folio y cargalo a mano';
+    const resp = f.pagina_respaldo;
+    const folio0 = $('#folio-cola'), rec0 = $('#recuadro-cola');
+    rec0.style.display = 'none';
+    if (resp && resp.nro) {
+      const src0 = `/pagina?doc=${f.documento_id}&nro=${resp.nro}`;
+      if (folio0.getAttribute('src') !== src0) folio0.src = src0;
+    } else {
+      folio0.removeAttribute('src');
+    }
+    return;
+  }
+  lupa.classList.remove('sin-anclaje');
+  const src = `/pagina?doc=${f.documento_id}&nro=${f.pagina_nro}`;
+  if (img.getAttribute('src') !== src) img.src = src;
+
+  const caja = {w: Math.max(f.x1 - f.x0, 8), h: Math.max(f.y1 - f.y0, 8)};
+  const r = lupa.getBoundingClientRect();
+  const aire = 1.5;
+  // px mostrados por punto, acotado para no ampliar más allá de lo que el escaneo tiene
+  const escala = Math.min(r.width / (caja.w * aire), r.height / (caja.h * aire * 2.2), 7);
+  img.style.width = (pag.ancho_pt * escala) + 'px';
+  img.style.left = -(f.x0 * escala - (r.width - caja.w * escala) / 2) + 'px';
+  img.style.top = -(f.y0 * escala - (r.height - caja.h * escala) / 2) + 'px';
+  $('#lupa-campo').textContent = `${f.campo}${f.ruta ? ' · ruta ' + f.ruta : ''}`;
+  $('#lupa-xy').textContent = `f.${f.pagina_nro} · ${(escala / (200 / 72)).toFixed(1)}×`;
+
+  const folio = $('#folio-cola'), rec = $('#recuadro-cola');
+  if (folio.getAttribute('src') !== src) folio.src = src;
+  rec.style.display = 'block';
+  rec.style.left = (100 * f.x0 / pag.ancho_pt) + '%';
+  rec.style.top = (100 * f.y0 / pag.alto_pt) + '%';
+  rec.style.width = (100 * caja.w / pag.ancho_pt) + '%';
+  rec.style.height = (100 * caja.h / pag.alto_pt) + '%';
+  rec.className = 'recuadro' + (f.clase === 'conflicto' ? ' conf' : '');
+}
+
 function pintarFoco() {
   const filas = vista.querySelectorAll('.fila');
+  if (!filas.length) return;
+  colaEstado.foco = Math.max(0, Math.min(colaEstado.foco, filas.length - 1));
   filas.forEach((f, i) => f.classList.toggle('foco', i === colaEstado.foco));
-  filas[colaEstado.foco]?.scrollIntoView({block: 'nearest'});
+  filas[colaEstado.foco].scrollIntoView({block: 'nearest'});
+  const actual = colaEstado.filas[colaEstado.foco];
+  if (actual && location.hash !== '#/cola/' + actual.campo_id) {
+    history.replaceState(null, '', '#/cola/' + actual.campo_id);
+  }
+  const f = colaEstado.filas[colaEstado.foco];
+  if (f) {
+    encuadrar(f);
+    const ir = $('#ir-doc');
+    if (ir) ir.href = '#/documento/' + f.documento_id;
+  }
 }
 
 async function decidir(campoId, accion, valor) {
@@ -465,10 +569,15 @@ async function decidir(campoId, accion, valor) {
     if (!valor) return;
     accion = 'corregir';
   }
+  const posicion = colaEstado.foco;
   try {
     await api('/api/campo', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({campo_id: campoId, accion, valor, quien})});
     await vCola();
+    // Quedarse donde estaba: al sacar una fila, la que sigue ocupa su lugar. Volver
+    // al principio en cada decisión obligaba a bajar de nuevo cada vez.
+    colaEstado.foco = posicion;
+    pintarFoco();
     refrescarCuentas();
   } catch (e) { alert('No se pudo guardar: ' + e.message); }
 }
@@ -477,14 +586,23 @@ document.addEventListener('keydown', e => {
   if (!location.hash.startsWith('#/cola') || e.target.tagName === 'INPUT') return;
   const f = colaEstado.filas[colaEstado.foco];
   if (e.key === 'j' || e.key === 'ArrowDown') {
+    e.preventDefault();
     colaEstado.foco = Math.min(colaEstado.foco + 1, colaEstado.filas.length - 1); pintarFoco();
   } else if (e.key === 'k' || e.key === 'ArrowUp') {
+    e.preventDefault();
     colaEstado.foco = Math.max(colaEstado.foco - 1, 0); pintarFoco();
   } else if (f) {
     const fila = vista.querySelectorAll('.fila')[colaEstado.foco];
+    if (!fila) return;
     const botones = [...fila.querySelectorAll('[data-accion]')];
     const kb = botones.find(b => b.querySelector('kbd').textContent.toLowerCase() === e.key.toLowerCase());
     if (kb) { e.preventDefault(); kb.click(); }
+  }
+});
+
+addEventListener('resize', () => {
+  if (location.hash.startsWith('#/cola') && colaEstado.filas[colaEstado.foco]) {
+    encuadrar(colaEstado.filas[colaEstado.foco]);
   }
 });
 
@@ -1072,7 +1190,7 @@ const rutas = [
   [/^#\/buscar\/?(.*)$/,         vBuscar],
   [/^#\/superposiciones$/,       vSuperposiciones],
   [/^#\/documento\/(\d+)$/,      vDocumento],
-  [/^#\/cola$/,                  vCola],
+  [/^#\/cola\/?(\d*)$/,          vCola],
   [/^#\/identidad$/,             vIdentidad],
   [/^#\/interpretacion$/,        vInterpretacion],
   [/^#\/consultas\/?(.*)$/,      vConsultas],

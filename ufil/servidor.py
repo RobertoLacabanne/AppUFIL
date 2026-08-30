@@ -230,7 +230,38 @@ def api_persona(cx, persona_id: int) -> dict:
 
 
 def api_cola(cx, limite=400) -> list[dict]:
+    """
+    La cola, con todo lo necesario para revisar SIN salir de la pantalla.
+
+    Trae el anclaje y las medidas de la foja además del valor: la interfaz muestra el
+    folio al lado y una lupa sobre el campo, así revisar deja de costar dos navegaciones
+    y volver a buscar dónde se había quedado.
+    """
     filas = c4.correr(cx, "07_cola_revision")["filas"][:limite]
+    medidas = {}
+    for f in filas:
+        clave = (f["documento_id"], f["pagina_nro"])
+        if clave not in medidas and f["pagina_nro"]:
+            r = cx.execute("""SELECT p.ancho_pt, p.alto_pt, p.rotacion
+                                FROM pagina p JOIN documento d ON d.sha256 = p.sha256
+                               WHERE d.id=? AND p.nro=?""",
+                           (f["documento_id"], f["pagina_nro"])).fetchone()
+            medidas[clave] = dict(r) if r else None
+        f["pagina"] = medidas.get(clave)
+    # Para los campos que no se encontraron en ninguna foja no hay recuadro, pero sí
+    # sirve ver el folio: se ofrece la primera página del contrato.
+    primeras = {}
+    for f in filas:
+        if f.get("x0") is None:
+            d = f["documento_id"]
+            if d not in primeras:
+                r = cx.execute("""SELECT d.pagina_desde AS nro, p.ancho_pt, p.alto_pt
+                                    FROM documento d
+                                    JOIN pagina p ON p.sha256 = d.sha256
+                                                 AND p.nro = COALESCE(d.pagina_desde, 1)
+                                   WHERE d.id=?""", (d,)).fetchone()
+                primeras[d] = dict(r) if r else None
+            f["pagina_respaldo"] = primeras[d]
     for f in filas:
         if f["clase"] == "conflicto":
             k = cx.execute("""SELECT id FROM conflicto WHERE documento_id=? AND campo_nombre=?

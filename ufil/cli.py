@@ -36,13 +36,19 @@ def cmd_leer(a):
         """SELECT a.sha256 FROM archivo a
             WHERE (SELECT COUNT(*) FROM pagina p JOIN lectura l ON l.pagina_id=p.id
                     WHERE p.sha256=a.sha256) = 0 ORDER BY a.nombre""")]
+    if not pend:
+        print("  no hay nada sin leer")
+        return 0
     t0 = time.perf_counter()
-    for i, sha in enumerate(pend, 1):
-        c1.leer_documento(cx, sha, con_vlm=a.vlm)
-        print(f"\r  leídos {i}/{len(pend)}", end="", flush=True)
+
+    def avance(hechas, total):
+        print(f"\r  páginas {hechas}/{total}", end="", flush=True)
+
+    r = c1.leer_lote(cx, pend, con_vlm=a.vlm, avance=avance)
     seg = time.perf_counter() - t0
-    print(f"\r  leídos {len(pend)}/{len(pend)} en {seg:.1f}s"
-          f"{f' ({seg/len(pend):.2f}s por documento)' if pend else ''}")
+    fall = f" · {r['fallidas']} con error" if r["fallidas"] else ""
+    print(f"\r  {len(pend)} archivos · {r['paginas']} páginas en {seg:.1f}s "
+          f"({seg/max(r['paginas'],1):.2f}s por página, {config.NUCLEOS_OCR} en paralelo){fall}")
     return 0
 
 
