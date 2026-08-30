@@ -121,34 +121,48 @@ def hoja_suelta(pdf: Path, titulo: str, lineas: list[str]) -> None:
     doc.save(pdf); doc.close()
 
 
-def a_escaneo(pdf_limpio: Path, destino: Path, rng: random.Random, calidad: str,
-              extras: list[Path] | None = None) -> None:
+def a_escaneo(pdf_limpio: Path, destino: Path, semilla: int, calidad: str,
+              extras: list[Path] | None = None, dpi: int = 200,
+              binario: bool = False) -> None:
     """
     Rasteriza y degrada para simular un escaneo. El PDF final es solo imagen.
 
     `extras` son fojas adicionales: una tupla (antes, después) del contrato. Se
     rasterizan igual, así el documento entero queda como un escaneo de varias hojas.
+
+    `dpi` y `binario` son las dos perillas que de verdad tiene un escáner de oficina:
+    la resolución y el "modo texto" en blanco y negro puro. Se pueden barrer para medir
+    hasta dónde aguanta el sistema (ver herramientas/barrido_calidad.py).
+
+    La degradación usa un generador propio sembrado por documento, no el `rng` global:
+    así el mismo contrato sale con el mismo temblor y las mismas motas a cualquier DPI,
+    y la comparación entre resoluciones no arrastra otra variable.
     """
     paginas_fuente = list(extras[0]) + [pdf_limpio] + list(extras[1]) if extras else [pdf_limpio]
 
     doc = fitz.open()
     for i, fuente in enumerate(paginas_fuente):
         with fitz.open(fuente) as f:
-            pix = f[0].get_pixmap(matrix=fitz.Matrix(200 / 72, 200 / 72))
+            pix = f[0].get_pixmap(matrix=fitz.Matrix(dpi / 72, dpi / 72))
             png = destino.with_suffix(f".tmp{i}.png")
             pix.save(png)
-        _degradar_y_pegar(doc, png, destino, rng, calidad, i)
+        _degradar_y_pegar(doc, png, destino, random.Random(semilla * 100 + i),
+                          calidad, i, binario)
         png.unlink(missing_ok=True)
     doc.save(destino, deflate=True); doc.close()
 
 
 def _degradar_y_pegar(doc, png: Path, destino: Path, rng: random.Random,
-                      calidad: str, i: int) -> None:
+                      calidad: str, i: int, binario: bool = False) -> None:
     im = Image.open(png).convert("L")
+    # El desenfoque y las motas se expresan en milímetros de papel, no en píxeles, así
+    # que escalan con la resolución. Si no, a 300 DPI el mismo desenfoque taparía la
+    # mitad de letra que a 100 y estaríamos midiendo dos degradaciones distintas.
+    escala = im.width / (595 / 72 * 200)               # 1,0 = la referencia de 200 DPI
     if calidad == "malo":
         im = im.rotate(rng.uniform(-1.4, 1.4), resample=Image.BICUBIC,
                        fillcolor=248, expand=False)
-        im = im.filter(ImageFilter.GaussianBlur(0.7))
+        im = im.filter(ImageFilter.GaussianBlur(0.7 * escala))
         px = im.load()
         for _ in range(int(im.width * im.height * 0.004)):        # motas de fotocopia
             px[rng.randrange(im.width), rng.randrange(im.height)] = rng.randrange(0, 90)
@@ -156,7 +170,13 @@ def _degradar_y_pegar(doc, png: Path, destino: Path, rng: random.Random,
     elif calidad == "regular":
         im = im.rotate(rng.uniform(-0.5, 0.5), resample=Image.BICUBIC,
                        fillcolor=250, expand=False)
-        im = im.filter(ImageFilter.GaussianBlur(0.35))
+        im = im.filter(ImageFilter.GaussianBlur(0.35 * escala))
+
+    if binario:
+        # "Modo texto" de un escáner de oficina: un umbral fijo y todo a un bit. Lo que
+        # queda por debajo del umbral se pierde para siempre, no hay software que lo
+        # recupere. Es el ajuste por defecto de muchas máquinas, por eso vale medirlo.
+        im = im.point(lambda v: 255 if v > 150 else 0).convert("1").convert("L")
 
     jpg = destino.with_suffix(f".tmp{i}.jpg")
     im.convert("RGB").save(jpg, "JPEG", quality={"bueno": 88, "regular": 74, "malo": 58}[calidad])
@@ -250,6 +270,12 @@ def main() -> int:
     ap.add_argument("--destino", default="datos/corpus-sintetico")
     ap.add_argument("--cantidad", type=int, default=50)
     ap.add_argument("--semilla", type=int, default=1974)
+    ap.add_argument("--dpi", type=int, default=200,
+                    help="resolución del escaneo simulado (la perilla del escáner)")
+    ap.add_argument("--binario", action="store_true",
+                    help='simula el "modo texto" en blanco y negro puro de un escáner')
+    ap.add_argument("--calidad", choices=["bueno", "regular", "malo"], default=None,
+                    help="fija la calidad de TODOS los documentos, en vez de mezclarlas")
     a = ap.parse_args()
 
     rng = random.Random(a.semilla)
@@ -257,6 +283,9 @@ def main() -> int:
     tmp = dest / "_limpio.pdf"
 
     filas = construir_poblacion(rng, a.cantidad)
+    if a.calidad:
+        for d in filas:
+            d["calidad"] = a.calidad
     caratula = dest / "_caratula.pdf"
     anexo = dest / "_anexo.pdf"
     hoja_suelta(caratula, "EXPEDIENTE ADMINISTRATIVO",
@@ -282,7 +311,8 @@ def main() -> int:
             extras = ([caratula], []); d["fojas"] = 2
         else:
             extras = None; d["fojas"] = 1
-        a_escaneo(tmp, dest / nombre_archivo, rng, d["calidad"], extras)
+        a_escaneo(tmp, dest / nombre_archivo, a.semilla + i, d["calidad"], extras,
+                  dpi=a.dpi, binario=a.binario)
         referencia.append({
             "archivo": nombre_archivo,
             "camara": d["camara"],
@@ -292,6 +322,8 @@ def main() -> int:
             "fecha_fin": d["fin"].isoformat() if d["fin"] else "",
             "monto_centavos": d["monto_centavos"],
             "calidad_simulada": d["calidad"],
+            "dpi_simulado": a.dpi,
+            "binario": int(a.binario),
             "fojas": d["fojas"],
         })
     tmp.unlink(missing_ok=True)
@@ -302,7 +334,8 @@ def main() -> int:
         w = csv.DictWriter(f, fieldnames=list(referencia[0].keys()))
         w.writeheader(); w.writerows(referencia)
 
-    print(f"{len(referencia)} contratos sintéticos en {dest}")
+    modo = "blanco y negro" if a.binario else "escala de grises"
+    print(f"{len(referencia)} contratos sintéticos en {dest} ({a.dpi} DPI, {modo})")
     print(f"verdad conocida en {ref}")
     return 0
 

@@ -17,7 +17,7 @@ FUENTES    = RAIZ / "assets" / "fuentes"
 MARCA      = RAIZ / "assets" / "marca"
 
 # Renderizado de páginas para el visor y para el OCR.
-DPI_RENDER = 200
+DPI_RENDER = int(os.environ.get("UFIL_DPI_RENDER", 200))
 PT_POR_PULGADA = 72.0
 ESCALA_RENDER = DPI_RENDER / PT_POR_PULGADA          # px por punto PDF
 

@@ -709,5 +709,106 @@ class Busqueda(unittest.TestCase):
         self.assertEqual(len(buscar(self.cx, "maestranza")["paginas"]), 1)
 
 
+class NingunArchivoSePierdeEnSilencio(unittest.TestCase):
+    """
+    Un PDF que entra y no produce ningún contrato tiene que ser VISIBLE, con motivo.
+
+    Es la regla que hace que el sistema sirva para lo que existe: si de trescientos
+    escaneos doce no dan nada y el panel muestra doscientos ochenta y ocho sin decir
+    que faltan doce, el sistema está perdiendo documentos en silencio. Que es
+    exactamente lo que no puede pasar.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+
+    def tearDown(self):
+        self.cx.close(); self.tmp.cleanup()
+
+    def _archivo(self, sha, nombre, paginas=1, lote="l"):
+        self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,
+                                                paginas,ingerido_en)
+                           VALUES (?,?,?,1,?,?)""",
+                        (sha, f"/x/{nombre}", nombre, paginas, ahora()))
+        self.cx.execute("INSERT INTO procedencia (sha256,lote) VALUES (?,?)", (sha, lote))
+        self.cx.execute("""INSERT INTO pagina (sha256,nro,ancho_pt,alto_pt,tiene_texto)
+                           VALUES (?,1,595,842,0)""", (sha,))
+
+    def _leida(self, sha):
+        pid = self.cx.execute("SELECT id FROM pagina WHERE sha256=?", (sha,)).fetchone()["id"]
+        self.cx.execute("""INSERT INTO lectura (pagina_id,ruta,motor,creado_en)
+                           VALUES (?,'ocr_a','tesseract',?)""", (pid, ahora()))
+
+    def test_un_archivo_sin_contrato_aparece_con_motivo(self):
+        from ufil.servidor import api_afuera
+        self._archivo("aa", "sin_formulario.pdf")
+        self._leida("aa")
+        self.cx.execute("""INSERT INTO excepcion (sha256,clase,detalle,creado_en)
+                           VALUES ('aa','perfil_no_aplica','ninguna página calzó',?)""",
+                        (ahora(),))
+        self.cx.commit()
+
+        r = api_afuera(self.cx)
+        self.assertEqual(r["afuera"], 1)
+        fila = r["filas"][0]
+        self.assertEqual(fila["archivo"], "sin_formulario.pdf")
+        self.assertEqual(fila["clase"], "perfil_no_aplica")
+        # El motivo tiene que estar en castellano y decir qué hacer, no ser el texto
+        # crudo de una excepción de Python.
+        self.assertTrue(fila["titulo"] and fila["que_hacer"])
+        self.assertNotIn("Error", fila["titulo"])
+
+    def test_el_que_no_se_pudo_abrir_tambien_cuenta(self):
+        """El peor caso: ni siquiera llegó a la tabla de archivos."""
+        from ufil.servidor import api_afuera
+        self.cx.execute("""INSERT INTO excepcion (sha256,clase,detalle,creado_en)
+                           VALUES (NULL,'pdf_ilegible',
+                                   '/corpus/roto.pdf: EmptyFileError: vacío',?)""",
+                        (ahora(),))
+        self.cx.commit()
+
+        r = api_afuera(self.cx)
+        self.assertEqual(r["afuera"], 1)
+        self.assertEqual(r["filas"][0]["archivo"], "roto.pdf")
+        # Y el denominador tiene que contarlo: si el total sale de la tabla `archivo`,
+        # justamente los que peor les fue quedan fuera de la cuenta.
+        self.assertEqual(r["total_archivos"], 1)
+
+    def test_el_que_si_dio_contrato_no_aparece(self):
+        from ufil.servidor import api_afuera
+        self._archivo("bb", "contrato.pdf")
+        self._leida("bb")
+        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('bb','c','p')")
+        self.cx.commit()
+        self.assertEqual(api_afuera(self.cx)["afuera"], 0)
+
+    def test_lo_que_falta_procesar_se_distingue_de_lo_que_fallo(self):
+        """Un archivo cargado y todavía sin leer no es un archivo que falló."""
+        from ufil.servidor import api_afuera
+        self._archivo("cc", "recien_subido.pdf")
+        self.cx.commit()
+        fila = api_afuera(self.cx)["filas"][0]
+        self.assertEqual(fila["clase"], "sin_leer")
+        self.assertFalse(fila["leido"])
+
+
+class ElEntornoSeChequeaAntes(unittest.TestCase):
+    """El diagnóstico tiene que distinguir «no se puede trabajar» de «mirá esto»."""
+
+    def test_falta_una_libreria_es_falla_no_aviso(self):
+        from ufil import diagnostico
+        r = diagnostico._libreria("modulo_que_no_existe_12345", "InventadaPy")
+        self.assertEqual(r["estado"], "falla")
+        self.assertTrue(r["arreglo"], "una falla sin arreglo no le sirve a nadie")
+
+    def test_el_veredicto_depende_solo_de_las_fallas(self):
+        from ufil import diagnostico
+        avisos = [{"nombre": "x", "estado": "aviso", "detalle": "", "arreglo": None}]
+        self.assertTrue(diagnostico.resumen(avisos)["puede_trabajar"])
+        fallas = avisos + [{"nombre": "y", "estado": "falla", "detalle": "", "arreglo": "z"}]
+        self.assertFalse(diagnostico.resumen(fallas)["puede_trabajar"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

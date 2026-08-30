@@ -67,9 +67,14 @@ button{font:inherit; color:inherit}
        font-weight:600; letter-spacing:.15em; text-transform:uppercase;
        color:var(--sello); background:transparent}
 .sello.alerta{color:var(--lapiz)} .sello.ok{color:var(--verde)}
+/* Un aviso no es una falla: se puede trabajar igual. Merece su propio color. */
+.sello.atencion{color:var(--ambar)}
 
-nav{display:flex; gap:0; border-bottom:1px solid var(--filete); padding:0 24px;
-    background:var(--papel); position:sticky; top:59px; z-index:19; overflow-x:auto}
+/* La barra baja de renglón en vez de desplazarse de costado. Con desplazamiento
+   horizontal, en una notebook de 1024 las dos últimas pestañas quedaban fuera de
+   pantalla y sin ninguna señal de que estaban ahí: inalcanzables en la práctica. */
+nav{display:flex; flex-wrap:wrap; gap:0; border-bottom:1px solid var(--filete);
+    padding:0 24px; background:var(--papel); position:sticky; top:59px; z-index:19}
 nav a{padding:9px 15px; text-decoration:none; color:var(--tinta-2); font-size:12px;
       border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap}
 nav a:hover{color:var(--tinta); background:var(--papel-2)}
@@ -208,6 +213,10 @@ pre.sql{font-family:var(--mono); font-size:11.5px; margin:0; padding:12px 14px;
   overflow-x:auto; white-space:pre; line-height:1.45}
 .aviso{display:flex; gap:12px; align-items:baseline; border-left:3px solid var(--lapiz);
        background:var(--lapiz-suave); padding:9px 13px; font-size:12px; margin-bottom:14px}
+/* Un aviso de que TODO ESTÁ BIEN no puede pintarse con los colores de alarma: de un
+   vistazo se lee como un problema, que es exactamente lo contrario de lo que dice. */
+.aviso.bien{border-left-color:var(--verde); background:var(--papel-2)}
+.aviso.atento{border-left-color:var(--ambar); background:var(--papel-2)}
 .vacio{padding:26px; text-align:center; color:var(--tinta-3); font-family:var(--serif);
        font-style:italic; font-size:14px}
 .cargando{padding:26px; color:var(--tinta-3); font-size:12px}
@@ -309,7 +318,8 @@ body.con-demo .barra{top:37px}
 body.con-demo nav{top:96px}
 
 /* ── Navegación agrupada ──────────────────────────────────────────────── */
-nav .sep{width:1px; height:14px; background:var(--filete); margin:0 9px; align-self:center; flex:none}
+nav .sep{width:1px; height:14px; background:var(--filete); margin:0 9px;
+  align-self:center; flex:none}
 
 /* ── Esqueleto de carga ───────────────────────────────────────────────── */
 /* Un bloque gris del tamaño de lo que viene, en vez de la palabra «Cargando». */
@@ -487,3 +497,17 @@ body.con-demo .folio-lado{top:190px}
 #marca{height:38px; width:auto; flex:none}
 @media (max-width:720px){#marca{height:30px}}
 @media print{#marca{height:44px}}
+
+/* Estado del sistema. La primera columna es un sello, no un ícono de color: la
+   diferencia entre "ok" y "falta" tiene que leerse también en blanco y negro y para
+   quien no distingue el verde del rojo. */
+table.salud td{vertical-align:top; padding:9px 12px}
+table.salud td:first-child{width:1%; white-space:nowrap}
+table.salud td:nth-child(2){width:1%; white-space:nowrap}
+table.salud tr:not(:last-child) td{border-bottom:1px solid var(--filete)}
+.arreglo{margin-top:5px; font-size:12px; color:var(--tinta-2);
+  border-left:2px solid var(--lapiz); padding-left:9px}
+.arreglo::before{content:"Se arregla así: "; color:var(--tinta-3);
+  font-family:var(--sans); font-size:11px; letter-spacing:.04em; text-transform:uppercase}
+ul.fallas{margin:0; padding-left:20px}
+ul.fallas li{margin-bottom:6px; color:var(--lapiz)}

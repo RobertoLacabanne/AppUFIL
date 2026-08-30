@@ -117,7 +117,104 @@ def api_panel(cx) -> dict:
             "SELECT perfil, COUNT(*) AS n FROM documento GROUP BY perfil ORDER BY n DESC")],
         "archivos_con_varios": uno("""SELECT COUNT(*) FROM (SELECT sha256 FROM documento
                                        GROUP BY sha256 HAVING COUNT(*) > 1)"""),
+        # Archivos que entraron y no dieron ningún contrato. Va en el panel y en la
+        # barra: si no se ve sin entrar a buscarlo, nadie lo mira.
+        "afuera": uno("""SELECT COUNT(*) FROM archivo a
+                          WHERE NOT EXISTS (SELECT 1 FROM documento d
+                                             WHERE d.sha256 = a.sha256)""")
+                  + uno("""SELECT COUNT(*) FROM excepcion
+                            WHERE estado='abierta'
+                              AND clase IN ('pdf_ilegible','ingesta_ilegible')"""),
     }
+
+
+# Qué le decimos a una persona sobre cada clase de excepción. El texto crudo de la
+# excepción es un mensaje de Python en inglés con una ruta absoluta adentro: no sirve
+# para decidir nada. Acá se traduce a qué pasó y qué se puede hacer.
+MOTIVOS = {
+    "pdf_ilegible": (
+        "El archivo no se pudo abrir",
+        "Está vacío, dañado o protegido con contraseña. Conseguí una copia sana, o si "
+        "tiene clave, guardalo sin clave antes de subirlo."),
+    "ingesta_ilegible": (
+        "El archivo no se pudo leer del disco",
+        "Puede ser un problema de permisos o un disco con errores. Copialo a otra "
+        "carpeta y volvé a subirlo."),
+    "perfil_no_aplica": (
+        "No se reconoció ningún formulario conocido",
+        "El PDF entró bien y se leyó, pero ninguna de sus fojas tiene la forma de los "
+        "formularios que el sistema conoce. Puede no ser un contrato, o ser un modelo "
+        "de formulario nuevo: en ese caso hay que agregarle un perfil."),
+    "lectura_fallida": (
+        "La lectura de una foja falló",
+        "Se registró la foja pero no se pudo obtener texto. Miralo en el visor: si la "
+        "imagen está en blanco o ilegible, el problema está en el escaneo."),
+    "pagina_ilegible": (
+        "Una foja no se pudo interpretar",
+        "La imagen está demasiado deteriorada. Conviene volver a escanear esa hoja."),
+}
+
+
+def api_afuera(cx) -> dict:
+    """
+    Los archivos que entraron y NO produjeron ningún contrato, con el motivo.
+
+    Es la pantalla que faltaba: sin esto, subir trescientos PDF y que doce no den nada
+    es invisible. Y un documento que se pierde en silencio es lo peor que puede hacer
+    un sistema que existe para no perder documentos.
+    """
+    filas = []
+    # 1. Los que ni siquiera llegaron a la tabla `archivo`: fallaron al abrirse.
+    for r in cx.execute("""SELECT e.clase, e.detalle, e.creado_en, e.sha256
+                             FROM excepcion e
+                            WHERE e.estado='abierta'
+                              AND e.clase IN ('pdf_ilegible','ingesta_ilegible')
+                            ORDER BY e.id DESC"""):
+        # El detalle viene como "<ruta>: <excepción>". Nos alcanza con el nombre.
+        crudo = r["detalle"] or ""
+        nombre = crudo.split(": ", 1)[0].rsplit("/", 1)[-1] or "(sin nombre)"
+        titulo, que_hacer = MOTIVOS.get(r["clase"], (r["clase"], ""))
+        filas.append({"archivo": nombre, "sha256": r["sha256"], "paginas": None,
+                      "lote": None, "clase": r["clase"], "titulo": titulo,
+                      "que_hacer": que_hacer, "detalle": crudo, "leido": False})
+
+    # 2. Los que se ingirieron bien pero no dieron ningún documento.
+    for r in cx.execute("""
+        SELECT a.sha256, a.nombre, a.paginas, p.lote,
+               (SELECT COUNT(*) FROM lectura l JOIN pagina g ON g.id=l.pagina_id
+                 WHERE g.sha256=a.sha256) AS lecturas,
+               (SELECT e.clase FROM excepcion e
+                 WHERE e.sha256=a.sha256 AND e.estado='abierta' ORDER BY e.id DESC LIMIT 1) AS clase,
+               (SELECT e.detalle FROM excepcion e
+                 WHERE e.sha256=a.sha256 AND e.estado='abierta' ORDER BY e.id DESC LIMIT 1) AS detalle
+          FROM archivo a
+          LEFT JOIN procedencia p ON p.sha256 = a.sha256
+         WHERE NOT EXISTS (SELECT 1 FROM documento d WHERE d.sha256 = a.sha256)
+         ORDER BY a.nombre"""):
+        leido = bool(r["lecturas"])
+        if not leido:
+            titulo = "Todavía no se leyó"
+            que_hacer = ("Está cargado pero le falta pasar por la lectura. Andá a "
+                         "«Cargar escaneos» y tocá Procesar.")
+            clase = "sin_leer"
+        else:
+            clase = r["clase"] or "perfil_no_aplica"
+            titulo, que_hacer = MOTIVOS.get(clase, (clase, ""))
+        filas.append({"archivo": r["nombre"], "sha256": r["sha256"],
+                      "paginas": r["paginas"], "lote": r["lote"], "clase": clase,
+                      "titulo": titulo, "que_hacer": que_hacer,
+                      "detalle": r["detalle"], "leido": leido})
+
+    por_clase: dict[str, int] = {}
+    for f in filas:
+        por_clase[f["clase"]] = por_clase.get(f["clase"], 0) + 1
+    # El total tiene que contar también los que no llegaron a la tabla `archivo`: si no,
+    # el denominador esconde justamente los que peor les fue.
+    total = (cx.execute("SELECT COUNT(*) FROM archivo").fetchone()[0]
+             + por_clase.get("pdf_ilegible", 0) + por_clase.get("ingesta_ilegible", 0))
+    return {"filas": filas, "total_archivos": total, "afuera": len(filas),
+            "por_clase": por_clase,
+            "perfiles_conocidos": sorted(p.stem for p in config.PERFILES.glob("*.json"))}
 
 
 def api_documento(cx, doc_id: int) -> dict:
@@ -435,6 +532,23 @@ class Manejador(BaseHTTPRequestHandler):
                                  FROM procedencia p JOIN archivo a ON a.sha256=p.sha256
                                 GROUP BY p.lote ORDER BY ultimo DESC""")]
                         return self._json(est)
+                    if ruta == "/api/afuera":
+                        return self._json(api_afuera(cx))
+                    if ruta == "/api/salud":
+                        # Diagnóstico del entorno + invariantes del pliego, en una sola
+                        # pantalla. Quien lo va a mirar no abre una terminal.
+                        from . import diagnostico, verificacion
+                        chequeos = diagnostico.correr(desde_web=True)
+                        r = diagnostico.resumen(chequeos)
+                        integ = cx.execute("""SELECT COUNT(*) c, MIN(verificado_en) v
+                                                FROM integridad""").fetchone()
+                        total = cx.execute("SELECT COUNT(*) FROM archivo").fetchone()[0]
+                        return self._json({
+                            **r,
+                            "invariantes": verificacion.correr(cx),
+                            "integridad": {"verificados": integ["c"], "total": total,
+                                           "mas_viejo": integ["v"]},
+                        })
                     if ruta == "/api/excepciones":
                         return self._json([dict(r) for r in cx.execute(
                             "SELECT * FROM excepcion WHERE estado='abierta' ORDER BY id DESC LIMIT 200")])

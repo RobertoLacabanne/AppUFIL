@@ -152,6 +152,13 @@ async function vPanel() {
             aparecen más de una vez</strong> y estarían contándose doble en los acumulados:
             <a href="#/consultas/08_contratos_repetidos">ver cuáles</a>.` : ''}</span>
         </div>` : ''}
+      ${p.afuera ? `
+        <div class="aviso" style="margin-top:14px">
+          <span class="sello alerta" style="flex:none">Afuera</span>
+          <span><strong>${n(p.afuera)} archivo(s) no produjeron ningún contrato</strong> y
+            por lo tanto no entran en ninguno de estos números:
+            <a href="#/afuera">ver cuáles y por qué</a>.</span>
+        </div>` : ''}
       ${p.destacados.length ? `
         <h3 style="margin-top:20px">Las superposiciones más largas</h3>
         <div class="destacados">
@@ -1073,6 +1080,130 @@ async function seguirTrabajo() {
 /* ── Cómo funciona ─────────────────────────────────────────────────────── */
 /* La pantalla que contesta lo que pregunta cualquiera que ve esto por primera vez:
    de dónde salen los datos, qué pasa si el sistema se equivoca, y qué NO hace. */
+/* Estado del sistema: lo que en la terminal serían `diagnostico` y `verificar`, pero
+   para alguien que nunca va a abrir una terminal. Sirve el primer día —¿está todo
+   instalado?— y después como control periódico de que nada se movió. */
+async function vSalud() {
+  const s = await api('/api/salud');
+  const simbolos = {ok: 'ok', aviso: 'Aviso', falla: 'Falta'};
+  const clase = {ok: 'ok', aviso: 'atencion', falla: 'alerta'};
+
+  const veredicto = s.puede_trabajar
+    ? `<div class="aviso ${s.avisos ? 'atento' : 'bien'}">
+         <span class="sello ${s.avisos ? 'atencion' : 'ok'}" style="flex:none">Listo</span>
+         <span>El equipo tiene todo lo necesario para trabajar${
+           s.avisos ? `, con ${s.avisos} aviso${s.avisos > 1 ? 's' : ''} que conviene mirar` : ''}.</span></div>`
+    : `<div class="aviso"><span class="sello alerta" style="flex:none">Falta</span>
+         <span>Todavía no se puede trabajar: faltan ${s.fallas} cosa${s.fallas > 1 ? 's' : ''}.
+         Abajo está cada una con lo que hay que instalar.</span></div>`;
+
+  const filas = s.chequeos.map(c => `
+    <tr>
+      <td><span class="sello ${clase[c.estado]}">${simbolos[c.estado]}</span></td>
+      <td><b>${esc(c.nombre)}</b></td>
+      <td>${esc(c.detalle)}${c.arreglo && c.estado !== 'ok'
+        ? `<div class="arreglo mono">${esc(c.arreglo)}</div>` : ''}</td>
+    </tr>`).join('');
+
+  const inv = s.invariantes.length
+    ? `<ul class="fallas">${s.invariantes.map(f => `<li>${esc(f)}</li>`).join('')}</ul>`
+    : `<div class="aviso bien"><span class="sello ok" style="flex:none">Cumple</span>
+         <span>Las reglas del pliego se siguen cumpliendo sobre los datos cargados:
+         ningún campo con valor sin ubicación en la imagen, ninguna interpretación sin
+         documento que la sostenga, ninguna fusión de identidad aplicada sola.</span></div>`;
+
+  const i = s.integridad;
+  const cobertura = i.total
+    ? `<p class="prosa">De los <b>${i.total}</b> originales cargados,
+        <b>${i.verificados}</b> fueron rehasheados alguna vez y siguen idénticos a como
+        entraron.${i.total > i.verificados
+          ? ` Faltan ${i.total - i.verificados}: se van cubriendo solos cada vez que se abre
+              esta pantalla, empezando por los que hace más tiempo que no se miran.`
+          : ' El acervo entero está cubierto.'}
+        ${i.mas_viejo ? ` La verificación más antigua es del
+          <span class="mono">${esc(String(i.mas_viejo).slice(0, 16).replace('T', ' '))}</span>.` : ''}</p>`
+    : `<p class="prosa">Todavía no hay documentos cargados, así que no hay nada que verificar.</p>`;
+
+  vista.innerHTML =
+    bloque('f. 0900', 'Equipo', `
+      <h2>Estado del sistema</h2>
+      <p class="prosa">Esta pantalla contesta dos preguntas distintas. Arriba: si esta
+        computadora tiene instalado todo lo que hace falta. Abajo: si lo que ya está cargado
+        sigue cumpliendo las reglas con las que se cargó.</p>
+      ${veredicto}
+      <div class="tabla-env"><table class="salud"><tbody>${filas}</tbody></table></div>`) +
+
+    bloque('f. 0901', 'Reglas', `
+      <h2>Las reglas siguen valiendo</h2>
+      <p class="prosa">No es una promesa del instructivo: se vuelve a comprobar contra la
+        base cada vez que se abre esta pantalla.</p>
+      ${inv}`) +
+
+    bloque('f. 0902', 'Originales', `
+      <h2>Los originales no cambiaron</h2>
+      <p class="prosa">El sistema guarda el hash de cada archivo tal como entró y lo vuelve a
+        calcular cada tanto. Si alguien —con permisos de administrador, que es el único que
+        puede— tocara un original, esto lo detecta.</p>
+      ${cobertura}`);
+}
+
+/* Qué entró y no salió. Sin esta pantalla, subir trescientos PDF y que doce no den
+   ningún contrato es invisible: el panel muestra 288 y nadie sabe que faltan doce.
+   Un documento que se pierde en silencio es lo peor que puede hacer un sistema que
+   existe justamente para no perder documentos. */
+async function vAfuera() {
+  const d = await api('/api/afuera');
+
+  if (!d.afuera) {
+    return vista.innerHTML = bloque('f. 0800', 'Control', `
+      <h2>Ningún archivo quedó afuera</h2>
+      <div class="aviso bien"><span class="sello ok" style="flex:none">Completo</span>
+        <span>Los <b>${d.total_archivos}</b> archivos cargados produjeron al menos un
+        contrato. No hay nada perdido en el camino.</span></div>
+      <p class="prosa">Esta pantalla es un control: cada vez que un PDF entra y no sale
+        ningún contrato de él, aparece acá con el motivo. Conviene mirarla después de
+        cada lote.</p>`);
+  }
+
+  // Agrupadas por motivo: doce archivos con el mismo problema son un solo problema.
+  const grupos = {};
+  for (const f of d.filas) (grupos[f.clase] ??= []).push(f);
+
+  const secciones = Object.entries(grupos).map(([clase, fs], i) => {
+    const g = fs[0];
+    return bloque(`f. 08${String(i + 1).padStart(2, '0')}`, `${fs.length} archivo${fs.length > 1 ? 's' : ''}`, `
+      <h2>${esc(g.titulo)}</h2>
+      <p class="prosa">${esc(g.que_hacer)}</p>
+      ${clase === 'perfil_no_aplica' ? `<p class="prosa" style="font-size:13px">
+        Formularios que el sistema conoce hoy:
+        ${d.perfiles_conocidos.map(p => `<span class="mono">${esc(p)}</span>`).join(', ')}.
+        Agregar uno nuevo no requiere programar: se copia un archivo de
+        <span class="mono">ufil/perfiles/</span> y se le cambian los rótulos.</p>` : ''}
+      ${tabla([
+        {t: 'Archivo', k: 'archivo', c: 'mono'},
+        {t: 'Fojas', c: 'num', r: f => f.paginas ?? '—'},
+        {t: 'Lote', r: f => esc(f.lote || '—')},
+        // Un archivo que nunca se pudo abrir no llegó a la etapa de lectura: decir
+        // "no se leyó" ahí es ruido, no información.
+        {t: 'Se leyó', r: f => f.paginas === null ? '—'
+          : f.leido ? '<span class="sello">sí</span>'
+          : '<span class="sello alerta">no</span>'},
+      ], fs)}`);
+  }).join('');
+
+  vista.innerHTML = bloque('f. 0800', 'Control', `
+      <h2>Quedaron afuera</h2>
+      <div class="aviso"><span class="sello alerta" style="flex:none">Ojo</span>
+        <span><b>${d.afuera}</b> de <b>${d.total_archivos}</b> archivos cargados no
+        produjeron ningún contrato. No se perdieron —están registrados con su hash—
+        pero <b>no entran en ningún cruce ni en ningún acumulado</b>.</span></div>
+      <p class="prosa">Que un archivo quede afuera no siempre es un error: una nota de
+        elevación o una constancia no son contratos y no tienen por qué producir uno. Lo
+        que hay que descartar es lo otro: que sea un contrato que el sistema no supo
+        reconocer. Por eso están agrupados por motivo, con qué hacer en cada caso.</p>`)
+    + secciones;
+}
+
 function vComoFunciona() {
   vista.innerHTML =
     bloque('f. 0100', 'Qué es', `
@@ -1162,7 +1293,8 @@ const TITULOS = {
   '#/superposiciones':'Superposiciones', '#/cola':'Cola de revisión',
   '#/identidad':'Identidad', '#/interpretacion':'Interpretación',
   '#/consultas':'Consultas', '#/documento':'Documento', '#/persona':'Ficha',
-  '#/como-funciona':'Cómo funciona',
+  '#/como-funciona':'Cómo funciona', '#/salud':'Estado del sistema',
+  '#/afuera':'Quedaron afuera',
 };
 
 async function refrescarCuentas() {
@@ -1171,9 +1303,10 @@ async function refrescarCuentas() {
     const av = document.getElementById('aviso-demo');
     if (av) av.hidden = !p.demostracion;
     document.body.classList.toggle('con-demo', !!p.demostracion);
-    const c = $('#n-cola'), f = $('#n-fus');
+    const c = $('#n-cola'), f = $('#n-fus'), af = $('#n-afuera');
     c.textContent = p.a_revisar; c.hidden = !p.a_revisar;
     f.textContent = p.fusiones;  f.hidden = !p.fusiones;
+    if (af) { af.textContent = p.afuera; af.hidden = !p.afuera; }
     $('#f-lote').textContent = 'lote ' + (p.lote || '—');
     const marca = document.getElementById('marca');
     if (marca) marca.hidden = !p.marca;
@@ -1197,6 +1330,8 @@ const rutas = [
   [/^#\/interpretacion$/,        vInterpretacion],
   [/^#\/consultas\/?(.*)$/,      vConsultas],
   [/^#\/como-funciona$/,         vComoFunciona],
+  [/^#\/afuera$/,                vAfuera],
+  [/^#\/salud$/,                 vSalud],
 ];
 
 async function rutear() {

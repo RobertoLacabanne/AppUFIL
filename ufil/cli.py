@@ -133,6 +133,14 @@ def cmd_exportar(a):
     return 0
 
 
+def cmd_diagnostico(a):
+    """Chequeo del entorno. Se corre el primer día, antes de cargar nada."""
+    from . import diagnostico
+    salidas = diagnostico.correr()
+    print(diagnostico.informe_texto(salidas))
+    return 0 if diagnostico.resumen(salidas)["puede_trabajar"] else 1
+
+
 def cmd_verificar(a):
     from . import verificacion
     cx = _cx(a)
@@ -293,6 +301,9 @@ def main(argv=None) -> int:
     s = sub.add_parser("exportar", help="Capa 7: .xlsx y .rtf con cita de archivo y foja")
     s.add_argument("destino"); s.add_argument("--consulta", action="append")
     s.set_defaults(func=cmd_exportar)
+
+    s = sub.add_parser("diagnostico", help="¿está todo lo que hace falta para trabajar?")
+    s.set_defaults(func=cmd_diagnostico)
 
     s = sub.add_parser("verificar", help="chequea las invariantes del pliego")
     s.add_argument("--completo", action="store_true",

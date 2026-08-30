@@ -22,6 +22,8 @@ RUTAS = [
     "panel", "ingesta", "buscar", "buscar/maestranza", "contratos", "personas",
     "persona/1", "superposiciones", "cola", "identidad", "interpretacion",
     "consultas", "consultas/01_superposicion", "documento/1", "como-funciona",
+    "afuera",
+    "salud",
 ]
 
 CANDIDATOS = [
