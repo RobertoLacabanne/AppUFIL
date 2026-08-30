@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import sqlite3
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -40,6 +41,23 @@ def _cx() -> sqlite3.Connection:
 
 
 # ─────────────────────────────────────────────────────────────────── consultas ──
+def es_demostracion(cx) -> bool:
+    """
+    ¿Los datos cargados son del corpus sintético de prueba?
+
+    Importa muchísimo: si esto se muestra en una reunión, nadie puede confundir un
+    contrato inventado para probar el software con uno de la Legislatura. Cuando da
+    verdadero, la interfaz pone un aviso fijo arriba de todo.
+    """
+    if os.environ.get("UFIL_DEMO", "").strip() in ("1", "si", "true"):
+        return True
+    if db.ajuste(cx, "demostracion") == "1":
+        return True
+    n = cx.execute("""SELECT COUNT(*) FROM archivo
+                       WHERE ruta_original LIKE '%corpus-sintetico%'""").fetchone()[0]
+    return n > 0
+
+
 def api_panel(cx) -> dict:
     def uno(sql, *p):
         return cx.execute(sql, p).fetchone()[0]
@@ -68,6 +86,24 @@ def api_panel(cx) -> dict:
         "fechas_imposibles": c4.correr(cx, "04_fechas_imposibles")["n"],
         "excluidos": c4.correr(cx, "06_excluidos_del_cruce")["n"],
         "lote": (cx.execute("SELECT lote FROM procedencia LIMIT 1").fetchone() or ["—"])[0],
+        "demostracion": es_demostracion(cx),
+        # Los tres hallazgos más grandes, para que el panel abra con lo que encontró y
+        # no con una grilla de números que hay que interpretar.
+        "destacados": [dict(r) for r in cx.execute("""
+            SELECT a.documento_id AS doc, a.archivo AS archivo_a, b.archivo AS archivo_b,
+                   COALESCE(a.nombre_literal,'(sin nombre)') AS contratado,
+                   a.persona_id,
+                   CASE WHEN a.camara=b.camara THEN 'intracámara' ELSE 'intercámara' END AS cruce,
+                   CAST(julianday(MIN(a.fin,b.fin)) - julianday(MAX(a.inicio,b.inicio)) + 1
+                        AS INTEGER) AS dias
+              FROM v_contrato a JOIN v_contrato b
+                ON a.persona_id=b.persona_id AND a.documento_id<b.documento_id
+             WHERE a.inicio IS NOT NULL AND a.fin IS NOT NULL
+               AND b.inicio IS NOT NULL AND b.fin IS NOT NULL
+               AND a.inicio<=b.fin AND b.inicio<=a.fin
+             ORDER BY dias DESC LIMIT 3""")],
+        "acumulado_centavos": uno("""SELECT COALESCE(SUM(monto_centavos),0) FROM v_contrato"""),
+        "personas_ambas_camaras": c4.correr(cx, "03_ambas_camaras")["n"],
     }
 
 
@@ -252,6 +288,33 @@ class Manejador(BaseHTTPRequestHandler):
             if ruta.startswith("/fuentes/"):
                 p = self._seguro(config.FUENTES, ruta[len("/fuentes/"):])
                 return self._archivo(p, cache=True) if p else self._json({"error": "ruta"}, 400)
+            if ruta == "/descargar":
+                # Genera el archivo y lo entrega para bajar. En una demostración es la
+                # diferencia entre "se puede exportar" y ver el Excel abierto.
+                from . import capa7_export as c7
+                que = q.get("que", ["xlsx"])[0]
+                cx = _cx()
+                try:
+                    destino = config.DATOS / "export"
+                    if que == "rtf":
+                        archivo = c7.a_rtf(cx, destino / "informe.rtf")
+                        tipo, nombre = "application/rtf", "informe-analisis.rtf"
+                    else:
+                        archivo = c7.a_xlsx(cx, destino / "analisis.xlsx",
+                                            [c["id"] for c in c4.catalogo()])
+                        tipo = ("application/vnd.openxmlformats-officedocument."
+                                "spreadsheetml.sheet")
+                        nombre = "analisis-contratos.xlsx"
+                finally:
+                    cx.close()
+                datos = Path(archivo).read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", tipo)
+                self.send_header("Content-Disposition", f'attachment; filename="{nombre}"')
+                self.send_header("Content-Length", str(len(datos)))
+                self.end_headers()
+                self.wfile.write(datos)
+                return
             if ruta == "/pagina":
                 cx = _cx()
                 r = cx.execute("""SELECT p.render FROM pagina p

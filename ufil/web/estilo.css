@@ -293,3 +293,127 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
 .leyenda i.mues{display:inline-block; width:16px; height:8px; background:var(--marca);
   margin-right:6px; vertical-align:middle}
 .leyenda i.mues.solapa{background:var(--marca-solape)}
+
+/* ── Aviso de datos de demostración ───────────────────────────────────── */
+/* Fijo arriba de todo y siempre visible. Si esto se muestra en una reunión, nadie
+   puede confundir un contrato inventado con uno de la Legislatura, y eso no puede
+   depender de que alguien se acuerde de aclararlo. */
+#aviso-demo{
+  position:sticky; top:0; z-index:40;
+  display:flex; gap:13px; align-items:baseline;
+  padding:8px 24px; background:var(--lapiz-suave);
+  border-bottom:2px solid var(--lapiz); font-size:12px; color:var(--tinta);
+}
+#aviso-demo .sello{flex:none}
+body.con-demo .barra{top:37px}
+body.con-demo nav{top:96px}
+
+/* ── Navegación agrupada ──────────────────────────────────────────────── */
+nav .sep{width:1px; height:14px; background:var(--filete); margin:0 9px; align-self:center; flex:none}
+
+/* ── Esqueleto de carga ───────────────────────────────────────────────── */
+/* Un bloque gris del tamaño de lo que viene, en vez de la palabra «Cargando». */
+.esqueleto{padding:30px 0 0 136px; display:flex; flex-direction:column; gap:12px; max-width:900px}
+.esqueleto i{display:block; height:15px; background:var(--papel-2); border:1px solid var(--filete-2)}
+.esqueleto i:nth-child(1){width:38%; height:26px}
+.esqueleto i:nth-child(2){width:76%}
+.esqueleto i:nth-child(3){width:58%}
+@media (prefers-reduced-motion:no-preference){
+  .esqueleto i{animation:latir 1.5s ease-in-out infinite}
+  .esqueleto i:nth-child(2){animation-delay:.12s}
+  .esqueleto i:nth-child(3){animation-delay:.24s}
+  @keyframes latir{0%,100%{opacity:1}50%{opacity:.45}}
+}
+@media (max-width:720px){.esqueleto{padding-left:0}}
+
+/* ── Estado vacío ─────────────────────────────────────────────────────── */
+.sin-datos{border:1px dashed var(--filete); background:var(--papel-2);
+  padding:30px 26px; display:flex; flex-direction:column; gap:9px; align-items:flex-start;
+  max-width:66ch; margin-top:14px}
+.sin-datos b{font-size:15px}
+.sin-datos p{font-family:var(--serif); font-size:14.5px; line-height:1.6;
+  color:var(--tinta-2); margin:0; max-width:60ch}
+.sin-datos .boton{margin-top:6px; padding:6px 14px; font-size:12px}
+
+/* ── Resumen y hallazgos del panel ────────────────────────────────────── */
+.prosa.resumen{font-size:16.5px; line-height:1.62; color:var(--tinta-2); max-width:72ch}
+.prosa.resumen strong{color:var(--tinta)}
+.destacados{border:1px solid var(--filete)}
+.destacado-fila{display:grid; grid-template-columns:64px minmax(0,1fr) 118px minmax(0,1.5fr);
+  gap:14px; padding:8px 13px; border-bottom:1px solid var(--filete-2);
+  text-decoration:none; color:inherit; align-items:baseline; font-size:12.5px}
+.destacado-fila:last-child{border-bottom:none}
+a.destacado-fila:hover{background:var(--papel-2)}
+.destacado-fila.cab{font-size:9.5px; font-weight:600; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--tinta-3); border-bottom:1px solid var(--tinta)}
+.destacado-fila .dias{text-align:right; font-variant-numeric:tabular-nums; font-weight:500}
+.destacado-fila.cab .dias{font-family:var(--sans)}
+.destacado-fila .fol{font-size:10.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+/* ── Visor: los datos arriba, sin estirarse ───────────────────────────── */
+.visor{align-items:start}
+.visor .datos{align-self:start}
+
+/* ── Impresión ────────────────────────────────────────────────────────── */
+/* Van a querer imprimir el panel o el tablero de cruces para llevar a una reunión. */
+@media print{
+  :root{--papel:#fff; --papel-2:#fff; --tinta:#000; --tinta-2:#333; --tinta-3:#555;
+        --filete:#999; --filete-2:#ccc; --interp:#f2f4f7}
+  nav, .der, #b-tema, .boton, .acc, .ancla, .esqueleto{display:none !important}
+  body{font-size:10.5pt}
+  .barra{position:static; border-bottom:2px solid #000; padding:0 0 8px}
+  #aviso-demo{position:static; border:2px solid #000}
+  main{padding:0}
+  .bloque{break-inside:avoid; page-break-inside:avoid; margin-top:18px}
+  .tabla-env, .cifras, .carriles, .cronologia, .interp{break-inside:avoid}
+  a{color:#000; text-decoration:none}
+  thead th{position:static}
+  .visor{grid-template-columns:1fr}
+  .lienzo{max-width:520px}
+}
+
+/* ── Enlaces en prosa ─────────────────────────────────────────────────── */
+/* Todo enlace con clase propia (nav, chips, filas) ya tiene su tratamiento; esta regla
+   agarra los de texto corrido, que hasta acá salían con el azul por defecto del
+   navegador y desentonaban con todo lo demás. */
+/* Acotado a `main`: la navegación queda afuera, que si no se subraya entera. */
+main a:not([class]){
+  color:var(--sello); text-decoration:underline; text-underline-offset:2px;
+  text-decoration-thickness:1px; text-decoration-color:var(--filete);
+}
+main a:not([class]):hover{text-decoration-color:var(--sello)}
+
+/* ── Cifras: que el monto no se corte ─────────────────────────────────── */
+.cifra.ancha{grid-column:span 2}
+.cifra.ancha b{font-size:19px; letter-spacing:-.015em}
+@media (max-width:720px){.cifra.ancha{grid-column:span 1}}
+
+/* ── Los dos carriles, lado a lado ────────────────────────────────────── */
+/* La demostración visual de la regla: el dato a la izquierda sobre papel y en
+   monoespaciada; la conjetura a la derecha, sobre otro fondo y en serif bastardilla.
+   Se distingue de una ojeada, que es todo el punto. */
+.carriles{display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--filete);
+  margin:14px 0}
+@media (max-width:860px){.carriles{grid-template-columns:1fr}}
+.carril{padding:16px 18px 18px; min-width:0}
+.carril--dato{background:var(--papel); border-right:1px solid var(--filete)}
+.carril--interp{background:var(--interp); border-left:3px solid var(--interp-filete)}
+@media (max-width:860px){
+  .carril--dato{border-right:none; border-bottom:1px solid var(--filete)}
+}
+.carril h3{display:flex; align-items:center; gap:10px; margin:0 0 12px; flex-wrap:wrap}
+.carril ul{margin:0; padding-left:18px; font-family:var(--sans); font-size:13px;
+  color:var(--tinta-2); line-height:1.55}
+.carril li{margin-bottom:5px}
+.carril li b{color:var(--tinta)}
+.interp-texto{font-family:var(--serif); font-style:italic; font-size:14.5px;
+  line-height:1.6; color:var(--tinta)}
+
+/* Etiqueta del campo en la cola. Antes usaba el sello, que se leía como un botón
+   y competía con las acciones de la derecha, que sí lo son. */
+.etiqueta-campo{
+  font-family:var(--mono); font-size:11px; letter-spacing:.02em;
+  border:1px solid var(--filete); background:var(--papel-2); color:var(--tinta);
+  padding:1px 7px; white-space:nowrap;
+}
+.etiqueta-campo.alerta{border-color:var(--lapiz); color:var(--lapiz); background:var(--lapiz-suave)}

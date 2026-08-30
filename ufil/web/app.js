@@ -46,6 +46,22 @@ function celdaValor(c) {
   return `<span class="mono${dudoso}">${esc(c.valor_literal)}</span>`;
 }
 
+/* Estado vacío: en vez de una grilla de ceros, qué es esto y qué hacer ahora. */
+/* Una vista entera en estado vacío, con la misma retícula que las demás. */
+function vistaVacia(folio, rotulo, titulo, cabeza, texto) {
+  vista.innerHTML = bloque(folio, rotulo,
+    `<h2>${esc(titulo)}</h2>` + vacio(cabeza, esc(texto),
+      {href:'#/ingesta', texto:'Cargar escaneos'}));
+}
+
+function vacio(titulo, texto, accion) {
+  return `<div class="sin-datos">
+    <b>${esc(titulo)}</b>
+    <p>${texto}</p>
+    ${accion ? `<a class="boton" href="${accion.href}">${esc(accion.texto)}</a>` : ''}
+  </div>`;
+}
+
 function bloque(folio, rotulo, html) {
   return `<section class="bloque">
     <div class="marginalia"><span>${esc(folio)}</span><span class="rotulo">${esc(rotulo)}</span></div>
@@ -76,34 +92,73 @@ async function vPanel() {
   const p = await api('/api/panel');
   const cob = p.cobertura.filter(c => c.campo !== 'cargo');
 
+  if (!p.documentos) {
+    vista.innerHTML = bloque('f. 0001', 'Inicio', `
+      <h2>Todavía no hay nada cargado</h2>
+      <p class="prosa">Este sistema lee contratos escaneados, saca los datos con su
+        ubicación exacta en el folio, y cruza los períodos para encontrar
+        superposiciones. <strong>No modifica los originales y funciona sin conexión.</strong></p>
+      ${vacio('Empezá cargando un lote de escaneos',
+        'Arrastrá los PDF a la pantalla de carga y tocá Procesar. El sistema lee, extrae ' +
+        'y cruza solo; lo que no puede leer con seguridad lo deja marcado para que lo ' +
+        'revise una persona.',
+        {href:'#/ingesta', texto:'Cargar escaneos'})}
+      <p class="prosa" style="margin-top:18px;font-size:13px">
+        ¿Primera vez? <a href="#/como-funciona">Cómo funciona</a> lo explica en una pantalla.</p>`);
+    return;
+  }
+
+  const n = x => fmtNum.format(x);
+  const destacados = p.destacados.map(d => `
+    <a class="destacado-fila" href="#/persona/${d.persona_id}">
+      <span class="dias mono">${d.dias}</span>
+      <span class="quien">${esc(d.contratado)}</span>
+      <span class="cruce ${d.cruce === 'intercámara' ? 'marca' : ''}">${esc(d.cruce)}</span>
+      <span class="fol">${esc(d.archivo_a)} · ${esc(d.archivo_b)}</span>
+    </a>`).join('');
+
   vista.innerHTML =
-    bloque('f. 0001', 'Estado', `
+    bloque('f. 0001', 'Resumen', `
+      <h2>Qué encontró el sistema</h2>
+      <p class="prosa resumen">
+        Sobre <strong>${n(p.documentos)} contratos</strong> leídos del lote
+        «${esc(p.lote)}»: <strong>${n(p.personas_ambas_camaras)} personas</strong> figuran en
+        las dos cámaras y <strong>${n(p.superposiciones)} pares</strong> de contratos se pisan
+        en el tiempo${p.fechas_imposibles ? `, y <strong>${n(p.fechas_imposibles)}</strong>
+        tiene${p.fechas_imposibles === 1 ? '' : 'n'} fechas imposibles` : ''}.
+        El sistema resolvió solo el <strong>${p.cobertura_pct}%</strong> de los campos
+        críticos; quedan <strong>${n(p.a_revisar)}</strong> esperando revisión
+        ${p.excluidos ? `y <strong>${n(p.excluidos)} contratos afuera del cruce</strong>
+          por faltarles algún dato firme` : ''}.
+      </p>
+      ${p.destacados.length ? `
+        <h3 style="margin-top:20px">Las superposiciones más largas</h3>
+        <div class="destacados">
+          <div class="destacado-fila cab">
+            <span class="dias">días</span><span class="quien">contratado/a</span>
+            <span class="cruce">cruce</span><span class="fol">folios</span>
+          </div>
+          ${destacados}
+        </div>
+        <p class="prosa" style="font-size:13px;margin-top:10px">
+          <a href="#/superposiciones">Ver las ${n(p.superposiciones)} superposiciones</a> ·
+          <a href="#/personas">ver a todos los contratados</a></p>` : ''}`) +
+
+    bloque('f. 0002', 'Lote', `
       <h2>Estado del lote</h2>
       <div class="cifras">
-        <div class="cifra"><b>${fmtNum.format(p.documentos)}</b><span>documentos</span></div>
-        <div class="cifra"><b>${fmtNum.format(p.paginas)}</b><span>páginas leídas</span></div>
+        <div class="cifra"><b>${n(p.documentos)}</b><span>documentos</span></div>
+        <div class="cifra"><b>${n(p.paginas)}</b><span>páginas leídas</span></div>
         <div class="cifra ok"><b>${p.cobertura_pct}%</b><span>resuelto solo</span></div>
-        <div class="cifra alerta"><b>${fmtNum.format(p.a_revisar)}</b><span>a revisar</span></div>
-        <div class="cifra alerta"><b>${fmtNum.format(p.conflictos)}</b><span>conflictos</span></div>
-        <div class="cifra"><b>${fmtNum.format(p.verificados)}</b><span>verificados a mano</span></div>
-        <div class="cifra"><b>${fmtNum.format(p.personas)}</b><span>personas</span></div>
-        <div class="cifra"><b>${fmtNum.format(p.duplicados)}</b><span>copias exactas</span></div>
-      </div>`) +
-
-    bloque('f. 0002', 'Hallazgos', `
-      <h2>Hallazgos del análisis</h2>
-      <p class="prosa">Todo lo de acá abajo sale de consultas SQL sobre la tabla de datos.
-        Se puede reproducir a mano y no interviene ningún modelo.</p>
-      <div class="cifras">
-        <div class="cifra"><b>${fmtNum.format(p.superposiciones)}</b><span>superposiciones</span></div>
-        <div class="cifra"><b>${fmtNum.format(p.ambas_camaras)}</b><span>en ambas cámaras</span></div>
-        <div class="cifra alerta"><b>${fmtNum.format(p.fechas_imposibles)}</b><span>fechas imposibles</span></div>
-        <div class="cifra"><b>${fmtNum.format(p.excluidos)}</b><span>fuera del cruce</span></div>
+        <div class="cifra ${p.a_revisar ? 'alerta' : 'ok'}"><b>${n(p.a_revisar)}</b><span>a revisar</span></div>
+        <div class="cifra ${p.conflictos ? 'alerta' : 'ok'}"><b>${n(p.conflictos)}</b><span>conflictos</span></div>
+        <div class="cifra"><b>${n(p.verificados)}</b><span>verificados a mano</span></div>
+        <div class="cifra"><b>${n(p.personas)}</b><span>personas</span></div>
+        <div class="cifra ancha"><b>${esc(fmtPesos(p.acumulado_centavos))}</b><span>monto leído en total</span></div>
       </div>
-      <p class="prosa" style="margin-top:12px"><strong>${fmtNum.format(p.excluidos)} contratos
-        quedaron fuera del cruce</strong> por faltarles algún dato firme. El total de
-        hallazgos no debe leerse como si el universo estuviera completo:
-        <a href="#/consultas/06_excluidos_del_cruce">ver cuáles y por qué</a>.</p>`) +
+      <p class="prosa" style="font-size:12.5px;margin-top:10px">
+        El total en pesos suma <strong>sólo los montos que se leyeron con seguridad</strong>.
+        Es un piso, no el total del lote.</p>`) +
 
     bloque('f. 0003', 'Cobertura', `
       <h2>Qué se pudo leer</h2>
@@ -119,11 +174,32 @@ async function vPanel() {
         {t:'Ilegibles', k:'ilegibles', c:'num'},
         {t:'Ausentes', k:'ausentes', c:'num'},
         {t:'Sin intervención', c:'num', r:f => f.pct_sin_intervencion + '%'},
-      ], cob)}`);
+      ], cob)}
+      ${p.excluidos ? `<p class="prosa" style="font-size:13px;margin-top:12px">
+        <strong>${n(p.excluidos)} contratos quedaron fuera del cruce</strong> por faltarles
+        algún dato firme: <a href="#/consultas/06_excluidos_del_cruce">ver cuáles y por qué</a>.</p>` : ''}`) +
+
+    bloque('f. 0004', 'Salida', `
+      <h2>Llevárselo</h2>
+      <p class="prosa">Las tablas a planilla y el cuerpo a un documento de texto con
+        interlineado 1,5, justificado y cuerpo 11. <strong>Cada afirmación del informe cita
+        el archivo y la foja</strong> de donde salió el dato, para poder verificarla contra
+        el original.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px">
+        <a class="boton" href="/descargar?que=xlsx">Descargar la planilla (.xlsx)</a>
+        <a class="boton gris" href="/descargar?que=rtf">Descargar el informe (.rtf)</a>
+        <button class="boton gris" onclick="window.print()">Imprimir esta pantalla</button>
+      </div>
+      <p class="prosa" style="font-size:12.5px;margin-top:12px">La planilla abre con una
+        portada que aclara qué campos no están verificados por una persona. Nada de lo que
+        sale de acá debería incorporarse a un legajo sin cotejarlo contra el original.</p>`);
 }
 
 async function vContratos() {
   const filas = await api('/api/contratos');
+  if (!filas.length) return vistaVacia('f. 0004', 'Datos', 'Contratos',
+    'Todavía no hay contratos leídos',
+    'Cargá un lote de escaneos y procesalo. Los contratos aparecen acá apenas termina.');
   vista.innerHTML = bloque('f. 0004', 'Datos', `
     <h2>Contratos</h2>
     <p class="prosa">La tabla consolidada. Un campo entra sólo si tiene valor y no tiene
@@ -145,6 +221,10 @@ async function vContratos() {
 
 async function vSuperposiciones() {
   const r = await api('/api/consulta?id=01_superposicion');
+  if (!r.filas.length) return vistaVacia('f. 0005', 'Cruce', 'Superposición temporal',
+    'No hay superposiciones para mostrar',
+    'O no se detectó ninguna, o todavía no se procesó ningún lote. Sólo entran contratos ' +
+    'con las dos fechas leídas con seguridad.');
   vista.innerHTML = bloque('f. 0005', 'Cruce', `
     <h2>Superposición temporal</h2>
     <p class="prosa">Pares de contratos de una misma persona cuyos períodos se pisan.
@@ -279,7 +359,7 @@ function filaCola(f, i) {
     <div class="med">
       <div style="display:flex;gap:9px;align-items:baseline;margin-bottom:7px;flex-wrap:wrap">
         <span class="rotulo">${esc(f.clase)}</span>
-        <span class="sello ${f.clase === 'conflicto' ? 'alerta' : ''}">${esc(f.campo)}</span>
+        <span class="etiqueta-campo ${f.clase === 'conflicto' ? 'alerta' : ''}">${esc(f.campo)}</span>
         <a class="chip" href="#/documento/${f.documento_id}">ver el folio</a>
       </div>
       ${cuerpo}
@@ -362,6 +442,10 @@ async function vIdentidad() {
 
 async function vInterpretacion() {
   const items = await api('/api/interpretaciones');
+  if (!items.length) return vistaVacia('f. 0008', 'Conjetura', 'Interpretación',
+    'Todavía no hay hipótesis',
+    'Se generan al procesar un lote, cruzando los datos ya extraídos. Cada una viene con ' +
+    'los documentos que la sostienen.');
   const porClase = {};
   items.forEach(i => (porClase[i.clase] ||= []).push(i));
   vista.innerHTML = bloque('f. 0008', 'Conjetura', `
@@ -458,6 +542,10 @@ function resultadosHTML(r) {
 /* ── Personas ──────────────────────────────────────────────────────────── */
 async function vPersonas() {
   const filas = await api('/api/documentos');
+  if (!filas.length) return vistaVacia('f. 0011', 'Personas', 'Contratados',
+    'Todavía no hay contratados',
+    'Las personas se arman al procesar un lote: los contratos con el mismo CUIL se agrupan ' +
+    'solos, y el resto queda separado hasta que alguien confirme.');
   vista.innerHTML = bloque('f. 0011', 'Personas', `
     <h2>Contratados</h2>
     <p class="prosa">Agrupados por documento cuando lo hay. <strong>Los que no tienen
@@ -763,10 +851,108 @@ async function seguirTrabajo() {
   }
 }
 
+
+/* ── Cómo funciona ─────────────────────────────────────────────────────── */
+/* La pantalla que contesta lo que pregunta cualquiera que ve esto por primera vez:
+   de dónde salen los datos, qué pasa si el sistema se equivoca, y qué NO hace. */
+function vComoFunciona() {
+  vista.innerHTML =
+    bloque('f. 0100', 'Qué es', `
+      <h2>Cómo funciona</h2>
+      <p class="prosa">Este sistema lee contratos escaneados y arma con ellos una tabla que
+        se puede cruzar. Sirve para <strong>entender rápido un volumen de papel que hoy no se
+        puede abarcar</strong> y para decidir dónde mirar.</p>
+      <div class="aviso"><span class="sello alerta" style="flex:none">Importante</span>
+        <span>No es un sistema de gestión del legajo y no produce piezas procesales.
+        <strong>Lo que se incorpora formalmente al legajo se hace después, a mano, sobre la
+        documentación original.</strong></span></div>`) +
+
+    bloque('f. 0101', 'La regla', `
+      <h2>Dos carriles que nunca se mezclan</h2>
+      <p class="prosa">Es la única regla que hay que tener en la cabeza para leer cualquier
+        pantalla del sistema.</p>
+      <div class="carriles">
+        <div class="carril carril--dato">
+          <h3><span class="rotulo">Carril de datos</span> <span class="sello">Leído</span></h3>
+          <p style="font-size:13px;margin:0 0 10px">Lo que dice el papel. Se muestra en
+            <span class="mono">monoespaciada</span> y cada valor sabe de qué archivo, qué
+            página y qué parte de la imagen salió.</p>
+          <ul style="font-size:13px;margin:0;padding-left:18px">
+            <li>No interviene ningún modelo que pueda inventar.</li>
+            <li>Lo que no se puede leer se guarda vacío <b>con el motivo</b>, nunca completado.</li>
+            <li>Un valor sin ubicación en la imagen no entra en la base.</li>
+          </ul>
+        </div>
+        <div class="carril carril--interp">
+          <h3><span class="rotulo">Carril de interpretación</span> <span class="sello">Conjetura</span></h3>
+          <p class="interp-texto" style="font-size:14px;margin:0 0 10px">Lo que el sistema
+            deduce cruzando esos datos: patrones, anomalías, cosas para mirar. Va en serif
+            bastardilla y sobre otro fondo.</p>
+          <ul style="font-size:13px;margin:0;padding-left:18px">
+            <li>Puede equivocarse, y se presenta como lo que es.</li>
+            <li>Cada afirmación linkea a los documentos que la sostienen.</li>
+            <li>El sistema no guarda una hipótesis sin fuente: la rechaza.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="prosa" style="margin-top:14px">Un fiscal tiene que poder mirar una pantalla y
+        saber, sin pensarlo, si lo que está viendo salió de una fecha impresa en un contrato o
+        de una conjetura del sistema. <strong>Por eso la tipografía cambia.</strong></p>`) +
+
+    bloque('f. 0102', 'Garantías', `
+      <h2>Qué NO puede pasar</h2>
+      <p class="prosa">Estas cuatro no dependen de que alguien se acuerde: están puestas en la
+        base de datos y hay pruebas automáticas que las verifican.</p>
+      <div class="tabla-env"><table>
+        <thead><tr><th>Nunca</th><th>Por qué no puede</th></tr></thead><tbody>
+        <tr><td><b>Salir a internet</b></td><td>No hay una sola llamada de red en el programa.
+          Ni las tipografías: se sirven desde el disco. El servidor escucha sólo en esta
+          máquina.</td></tr>
+        <tr><td><b>Tocar un original</b></td><td>Se guardan en modo solo lectura y el programa
+          los abre sin permiso de escritura. Además se re-verifican solos con su huella
+          digital y avisan si alguno cambió.</td></tr>
+        <tr><td><b>Inventar un dato</b></td><td>La base rechaza un campo que tenga valor y
+          motivo de ausencia a la vez, o ninguno de los dos. Ante la duda se guarda vacío con
+          el motivo.</td></tr>
+        <tr><td><b>Dar un dato sin respaldo</b></td><td>La base rechaza un valor que no diga
+          de qué página y de qué parte de la imagen salió.</td></tr>
+      </tbody></table></div>`) +
+
+    bloque('f. 0103', 'El límite', `
+      <h2>Dónde interviene una persona</h2>
+      <p class="prosa">El sistema lee bien la mayoría de los campos, pero no todos, y eso
+        <strong>es el diseño, no una falla</strong>. Preferimos que dude mucho antes que
+        equivocarse en silencio: una omisión se corrige en treinta segundos, un monto mal
+        leído sin marcar entra en todos los cruces y no lo ve nadie.</p>
+      <ul class="prosa">
+        <li>Cuando dos lecturas del mismo campo no coinciden, el sistema <strong>no
+          elige</strong>: muestra las dos y espera.</li>
+        <li>Cuando la lectura es dudosa, el dato se muestra rayado y va a la cola.</li>
+        <li>Dos contratos con el mismo CUIL son la misma persona, y eso se resuelve solo. El
+          nombre parecido, <strong>nunca</strong>: se propone y lo confirma alguien.</li>
+        <li>Cada decisión humana queda registrada con quién y cuándo, y no se pierde si
+          después se vuelve a procesar el lote.</li>
+      </ul>
+      <p class="prosa"><a href="#/cola">Ver la cola de revisión</a> ·
+         <a href="#/panel">volver al panel</a></p>`);
+}
+
 /* ── ruteo ─────────────────────────────────────────────────────────────── */
+const TITULOS = {
+  '#/panel':'Panel', '#/ingesta':'Cargar escaneos', '#/buscar':'Buscar',
+  '#/contratos':'Contratos', '#/personas':'Personas',
+  '#/superposiciones':'Superposiciones', '#/cola':'Cola de revisión',
+  '#/identidad':'Identidad', '#/interpretacion':'Interpretación',
+  '#/consultas':'Consultas', '#/documento':'Documento', '#/persona':'Ficha',
+  '#/como-funciona':'Cómo funciona',
+};
+
 async function refrescarCuentas() {
   try {
     const p = await api('/api/panel');
+    const av = document.getElementById('aviso-demo');
+    if (av) av.hidden = !p.demostracion;
+    document.body.classList.toggle('con-demo', !!p.demostracion);
     const c = $('#n-cola'), f = $('#n-fus');
     c.textContent = p.a_revisar; c.hidden = !p.a_revisar;
     f.textContent = p.fusiones;  f.hidden = !p.fusiones;
@@ -790,13 +976,16 @@ const rutas = [
   [/^#\/identidad$/,             vIdentidad],
   [/^#\/interpretacion$/,        vInterpretacion],
   [/^#\/consultas\/?(.*)$/,      vConsultas],
+  [/^#\/como-funciona$/,         vComoFunciona],
 ];
 
 async function rutear() {
   const h = location.hash || '#/panel';
   document.querySelectorAll('nav a').forEach(a =>
     a.classList.toggle('activo', h.startsWith(a.getAttribute('href'))));
-  vista.innerHTML = '<div class="cargando">Cargando…</div>';
+  const base = '#/' + h.split('/')[1];
+  document.title = (TITULOS[base] || 'Análisis documental') + ' · UFIL Paraná';
+  vista.innerHTML = '<div class="esqueleto"><i></i><i></i><i></i></div>';
   for (const [re, fn] of rutas) {
     const m = h.match(re);
     if (m) {

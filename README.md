@@ -31,6 +31,17 @@ exactitud** propuestos en la Fase 0. El detalle honesto, con lo que falta, está
 python3 -m ufil.cli servir        # http://127.0.0.1:8713
 ```
 
+**Para mostrarlo**, un solo comando deja todo cargado, marca la base como demostración
+—aparece un aviso en toda pantalla de que los contratos no son reales— y levanta el
+servidor:
+
+```bash
+python3 -m ufil.cli demo --limpiar
+python3 herramientas/humo.py      # chequea que ninguna pantalla esté rota
+```
+
+El guión para la reunión está en [`docs/04-guion-demostracion.md`](docs/04-guion-demostracion.md).
+
 Y desde ahí: **Cargar escaneos** → arrastrar los PDF → **Procesar**. Nada más.
 
 Para probarlo sin documentos reales, hay un generador de corpus sintético con verdad
@@ -100,6 +111,7 @@ por accidente.
 | [`docs/01-identidad-visual.md`](docs/01-identidad-visual.md) | El sistema visual: por qué la tipografía es la etiqueta de procedencia |
 | [`docs/02-fase-1.md`](docs/02-fase-1.md) | **Qué se construyó, qué mide y qué falta.** Con los números. |
 | [`docs/03-carga-y-trabajo.md`](docs/03-carga-y-trabajo.md) | Carga desde la interfaz, búsqueda, ficha del contratado, y un experimento de lectura que salió mal. |
+| [`docs/04-guion-demostracion.md`](docs/04-guion-demostracion.md) | **Cómo mostrarlo en una reunión**, con las preguntas que van a hacer y qué contestar. |
 | [`docs/identidad/guia-visual.html`](docs/identidad/guia-visual.html) | La guía visual, se abre con doble clic |
 | [`INSTALAR.md`](INSTALAR.md) | Instalación en dos etapas y operación diaria |
 

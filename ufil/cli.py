@@ -145,6 +145,68 @@ def cmd_verificar(a):
     return 1 if fallas else 0
 
 
+def cmd_demo(a):
+    """
+    Deja la aplicación lista para mostrar, de un solo comando.
+
+    Genera el corpus sintético si falta, lo procesa entero, marca la base como
+    DEMOSTRACIÓN —para que la interfaz avise en toda pantalla que ninguno de esos
+    contratos es real— y levanta el servidor.
+    """
+    import subprocess
+    from . import capa5_interpretacion as c5
+    from . import busqueda
+    from . import capa0_ingesta as c0
+
+    corpus = Path(a.corpus)
+    if not list(corpus.glob("*.pdf")):
+        print(f"── generando el corpus sintético en {corpus}")
+        subprocess.run([sys.executable, str(config.RAIZ / "herramientas" / "generar_fixtures.py"),
+                        "--destino", str(corpus), "--cantidad", str(a.cantidad)], check=True)
+
+    base = Path(a.base) if a.base else config.BASE
+    if a.limpiar:
+        for suf in ("", "-wal", "-shm"):
+            Path(str(base) + suf).unlink(missing_ok=True)
+        print("── base anterior borrada")
+
+    cx = db.abrir(base)
+    db.ajuste(cx, "demostracion", "1")
+    print("── la base queda marcada como DEMOSTRACIÓN")
+
+    print("── ingesta")
+    r = c0.ingerir(cx, corpus, lote="demostracion", operador="demo",
+                   legajo="(corpus de prueba)")
+    print(f"   nuevos {r.nuevos} · duplicados {r.duplicados} · páginas {r.paginas}")
+
+    faltan = [f["sha256"] for f in cx.execute(
+        """SELECT a.sha256 FROM archivo a
+            WHERE (SELECT COUNT(*) FROM pagina p JOIN lectura l ON l.pagina_id=p.id
+                    WHERE p.sha256=a.sha256)=0 ORDER BY a.nombre""")]
+    if faltan:
+        print(f"── lectura de {len(faltan)} documentos (tarda ~{len(faltan)*17//10}s)")
+        for i, sha in enumerate(faltan, 1):
+            c1.leer_documento(cx, sha)
+            print(f"\r   {i}/{len(faltan)}", end="", flush=True)
+        print()
+
+    print("── extracción")
+    for sha in [f["sha256"] for f in cx.execute("SELECT sha256 FROM archivo ORDER BY nombre")]:
+        c2.extraer_documento(cx, sha, a.perfil)
+    print("── identidad, índice y patrones")
+    c3.resolver(cx); c3.proponer_fusiones(cx)
+    busqueda.reindexar(cx); c5.regenerar(cx)
+    cx.close()
+
+    print()
+    print("  Listo para mostrar.")
+    print(f"  Referencia para medir: {corpus / 'referencia.csv'}")
+    print()
+    from . import servidor
+    servidor.servir(base, a.puerto, a.host)
+    return 0
+
+
 def cmd_servir(a):
     from . import servidor
     servidor.servir(Path(a.base) if a.base else None, a.puerto, a.host)
@@ -225,6 +287,15 @@ def main(argv=None) -> int:
     s.add_argument("--puerto", type=int, default=8713)
     s.add_argument("--host", default="127.0.0.1")
     s.set_defaults(func=cmd_servir)
+
+    s = sub.add_parser("demo", help="deja la app cargada y lista para mostrar, y la levanta")
+    s.add_argument("--corpus", default="datos/corpus-sintetico")
+    s.add_argument("--cantidad", type=int, default=50)
+    s.add_argument("--perfil", default="contrato_legislatura")
+    s.add_argument("--puerto", type=int, default=8713)
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--limpiar", action="store_true", help="borrar la base y empezar de cero")
+    s.set_defaults(func=cmd_demo)
 
     s = sub.add_parser("piloto", help="corre todo de punta a punta")
     s.add_argument("carpeta"); s.add_argument("--lote", default="piloto")

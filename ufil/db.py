@@ -10,7 +10,7 @@ from . import config
 # Se sube cuando cambia `esquema.sql`. Sirve para no reejecutar el script en cada
 # conexión: con el servidor multihilo y el trabajador de fondo, dos conexiones que
 # corrían el esquema a la vez chocaban al recrear la vista `v_contrato`.
-ESQUEMA_VERSION = 3
+ESQUEMA_VERSION = 4
 
 _candado = threading.Lock()
 
@@ -46,6 +46,18 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
         cx.execute(f"PRAGMA user_version={ESQUEMA_VERSION}")
         cx.commit()
     return True
+
+
+def ajuste(cx: sqlite3.Connection, clave: str, valor=None):
+    """Lee o escribe un ajuste. Sin `valor`, lee."""
+    if valor is None:
+        r = cx.execute("SELECT valor FROM ajuste WHERE clave=?", (clave,)).fetchone()
+        return r["valor"] if r else None
+    cx.execute("""INSERT INTO ajuste (clave, valor) VALUES (?,?)
+                  ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor""",
+               (clave, str(valor)))
+    cx.commit()
+    return str(valor)
 
 
 def abrir(ruta: Path | None = None) -> sqlite3.Connection:

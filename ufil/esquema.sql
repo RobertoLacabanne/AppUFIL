@@ -28,6 +28,15 @@ CREATE TABLE IF NOT EXISTS duplicado (
   PRIMARY KEY (sha256, ruta_original)
 );
 
+-- Ajustes del sistema. Hoy tiene una sola clave que importa: `demostracion`, que
+-- enciende un aviso fijo en toda la interfaz. Si esto se muestra en una reunión, nadie
+-- puede confundir un contrato inventado para probar el software con uno de la
+-- Legislatura, y no puede depender de que alguien se acuerde de aclararlo.
+CREATE TABLE IF NOT EXISTS ajuste (
+  clave TEXT PRIMARY KEY,
+  valor TEXT
+);
+
 -- Control de integridad de los originales. La restricción 2 no puede depender de un
 -- muestreo al azar: sobre miles de archivos, mirar doce por corrida es no mirar.
 -- Acá se registra cuándo se rehashó cada archivo, y `ufil verificar` empieza siempre
