@@ -1,0 +1,71 @@
+{
+  "nombre": "factura_electronica",
+  "tipo": "factura",
+  "tipo_pagina": "factura",
+  "descripcion": "Factura electrónica de AFIP. El importe viene IMPRESO, así que se lee como cualquier otro campo. Se distingue de la de talonario por los datos que sólo trae la electrónica: punto de venta, número de comprobante y fecha de emisión.",
+  "deteccion": {
+    "alguno_de": [
+      "PUNTO DE VENTA",
+      "COMP NRO",
+      "CAE N",
+      "FECHA DE EMISION"
+    ]
+  },
+  "campos_patron": [
+    {
+      "nombre": "nombre",
+      "parser": "nombre",
+      "_por_que": "Quién emitió el comprobante. Va impreso en el talonario, arriba a la izquierda, y es el dato que permite cruzar la factura con el contrato de la misma persona.",
+      "patrones": [
+        "Raz[oó]n Social\\s*[:.]?\\s*([A-ZÁÉÍÓÚÑ][^\\n]{4,50}?)\\s+Fecha de Emisi[oó]n",
+        "Raz[oó]n Social\\s*[:.]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ,\\.\\s]{4,50}?)\\s{2,}",
+        "^\\s*(?:ORIGINAL\\s+)?([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ,\\.\\s]{6,45}?)\\s+(?:FACTURA|RECIBO)"
+      ]
+    },
+    {
+      "nombre": "documento",
+      "parser": "documento",
+      "_por_que": "El CUIT impreso del emisor. Es la clave fuerte que une la factura con el contratado sin depender del nombre, que se escribe de mil maneras.",
+      "patrones": [
+        "C\\.?U\\.?I\\.?T\\.?\\s*(?:/ATER)?\\s*[:.]?\\s*(\\d{2}\\s*-?\\s*\\d{7,8}\\s*-?\\s*\\d)",
+        "C\\.?U\\.?I\\.?T\\.?\\s*[:.]?\\s*(\\d{10,11})"
+      ]
+    },
+    {
+      "nombre": "comprobante",
+      "parser": "texto",
+      "patrones": [
+        "N[°ºo]?\\s*(\\d{4}\\s*-\\s*\\d{6,8})",
+        "Punto de Venta\\s*[:.]?\\s*(\\d{4})\\s*Comp\\.?\\s*Nro\\s*[:.]?\\s*\\d+"
+      ]
+    },
+    {
+      "nombre": "fecha_inicio",
+      "parser": "fecha",
+      "_por_que": "La fecha de emisión, cuando el talonario la trae impresa. En los talonarios manuales va a mano y entonces no se lee: queda nula con motivo y va a la cola.",
+      "patrones": [
+        "Fecha de Emisi[oó]n\\s*[:.]?\\s*(\\d{1,2}/\\d{1,2}/\\d{2,4})",
+        "Fecha\\s*[:.]?\\s*(\\d{1,2}/\\d{1,2}/\\d{2,4})"
+      ]
+    },
+    {
+      "nombre": "fecha_fin",
+      "parser": "fecha",
+      "_por_que": "Una factura no tiene período. Se declara para que el registro tenga la misma forma que un contrato y los cruces no se rompan; siempre queda nula.",
+      "patrones": [
+        "(?!x)x"
+      ]
+    },
+    {
+      "nombre": "monto",
+      "parser": "monto",
+      "_por_que": "Impreso: se lee. Es la diferencia con el talonario manual.",
+      "patrones": [
+        "Importe Total\\s*[:.]?\\s*\\$?\\s*([\\d][\\d\\.,]*)",
+        "TOTAL\\s*\\$?\\s*[:.]?\\s*([\\d][\\d\\.,]{2,})",
+        "Subtotal\\s*\\$?\\s*([\\d][\\d\\.,]*)"
+      ]
+    }
+  ],
+  "campos": []
+}

@@ -39,6 +39,7 @@ import pytesseract
 from .capa1_texto import Palabra, palabras_de
 from .capa2_campos import PARSERS, normalizar_cotejo
 from .clasificacion import clasificar_documento, tramos_por_tipo
+from .manuscrito import MOTIVO as MOTIVO_MANUSCRITO, es_manuscrito
 from .db import ahora
 
 MARGEN_IZQ = 8.0        # puntos que se toleran a la izquierda del rótulo
@@ -128,6 +129,18 @@ def _buscar_rotulo(palabras: list[Palabra], rotulos: list[str]):
             return (min(g.x0 for g in grupo), min(g.y0 for g in grupo),
                     max(g.x1 for g in grupo), max(g.y1 for g in grupo))
     return None
+
+
+def _recortar_a_la_hoja(region, ancho_pt: float, alto_pt: float):
+    """
+    Deja la región adentro de la hoja.
+
+    Una zona que se pasa del borde produce un recorte con una franja negra, y en la
+    cola de revisión eso se ve como media imagen rota justo cuando la persona necesita
+    leer el número.
+    """
+    x0, y0, x1, y1 = region
+    return (max(0.0, x0), max(0.0, y0), min(ancho_pt, x1), min(alto_pt, y1))
 
 
 def _region(caja_rotulo, spec: dict):
@@ -257,8 +270,19 @@ def extraer_de_ruta(paginas: list[tuple[int, int, list[Palabra]]], perfil: dict
     Devuelve (hallazgos por campo, cámara detectada, si el perfil aplica).
     """
     plano_total = " ".join(_texto_plano(pw) for _, _, pw in paginas)
-    det = perfil.get("deteccion", {}).get("alguno_de", [])
+    deteccion = perfil.get("deteccion", {})
+    det = deteccion.get("alguno_de", [])
     aplica = (not det) or any(normalizar_cotejo(t) in plano_total for t in det)
+    # `ninguno_de` es lo que permite distinguir dos variantes del mismo documento sin
+    # que la más específica tenga que ganar por puntaje. Una factura electrónica trae
+    # el importe IMPRESO y se lee; una de talonario lo trae a mano y no se lee. Si la
+    # elección dependiera de cuántos campos resuelve cada perfil, el de la electrónica
+    # ganaría siempre —resuelve más— y le sacaría un número inventado a una factura
+    # manuscrita. Acá se excluye por lo que el documento dice, no por lo que conviene.
+    for marca in deteccion.get("ninguno_de", []):
+        if normalizar_cotejo(marca) in plano_total:
+            aplica = False
+            break
 
     camara = None
     for regla in perfil.get("camara", []):
@@ -268,9 +292,36 @@ def extraer_de_ruta(paginas: list[tuple[int, int, list[Palabra]]], perfil: dict
 
     hallazgos: dict[str, Hallazgo] = {}
 
+    # Campos escritos a mano: se ubican, pero NO se leen. Ver ufil/manuscrito.py, que
+    # trae la medición: sobre estas mismas facturas el OCR devuelve un número
+    # equivocado y las tres rutas coinciden en el error, así que el conflicto nunca se
+    # levanta y el valor falso entra como firme. Un campo vacío con motivo cuesta dos
+    # segundos de revisión; un monto falso no lo detecta nadie.
+    for spec in perfil.get("campos_patron", []) + perfil.get("campos", []):
+        if not es_manuscrito(spec):
+            continue
+        # Sin leerlo, pero SÍ ubicándolo: el campo va a la cola con el recorte de la
+        # imagen al lado, y ahí leer «6.000» y tipearlo cuesta dos segundos. Sin
+        # coordenadas la cola mostraría un casillero vacío y habría que ir a buscar la
+        # foja, que son dos navegaciones por campo y nadie las hace.
+        h = Hallazgo(None, None, MOTIVO_MANUSCRITO, None, None, 0.0, None, None)
+        for nro, lid, palabras in paginas:
+            caja_rot = _buscar_rotulo(palabras, spec.get("rotulo", []))
+            if not caja_rot:
+                continue
+            region = _region(caja_rot, spec)
+            ancho = max((w.x1 for w in palabras), default=595.0)
+            alto = max((w.y1 for w in palabras), default=842.0)
+            region = _recortar_a_la_hoja(region, max(ancho, 595.0), max(alto, 842.0))
+            h = Hallazgo(None, None, MOTIVO_MANUSCRITO, nro, region, 0.0, lid, region)
+            break
+        hallazgos[spec["nombre"]] = h
+
     # Campos que se buscan por frase, no por casillero. Van primero porque en un
     # documento en prosa son la mayoría; los de rótulo quedan para los formularios.
     for spec in perfil.get("campos_patron", []):
+        if es_manuscrito(spec):
+            continue
         h = Hallazgo(None, None, "ausente", None, None, 0.0, None, None)
         for nro, lid, palabras in paginas:
             encontrado = _buscar_patron(palabras, nro, lid, spec)
@@ -280,6 +331,8 @@ def extraer_de_ruta(paginas: list[tuple[int, int, list[Palabra]]], perfil: dict
         hallazgos[spec["nombre"]] = h
 
     for spec in perfil.get("campos", []):
+        if es_manuscrito(spec):
+            continue
         h = Hallazgo(None, None, "ausente", None, None, 0.0, None, None)
         for nro, lid, palabras in paginas:
             caja_rot = _buscar_rotulo(palabras, spec["rotulo"])
@@ -356,7 +409,11 @@ def relectura_focal(png: Path, escala: float, region_pt, tipo: str) -> Hallazgo 
 
 
 def _elegir_motivo(motivos: list[str]) -> str:
-    for preferido in ("ambiguo", "ilegible", "ausente"):
+    # `manuscrito` va primero: no es que no se pudo leer, es que no se intenta. La
+    # diferencia le importa a quien revisa —«ilegible» invita a mirar si el escaneo
+    # está mal; «manuscrito» le dice que mire el recorte y lo tipee— y le importa al
+    # que decide si conviene reescanear.
+    for preferido in (MOTIVO_MANUSCRITO, "ambiguo", "ilegible", "ausente"):
         if preferido in motivos:
             return preferido
     return "ausente"
@@ -430,6 +487,23 @@ def _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina) -> dict:
         # de rutina EMPEORA el resultado: cuando las dos rutas de página coinciden con
         # confianza alta ya están bien, y una tercera opinión ruidosa sólo convierte
         # lecturas correctas en conflictos. Donde sí rinde es justo donde hay duda.
+        # En un campo manuscrito la relectura focalizada NO corre. Es la misma
+        # prohibición del principio, y hay que repetirla acá porque esta es la puerta
+        # de atrás: la relectura mira el recorte con alfabeto restringido, que es
+        # exactamente la configuración que sobre estas facturas leyó 6.200 donde dice
+        # 6.000. Sin este corte, un campo declarado manuscrito terminaba igual con un
+        # número inventado adentro, y encima con confianza alta por ser ruta única.
+        if es_manuscrito(spec):
+            ref = next((h for h in por.values() if h.caja or h.region), None)
+            cx.execute("""INSERT INTO campo (documento_id,nombre,nulo_motivo,pagina_nro,
+                                             x0,y0,x1,y1,estado)
+                          VALUES (?,?,?,?,?,?,?,?,'a_revisar')""",
+                       (doc_id, campo, MOTIVO_MANUSCRITO, ref.pagina if ref else None,
+                        *((ref.caja or ref.region) if ref and (ref.caja or ref.region)
+                          else (None,) * 4)))
+            n_campos += 1; n_rev += 1
+            continue
+
         foco_discrepa = False
         conf_pagina = max((h.conf for h in con_valor.values()), default=0.0)
         hay_duda = (not con_valor
@@ -559,14 +633,20 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
         cx.execute("UPDATE pagina SET clasificacion=? WHERE sha256=? AND nro=?",
                    (clase, sha, nro))
 
-    # Se prueba el tipo de foja de CADA perfil candidato y gana el que más documentos
-    # encuentra. Tomar el primero de la lista sería tomar el que salga primero por
-    # orden alfabético, que es lo mismo que elegir al azar.
+    # Un expediente trae contratos Y facturas en el mismo PDF, así que no se elige un
+    # tipo: se sacan TODOS. Cada tramo se queda con los perfiles que declaran ese tipo
+    # de foja, y después, adentro del tramo, gana el que más campos resuelve. Elegir un
+    # solo tipo por archivo era perder los contratos o perder las facturas.
     tramos: list[tuple[int, int]] = []
+    perfil_de_tramo: dict[tuple[int, int], list[dict]] = {}
     for pf in perfiles:
-        candidatos = tramos_por_tipo(clases, pf.get("tipo_pagina") or pf.get("tipo"))
-        if len(candidatos) > len(tramos):
-            tramos = candidatos
+        tipo = pf.get("tipo_pagina") or pf.get("tipo")
+        for t in tramos_por_tipo(clases, tipo):
+            if t not in perfil_de_tramo:
+                perfil_de_tramo[t] = []
+                tramos.append(t)
+            perfil_de_tramo[t].append(pf)
+    tramos.sort()
     if not tramos:
         # Perfiles viejos de formulario, que no declaran un tipo de foja: se sigue
         # reconociendo por rótulos, como antes.
@@ -613,17 +693,33 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
         # Se prueba cada perfil sobre este tramo y gana el que más campos saca. Con un
         # solo perfil dado a mano, el bucle corre una vez y decide lo mismo.
         mejor_perfil, mejor_res, mejor_cam, mejor_pt = None, None, None, (-1, -1)
-        for pf in perfiles:
-            resultados, camaras = {}, []
+        for pf in perfil_de_tramo.get((desde, hasta), perfiles):
+            resultados, camaras, aplico = {}, [], False
             for ruta, pgs in recorte.items():
-                hall, camara, _ = extraer_de_ruta(pgs, pf)
+                hall, camara, aplica = extraer_de_ruta(pgs, pf)
                 resultados[ruta] = hall
+                aplico = aplico or aplica
                 if camara:
                     camaras.append(camara)
+            # Un perfil cuya detección NO da en este tramo no compite, aunque por
+            # casualidad resuelva algún campo. Antes el resultado de la detección se
+            # descartaba y la elección era sólo por puntaje: eso es dejar que gane el
+            # perfil más ambicioso en vez del que corresponde al documento.
+            if not aplico:
+                continue
             pt = max((puntaje(h) for h in resultados.values()), default=(0, 0))
             if pt > mejor_pt:
                 mejor_perfil, mejor_res, mejor_pt = pf, resultados, pt
                 mejor_cam = max(set(camaras), key=camaras.count) if camaras else None
+        if mejor_perfil is None:
+            # Ningún perfil reconoce este tramo. No se registra un documento vacío:
+            # queda anotado como excepción y se ve en «Quedaron afuera».
+            cx.execute("""INSERT INTO excepcion (sha256, clase, detalle, creado_en)
+                          VALUES (?,?,?,?)""",
+                       (sha, "perfil_no_aplica",
+                        f"fojas {desde}-{hasta}: ningún perfil reconoció el documento",
+                        ahora()))
+            continue
         perfil, resultados, camara = mejor_perfil, mejor_res, mejor_cam
 
         doc_id = cx.execute(

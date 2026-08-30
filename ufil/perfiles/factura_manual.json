@@ -1,0 +1,78 @@
+{
+  "nombre": "factura_manual",
+  "tipo": "factura",
+  "tipo_pagina": "factura",
+  "descripcion": "Factura o recibo de TALONARIO: el formulario viene impreso y los datos se escriben a mano. El importe NO se lee con OCR —ver ufil/manuscrito.py— y va a la cola con el recorte de la imagen al lado. Se distingue de la electrónica por NO traer punto de venta ni número de comprobante impreso.",
+  "deteccion": {
+    "alguno_de": [
+      "FACTURA",
+      "RECIBO"
+    ],
+    "ninguno_de": [
+      "PUNTO DE VENTA",
+      "COMP NRO",
+      "CAE N"
+    ]
+  },
+  "campos_patron": [
+    {
+      "nombre": "nombre",
+      "parser": "nombre",
+      "_por_que": "Quién emitió el comprobante. Va impreso en el talonario, arriba a la izquierda, y es el dato que permite cruzar la factura con el contrato de la misma persona.",
+      "patrones": [
+        "Raz[oó]n Social\\s*[:.]?\\s*([A-ZÁÉÍÓÚÑ][^\\n]{4,50}?)\\s+Fecha de Emisi[oó]n",
+        "Raz[oó]n Social\\s*[:.]?\\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ,\\.\\s]{4,50}?)\\s{2,}",
+        "^\\s*(?:ORIGINAL\\s+)?([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ,\\.\\s]{6,45}?)\\s+(?:FACTURA|RECIBO)"
+      ]
+    },
+    {
+      "nombre": "documento",
+      "parser": "documento",
+      "_por_que": "El CUIT impreso del emisor. Es la clave fuerte que une la factura con el contratado sin depender del nombre, que se escribe de mil maneras.",
+      "patrones": [
+        "C\\.?U\\.?I\\.?T\\.?\\s*(?:/ATER)?\\s*[:.]?\\s*(\\d{2}\\s*-?\\s*\\d{7,8}\\s*-?\\s*\\d)",
+        "C\\.?U\\.?I\\.?T\\.?\\s*[:.]?\\s*(\\d{10,11})"
+      ]
+    },
+    {
+      "nombre": "comprobante",
+      "parser": "texto",
+      "patrones": [
+        "N[°ºo]?\\s*(\\d{4}\\s*-\\s*\\d{6,8})",
+        "Punto de Venta\\s*[:.]?\\s*(\\d{4})\\s*Comp\\.?\\s*Nro\\s*[:.]?\\s*\\d+"
+      ]
+    },
+    {
+      "nombre": "fecha_inicio",
+      "parser": "fecha",
+      "_por_que": "La fecha de emisión, cuando el talonario la trae impresa. En los talonarios manuales va a mano y entonces no se lee: queda nula con motivo y va a la cola.",
+      "patrones": [
+        "Fecha de Emisi[oó]n\\s*[:.]?\\s*(\\d{1,2}/\\d{1,2}/\\d{2,4})",
+        "Fecha\\s*[:.]?\\s*(\\d{1,2}/\\d{1,2}/\\d{2,4})"
+      ]
+    },
+    {
+      "nombre": "fecha_fin",
+      "parser": "fecha",
+      "_por_que": "Una factura no tiene período. Se declara para que el registro tenga la misma forma que un contrato y los cruces no se rompan; siempre queda nula.",
+      "patrones": [
+        "(?!x)x"
+      ]
+    }
+  ],
+  "campos": [
+    {
+      "nombre": "monto",
+      "manuscrito": true,
+      "rotulo": [
+        "TOTAL",
+        "IMPORTE"
+      ],
+      "region": "derecha",
+      "ancho": 300,
+      "alto": 64,
+      "parser": "monto",
+      "_por_que": "EL IMPORTE VA A MANO Y NO SE LEE. Medido sobre estas mismas facturas: donde dice 6.000 el OCR lee 6.200, y las tres rutas coinciden en el error, así que no se levantaría conflicto y el número falso entraría a los acumulados. Se ubica el recuadro para mostrarlo en la cola y que una persona lo cargue mirando la imagen. La zona es más generosa que en un campo impreso porque la letra a mano se sale del casillero: un recorte justo corta el número, y el recorte es todo lo que esta persona tiene para leerlo."
+    }
+  ]
+}
