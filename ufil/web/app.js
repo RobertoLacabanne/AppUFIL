@@ -1144,11 +1144,16 @@ async function vSalud() {
     ? `<p class="prosa">De los <b>${i.total}</b> originales cargados,
         <b>${i.verificados}</b> fueron rehasheados alguna vez y siguen idénticos a como
         entraron.${i.total > i.verificados
-          ? ` Faltan ${i.total - i.verificados}: se van cubriendo solos cada vez que se abre
-              esta pantalla, empezando por los que hace más tiempo que no se miran.`
+          ? ` Faltan ${i.total - i.verificados}: cada comprobación toma un lote empezando
+              por los que hace más tiempo que no se miran, así que corriéndola seguido el
+              acervo entero queda cubierto.`
           : ' El acervo entero está cubierto.'}
         ${i.mas_viejo ? ` La verificación más antigua es del
-          <span class="mono">${esc(String(i.mas_viejo).slice(0, 16).replace('T', ' '))}</span>.` : ''}</p>`
+          <span class="mono">${esc(String(i.mas_viejo).slice(0, 16).replace('T', ' '))}</span>.` : ''}</p>
+       <p class="prosa" style="font-size:13px">Rehashear originales lee del disco archivo
+         por archivo, así que no se hace al abrir esta pantalla: se pide.</p>
+       <button class="boton" id="b-verificar">Comprobar los originales ahora</button>
+       <div id="r-verificar"></div>`
     : `<p class="prosa">Todavía no hay documentos cargados, así que no hay nada que verificar.</p>`;
 
   vista.innerHTML =
@@ -1172,6 +1177,27 @@ async function vSalud() {
         calcular cada tanto. Si alguien —con permisos de administrador, que es el único que
         puede— tocara un original, esto lo detecta.</p>
       ${cobertura}`);
+
+  const boton = $('#b-verificar');
+  if (boton) boton.onclick = async () => {
+    boton.disabled = true;
+    boton.textContent = 'Leyendo los originales…';
+    try {
+      const r = await api('/api/verificar', {method: 'POST'});
+      $('#r-verificar').innerHTML = r.fallas.length
+        ? `<div class="aviso" style="margin-top:12px">
+             <span class="sello alerta" style="flex:none">Ojo</span>
+             <span>${r.fallas.map(esc).join('<br>')}</span></div>`
+        : `<div class="aviso bien" style="margin-top:12px">
+             <span class="sello ok" style="flex:none">Intactos</span>
+             <span>Se rehashearon <b>${r.revisados}</b> originales y los
+             <b>${r.ok}</b> coinciden con el hash con el que entraron.
+             Cubiertos hasta ahora: ${r.cubiertos} de ${r.total}.</span></div>`;
+    } finally {
+      boton.disabled = false;
+      boton.textContent = 'Comprobar los originales otra vez';
+    }
+  };
 }
 
 /* Qué entró y no salió. Sin esta pantalla, subir trescientos PDF y que doce no den

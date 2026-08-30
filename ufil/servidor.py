@@ -123,9 +123,11 @@ def api_panel(cx) -> dict:
         "afuera": uno("""SELECT COUNT(*) FROM archivo a
                           WHERE NOT EXISTS (SELECT 1 FROM documento d
                                              WHERE d.sha256 = a.sha256)""")
-                  + uno("""SELECT COUNT(*) FROM excepcion
-                            WHERE estado='abierta'
-                              AND clase IN ('pdf_ilegible','ingesta_ilegible')"""),
+                  + uno("""SELECT COUNT(*) FROM (
+                             SELECT 1 FROM excepcion
+                              WHERE estado='abierta'
+                                AND clase IN ('pdf_ilegible','ingesta_ilegible')
+                              GROUP BY clase, detalle)"""),
     }
 
 
@@ -166,11 +168,16 @@ def api_afuera(cx) -> dict:
     """
     filas = []
     # 1. Los que ni siquiera llegaron a la tabla `archivo`: fallaron al abrirse.
-    for r in cx.execute("""SELECT e.clase, e.detalle, e.creado_en, e.sha256
+    # Agrupado por detalle: cada vez que se reingiere la misma carpeta, un archivo que
+    # no se puede abrir vuelve a anotar su excepción. Sin agrupar, el mismo PDF roto
+    # aparecería listado cinco veces y parecería que son cinco problemas distintos.
+    for r in cx.execute("""SELECT e.clase, e.detalle, MAX(e.creado_en) AS creado_en,
+                                  e.sha256
                              FROM excepcion e
                             WHERE e.estado='abierta'
                               AND e.clase IN ('pdf_ilegible','ingesta_ilegible')
-                            ORDER BY e.id DESC"""):
+                            GROUP BY e.clase, e.detalle
+                            ORDER BY creado_en DESC"""):
         # El detalle viene como "<ruta>: <excepción>". Nos alcanza con el nombre.
         crudo = r["detalle"] or ""
         nombre = crudo.split(": ", 1)[0].rsplit("/", 1)[-1] or "(sin nombre)"
@@ -605,13 +612,29 @@ class Manejador(BaseHTTPRequestHandler):
                         # pantalla. Quien lo va a mirar no abre una terminal.
                         from . import diagnostico, verificacion
                         chequeos = diagnostico.correr(desde_web=True)
+                        # Que el sistema esté abierto a la red no es un detalle de
+                        # configuración: cambia quién puede leer el legajo. Tiene que
+                        # verse en la misma pantalla que todo lo demás, sin buscarlo.
+                        chequeos.append(
+                            {"nombre": "Quién puede entrar", "estado": "aviso",
+                             "detalle": "el sistema está abierto a los demás equipos de "
+                                        "la red y pide clave de acceso. El tráfico va "
+                                        "sin cifrar",
+                             "arreglo": "para volver a dejarlo sólo en esta computadora, "
+                                        "levantarlo sin --red"}
+                            if PORTERIA.exigir else
+                            {"nombre": "Quién puede entrar", "estado": "ok",
+                             "detalle": "sólo quien esté sentado en esta computadora "
+                                        "(escucha en 127.0.0.1)", "arreglo": None})
                         r = diagnostico.resumen(chequeos)
                         integ = cx.execute("""SELECT COUNT(*) c, MIN(verificado_en) v
                                                 FROM integridad""").fetchone()
                         total = cx.execute("SELECT COUNT(*) FROM archivo").fetchone()[0]
                         return self._json({
                             **r,
-                            "invariantes": verificacion.correr(cx),
+                            # Sin rehashear: abrir una pantalla no puede leer del
+                            # disco doscientos cincuenta PDF. Eso va con el botón.
+                            "invariantes": verificacion.correr(cx, con_integridad=False),
                             "integridad": {"verificados": integ["c"], "total": total,
                                            "mas_viejo": integ["v"]},
                         })
@@ -707,6 +730,12 @@ class Manejador(BaseHTTPRequestHandler):
                 c3.decidir_fusion(cx, int(cuerpo["id"]), bool(cuerpo["aceptar"]),
                                   cuerpo.get("quien", ""))
                 return self._json({"ok": True})
+            if u.path == "/api/verificar":
+                # Rehashea un lote de originales, empezando por los que hace más tiempo
+                # que no se miran. Es lo caro, así que se hace cuando alguien lo pide.
+                from . import verificacion
+                r = verificacion.verificar_integridad(cx)
+                return self._json(r)
             if u.path == "/api/reindexar":
                 return self._json({"paginas": busqueda.reindexar(cx)})
             if u.path == "/api/interpretar":

@@ -66,7 +66,16 @@ def verificar_integridad(cx: sqlite3.Connection, *, cuantos: int = POR_CORRIDA,
             "sin_verificar_nunca": total - cubiertos}
 
 
-def correr(cx: sqlite3.Connection) -> list[str]:
+def correr(cx: sqlite3.Connection, *, con_integridad: bool = True) -> list[str]:
+    """
+    Todas las invariantes del pliego.
+
+    `con_integridad=False` saltea el rehasheo de originales y deja sólo los chequeos que
+    son consultas SQL baratas. Sirve para la pantalla de estado de la interfaz: abrir una
+    página no puede leer del disco doscientos cincuenta PDF, y con dos mil archivos eso
+    son segundos en cada carga y dos personas escribiendo la misma tabla a la vez. La
+    comprobación de originales va aparte, con un botón que la pide.
+    """
     fallas: list[str] = []
 
     # ── Restricción 3: o valor, o motivo. Nunca las dos, nunca ninguna ──
@@ -103,7 +112,12 @@ def correr(cx: sqlite3.Connection) -> list[str]:
         fallas.append(f"{n} fusiones aplicadas sin constancia de quién las confirmó")
 
     # ── Restricción 2: el original es inmutable ──
-    fallas.extend(verificar_integridad(cx)["fallas"])
+    if con_integridad:
+        fallas.extend(verificar_integridad(cx)["fallas"])
+    else:
+        # Sin rehashear, igual se informa lo que ya se sabe de corridas anteriores.
+        fallas.extend(f["detalle"] for f in cx.execute(
+            "SELECT detalle FROM integridad WHERE ok=0 AND detalle IS NOT NULL"))
 
     # ── Los derivados nunca viven adentro del corpus ──
     for f in cx.execute("SELECT DISTINCT ruta_original FROM archivo LIMIT 50"):

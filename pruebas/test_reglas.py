@@ -783,6 +783,23 @@ class NingunArchivoSePierdeEnSilencio(unittest.TestCase):
         self.cx.commit()
         self.assertEqual(api_afuera(self.cx)["afuera"], 0)
 
+    def test_reingerir_la_misma_carpeta_no_repite_el_mismo_archivo_roto(self):
+        """
+        Cada reingesta vuelve a anotar la excepción del archivo que no se puede abrir.
+        Sin agrupar, el mismo PDF roto aparecería cinco veces y parecerían cinco
+        problemas distintos, que es exactamente lo contrario de lo que sirve.
+        """
+        from ufil.servidor import api_afuera
+        for _ in range(4):
+            self.cx.execute("""INSERT INTO excepcion (sha256,clase,detalle,creado_en)
+                               VALUES (NULL,'pdf_ilegible',
+                                       '/corpus/roto.pdf: EmptyFileError: vacío',?)""",
+                            (ahora(),))
+        self.cx.commit()
+        r = api_afuera(self.cx)
+        self.assertEqual(r["afuera"], 1)
+        self.assertEqual(r["total_archivos"], 1)
+
     def test_lo_que_falta_procesar_se_distingue_de_lo_que_fallo(self):
         """Un archivo cargado y todavía sin leer no es un archivo que falló."""
         from ufil.servidor import api_afuera

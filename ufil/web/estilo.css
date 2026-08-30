@@ -499,8 +499,14 @@ body.con-demo .folio-lado{top:190px}
 .folio-lado .chip{align-self:flex-start}
 
 /* En la cola partida las filas son más compactas: la acción está a la derecha. */
-.cola-partida .fila{grid-template-columns:96px minmax(0,1fr) 170px; cursor:pointer}
-.cola-partida .fila .marginalia{padding:9px 10px 9px 0; font-size:10px}
+/* 124 px es lo que entra un nombre de archivo típico en una sola línea. Los más largos
+   bajan de renglón (ver `.marginalia` abajo) en vez de cortarse. */
+.cola-partida .fila{grid-template-columns:124px minmax(0,1fr) 170px; cursor:pointer}
+/* El nombre del archivo se corta por la izquierda si no entra, y con nombres reales
+   —que son más largos que «contrato_A_0020»— eso deja ilegible justo lo que ubica el
+   campo. Que baje de renglón antes de perderse. */
+.cola-partida .fila .marginalia{padding:9px 10px 9px 0; font-size:10px;
+  overflow-wrap:anywhere; line-height:1.35}
 .cola-partida .fila .med{padding:9px 12px}
 .cola-partida .fila .acc{padding:9px 10px; gap:3px}
 .cola-partida .tecla{font-size:10.5px}
