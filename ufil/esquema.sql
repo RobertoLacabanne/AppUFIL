@@ -177,6 +177,23 @@ CREATE TABLE IF NOT EXISTS conflicto_variante (
   pagina_nro   INTEGER, x0 REAL, y0 REAL, x1 REAL, y1 REAL
 );
 
+-- Lo que un modelo de visión PROPONE para un campo escrito a mano.
+--
+-- Vive en su propia tabla y NUNCA en `campo`. Es la línea que sostiene el carril de
+-- datos: un valor sólo entra ahí cuando una persona lo confirmó mirando el recorte. La
+-- propuesta existe para ahorrarle tipeo a esa persona, no para reemplazar su decisión.
+--
+-- Y es el registro de qué se le mandó a un servicio externo y cuándo, que en un legajo
+-- penal hace falta poder responder.
+CREATE TABLE IF NOT EXISTS propuesta (
+  campo_id  INTEGER PRIMARY KEY REFERENCES campo(id) ON DELETE CASCADE,
+  valor     TEXT,                  -- lo transcripto, tal cual; NULL si ilegible
+  ilegible  INTEGER NOT NULL DEFAULT 0,
+  nota      TEXT,
+  modelo    TEXT NOT NULL,
+  creado_en TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS excepcion (
   id           INTEGER PRIMARY KEY,
   documento_id INTEGER REFERENCES documento(id),

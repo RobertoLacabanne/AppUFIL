@@ -370,6 +370,19 @@ def api_cola(cx, limite=400) -> list[dict]:
                                    WHERE d.id=?""", (d,)).fetchone()
                 primeras[d] = dict(r) if r else None
             f["pagina_respaldo"] = primeras[d]
+    # La propuesta del lector de manuscrita, si la hay. Va como PROPUESTA y no como
+    # valor: el campo sigue vacío hasta que alguien la confirma mirando el recorte que
+    # está al lado. Ver ufil/lector_manuscrito.py.
+    for f in filas:
+        if f.get("motivo") != "manuscrito":
+            continue
+        r = cx.execute("""SELECT q.valor, q.ilegible, q.nota, q.modelo
+                            FROM propuesta q JOIN campo c ON c.id = q.campo_id
+                           WHERE c.documento_id=? AND c.nombre=?""",
+                       (f["documento_id"], f["campo"])).fetchone()
+        if r:
+            f["propuesta"] = dict(r)
+
     for f in filas:
         if f["clase"] == "conflicto":
             k = cx.execute("""SELECT id FROM conflicto WHERE documento_id=? AND campo_nombre=?

@@ -642,3 +642,19 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   .conflicto .ruta{flex-direction:column; align-items:flex-start; gap:0; padding:5px 0}
   .conflicto .ruta span:first-child{font-size:10px; color:var(--tinta-3)}
 }
+
+/* Propuesta de un modelo de visión para un campo escrito a mano.
+   Se distingue del valor leído del papel a propósito y de tres maneras: el fondo, el
+   filete al costado y el rótulo que dice de dónde salió. Quien revisa tiene que poder
+   ver en un vistazo la diferencia entre «esto lo leyó el sistema del documento» y
+   «esto lo propuso un modelo y lo estás confirmando vos». Es la misma regla de los dos
+   carriles: si no se distingue, no sirve. */
+.propuesta{margin-top:8px; padding:7px 11px; background:var(--interp);
+  border-left:3px solid var(--interp-filete); display:flex; gap:10px;
+  align-items:baseline; flex-wrap:wrap; font-size:13px}
+.propuesta .de-donde{font-family:var(--sans); font-size:9.5px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--tinta-3); flex:none}
+.propuesta b{font-size:14px; color:var(--tinta)}
+.propuesta .nota{font-family:var(--serif); font-style:italic; color:var(--tinta-2);
+  font-size:12.5px}
+.propuesta.ilegible b{color:var(--tinta-2); font-weight:500}

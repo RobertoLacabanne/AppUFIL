@@ -142,6 +142,66 @@ def cmd_diagnostico(a):
     return 0 if diagnostico.resumen(salidas)["puede_trabajar"] else 1
 
 
+def cmd_manuscrita(a):
+    """
+    Le pide a un modelo de visión una PROPUESTA para cada campo manuscrito pendiente.
+
+    No llena ningún campo: deja la propuesta al lado del recorte para que una persona
+    la confirme en la cola. Ver ufil/lector_manuscrito.py.
+    """
+    from . import config, lector_manuscrito as lm
+    cx = _cx(a)
+    if not lm.encendido():
+        print("  El lector de manuscrita está apagado.")
+        print("  Se enciende con UFIL_VISION=1. Ojo: con eso, el recorte de la foja")
+        print("  sale de esta máquina hacia el servicio. Apuntando UFIL_VISION_URL a un")
+        print("  modelo local, no sale nada. Ver docs/09-manuscrita.md.")
+        return 1
+
+    pendientes = cx.execute("""
+        SELECT c.id, c.nombre, c.pagina_nro, c.x0, c.y0, c.x1, c.y1,
+               p.render, p.render_escala
+          FROM campo c
+          JOIN documento d ON d.id = c.documento_id
+          JOIN pagina p ON p.sha256 = d.sha256 AND p.nro = c.pagina_nro
+         WHERE c.nulo_motivo = 'manuscrito' AND c.x0 IS NOT NULL
+           AND p.render IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM propuesta q WHERE q.campo_id = c.id)
+         ORDER BY c.id""").fetchall()
+    if not pendientes:
+        print("  No hay campos manuscritos esperando propuesta.")
+        return 0
+
+    print(f"  {len(pendientes)} campo(s) manuscritos. Modelo: {lm.MODELO}")
+    leidos = ilegibles = fallados = 0
+    for i, f in enumerate(pendientes, 1):
+        try:
+            png = lm.recorte_a_png(Path(f["render"]),
+                                   f["render_escala"] or config.ESCALA_RENDER,
+                                   (f["x0"], f["y0"], f["x1"], f["y1"]))
+            prop = lm.leer_recorte(png, que_campo=f"el campo «{f['nombre']}»")
+            lm.guardar_propuesta(cx, f["id"], prop)
+            if prop.ilegible:
+                ilegibles += 1
+            else:
+                leidos += 1
+        except lm.VisionNoDisponible as e:
+            print(f"\n  {e}")
+            return 1
+        except Exception as e:                       # noqa: BLE001
+            fallados += 1
+            cx.execute("""INSERT INTO excepcion (clase, detalle, creado_en)
+                          VALUES ('vision_fallo',?,?)""",
+                       (f"campo {f['id']}: {type(e).__name__}: {e}", db.ahora()))
+            cx.commit()
+        print(f"\r  {i}/{len(pendientes)}", end="", flush=True)
+    print(f"\r  {len(pendientes)} campo(s): {leidos} con propuesta, "
+          f"{ilegibles} que el modelo declaró ilegibles, {fallados} con error.")
+    print("  Ninguno se guardó como dato: están en la cola, al lado del recorte,")
+    print("  esperando que una persona los confirme.")
+    return 0
+
+
 def cmd_respaldo(a):
     """Copia consistente de la base, sin parar el sistema."""
     from . import respaldo
@@ -327,6 +387,10 @@ def main(argv=None) -> int:
     s = sub.add_parser("exportar", help="Capa 7: .xlsx y .rtf con cita de archivo y foja")
     s.add_argument("destino"); s.add_argument("--consulta", action="append")
     s.set_defaults(func=cmd_exportar)
+
+    s = sub.add_parser("manuscrita",
+                       help="propone valores para los campos escritos a mano (modelo de visión)")
+    s.set_defaults(func=cmd_manuscrita)
 
     s = sub.add_parser("respaldo", help="copia de la base; lo único que no se regenera")
     s.add_argument("destino", nargs="?", default="datos/respaldos",

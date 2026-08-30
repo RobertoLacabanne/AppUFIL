@@ -490,6 +490,15 @@ function filaCola(f, i) {
     f.variantes.forEach((v, n) => acciones.push(
       [String(n + 1), `tomar ${v.ruta}`, 'corregir', v.valor]));
     acciones.push(['N', 'ninguna, Ø ambiguo', 'ambiguo', '']);
+  } else if (f.motivo === 'manuscrito') {
+    // Confirmar la propuesta es UNA tecla, y queda registrado como corrección humana:
+    // el dato entra porque una persona lo miró contra el recorte, no porque lo dijo
+    // un modelo. Sin propuesta, se tipea, que es lo que había antes.
+    if (f.propuesta && !f.propuesta.ilegible && f.propuesta.valor) {
+      acciones.push(['1', `confirmar ${f.propuesta.valor}`, 'corregir', f.propuesta.valor]);
+    }
+    acciones.push(['C', 'cargar a mano', 'pedir', '']);
+    acciones.push(['X', 'Ø no se lee, firme', 'verificar', '']);
   } else if (f.motivo) {
     acciones.push(['C', 'cargar a mano', 'pedir', '']);
     acciones.push(['X', `Ø ${f.motivo}, firme`, 'verificar', '']);
@@ -498,6 +507,21 @@ function filaCola(f, i) {
     acciones.push(['C', 'corregir', 'pedir', '']);
     acciones.push(['X', 'Ø ilegible', 'ilegible', '']);
   }
+  // La propuesta del lector de manuscrita. Va SEPARADA del valor y dice de dónde
+  // salió: quien revisa tiene que poder distinguir de un vistazo entre «esto lo leyó
+  // el sistema del papel» y «esto lo propuso un modelo y lo estás confirmando vos».
+  const propuesta = f.propuesta ? (f.propuesta.ilegible
+    ? `<div class="propuesta ilegible">
+         <span class="de-donde">propuesta · ${esc(f.propuesta.modelo)}</span>
+         <b>no se lee</b>
+         ${f.propuesta.nota ? `<span class="nota">${esc(f.propuesta.nota)}</span>` : ''}
+       </div>`
+    : `<div class="propuesta">
+         <span class="de-donde">propuesta · ${esc(f.propuesta.modelo)}</span>
+         <b class="mono">${esc(f.propuesta.valor)}</b>
+         ${f.propuesta.nota ? `<span class="nota">${esc(f.propuesta.nota)}</span>` : ''}
+       </div>`) : '';
+
   const cuerpo = (f.clase === 'conflicto' && f.variantes)
     ? `<div class="conflicto">${f.variantes.map(v =>
         `<div class="ruta"><span>${esc(v.ruta)}</span><span>${esc(v.valor)}</span></div>`).join('')}</div>`
@@ -513,6 +537,7 @@ function filaCola(f, i) {
         <span class="etiqueta-campo ${f.clase === 'conflicto' ? 'alerta' : ''}">${esc(f.campo)}</span>
       </div>
       ${cuerpo}
+      ${propuesta}
     </div>
     <div class="acc">${acciones.map(([k, t, a, v]) =>
       `<button class="tecla" data-campo="${f.campo_id}" data-accion="${a}" data-valor="${esc(v)}">

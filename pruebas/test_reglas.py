@@ -973,6 +973,114 @@ class UnContratoInventadoSeAnunciaSolo(unittest.TestCase):
                          "avisar de más sobre documentos reales también es un error")
 
 
+class LoEscritoAManoNoSeAdivina(unittest.TestCase):
+    """
+    La regla que sostiene todo el asunto de la manuscrita.
+
+    Medido sobre las facturas reales: donde dice 6.000, Tesseract lee 6.200 con tres
+    configuraciones distintas, las tres iguales. Sin discrepancia no hay conflicto, y
+    ese número falso entra a los acumulados como dato firme. Por eso un campo
+    declarado manuscrito NUNCA se llena con OCR, y por eso lo que propone un modelo de
+    visión va a SU tabla y no al campo: el dato entra cuando lo confirma una persona
+    mirando el recorte, no cuando lo dice una máquina.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,ingerido_en)
+                           VALUES ('aa','/x/a.pdf','a.pdf',1,?)""", (ahora(),))
+        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','f','p')")
+        self.doc = self.cx.execute("SELECT id FROM documento").fetchone()["id"]
+        self.campo = self.cx.execute(
+            """INSERT INTO campo (documento_id,nombre,nulo_motivo,pagina_nro,
+                                  x0,y0,x1,y1,estado)
+               VALUES (?,'monto','manuscrito',1,10,20,90,44,'a_revisar')""",
+            (self.doc,)).lastrowid
+        self.cx.commit()
+
+    def tearDown(self):
+        self.cx.close(); self.tmp.cleanup()
+
+    def test_un_campo_manuscrito_no_se_lee_con_ocr(self):
+        from ufil.capa2_extraccion import extraer_de_ruta
+        from ufil.capa1_texto import Palabra
+        # Una palabra que el OCR "leyó" en la zona del importe. Aunque esté ahí, el
+        # campo declarado manuscrito no la toma.
+        palabras = [Palabra("TOTAL", 10, 20, 40, 30, 0.95),
+                    Palabra("6.200", 45, 20, 90, 30, 0.93)]
+        perfil = {"nombre": "p", "tipo": "factura",
+                  "campos": [{"nombre": "monto", "manuscrito": True, "rotulo": ["TOTAL"],
+                              "region": "derecha", "ancho": 100, "alto": 20,
+                              "parser": "monto"}]}
+        hall, _, _ = extraer_de_ruta([(1, 1, palabras)], perfil)
+        h = hall["monto"]
+        self.assertIsNone(h.norm, "un campo manuscrito no puede traer valor del OCR")
+        self.assertEqual(h.motivo, "manuscrito")
+        self.assertIsNotNone(h.caja, "pero SÍ tiene que quedar ubicado, para el recorte")
+
+    def test_la_propuesta_no_entra_al_campo(self):
+        from ufil.lector_manuscrito import Propuesta, guardar_propuesta
+        guardar_propuesta(self.cx, self.campo,
+                          Propuesta(valor="6.000", ilegible=False, nota="", modelo="m"))
+        c = self.cx.execute("SELECT valor_literal, nulo_motivo, estado FROM campo WHERE id=?",
+                            (self.campo,)).fetchone()
+        self.assertIsNone(c["valor_literal"],
+                          "una propuesta NO es un dato: el campo sigue vacío")
+        self.assertEqual(c["nulo_motivo"], "manuscrito")
+        self.assertEqual(c["estado"], "a_revisar")
+        q = self.cx.execute("SELECT valor, modelo FROM propuesta WHERE campo_id=?",
+                            (self.campo,)).fetchone()
+        self.assertEqual(q["valor"], "6.000")
+        self.assertEqual(q["modelo"], "m", "tiene que quedar de qué modelo salió")
+
+    def test_una_propuesta_reemplaza_a_la_anterior_y_no_se_duplica(self):
+        from ufil.lector_manuscrito import Propuesta, guardar_propuesta
+        for v in ("6.000", "6.500"):
+            guardar_propuesta(self.cx, self.campo,
+                              Propuesta(valor=v, ilegible=False, nota="", modelo="m"))
+        n = self.cx.execute("SELECT COUNT(*) FROM propuesta WHERE campo_id=?",
+                            (self.campo,)).fetchone()[0]
+        self.assertEqual(n, 1)
+
+    def test_el_modelo_puede_decir_que_no_sabe(self):
+        from ufil.lector_manuscrito import Propuesta, guardar_propuesta
+        guardar_propuesta(self.cx, self.campo,
+                          Propuesta(valor=None, ilegible=True,
+                                    nota="el trazo se corta", modelo="m"))
+        q = self.cx.execute("SELECT valor, ilegible FROM propuesta WHERE campo_id=?",
+                            (self.campo,)).fetchone()
+        self.assertIsNone(q["valor"])
+        self.assertEqual(q["ilegible"], 1)
+
+    def test_apagado_por_omision(self):
+        """
+        Encender esto hace que el recorte de una foja del legajo salga de la máquina.
+        Tiene que ser una decisión explícita, nunca un valor por omisión.
+        """
+        import os
+        from ufil import lector_manuscrito as lm
+        previo = os.environ.pop("UFIL_VISION", None)
+        try:
+            self.assertFalse(lm.encendido())
+            with self.assertRaises(lm.VisionNoDisponible):
+                lm.leer_recorte(b"", "un importe")
+        finally:
+            if previo is not None:
+                os.environ["UFIL_VISION"] = previo
+
+    def test_el_recorte_sale_del_render_y_es_un_png(self):
+        import io
+        from PIL import Image
+        from ufil.lector_manuscrito import recorte_a_png
+        pagina = Path(self.tmp.name) / "p.png"
+        Image.new("L", (600, 850), 255).save(pagina)
+        png = recorte_a_png(pagina, 1.0, (10, 20, 90, 44))
+        im = Image.open(io.BytesIO(png))
+        self.assertEqual(im.format, "PNG")
+        self.assertGreater(im.width, 80, "se agranda antes de mandarlo")
+
+
 class OcultarTieneQueOcultar(unittest.TestCase):
     """
     El atributo `hidden` del HTML es sólo un `display:none` del navegador: cualquier
