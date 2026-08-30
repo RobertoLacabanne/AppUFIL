@@ -26,6 +26,10 @@ from pathlib import Path
 import fitz
 from PIL import Image, ImageDraw, ImageFilter
 
+# Va en los metadatos de cada PDF generado. El sistema la busca al ingerir para poder
+# avisar en toda pantalla que esos contratos no son reales.
+MARCA_SINTETICO = "UFIL-CORPUS-SINTETICO-DE-PRUEBA"
+
 APELLIDOS = ["ALMADA", "BENÍTEZ", "CORREA", "DUARTE", "ESQUIVEL", "FRANCO", "GAUNA",
              "HEREÑÚ", "IRIGOYEN", "JAUREGUI", "LEDESMA", "MONZÓN", "NÚÑEZ", "OJEDA",
              "PAIVA", "QUIROGA", "RAMÍREZ", "SOSA", "TROCHE", "URQUIZA"]
@@ -149,6 +153,13 @@ def a_escaneo(pdf_limpio: Path, destino: Path, semilla: int, calidad: str,
         _degradar_y_pegar(doc, png, destino, random.Random(semilla * 100 + i),
                           calidad, i, binario, dpi=dpi)
         png.unlink(missing_ok=True)
+    # Marca en los metadatos del propio archivo. Sirve para que el sistema reconozca un
+    # documento de prueba VENGA DE DONDE VENGA: si alguien arrastra estos PDF por la
+    # pantalla de carga durante una demostración, la ruta original ya no dice
+    # «corpus-sintetico» y sin esta marca pasarían por contratos de verdad.
+    doc.set_metadata({"subject": MARCA_SINTETICO,
+                      "keywords": MARCA_SINTETICO,
+                      "producer": "UFIL · generador de corpus de prueba"})
     doc.save(destino, deflate=True); doc.close()
 
 

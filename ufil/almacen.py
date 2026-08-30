@@ -78,7 +78,7 @@ def guardar(cx: sqlite3.Connection, datos: bytes, nombre: str, *, lote: str,
     parcial.write_bytes(datos)
 
     try:
-        n_pag, paginas = _metadatos_pdf(parcial)
+        n_pag, paginas, de_prueba = _metadatos_pdf(parcial)
     except Exception as e:
         parcial.unlink(missing_ok=True)
         raise ArchivoInvalido(f"el PDF no se puede abrir: {type(e).__name__}") from e
@@ -104,5 +104,12 @@ def guardar(cx: sqlite3.Connection, datos: bytes, nombre: str, *, lote: str,
     for i, (ancho, alto, con_texto) in enumerate(paginas, start=1):
         cx.execute("""INSERT INTO pagina (sha256, nro, ancho_pt, alto_pt, tiene_texto)
                       VALUES (?,?,?,?,?)""", (sha, i, ancho, alto, 1 if con_texto else 0))
+    if de_prueba:
+        # Los PDF del generador de prueba llevan una marca en sus metadatos. Acá es
+        # donde más importa reconocerla: subidos por la pantalla de carga, la ruta de
+        # origen ya no dice «corpus-sintetico» y sin esto pasarían por contratos reales
+        # en medio de una demostración.
+        from .db import ajuste
+        ajuste(cx, "demostracion", "1")
     cx.commit()
     return Guardado(sha, nombre, n_pag, False, destino)

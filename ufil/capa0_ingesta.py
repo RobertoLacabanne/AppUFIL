@@ -47,15 +47,23 @@ class ResultadoIngesta:
     paginas: int = 0
 
 
-def _metadatos_pdf(ruta: Path) -> tuple[int, list[tuple[float, float, bool]]]:
-    """Devuelve (cantidad de páginas, [(ancho_pt, alto_pt, tiene_texto), ...])."""
+# Los PDF que sale del generador de prueba llevan esta marca en sus metadatos. Se la
+# busca al ingerir para poder avisar en toda pantalla que no son contratos reales,
+# vengan por donde vengan —incluida la pantalla de carga, donde la ruta de origen ya
+# no dice nada—.
+MARCA_SINTETICO = "UFIL-CORPUS-SINTETICO-DE-PRUEBA"
+
+
+def _metadatos_pdf(ruta: Path) -> tuple[int, list[tuple[float, float, bool]], bool]:
+    """Devuelve (páginas, [(ancho_pt, alto_pt, tiene_texto), ...], es_de_prueba)."""
     paginas = []
     with fitz.open(ruta) as doc:
         for p in doc:
             texto = p.get_text("text").strip()
             # Una capa de texto de cuatro caracteres sueltos no es una capa de texto.
             paginas.append((p.rect.width, p.rect.height, len(texto) >= 40))
-        return doc.page_count, paginas
+        meta = " ".join(str(v) for v in (doc.metadata or {}).values() if v)
+        return doc.page_count, paginas, MARCA_SINTETICO in meta
 
 
 def ingerir(
@@ -96,7 +104,7 @@ def ingerir(
             continue
 
         try:
-            n_pag, paginas = _metadatos_pdf(ruta)
+            n_pag, paginas, de_prueba = _metadatos_pdf(ruta)
         except Exception as e:
             res.fallidos += 1
             cx.execute(
@@ -125,6 +133,11 @@ def ingerir(
                    VALUES (?,?,?,?,?)""",
                 (sha, i, ancho, alto, 1 if con_texto else 0),
             )
+        if de_prueba:
+            # Basta un archivo de prueba para que la base entera quede marcada. El error
+            # a evitar es el otro: mostrar contratos inventados sin decirlo.
+            from .db import ajuste
+            ajuste(cx, "demostracion", "1")
         res.nuevos += 1
         res.paginas += n_pag
 

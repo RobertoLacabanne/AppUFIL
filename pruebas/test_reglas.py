@@ -919,6 +919,52 @@ class ElTrabajoDeLasPersonasSeRespalda(unittest.TestCase):
         copia.close()
 
 
+class UnContratoInventadoSeAnunciaSolo(unittest.TestCase):
+    """
+    Nadie puede confundir un contrato inventado para probar el software con uno de la
+    Legislatura. La detección miraba la ruta de origen —«corpus-sintetico»—, y eso
+    funciona cuando el corpus se ingiere desde su carpeta. Pero si alguien arrastra esos
+    mismos PDF por la pantalla de carga durante una demostración, se guardan bajo su
+    hash en el almacén del sistema y la ruta ya no dice nada: pasaban por reales.
+
+    Ahora la marca va adentro del archivo, en sus metadatos, y viaja con él.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+
+    def tearDown(self):
+        self.cx.close(); self.tmp.cleanup()
+
+    def _pdf(self, marcado: bool) -> bytes:
+        import fitz
+        d = fitz.open()
+        d.new_page(width=595, height=842).insert_text((72, 100), "CONTRATO", fontsize=12)
+        if marcado:
+            from ufil.capa0_ingesta import MARCA_SINTETICO
+            d.set_metadata({"subject": MARCA_SINTETICO})
+        b = d.tobytes()
+        d.close()
+        return b
+
+    def test_subir_un_pdf_de_prueba_prende_el_aviso(self):
+        from ufil.almacen import guardar
+        from ufil.servidor import es_demostracion
+        self.assertFalse(es_demostracion(self.cx))
+        guardar(self.cx, self._pdf(marcado=True), "x.pdf", lote="l")
+        self.assertTrue(es_demostracion(self.cx),
+                        "un contrato inventado que no se anuncia es lo peor que puede "
+                        "mostrarse en una reunión")
+
+    def test_un_pdf_de_verdad_no_lo_prende(self):
+        from ufil.almacen import guardar
+        from ufil.servidor import es_demostracion
+        guardar(self.cx, self._pdf(marcado=False), "y.pdf", lote="l")
+        self.assertFalse(es_demostracion(self.cx),
+                         "avisar de más sobre documentos reales también es un error")
+
+
 class OcultarTieneQueOcultar(unittest.TestCase):
     """
     El atributo `hidden` del HTML es sólo un `display:none` del navegador: cualquier
