@@ -12,6 +12,13 @@
 @font-face{font-family:'IBM Plex Mono';src:url('/fuentes/IBMPlexMono-Medium.ttf') format('truetype');font-weight:500;font-style:normal;font-display:swap}
 @font-face{font-family:'IBM Plex Mono';src:url('/fuentes/IBMPlexMono-SemiBold.ttf') format('truetype');font-weight:600;font-style:normal;font-display:swap}
 
+/* El atributo `hidden` del HTML es sólo un `display:none` del navegador, así que
+   CUALQUIER regla de acá con `display` se lo lleva puesta. Pasó de verdad: el cartel
+   de «datos de demostración» lleva `display:flex`, y por eso se mostraba siempre —en
+   una base vacía, y peor, sobre contratos reales de un legajo—. Que ocultar sea
+   ocultar. */
+[hidden]{display:none !important}
+
 :root{
   --tinta:#1B1D21; --tinta-2:#5A5D64; --tinta-3:#84868C;
   --papel:#FCFBF9; --papel-2:#F1EFEA; --papel-3:#E7E4DD;

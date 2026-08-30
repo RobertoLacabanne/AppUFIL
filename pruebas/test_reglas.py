@@ -810,6 +810,37 @@ class NingunArchivoSePierdeEnSilencio(unittest.TestCase):
         self.assertFalse(fila["leido"])
 
 
+class OcultarTieneQueOcultar(unittest.TestCase):
+    """
+    El atributo `hidden` del HTML es sólo un `display:none` del navegador: cualquier
+    regla de la hoja de estilos con `display` se lo lleva puesta.
+
+    Pasó de verdad, y con el peor cartel posible: «DATOS DE DEMOSTRACIÓN» lleva
+    `display:flex`, así que se mostraba SIEMPRE —en una base vacía, y peor, sobre
+    contratos reales de un legajo—. Un cartel que dice que la evidencia es inventada,
+    encima de evidencia que no lo es.
+
+    La regla global `[hidden]{display:none !important}` lo arregla para todo el sistema
+    de una vez. Esta prueba está para que nadie la saque sin saber qué desarma.
+    """
+
+    def test_la_hoja_de_estilos_hace_valer_el_atributo_hidden(self):
+        from ufil import config
+        css = (config.WEB / "estilo.css").read_text(encoding="utf-8")
+        sin_espacios = "".join(css.split())
+        self.assertIn("[hidden]{display:none!important}", sin_espacios,
+                      "sin esta regla, cualquier elemento oculto con `hidden` que además "
+                      "tenga `display` en el CSS se muestra igual")
+
+    def test_el_cartel_de_demostracion_arranca_oculto(self):
+        from ufil import config
+        html = (config.WEB / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="aviso-demo" hidden', html,
+                      "el cartel tiene que arrancar oculto y prenderlo el JavaScript, "
+                      "no al revés: si la API no contesta, lo seguro es no acusar de "
+                      "falsa a la evidencia")
+
+
 class ElEntornoSeChequeaAntes(unittest.TestCase):
     """El diagnóstico tiene que distinguir «no se puede trabajar» de «mirá esto»."""
 
