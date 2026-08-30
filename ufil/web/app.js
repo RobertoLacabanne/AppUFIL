@@ -175,11 +175,19 @@ async function vPanel() {
         <div class="cifra ${p.conflictos ? 'alerta' : 'ok'}"><b>${n(p.conflictos)}</b><span>conflictos</span></div>
         <div class="cifra"><b>${n(p.verificados)}</b><span>verificados a mano</span></div>
         <div class="cifra"><b>${n(p.personas)}</b><span>personas</span></div>
+        ${p.paginas_enderezadas ? `<div class="cifra"><b>${n(p.paginas_enderezadas)}</b>
+          <span>fojas enderezadas</span></div>` : ''}
         <div class="cifra ancha"><b>${esc(fmtPesos(p.acumulado_centavos))}</b><span>monto leído en total</span></div>
       </div>
       <p class="prosa" style="font-size:12.5px;margin-top:10px">
         El total en pesos suma <strong>sólo los montos que se leyeron con seguridad</strong>.
-        Es un piso, no el total del lote.</p>`) +
+        Es un piso, no el total del lote.${p.paginas_enderezadas ? `
+        ${p.paginas_enderezadas === 1 ? 'Una foja llegó' : n(p.paginas_enderezadas) + ' fojas llegaron'}
+        girada en el escaneo y se enderezó la copia de trabajo para poder leerla.` : ''}</p>
+      ${(p.perfiles || []).length > 1 ? `
+        <p class="prosa" style="font-size:12.5px">
+          Se reconocieron <strong>${p.perfiles.length} formatos de formulario</strong> distintos:
+          ${p.perfiles.map(f => `<span class="mono">${esc(f.perfil)}</span> (${f.n})`).join(', ')}.</p>` : ''}`) +
 
     bloque('f. 0003', 'Cobertura', `
       <h2>Qué se pudo leer</h2>
@@ -287,7 +295,10 @@ async function vDocumento(id) {
   }).join('');
 
   const tiras = paginas.map(p =>
-    `<button class="foja" data-nro="${p.nro}">f. ${p.nro}</button>`).join('');
+    `<button class="foja" data-nro="${p.nro}"${p.rotacion ? ' data-girada="1"' : ''}
+       title="${p.rotacion ? `esta foja llegó girada ${p.rotacion}° y se enderezó para leerla`
+                           : `foja ${p.nro}`}">f. ${p.nro}${p.rotacion ? ' ↻' : ''}</button>`).join('');
+  const enderezadas = paginas.filter(p => p.rotacion);
 
   vista.innerHTML = bloque('f. ' + String(id).padStart(4, '0'), 'Visor', `
     <h2>${esc(doc.archivo)}${varios ? ` <span class="rotulo">contrato ${doc.orden} de ${d.hermanos.length}</span>` : ''}</h2>
@@ -296,6 +307,12 @@ async function vDocumento(id) {
       lote ${esc(doc.lote || '—')} ·
       fojas <span class="mono">${doc.pagina_desde}–${doc.pagina_hasta}</span><br>
       <span class="mono" style="font-size:11px">sha256 ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
+    ${enderezadas.length ? `<div class="aviso" style="border-left-color:var(--sello);
+      background:var(--sello-suave)"><span class="sello" style="flex:none">Enderezado</span>
+      <span>${enderezadas.length === 1 ? 'La foja' : 'Las fojas'}
+      ${enderezadas.map(p => `${p.nro} (${p.rotacion}°)`).join(', ')} llegó girada en el
+      escaneo. <strong>El original no se tocó</strong>: se giró la copia de trabajo para
+      poder leerla, y es esa la que ves acá.</span></div>` : ''}
     ${varios ? `<div class="aviso"><span class="sello alerta" style="flex:none">Ojo</span>
       <span>Este PDF trae <strong>${d.hermanos.length} contratos</strong> adentro. Estás
       viendo el número ${doc.orden}, que ocupa las fojas ${doc.pagina_desde} a

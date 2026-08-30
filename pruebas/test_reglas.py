@@ -350,6 +350,121 @@ class ContratosRepetidos(BaseTemporal):
         self.assertEqual(detectar_contratos_repetidos(self.cx), 0)
 
 
+class PaginasTorcidas(unittest.TestCase):
+    """Una hoja apoyada de costado en el escáner perdía el contrato entero."""
+
+    def _pagina(self, grados: int) -> Path:
+        import fitz
+        from PIL import Image
+        d = Path(self.tmp.name)
+        doc = fitz.open(); pag = doc.new_page(width=595, height=842)
+        pag.insert_text((60, 140), "CONTRATO DE LOCACION DE SERVICIOS",
+                        fontsize=15, fontname="helv")
+        for y, r, v in [(232, "APELLIDO Y NOMBRE", "TROCHE, Ramon E."),
+                        (292, "CARGO", "ASESOR TECNICO"),
+                        (352, "DESDE", "01/03/2021"),
+                        (412, "RETRIBUCION MENSUAL", "$ 145.600,00")]:
+            pag.insert_text((60, y), r, fontsize=8, fontname="helv")
+            pag.insert_text((60, y + 18), v, fontsize=12, fontname="cour")
+        limpio = d / "limpio.pdf"; doc.save(limpio); doc.close()
+
+        with fitz.open(limpio) as f:
+            pix = f[0].get_pixmap(matrix=fitz.Matrix(200 / 72, 200 / 72))
+            png = d / "p.png"; pix.save(png)
+        im = Image.open(png).convert("RGB")
+        if grados:
+            im = im.rotate(grados, expand=True)
+        jpg = d / "p.jpg"; im.save(jpg, "JPEG", quality=85)
+        w, h = im.size
+        doc = fitz.open()
+        pag = doc.new_page(width=w * 72 / 200, height=h * 72 / 200)
+        pag.insert_image(fitz.Rect(0, 0, w * 72 / 200, h * 72 / 200), filename=str(jpg))
+        destino = d / f"rot{grados}.pdf"; doc.save(destino); doc.close()
+        return destino
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        import ufil.config as cfg
+        self._der = cfg.DERIVADOS
+        cfg.DERIVADOS = Path(self.tmp.name) / "der"
+
+    def tearDown(self):
+        import ufil.config as cfg
+        cfg.DERIVADOS = self._der
+        self.tmp.cleanup()
+
+    def test_una_pagina_derecha_no_se_toca(self):
+        from ufil.capa1_texto import leer_ocr, lectura_pobre, render_pagina
+        png, esc, _ = render_pagina(self._pagina(0), "x", 1)
+        lec = leer_ocr(png, esc, "ocr_a")
+        self.assertFalse(lectura_pobre(lec),
+                         f"una página derecha no debería dar sospecha (conf {lec.confianza:.2f})")
+
+    def test_una_pagina_de_costado_se_detecta_y_se_endereza(self):
+        from ufil.capa1_texto import (enderezar_si_mejora, leer_ocr, lectura_pobre,
+                                      render_pagina, tiene_tinta)
+        for grados in (90, 180, 270):
+            with self.subTest(grados=grados):
+                import ufil.config as cfg
+                cfg.DERIVADOS = Path(self.tmp.name) / f"der{grados}"
+                png, esc, _ = render_pagina(self._pagina(grados), f"r{grados}", 1)
+                torcida = leer_ocr(png, esc, "ocr_a")
+                self.assertTrue(lectura_pobre(torcida), "tendría que sospechar")
+                self.assertTrue(tiene_tinta(png))
+                aplicado, derecha = enderezar_si_mejora(png, esc, torcida)
+                self.assertEqual(aplicado, grados, "tendría que encontrar el ángulo justo")
+                self.assertGreater(derecha.confianza, torcida.confianza)
+                texto = " ".join(p.texto for p in derecha.palabras).upper()
+                self.assertIn("TROCHE", texto, "después de enderezar tiene que leerse")
+
+    def test_una_pagina_derecha_pero_mal_leida_no_se_gira_al_pedo(self):
+        """Si girarla no mejora, se deja como estaba: girar de más también rompe."""
+        from ufil.capa1_texto import enderezar_si_mejora, leer_ocr, render_pagina
+        png, esc, _ = render_pagina(self._pagina(0), "d0", 1)
+        primera = leer_ocr(png, esc, "ocr_a")
+        aplicado, final = enderezar_si_mejora(png, esc, primera)
+        self.assertEqual(aplicado, 0, "una página derecha no se gira")
+        self.assertGreaterEqual(final.confianza, primera.confianza)
+
+    def test_una_hoja_en_blanco_no_se_interroga(self):
+        import fitz
+        from ufil.capa1_texto import render_pagina, tiene_tinta
+        d = Path(self.tmp.name)
+        doc = fitz.open(); doc.new_page(width=595, height=842)
+        blanco = d / "blanco.pdf"; doc.save(blanco); doc.close()
+        png, _, _ = render_pagina(blanco, "b", 1)
+        self.assertFalse(tiene_tinta(png), "una hoja en blanco no gasta detección")
+
+
+class VariantesDeFormulario(unittest.TestCase):
+    """El formulario cambia entre cámaras y años: mismos campos, otros rótulos."""
+
+    def test_gana_el_perfil_que_saca_mas_campos_criticos(self):
+        from ufil.capa2_extraccion import Hallazgo, puntaje
+        def h(**kw):
+            return {k: Hallazgo(v, v, None, 1, (0, 0, 1, 1), 0.9, None) if v
+                    else Hallazgo(None, None, "ausente", None, None, 0.0, None)
+                    for k, v in kw.items()}
+        pocos = h(nombre="X", cargo="Y", documento=None, monto=None,
+                  fecha_inicio=None, fecha_fin=None)
+        muchos = h(nombre="X", cargo=None, documento="20111111112",
+                   monto="100", fecha_inicio="2021-01-01", fecha_fin=None)
+        self.assertGreater(puntaje(muchos), puntaje(pocos),
+                           "gana el que resuelve más campos críticos, no más campos")
+
+    def test_hay_mas_de_un_perfil_y_todos_son_validos(self):
+        import json
+        from ufil.capa2_extraccion import cargar_perfil, perfiles_disponibles
+        nombres = perfiles_disponibles()
+        self.assertGreaterEqual(len(nombres), 2, "tiene que haber variantes cargadas")
+        for n in nombres:
+            p = cargar_perfil(n)
+            self.assertEqual(p["nombre"], n, "el nombre interno tiene que coincidir")
+            campos = {c["nombre"] for c in p["campos"]}
+            self.assertTrue({"nombre", "documento", "fecha_inicio", "fecha_fin", "monto"}
+                            <= campos, f"al perfil {n} le faltan campos críticos")
+
+
 class SubidaDeEscaneos(unittest.TestCase):
     """Lo que llega por la interfaz también es un original inmutable."""
 

@@ -60,7 +60,7 @@ class Procesador:
     def ocupado(self) -> bool:
         return bool(self._hilo and self._hilo.is_alive())
 
-    def arrancar(self, perfil: str = "contrato_legislatura", con_vlm: bool = False) -> dict:
+    def arrancar(self, perfil: str = "auto", con_vlm: bool = False) -> dict:
         with self._lock:
             if self.ocupado():
                 return {"ok": False, "motivo": "ya hay un procesamiento en curso"}

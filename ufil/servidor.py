@@ -110,6 +110,9 @@ def api_panel(cx) -> dict:
         "acumulado_centavos": uno("""SELECT COALESCE(SUM(monto_centavos),0) FROM v_contrato"""),
         "personas_ambas_camaras": c4.correr(cx, "03_ambas_camaras")["n"],
         "contratos_repetidos": c4.correr(cx, "08_contratos_repetidos")["n"],
+        "paginas_enderezadas": uno("SELECT COUNT(*) FROM pagina WHERE rotacion<>0"),
+        "perfiles": [dict(r) for r in cx.execute(
+            "SELECT perfil, COUNT(*) AS n FROM documento GROUP BY perfil ORDER BY n DESC")],
         "archivos_con_varios": uno("""SELECT COUNT(*) FROM (SELECT sha256 FROM documento
                                        GROUP BY sha256 HAVING COUNT(*) > 1)"""),
     }
@@ -137,7 +140,7 @@ def api_documento(cx, doc_id: int) -> dict:
     # Sólo las páginas de ESTE contrato: un archivo puede traer varios, y mostrar las
     # del vecino haría que el recuadro caiga sobre el folio equivocado.
     paginas = [dict(r) for r in cx.execute(
-        """SELECT nro, ancho_pt, alto_pt, render_escala FROM pagina
+        """SELECT nro, ancho_pt, alto_pt, render_escala, rotacion FROM pagina
             WHERE sha256=? AND nro BETWEEN ? AND ? ORDER BY nro""",
         (d["sha256"], d["pagina_desde"] or 1, d["pagina_hasta"] or 99999))]
     hermanos = [dict(r) for r in cx.execute(
@@ -449,7 +452,7 @@ class Manejador(BaseHTTPRequestHandler):
                 if PROCESADOR is None:
                     return self._json({"error": "procesador no disponible"}, 500)
                 return self._json(PROCESADOR.arrancar(
-                    perfil=cuerpo.get("perfil", "contrato_legislatura"),
+                    perfil=cuerpo.get("perfil", "auto"),
                     con_vlm=bool(cuerpo.get("vlm"))))
             if u.path == "/api/campo":
                 return self._json(api_decidir_campo(

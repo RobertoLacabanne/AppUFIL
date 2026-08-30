@@ -262,7 +262,8 @@ def main(argv=None) -> int:
     s.set_defaults(func=cmd_leer)
 
     s = sub.add_parser("extraer", help="Capa 2: campos anclados, con doble lectura")
-    s.add_argument("--perfil", default="contrato_legislatura")
+    s.add_argument("--perfil", default="auto",
+                   help="perfil de formulario; «auto» prueba todos y elige el que mejor calce")
     s.set_defaults(func=cmd_extraer)
 
     s = sub.add_parser("identidad", help="Capa 3: personas por clave fuerte + propuestas")
@@ -295,7 +296,8 @@ def main(argv=None) -> int:
     s = sub.add_parser("demo", help="deja la app cargada y lista para mostrar, y la levanta")
     s.add_argument("--corpus", default="datos/corpus-sintetico")
     s.add_argument("--cantidad", type=int, default=50)
-    s.add_argument("--perfil", default="contrato_legislatura")
+    s.add_argument("--perfil", default="auto",
+                   help="perfil de formulario; «auto» prueba todos y elige el que mejor calce")
     s.add_argument("--puerto", type=int, default=8713)
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--limpiar", action="store_true", help="borrar la base y empezar de cero")
@@ -303,7 +305,8 @@ def main(argv=None) -> int:
 
     s = sub.add_parser("piloto", help="corre todo de punta a punta")
     s.add_argument("carpeta"); s.add_argument("--lote", default="piloto")
-    s.add_argument("--perfil", default="contrato_legislatura")
+    s.add_argument("--perfil", default="auto",
+                   help="perfil de formulario; «auto» prueba todos y elige el que mejor calce")
     s.add_argument("--referencia"); s.add_argument("--informe")
     s.add_argument("--vlm", action="store_true")
     s.set_defaults(func=cmd_piloto)

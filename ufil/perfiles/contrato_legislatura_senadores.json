@@ -1,0 +1,18 @@
+{
+  "nombre": "contrato_legislatura_senadores",
+  "tipo": "contrato_personal",
+  "descripcion": "Variante del contrato de locación de servicios con otros rótulos (otra cámara u otro año). Mismo tipo de documento, mismos campos: lo único que cambia son las palabras impresas del formulario. Por eso alcanza con copiar este archivo y cambiar los rótulos para dar de alta un formato nuevo, sin tocar código.",
+  "deteccion": { "alguno_de": ["CONTRATO DE LOCACION DE SERVICIOS", "CONTRATO DE LOCACION"] },
+  "camara": [
+    { "si_contiene": "CAMARA DE DIPUTADOS", "valor": "A" },
+    { "si_contiene": "CAMARA DE SENADORES", "valor": "B" }
+  ],
+  "campos": [
+    { "nombre": "nombre",       "rotulo": ["AGENTE CONTRATADO", "CONTRATADO"],       "region": "debajo", "ancho": 300, "alto": 34, "parser": "texto" },
+    { "nombre": "documento",    "rotulo": ["C U I L N", "C U I L", "CUIL N"],        "region": "debajo", "ancho": 200, "alto": 34, "parser": "documento" },
+    { "nombre": "cargo",        "rotulo": ["FUNCION ASIGNADA", "FUNCION"],           "region": "debajo", "ancho": 380, "alto": 34, "parser": "texto" },
+    { "nombre": "fecha_inicio", "rotulo": ["VIGENCIA DESDE EL", "VIGENCIA DESDE"],   "region": "debajo", "ancho": 155, "alto": 34, "parser": "fecha" },
+    { "nombre": "fecha_fin",    "rotulo": ["VIGENCIA HASTA EL", "VIGENCIA HASTA"],   "region": "debajo", "ancho": 155, "alto": 34, "parser": "fecha" },
+    { "nombre": "monto",        "rotulo": ["HONORARIO MENSUAL", "HONORARIO"],        "region": "debajo", "ancho": 230, "alto": 40, "parser": "monto" }
+  ]
+}

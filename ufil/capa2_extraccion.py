@@ -52,6 +52,33 @@ def perfiles_disponibles() -> list[str]:
     return sorted(p.stem for p in config.PERFILES.glob("*.json"))
 
 
+def perfiles_a_probar(nombre: str) -> list[dict]:
+    """
+    Qué perfiles se prueban. Con "auto" (lo normal), todos.
+
+    El formulario cambia entre cámaras y entre años: los mismos seis campos con otros
+    rótulos impresos. Probar todos y quedarse con el que más campos encuentra evita
+    tener que adivinar de antemano qué formato trae cada PDF, y hace que dar de alta un
+    formato nuevo sea copiar un JSON.
+    """
+    if nombre and nombre != "auto":
+        return [cargar_perfil(nombre)]
+    return [cargar_perfil(n) for n in perfiles_disponibles()]
+
+
+def puntaje(hallazgos: dict) -> tuple[int, int]:
+    """
+    Qué tan bien le fue a un perfil en este tramo.
+
+    Primero cuántos campos CRÍTICOS resolvió, después cuántos en total. Un perfil que
+    saca el monto y las fechas le gana a uno que saca tres campos accesorios.
+    """
+    criticos = sum(1 for c in config.CAMPOS_CRITICOS
+                   if c in hallazgos and hallazgos[c].norm is not None)
+    todos = sum(1 for h in hallazgos.values() if h.norm is not None)
+    return (criticos, todos)
+
+
 @dataclass
 class Hallazgo:
     literal: str | None
@@ -392,15 +419,17 @@ def _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina) -> dict:
     return {"campos": n_campos, "conflictos": n_conf, "a_revisar": n_rev}
 
 
-def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> dict:
+def extraer_documento(cx: sqlite3.Connection, sha: str,
+                      perfil_nombre: str = "auto") -> dict:
     """
-    Extrae TODOS los contratos que haya en un archivo.
+    Extrae TODOS los contratos que haya en un archivo, con el perfil que mejor le calce.
 
     Devuelve el agregado del archivo. `documentos` dice cuántos contratos encontró: si
     da más de uno, el PDF traía varios adentro y cada uno quedó como un registro
     separado, con su tramo de páginas.
     """
-    perfil = cargar_perfil(perfil_nombre)
+    perfiles = perfiles_a_probar(perfil_nombre)
+    perfil = perfiles[0]
 
     # Agrupar las lecturas por ruta.
     por_ruta: dict[str, list[tuple[int, int, list[Palabra]]]] = {}
@@ -418,13 +447,14 @@ def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> d
     # generoso acá es lo correcto: perder un arranque significa perder un contrato
     # entero y mezclarlo con el anterior.
     inicios = sorted({nro for pgs in por_ruta.values() for nro, _, pw in pgs
-                      if pagina_es_formulario(pw, perfil)})
+                      if any(pagina_es_formulario(pw, pf) for pf in perfiles)})
     tramos = segmentar(inicios, todas)
 
     if not tramos:
         cx.execute("INSERT INTO excepcion (sha256, clase, detalle, creado_en) VALUES (?,?,?,?)",
                    (sha, "perfil_no_aplica",
-                    f"ninguna página se reconoció como formulario {perfil_nombre}", ahora()))
+                    "ninguna página se reconoció como formulario conocido; probados: "
+                    + ", ".join(pf["nombre"] for pf in perfiles), ahora()))
         cx.commit()
         return {"documentos": 0, "campos": 0, "conflictos": 0, "a_revisar": 0,
                 "sin_perfil": 1, "revisiones_reaplicadas": 0}
@@ -455,19 +485,28 @@ def extraer_documento(cx: sqlite3.Connection, sha: str, perfil_nombre: str) -> d
         recorte = {ruta: [(n, l, w) for n, l, w in pgs if desde <= n <= hasta]
                    for ruta, pgs in por_ruta.items()}
         recorte = {r: pgs for r, pgs in recorte.items() if pgs}
-        resultados, camaras = {}, []
-        for ruta, pgs in recorte.items():
-            hall, camara, _ = extraer_de_ruta(pgs, perfil)
-            resultados[ruta] = hall
-            if camara:
-                camaras.append(camara)
-        camara = max(set(camaras), key=camaras.count) if camaras else None
+
+        # Se prueba cada perfil sobre este tramo y gana el que más campos saca. Con un
+        # solo perfil dado a mano, el bucle corre una vez y decide lo mismo.
+        mejor_perfil, mejor_res, mejor_cam, mejor_pt = None, None, None, (-1, -1)
+        for pf in perfiles:
+            resultados, camaras = {}, []
+            for ruta, pgs in recorte.items():
+                hall, camara, _ = extraer_de_ruta(pgs, pf)
+                resultados[ruta] = hall
+                if camara:
+                    camaras.append(camara)
+            pt = max((puntaje(h) for h in resultados.values()), default=(0, 0))
+            if pt > mejor_pt:
+                mejor_perfil, mejor_res, mejor_pt = pf, resultados, pt
+                mejor_cam = max(set(camaras), key=camaras.count) if camaras else None
+        perfil, resultados, camara = mejor_perfil, mejor_res, mejor_cam
 
         doc_id = cx.execute(
             """INSERT INTO documento (sha256, orden, pagina_desde, pagina_hasta,
                                       tipo, perfil, camara, estado)
                VALUES (?,?,?,?,?,?,?,'extraido')""",
-            (sha, i, desde, hasta, perfil["tipo"], perfil_nombre, camara)).lastrowid
+            (sha, i, desde, hasta, perfil["tipo"], perfil["nombre"], camara)).lastrowid
 
         r = _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina)
         rehechas = reaplicar_revisiones(cx, doc_id, sha, i)

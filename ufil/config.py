@@ -33,6 +33,19 @@ OCR_CONFIG = {
     "ocr_b": "--oem 1 --psm 11",   # texto disperso, sin asumir estructura
 }
 
+# Confianza mínima del detector de orientación para tomar en cuenta su sugerencia. Es
+# baja a propósito: la decisión no la toma el detector sino el resultado de releer la
+# página girada (ver `enderezar_si_mejora`), así que acá alcanza con una pista.
+CONFIANZA_ORIENTACION = 0.6
+
+# Cuánto tiene que mejorar la confianza de la lectura para quedarse con la página
+# girada. Sin este margen, el ruido decidiría la orientación.
+MEJORA_MINIMA_GIRO = 0.12
+
+# Debajo de esta confianza, una página con tinta se considera mal leída y se sospecha
+# que esté de costado. Medido: página derecha 0,91–0,96; rotada 0,40–0,54.
+CONFIANZA_SOSPECHA = 0.75
+
 # Umbral por debajo del cual la celda se marca con trama en la interfaz.
 UMBRAL_CONFIANZA = 0.85
 

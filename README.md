@@ -106,8 +106,8 @@ por accidente.
 | | | |
 |---|---|---|
 | 0 | `capa0_ingesta.py` | Recorrido en solo lectura, SHA-256, duplicados exactos, procedencia |
-| 1 | `capa1_texto.py` · `capa1_vlm.py` | Texto con coordenadas. Ruta nativa, dos rutas de OCR, y el contrato del modelo de visión (**sin implementar**, a propósito) |
-| 2 | `capa2_extraccion.py` · `capa2_campos.py` | Separa los contratos que vengan juntos en un mismo PDF, y extrae cada uno con anclaje y cotejo entre rutas |
+| 1 | `capa1_texto.py` · `capa1_vlm.py` | Texto con coordenadas. Endereza las fojas que llegaron giradas, ruta nativa, dos rutas de OCR, y el contrato del modelo de visión (**sin implementar**, a propósito) |
+| 2 | `capa2_extraccion.py` · `capa2_campos.py` | Separa los contratos que vengan juntos en un mismo PDF, elige el perfil de formulario que mejor calce, y extrae cada uno con anclaje y cotejo entre rutas |
 | 3 | `capa3_identidad.py` | Clave fuerte automática; fusiones por similitud **sólo propuestas** |
 | 4 | `consultas/*.sql` · `capa4_analisis.py` | Cruces determinísticos, cada uno un archivo versionado |
 | 5 | `capa5_interpretacion.py` | El otro carril. Hoy, reglas; mañana, un LLM local |
@@ -126,6 +126,7 @@ por accidente.
 | [`docs/03-carga-y-trabajo.md`](docs/03-carga-y-trabajo.md) | Carga desde la interfaz, búsqueda, ficha del contratado, y un experimento de lectura que salió mal. |
 | [`docs/04-guion-demostracion.md`](docs/04-guion-demostracion.md) | Cómo mostrarlo en una reunión, con las preguntas que van a hacer y qué contestar. |
 | [`docs/05-como-conviene-cargar.md`](docs/05-como-conviene-cargar.md) | **¿Un PDF por contrato o todo junto?** La respuesta, medida. |
+| [`docs/06-lo-que-el-papel-trae.md`](docs/06-lo-que-el-papel-trae.md) | Hojas al revés, carátulas, formularios distintos: qué se rompía y cómo quedó. |
 | [`docs/identidad/guia-visual.html`](docs/identidad/guia-visual.html) | La guía visual, se abre con doble clic |
 | [`INSTALAR.md`](INSTALAR.md) | Instalación en dos etapas y operación diaria |
 

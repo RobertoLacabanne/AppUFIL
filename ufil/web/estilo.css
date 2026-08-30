@@ -435,3 +435,6 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 .consejo p.medido{font-family:var(--mono); font-size:11.5px; line-height:1.55;
   background:var(--papel); border:1px solid var(--filete-2); padding:8px 11px}
 .consejo strong{color:var(--tinta)}
+
+/* Foja que llegó girada y hubo que enderezar para leerla. */
+.foja[data-girada="1"]{border-style:dashed; border-color:var(--sello); color:var(--sello)}
