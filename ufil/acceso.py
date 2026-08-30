@@ -23,7 +23,6 @@ bajo control, y 127.0.0.1 —el modo por omisión— para todo lo demás.
 """
 from __future__ import annotations
 
-import html
 import ipaddress
 import os
 import secrets
@@ -109,14 +108,21 @@ class Porteria:
         if not cookie:
             return False
         # Comparación en tiempo constante contra cada sesión viva: son dos o tres.
-        return any(secrets.compare_digest(cookie, s) for s in self.sesiones)
+        # Se compara en bytes: `compare_digest` sobre texto revienta con cualquier
+        # carácter que no sea ASCII, y una cookie la puede escribir cualquiera.
+        c = cookie.encode("utf-8", "replace")
+        return any(secrets.compare_digest(c, s.encode("utf-8")) for s in self.sesiones)
 
     def abrir(self, intento: str, quien: str) -> str | None:
         """Devuelve el vale de sesión si la clave está bien, o None."""
         fallos = self.fallos.get(quien, 0)
         if fallos >= INTENTOS_LIBRES:
             time.sleep(min(ESPERA_BASE * (fallos - INTENTOS_LIBRES + 1), 20))
-        if self.clave and secrets.compare_digest(intento.strip().upper(), self.clave):
+        # En bytes, por lo mismo: si alguien escribe una eñe o un acento en el teclado
+        # del teléfono, comparar como texto tira excepción y el pedido termina en un
+        # error 500 en vez de en «esa clave no es».
+        escrito = intento.strip().upper().encode("utf-8", "replace")
+        if self.clave and secrets.compare_digest(escrito, self.clave.encode("ascii")):
             self.fallos.pop(quien, None)
             vale = secrets.token_urlsafe(32)
             self.sesiones.add(vale)

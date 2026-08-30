@@ -943,11 +943,13 @@ async function vIngesta() {
         sí, y mucho.</strong> Sobre papel de mala calidad —fotocopia de fotocopia, hoja
         torcida, contraste caído, que es como llega un expediente viejo— la diferencia
         entre escanear a 100 y a 300 DPI es de treinta y un puntos de exactitud.</p>
-      <p class="medido">Medido sobre noventa contratos: a <span class="mono">100 DPI</span>
-        se lee bien el <span class="marca">52,5 %</span> de los campos;
-        a <span class="mono">300 DPI</span>, el <span class="mono">83,9 %</span>.
-        Los dos casos, con <strong>cero errores silenciosos</strong>: cuando el escaneo
-        es malo el sistema no inventa, deja el campo vacío y lo manda a revisión.</p>
+      <p class="medido">La cifra exacta se está volviendo a medir: el generador de prueba
+        tenía motas de fotocopia de un píxel, y como el píxel es más grande a baja
+        resolución, castigaba al escaneo de 100 DPI por una razón que en el papel no
+        existe. Lo que ya no cambia: <strong>a 100 DPI el sistema deja de servir</strong>,
+        y en todos los casos con <strong>cero errores silenciosos</strong> —cuando el
+        escaneo es malo el sistema no inventa, deja el campo vacío y lo manda a
+        revisión—.</p>
       <p><strong>Más de 300 no hace falta:</strong> de ahí para arriba no se gana nada
         medible y el archivo pesa el doble.</p>
       <p><strong>Y nunca el «modo texto»</strong> en blanco y negro puro que muchos

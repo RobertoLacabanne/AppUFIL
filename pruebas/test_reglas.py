@@ -858,6 +858,20 @@ class LaPuertaCuandoSeAbreALaRed(unittest.TestCase):
         p = Porteria(exigir=True)
         self.assertIsNotNone(p.abrir(f"  {p.clave.lower()} ", "10.0.0.9"))
 
+    def test_un_acento_no_tira_el_servidor(self):
+        """
+        `secrets.compare_digest` sobre texto revienta con cualquier carácter que no sea
+        ASCII. En el teclado de un teléfono, escribir una eñe o un acento tiene que dar
+        «esa clave no es», no un error 500.
+        """
+        from ufil.acceso import Porteria
+        p = Porteria(exigir=True)
+        self.assertIsNone(p.abrir("ÁBCDÉF", "10.0.0.9"))
+        self.assertIsNone(p.abrir("clavé ñ", "10.0.0.9"))
+        self.assertFalse(p.deja_pasar("vale-con-ñ"))
+        # Y la clave buena tiene que seguir andando después de todo eso.
+        self.assertIsNotNone(p.abrir(p.clave, "10.0.0.9"))
+
     def test_cada_arranque_genera_una_clave_distinta(self):
         from ufil.acceso import Porteria
         claves = {Porteria(exigir=True).clave for _ in range(50)}

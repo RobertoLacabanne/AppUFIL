@@ -1,5 +1,16 @@
 # Hasta dónde aguanta el escaneo
 
+> **Nota de honestidad, mientras se rehace la medición.** Los números de esta página
+> salieron de un generador cuyas motas de fotocopia eran de **un píxel**. Como el píxel
+> es más grande cuanto más baja la resolución, ese modelo le ponía manchas físicamente
+> tres veces más grandes al escaneo de 100 DPI que al de 300: **castigaba al 100 DPI
+> por una razón que no existe en el papel**. Las motas ya se corrigieron a un tamaño
+> físico fijo (0,15 mm) y la medición se está rehaciendo. La dirección del consejo no
+> va a cambiar; la magnitud del precipicio, probablemente sí.
+>
+> Lo que NO depende de ese modelo, porque es una comparación a igual resolución, es el
+> hallazgo del modo blanco y negro, más abajo. Ese se sostiene.
+
 Respuesta a la otra pregunta operativa: **¿a cuántos DPI hay que escanear?** Está medida,
 no opinada. Y a diferencia de la pregunta de cómo partir los PDF, acá la respuesta no es
 «da más o menos lo mismo»: **da muy distinto**.
