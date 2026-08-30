@@ -1,0 +1,96 @@
+{
+  "nombre": "contrato_obra_legislatura",
+  "tipo": "contrato_obra",
+  "descripcion": "Contrato de obra de la Legislatura de Entre Ríos (Cámara de Senadores o de Diputados). NO es un formulario con casilleros: es un texto en prosa con una redacción de molde que se repite entre contratos. Por eso los campos se buscan por FRASE y no por rótulo. Cada valor sigue anclado a la página y al recuadro de las palabras que lo produjeron.",
+
+  "deteccion": { "alguno_de": ["CONTRATO DE OBRA", "CONTRATO DEOBRA"] },
+
+  "camara": [
+    { "si_contiene": "CAMARA DE DIPUTADOS", "valor": "A" },
+    { "si_contiene": "CAMARA DE SENADORES", "valor": "B" }
+  ],
+
+  "campos_patron": [
+    {
+      "nombre": "nombre",
+      "parser": "nombre",
+      "_por_que": "Varias formas del mismo molde: «el/la Sr./a. APELLIDO, Nombre titular de Documento...». El OCR rompe seguido la barra y el punto, así que se toleran.",
+      "patrones": [
+        "Sr\\.?\\s*/?\\s*a\\.?\\s*[:.]?\\s*(.{4,70}?)\\s+titular de[l]? Documento",
+        "en adelante\\s+.La Parte Contratista.\\s*,?\\s*(?:el|la|el/la)?\\s*(.{4,70}?)\\s+titular",
+        "y el/la\\s+.{0,12}?\\s*(.{4,70}?)\\s+titular de"
+      ]
+    },
+    {
+      "nombre": "documento",
+      "parser": "documento",
+      "_por_que": "En estos contratos el identificador es DNI, no CUIL. Se acepta con o sin puntos; el parser decide si son 7-8 dígitos (DNI) u 11 (CUIL/CUIT).",
+      "patrones": [
+        "Documento Nacional de Identidad n[uú]mero\\s*[:.]?\\s*([\\d][\\d\\.\\s]{5,12}\\d)",
+        "D\\.?N\\.?I\\.?\\s*(?:N[°ºo]?)?\\s*[:.]?\\s*([\\d][\\d\\.\\s]{5,12}\\d)",
+        "C\\.?U\\.?I\\.?[LT]\\.?\\s*(?:N[°ºo]?)?\\s*[:.]?\\s*([\\d][\\d\\.\\-\\s]{9,15}\\d)"
+      ]
+    },
+    {
+      "nombre": "fecha_inicio",
+      "parser": "fecha_texto",
+      "_por_que": "La cláusula SEGUNDA fija el plazo y dice el día de inicio con todas las letras del mes. Es más confiable que un casillero: un mes escrito no se confunde con otro número.",
+      "patrones": [
+        "con inicio el d[ií]a\\s*(\\d{1,2}\\s*de\\s*[a-zA-Z\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa]+\\s*de\\s*\\d{4})",
+        "a partir del d[ií]a\\s*(\\d{1,2}\\s*de\\s*[a-zA-Z\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa]+\\s*de\\s*\\d{4})",
+        "desde el d[ií]a\\s*(\\d{1,2}\\s*de\\s*[a-zA-Z\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa]+\\s*de\\s*\\d{4})"
+      ]
+    },
+    {
+      "nombre": "fecha_fin",
+      "parser": "fecha_texto",
+      "patrones": [
+        "finalizando en consecuencia el d[ií]a\\s*(\\d{1,2}\\s*de\\s*[a-zA-Z\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa]+\\s*de\\s*\\d{4})",
+        "finaliza(?:ndo)?\\s*(?:el)?\\s*(?:d[ií]a)?\\s*(\\d{1,2}\\s*de\\s*[a-zA-Z\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa]+\\s*de\\s*\\d{4})",
+        "hasta el d[ií]a\\s*(\\d{1,2}\\s*de\\s*[a-zA-Z\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa]+\\s*de\\s*\\d{4})"
+      ]
+    },
+    {
+      "nombre": "monto",
+      "parser": "monto",
+      "_por_que": "Es el monto MENSUAL, para que se pueda comparar con contratos de otro plazo y con las facturas. El total va aparte.",
+      "patrones": [
+        "por mes vencido de\\s*\\$\\s*([\\d][\\d\\.,]*)",
+        "libramientos iguales[^$]{0,80}\\$\\s*([\\d][\\d\\.,]*)",
+        "honorarios? mensuales? de\\s*\\$\\s*([\\d][\\d\\.,]*)"
+      ]
+    },
+    {
+      "nombre": "monto_total",
+      "parser": "monto",
+      "patrones": [
+        "la suma total de\\s*\\$\\s*([\\d][\\d\\.,]*)",
+        "suma de\\s*pesos\\s*\\$\\s*([\\d][\\d\\.,]*)"
+      ]
+    },
+    {
+      "nombre": "monto_total_letras",
+      "parser": "monto_letras",
+      "_por_que": "EL DOCUMENTO SE VERIFICA A SI MISMO. El contrato escribe el total dos veces: en dígitos y en letras. Si coinciden, el número es ese con una seguridad que ninguna doble lectura de OCR alcanza; si discrepan, hay un conflicto de verdad y lo mira una persona.",
+      "patrones": [
+        "la suma total de\\s*\\$[\\d\\.,\\-\\s]*\\(\\s*([^)]{5,80}?)\\s*\\)"
+      ]
+    },
+    {
+      "nombre": "plazo_meses",
+      "parser": "texto",
+      "patrones": [
+        "plazo de ejecuci[oó]n del presente contrato se conviene en\\s*(\\d{1,2})\\s*\\(",
+        "por el t[eé]rmino de\\s*(\\d{1,2})\\s*\\("
+      ]
+    },
+    {
+      "nombre": "fecha_contrato",
+      "parser": "fecha_anio_letras",
+      "_por_que": "La fecha de celebración va en el encabezado y con el año escrito con palabras. Sirve para ordenar y para detectar contratos firmados después de empezar a correr.",
+      "patrones": [
+        "(a los\\s*\\d{1,2}\\s*\\([^)]*\\)\\s*d[ií]as?\\s+del\\s+mes\\s+de\\s+[a-zA-Z\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa]+\\s+del\\s+a[nñ]o\\s+[a-zA-Z\\s]{6,40}?\\s*,)"
+      ]
+    }
+  ]
+}

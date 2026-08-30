@@ -15,12 +15,23 @@ legajo se hace después, a mano, sobre la documentación original.
 **Corre de punta a punta, y se opera desde la interfaz.** Se arrastran los PDF
 escaneados a la pantalla de carga, se procesa en segundo plano con barra de progreso, y
 a partir de ahí se trabaja: buscar en todo el corpus, ficha por contratado con
-cronología, cola de revisión por teclado, cruces y exportación a `.xlsx` y `.rtf`.
+cronología, cola de revisión con el folio al lado, cruces y exportación a `.xlsx` y
+`.rtf`. **Anda igual en un celular**, en la red de la fiscalía y con clave de acceso.
 
 Medido sobre 50 contratos sintéticos: **86 % de campos críticos resueltos sin
 intervención y cero errores silenciosos**, pero **por debajo de los umbrales de
 exactitud** propuestos en la Fase 0. El detalle honesto, con lo que falta, está en
 [`docs/02-fase-1.md`](docs/02-fase-1.md).
+
+Para operarlo todos los días, cuatro pantallas que no son de análisis y hacen falta
+igual:
+
+| | |
+|---|---|
+| **Quedaron afuera** | Cada PDF que entró y no produjo ningún contrato, agrupado por motivo y con qué hacer. Un documento que se pierde en silencio es lo peor que puede hacer un sistema que existe para no perder documentos. |
+| **Estado del sistema** | Si esta máquina tiene todo lo que hace falta, si las reglas del pliego se siguen cumpliendo, y si los originales cambiaron. |
+| **Respaldo** | Un botón. Lo único que no se regenera es el trabajo de las personas: cada campo revisado, cada identidad confirmada, con quién y cuándo. |
+| **Cargar escaneos** | Con el consejo medido de cómo conviene pedir el escaneo, que es la decisión que más pesa en el resultado. |
 
 ---
 

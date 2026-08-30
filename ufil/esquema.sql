@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS pagina (
   render        TEXT,                   -- derivado: PNG de la página
   render_escala REAL,                   -- px por punto, para mapear el recuadro
   rotacion      INTEGER DEFAULT 0,      -- grados que hubo que girar para dejarla derecha
+  clasificacion TEXT,                   -- qué es esta foja: contrato_obra, factura, ...
   UNIQUE (sha256, nro)
 );
 

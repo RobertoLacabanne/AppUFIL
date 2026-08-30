@@ -594,9 +594,17 @@ class VariantesDeFormulario(unittest.TestCase):
         for n in nombres:
             p = cargar_perfil(n)
             self.assertEqual(p["nombre"], n, "el nombre interno tiene que coincidir")
-            campos = {c["nombre"] for c in p["campos"]}
+            # Un perfil declara sus campos por rótulo (formularios) o por frase
+            # (documentos en prosa, como el contrato de obra de la Legislatura). Los
+            # dos tipos valen; lo que no puede faltar son los campos críticos.
+            campos = {c["nombre"] for c in p.get("campos", [])}
+            campos |= {c["nombre"] for c in p.get("campos_patron", [])}
+            self.assertTrue(campos, f"el perfil {n} no declara ningún campo")
             self.assertTrue({"nombre", "documento", "fecha_inicio", "fecha_fin", "monto"}
                             <= campos, f"al perfil {n} le faltan campos críticos")
+            for c in p.get("campos_patron", []):
+                self.assertTrue(c.get("patrones"),
+                                f"el campo {c['nombre']} de {n} no tiene patrones")
 
 
 class SubidaDeEscaneos(unittest.TestCase):

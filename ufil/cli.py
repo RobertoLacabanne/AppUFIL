@@ -62,9 +62,10 @@ def cmd_extraer(a):
         for k in tot:
             tot[k] += r.get(k, 0)
         print(f"\r  extraídos {i}/{len(shas)}", end="", flush=True)
-    extra = (f" · ¡{tot['documentos'] - len(shas)} contratos de más!"
-             if tot["documentos"] > len(shas) else "")
-    print(f"\r  {len(shas)} archivos -> {tot['documentos']} contratos{extra} · "
+    # Que de un PDF salgan varios contratos es lo NORMAL con material real: un
+    # expediente trae la carátula, tres o cuatro contratos, el decreto y las facturas.
+    # El mensaje decía «¡contratos de más!», que se leía como un error y no lo era.
+    print(f"\r  {len(shas)} archivo(s) -> {tot['documentos']} contrato(s) · "
           f"campos {tot['campos']} · conflictos {tot['conflictos']} · "
           f"a revisar {tot['a_revisar']} · sin perfil {tot['sin_perfil']}")
     return 0

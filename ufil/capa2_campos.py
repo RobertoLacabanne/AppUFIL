@@ -132,11 +132,148 @@ def parse_monto(bruto: str):
     return limpio, None, "ambiguo"
 
 
+# ─────────────────────────────────────────────── fecha escrita con palabras ──
+# Los contratos de la Legislatura no traen la fecha en un casillero dd/mm/aaaa: la
+# escriben adentro del texto, «el día 01 de julio de 2016». Es igual de exacta —más,
+# incluso, porque el mes en letras no se confunde con otro número— pero hay que saber
+# leerla. Los meses se escriben como los escribe el documento, sin tildes, porque el
+# OCR se las come la mitad de las veces.
+MESES = {
+    "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
+    "julio": 7, "agosto": 8, "septiembre": 9, "setiembre": 9, "octubre": 10,
+    "noviembre": 11, "diciembre": 12,
+}
+_FECHA_PALABRAS = re.compile(
+    r"(\d{1,2})\s*(?:\([^)]*\)\s*)?(?:d[ií]as?\s+)?del?\s+(?:mes\s+de\s+)?"
+    r"([a-zA-ZáéíóúÁÉÍÓÚ]+)\s+(?:del?\s+)?(?:año\s+)?(\d{4})", re.I)
+
+
+def parse_fecha_texto(bruto: str):
+    """
+    «01 de julio de 2016», «01 (uno) días del mes de julio del año 2016».
+
+    Si el mes no está entre los doce, es ambigua: no se elige el más parecido. Un mes
+    adivinado corre un contrato entero de lugar en la línea de tiempo, y la
+    superposición que buscamos se calcula con eso.
+    """
+    limpio = re.sub(r"\s+", " ", bruto).strip(" .,;:_-|")
+    if not limpio:
+        return None, None, "ausente"
+    m = _FECHA_PALABRAS.search(limpio)
+    if not m:
+        # Puede venir igual en dd/mm/aaaa; se prueba con el parser de siempre.
+        return parse_fecha(limpio)
+    dia, mes_txt, anio = m.group(1), sin_tildes(m.group(2)).lower(), m.group(3)
+    mes = MESES.get(mes_txt)
+    if not mes:
+        return limpio, None, "ambiguo"
+    try:
+        f = date(int(anio), mes, int(dia))
+    except ValueError:
+        return limpio, None, "ambiguo"
+    return limpio, f.isoformat(), None
+
+
+# El encabezado del contrato escribe también el AÑO en palabras: «del año dos mil
+# dieciseis». Se lee con la misma tabla de números que el monto en letras.
+_FECHA_ANIO_LETRAS = re.compile(
+    r"(\d{1,2})\s*(?:\([^)]*\)\s*)?d[ií]as?\s+del?\s+mes\s+de\s+"
+    r"([a-zA-ZáéíóúÁÉÍÓÚ]+)\s+del?\s+a[nñ]o\s+([a-zA-ZáéíóúÁÉÍÓÚ\s]{6,40}?)\s*[,.]", re.I)
+
+
+def parse_fecha_anio_en_letras(bruto: str):
+    """«a los 01 (uno) días del mes de julio del año dos mil dieciseis,»"""
+    limpio = re.sub(r"\s+", " ", bruto).strip()
+    m = _FECHA_ANIO_LETRAS.search(limpio)
+    if not m:
+        return parse_fecha_texto(limpio)
+    dia, mes_txt, anio_txt = m.group(1), sin_tildes(m.group(2)).lower(), m.group(3)
+    mes = MESES.get(mes_txt)
+    centavos = monto_en_letras(anio_txt)          # misma tabla de números
+    if not mes or centavos is None:
+        return limpio, None, "ambiguo"
+    anio = centavos // 100
+    try:
+        f = date(anio, mes, int(dia))
+    except ValueError:
+        return limpio, None, "ambiguo"
+    if not (config.ANIO_MIN <= anio <= config.ANIO_MAX):
+        return limpio, None, "ambiguo"
+    return limpio, f.isoformat(), None
+
+
+# ─────────────────────────────────────────────── monto escrito con palabras ──
+# El contrato escribe el monto DOS VECES: «$72000.- (Pesos, Setenta y dos mil)». Eso
+# es una verificación cruzada que el documento trae de fábrica, y es más fuerte que
+# cotejar dos rutas de OCR: si los dígitos y las letras coinciden, el número es ese.
+# Si discrepan, hay un conflicto de verdad y lo mira una persona.
+UNIDADES = {
+    "cero": 0, "un": 1, "uno": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4,
+    "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10,
+    "once": 11, "doce": 12, "trece": 13, "catorce": 14, "quince": 15,
+    "dieciseis": 16, "diecisiete": 17, "dieciocho": 18, "diecinueve": 19,
+    "veinte": 20, "veintiuno": 21, "veintiun": 21, "veintidos": 22,
+    "veintitres": 23, "veinticuatro": 24, "veinticinco": 25, "veintiseis": 26,
+    "veintisiete": 27, "veintiocho": 28, "veintinueve": 29,
+    "treinta": 30, "cuarenta": 40, "cincuenta": 50, "sesenta": 60,
+    "setenta": 70, "ochenta": 80, "noventa": 90,
+    "cien": 100, "ciento": 100, "doscientos": 200, "trescientos": 300,
+    "cuatrocientos": 400, "quinientos": 500, "seiscientos": 600,
+    "setecientos": 700, "ochocientos": 800, "novecientos": 900,
+}
+MULTIPLICA = {"mil": 1000, "millon": 1000000, "millones": 1000000}
+
+
+def monto_en_letras(bruto: str) -> int | None:
+    """
+    «Setenta y dos mil» -> 7200000 centavos. None si no se entiende del todo.
+
+    No adivina: cualquier palabra que no esté en la tabla invalida la lectura entera.
+    Esta función existe para CONFIRMAR el número escrito en dígitos, y una confirmación
+    que se inventa la mitad no confirma nada.
+    """
+    limpio = sin_tildes(re.sub(r"[^\w\s]", " ", bruto)).lower()
+    palabras = [p for p in limpio.split() if p not in ("y", "pesos", "peso", "con")]
+    if not palabras:
+        return None
+    total, parcial = 0, 0
+    for p in palabras:
+        if p in UNIDADES:
+            parcial += UNIDADES[p]
+        elif p in MULTIPLICA:
+            factor = MULTIPLICA[p]
+            if factor == 1000:
+                parcial = (parcial or 1) * 1000
+            else:
+                total += (parcial or 1) * factor
+                parcial = 0
+        elif p in ("centavos", "ctvos"):
+            break
+        else:
+            return None                       # una palabra desconocida invalida todo
+    valor = total + parcial
+    return valor * 100 if valor else None
+
+
+def parse_monto_letras(bruto: str):
+    """Devuelve el monto en centavos leído de las palabras, o ambiguo."""
+    limpio = re.sub(r"\s+", " ", bruto).strip(" .,;:_-|()")
+    if not limpio:
+        return None, None, "ausente"
+    v = monto_en_letras(limpio)
+    if v is None:
+        return limpio, None, "ambiguo"
+    return limpio, str(v), None
+
+
 PARSERS = {
     "texto": parse_texto,
     "nombre": parse_nombre,
     "documento": parse_documento,
     "fecha": parse_fecha,
     "monto": parse_monto,
+    "fecha_texto": parse_fecha_texto,
+    "monto_letras": parse_monto_letras,
+    "fecha_anio_letras": parse_fecha_anio_en_letras,
 }
 PARSERS["texto"] = parse_texto

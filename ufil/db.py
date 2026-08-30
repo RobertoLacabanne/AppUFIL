@@ -10,7 +10,7 @@ from . import config
 # Se sube cuando cambia `esquema.sql`. Sirve para no reejecutar el script en cada
 # conexión: con el servidor multihilo y el trabajador de fondo, dos conexiones que
 # corrían el esquema a la vez chocaban al recrear la vista `v_contrato`.
-ESQUEMA_VERSION = 7
+ESQUEMA_VERSION = 8
 
 _candado = threading.Lock()
 
@@ -37,15 +37,53 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
     Serializado con un candado de proceso: el `DROP VIEW` seguido del `CREATE VIEW` no
     es atómico, y dos hilos ejecutándolo a la vez terminan en «view already exists».
     """
+    # Las columnas que faltan se chequean SIEMPRE, aunque la versión ya esté al día.
+    # Si no, una base que quedó a mitad de camino —el número subió pero el ALTER no
+    # llegó a correr— se queda rota para siempre y sin forma de arreglarse sola. Son
+    # seis consultas de catálogo: no cuesta nada y se hace una vez por arranque.
+    with _candado:
+        if _agregar_columnas_faltantes(cx):
+            cx.commit()
     if not forzar and cx.execute("PRAGMA user_version").fetchone()[0] == ESQUEMA_VERSION:
         return False
     with _candado:
         if not forzar and cx.execute("PRAGMA user_version").fetchone()[0] == ESQUEMA_VERSION:
             return False
         cx.executescript(config.ESQUEMA.read_text(encoding="utf-8"))
+        _agregar_columnas_faltantes(cx)
         cx.execute(f"PRAGMA user_version={ESQUEMA_VERSION}")
         cx.commit()
     return True
+
+
+# Columnas que se sumaron a tablas que ya existían. `CREATE TABLE IF NOT EXISTS` no las
+# agrega a una base ya creada, así que hay que pedirlas una por una. Es la forma
+# barata de migrar sin perder lo que hay adentro: un `DROP TABLE` acá borraría las
+# revisiones hechas a mano, que es exactamente lo que no se puede volver a generar.
+COLUMNAS_AGREGADAS = (
+    ("pagina", "rotacion", "INTEGER DEFAULT 0"),
+    ("pagina", "clasificacion", "TEXT"),
+    ("campo", "valor_auto", "TEXT"),
+    ("campo", "motivo_auto", "TEXT"),
+    ("campo", "conf_auto", "REAL"),
+    ("campo", "ruta_auto", "TEXT"),
+)
+
+
+def _agregar_columnas_faltantes(cx: sqlite3.Connection) -> list[str]:
+    agregadas = []
+    for tabla, columna, tipo in COLUMNAS_AGREGADAS:
+        # OJO: sobre una tabla que no existe, `PRAGMA table_info` NO da error, devuelve
+        # cero filas. Sin este chequeo, en una base recién creada —donde todavía no
+        # corrió el esquema— el conjunto sale vacío, parece que falta la columna y el
+        # ALTER revienta con «no such table».
+        existentes = {r[1] for r in cx.execute(f"PRAGMA table_info({tabla})")}
+        if not existentes:
+            continue
+        if columna not in existentes:
+            cx.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
+            agregadas.append(f"{tabla}.{columna}")
+    return agregadas
 
 
 def ajuste(cx: sqlite3.Connection, clave: str, valor=None):

@@ -27,6 +27,7 @@ leído por una sola ruta puede estar mal, pero nunca está mal EN SILENCIO.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -37,6 +38,7 @@ import pytesseract
 
 from .capa1_texto import Palabra, palabras_de
 from .capa2_campos import PARSERS, normalizar_cotejo
+from .clasificacion import clasificar_documento, tramos_por_tipo
 from .db import ahora
 
 MARGEN_IZQ = 8.0        # puntos que se toleran a la izquierda del rótulo
@@ -173,6 +175,81 @@ def _palabras_en(region, palabras: list[Palabra]) -> list[Palabra]:
 
 
 # ──────────────────────────────────────────────────── extracción por ruta ──
+# ──────────────────────────────────────────── extracción sobre texto corrido ──
+# Por qué existe esta segunda estrategia, además de la de rótulo + región.
+#
+# Los contratos de la Legislatura NO son formularios con casilleros. Son prosa:
+#
+#   «En la ciudad de Paraná, a los 01 (uno) días del mes de julio del año dos mil
+#    dieciseis, entre la Honorable Cámara de Senadores (...) y el/la Sr./a. Beber,
+#    Nicolás titular de Documento Nacional de Identidad número 25102152 (...)
+#    CUARTA: (...) la suma total de $72000.- (Pesos, Setenta y dos mil) (...)»
+#
+# No hay rótulo que anclar ni recuadro donde mirar: el dato está adentro de una
+# oración. Pero la oración es CONSTANTE entre contratos, porque es un modelo que la
+# Cámara reusa. Entonces el ancla deja de ser una coordenada y pasa a ser la frase.
+#
+# Lo que NO cambia: el anclaje del §4. Cada valor que sale de acá sigue sabiendo de
+# qué página y de qué recuadro salió, porque el patrón se busca sobre un texto armado
+# con las MISMAS palabras que tienen coordenadas, y el recuadro es la unión de las que
+# cayeron adentro de la coincidencia. Sigue sin haber ningún valor sin lugar en la
+# imagen.
+def _texto_con_indice(palabras: list[Palabra]) -> tuple[str, list[int]]:
+    """
+    Arma el texto corrido y, para cada carácter, de qué palabra salió.
+
+    Con ese índice, una coincidencia de expresión regular se puede traducir de vuelta
+    al conjunto de palabras que la produjeron, y de ahí al recuadro en la imagen.
+    """
+    partes, indice = [], []
+    pos = 0
+    for i, w in enumerate(palabras):
+        if pos:
+            partes.append(" ")
+            indice.append(i)
+            pos += 1
+        partes.append(w.texto)
+        indice.extend([i] * len(w.texto))
+        pos += len(w.texto)
+    return "".join(partes), indice
+
+
+def _caja_de_palabras(palabras: list[Palabra], desde: int, hasta: int):
+    """Recuadro que envuelve a las palabras [desde, hasta] y su confianza mínima."""
+    tramo = palabras[desde:hasta + 1]
+    if not tramo:
+        return None, 0.0
+    return ((min(p.x0 for p in tramo), min(p.y0 for p in tramo),
+             max(p.x1 for p in tramo), max(p.y1 for p in tramo)),
+            min(p.conf for p in tramo))
+
+
+def _buscar_patron(palabras: list[Palabra], nro: int, lid: int, spec: dict) -> Hallazgo | None:
+    """
+    Busca el patrón del campo sobre el texto de la página. Devuelve None si no aparece
+    —no un valor vacío—: que el patrón no esté en ESTA página no significa que el dato
+    falte, puede estar en la siguiente foja del mismo contrato.
+    """
+    texto, indice = _texto_con_indice(palabras)
+    if not texto:
+        return None
+    for patron in spec["patrones"]:
+        m = re.search(patron, texto, re.I | re.S)
+        if not m:
+            continue
+        # El grupo 1 es el valor; si el patrón no tiene grupos, se toma la coincidencia
+        # entera. Las posiciones se toman del grupo para que el recuadro señale el dato
+        # y no el párrafo que lo contiene.
+        ini, fin = (m.span(1) if m.groups() else m.span(0))
+        if ini >= len(indice):
+            continue
+        bruto = m.group(1) if m.groups() else m.group(0)
+        literal, norm, motivo = PARSERS[spec["parser"]](bruto)
+        caja, conf = _caja_de_palabras(palabras, indice[ini], indice[min(fin, len(indice)) - 1])
+        return Hallazgo(literal, norm, motivo, nro, caja, conf, lid, caja)
+    return None
+
+
 def extraer_de_ruta(paginas: list[tuple[int, int, list[Palabra]]], perfil: dict
                     ) -> tuple[dict[str, Hallazgo], str | None, bool]:
     """
@@ -190,7 +267,19 @@ def extraer_de_ruta(paginas: list[tuple[int, int, list[Palabra]]], perfil: dict
             break
 
     hallazgos: dict[str, Hallazgo] = {}
-    for spec in perfil["campos"]:
+
+    # Campos que se buscan por frase, no por casillero. Van primero porque en un
+    # documento en prosa son la mayoría; los de rótulo quedan para los formularios.
+    for spec in perfil.get("campos_patron", []):
+        h = Hallazgo(None, None, "ausente", None, None, 0.0, None, None)
+        for nro, lid, palabras in paginas:
+            encontrado = _buscar_patron(palabras, nro, lid, spec)
+            if encontrado:
+                h = encontrado
+                break
+        hallazgos[spec["nombre"]] = h
+
+    for spec in perfil.get("campos", []):
         h = Hallazgo(None, None, "ausente", None, None, 0.0, None, None)
         for nro, lid, palabras in paginas:
             caja_rot = _buscar_rotulo(palabras, spec["rotulo"])
@@ -293,7 +382,15 @@ def pagina_es_formulario(palabras: list[Palabra], perfil: dict) -> bool:
     marcas = perfil.get("deteccion", {}).get("alguno_de", [])
     if marcas and not any(normalizar_cotejo(t) in plano for t in marcas):
         return False
-    hallados = sum(1 for spec in perfil["campos"] if _buscar_rotulo(palabras, spec["rotulo"]))
+    hallados = sum(1 for spec in perfil.get("campos", [])
+                   if _buscar_rotulo(palabras, spec["rotulo"]))
+    # Un documento en prosa no tiene rótulos que contar. Lo que se le exige, por la
+    # misma razón —que una carátula que menciona un contrato no arranque un contrato
+    # fantasma—, es que aparezcan las frases del cuerpo y no sólo el título.
+    texto, _ = _texto_con_indice(palabras)
+    for spec in perfil.get("campos_patron", []):
+        if any(re.search(p, texto, re.I | re.S) for p in spec["patrones"]):
+            hallados += 1
     return hallados >= MIN_ROTULOS_PARA_SER_FORMULARIO
 
 
@@ -318,7 +415,7 @@ def segmentar(inicios: list[int], todas: list[int]) -> list[tuple[int, int]]:
 def _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina) -> dict:
     """Cotejo entre rutas y guardado de los campos de UN contrato."""
     n_campos = n_conf = n_rev = 0
-    for spec in perfil["campos"]:
+    for spec in list(perfil.get("campos_patron", [])) + list(perfil.get("campos", [])):
         campo = spec["nombre"]
         critico = campo in config.CAMPOS_CRITICOS
         por = {ruta: res[campo] for ruta, res in resultados.items()}
@@ -443,12 +540,39 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
         raise RuntimeError(f"sin lecturas para {sha}: correr `leer` antes que `extraer`")
 
     todas = sorted({nro for pgs in por_ruta.values() for nro, _, _ in pgs})
-    # Una página arranca contrato si CUALQUIER ruta la reconoce como formulario. Ser
-    # generoso acá es lo correcto: perder un arranque significa perder un contrato
-    # entero y mezclarlo con el anterior.
-    inicios = sorted({nro for pgs in por_ruta.values() for nro, _, pw in pgs
-                      if any(pagina_es_formulario(pw, pf) for pf in perfiles)})
-    tramos = segmentar(inicios, todas)
+
+    # ── Qué es cada foja ──────────────────────────────────────────────────────
+    # Un expediente real no es una pila prolija de contratos: trae la carátula, dos o
+    # tres contratos, el decreto que los aprueba, una nota y después quince facturas.
+    # Clasificar foja por foja es lo que evita que el último contrato se quede con
+    # todo lo que viene atrás. Se hace sobre el encabezado, que es donde el documento
+    # se identifica, y con la mejor ruta de lectura disponible para cada foja.
+    encabezados: dict[int, str] = {}
+    for pgs in por_ruta.values():
+        for nro, _, pw in pgs:
+            plano = normalizar_cotejo(" ".join(w.texto for w in pw[:120]))
+            # Se queda con el encabezado más largo entre rutas: el que más leyó.
+            if len(plano) > len(encabezados.get(nro, "")):
+                encabezados[nro] = plano
+    clases = clasificar_documento([(n, encabezados.get(n, "")) for n in todas])
+    for nro, clase in clases.items():
+        cx.execute("UPDATE pagina SET clasificacion=? WHERE sha256=? AND nro=?",
+                   (clase, sha, nro))
+
+    # Se prueba el tipo de foja de CADA perfil candidato y gana el que más documentos
+    # encuentra. Tomar el primero de la lista sería tomar el que salga primero por
+    # orden alfabético, que es lo mismo que elegir al azar.
+    tramos: list[tuple[int, int]] = []
+    for pf in perfiles:
+        candidatos = tramos_por_tipo(clases, pf.get("tipo_pagina") or pf.get("tipo"))
+        if len(candidatos) > len(tramos):
+            tramos = candidatos
+    if not tramos:
+        # Perfiles viejos de formulario, que no declaran un tipo de foja: se sigue
+        # reconociendo por rótulos, como antes.
+        inicios = sorted({nro for pgs in por_ruta.values() for nro, _, pw in pgs
+                          if any(pagina_es_formulario(pw, pf) for pf in perfiles)})
+        tramos = segmentar(inicios, todas)
 
     if not tramos:
         cx.execute("INSERT INTO excepcion (sha256, clase, detalle, creado_en) VALUES (?,?,?,?)",
