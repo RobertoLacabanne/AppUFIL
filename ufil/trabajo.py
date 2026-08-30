@@ -76,16 +76,16 @@ class Procesador:
         cx = db.abrir(self.ruta_base)
         try:
             pendientes = [r["sha256"] for r in cx.execute(
-                """SELECT a.sha256 FROM archivo a
-                    WHERE (SELECT COUNT(*) FROM pagina p JOIN lectura l ON l.pagina_id=p.id
-                            WHERE p.sha256=a.sha256) = 0
-                    ORDER BY a.ingerido_en, a.nombre""")]
+"""SELECT DISTINCT a.sha256 FROM archivo a
+             JOIN pagina p ON p.sha256 = a.sha256
+            WHERE NOT EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id = p.id)
+            ORDER BY a.nombre""")]
             # El progreso va por PÁGINA, que es la unidad real de trabajo: un lote de
             # cincuenta archivos donde uno tiene treinta fojas avanzaba a los saltos.
             paginas = cx.execute("""SELECT COUNT(*) FROM pagina p
-                                     WHERE p.sha256 IN (%s)""" %
-                                 ",".join("?" * len(pendientes)) if pendientes else
-                                 "SELECT 0", pendientes).fetchone()[0] if pendientes else 0
+                                     WHERE NOT EXISTS (SELECT 1 FROM lectura l
+                                                        WHERE l.pagina_id = p.id)"""
+                                 ).fetchone()[0] if pendientes else 0
             self._fase("leyendo los escaneos", paginas)
 
             def avance(hechas, total):

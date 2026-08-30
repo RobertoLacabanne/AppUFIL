@@ -479,3 +479,11 @@ body.con-demo .folio-lado{top:190px}
 .deshacer{font-size:10px; border:1px solid var(--filete); background:transparent;
   color:var(--tinta-3); padding:1px 6px; cursor:pointer; margin-left:4px}
 .deshacer:hover{border-color:var(--lapiz); color:var(--lapiz)}
+
+/* Escudo institucional, si lo cargaron en assets/marca/. Sin archivo, la cabecera
+   funciona igual con la identificación tipográfica. */
+.barra .titulo{display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+.barra .titulo > div{min-width:0}
+#marca{height:38px; width:auto; flex:none}
+@media (max-width:720px){#marca{height:30px}}
+@media print{#marca{height:44px}}

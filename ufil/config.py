@@ -14,6 +14,7 @@ CONSULTAS  = RAIZ / "ufil" / "consultas"
 PERFILES   = RAIZ / "ufil" / "perfiles"
 WEB        = RAIZ / "ufil" / "web"
 FUENTES    = RAIZ / "assets" / "fuentes"
+MARCA      = RAIZ / "assets" / "marca"
 
 # Renderizado de páginas para el visor y para el OCR.
 DPI_RENDER = 200
@@ -24,6 +25,10 @@ ESCALA_RENDER = DPI_RENDER / PT_POR_PULGADA          # px por punto PDF
 # 1 hilo 1,04 s por página · 2 hilos 0,46 · 4 hilos 0,25 · 8 hilos 0,27.
 # Más allá de la cantidad de núcleos no rinde: los procesos se pelean por el mismo CPU.
 NUCLEOS_OCR = int(os.environ.get("UFIL_NUCLEOS", os.cpu_count() or 2))
+
+# Cada cuántas páginas se confirma lo leído a la base. Menos que esto castiga el
+# rendimiento por escribir de más; más que esto arriesga perder trabajo si se corta.
+CONFIRMAR_CADA = 10
 
 # Idioma del OCR. El paquete `spa` de Tesseract se instala una sola vez.
 OCR_IDIOMA = os.environ.get("UFIL_OCR_IDIOMA", "spa")

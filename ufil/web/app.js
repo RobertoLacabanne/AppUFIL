@@ -1175,6 +1175,8 @@ async function refrescarCuentas() {
     c.textContent = p.a_revisar; c.hidden = !p.a_revisar;
     f.textContent = p.fusiones;  f.hidden = !p.fusiones;
     $('#f-lote').textContent = 'lote ' + (p.lote || '—');
+    const marca = document.getElementById('marca');
+    if (marca) marca.hidden = !p.marca;
     const s = $('#sello-estado');
     s.textContent = p.a_revisar ? `${p.a_revisar} a revisar` : 'al día';
     s.className = 'sello ' + (p.a_revisar ? 'alerta' : 'ok');

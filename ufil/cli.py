@@ -33,9 +33,10 @@ def cmd_ingerir(a):
 def cmd_leer(a):
     cx = _cx(a)
     pend = [f["sha256"] for f in cx.execute(
-        """SELECT a.sha256 FROM archivo a
-            WHERE (SELECT COUNT(*) FROM pagina p JOIN lectura l ON l.pagina_id=p.id
-                    WHERE p.sha256=a.sha256) = 0 ORDER BY a.nombre""")]
+"""SELECT DISTINCT a.sha256 FROM archivo a
+             JOIN pagina p ON p.sha256 = a.sha256
+            WHERE NOT EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id = p.id)
+            ORDER BY a.nombre""")]
     if not pend:
         print("  no hay nada sin leer")
         return 0
@@ -190,14 +191,18 @@ def cmd_demo(a):
     print(f"   nuevos {r.nuevos} · duplicados {r.duplicados} · páginas {r.paginas}")
 
     faltan = [f["sha256"] for f in cx.execute(
-        """SELECT a.sha256 FROM archivo a
-            WHERE (SELECT COUNT(*) FROM pagina p JOIN lectura l ON l.pagina_id=p.id
-                    WHERE p.sha256=a.sha256)=0 ORDER BY a.nombre""")]
+        """SELECT DISTINCT a.sha256 FROM archivo a
+             JOIN pagina p ON p.sha256 = a.sha256
+            WHERE NOT EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id = p.id)
+            ORDER BY a.nombre""")]
     if faltan:
-        print(f"── lectura de {len(faltan)} documentos (tarda ~{len(faltan)*17//10}s)")
-        for i, sha in enumerate(faltan, 1):
-            c1.leer_documento(cx, sha)
-            print(f"\r   {i}/{len(faltan)}", end="", flush=True)
+        paginas = cx.execute("""SELECT COUNT(*) FROM pagina p
+                                 WHERE NOT EXISTS (SELECT 1 FROM lectura l
+                                                    WHERE l.pagina_id = p.id)""").fetchone()[0]
+        print(f"── lectura de {paginas} páginas en {config.NUCLEOS_OCR} núcleos "
+              f"(tarda ~{int(paginas * 0.65)}s)")
+        c1.leer_lote(cx, faltan,
+                     avance=lambda h, t: print(f"\r   {h}/{t}", end="", flush=True))
         print()
 
     print("── extracción")

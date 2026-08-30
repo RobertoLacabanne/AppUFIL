@@ -340,8 +340,13 @@ def leer_lote(cx: sqlite3.Connection, shas: list[str], *, con_vlm: bool = False,
         if not fila:
             continue
         ruta_pdf = Path(fila["ruta_original"])
+        # Sólo las páginas que todavía no se leyeron. Reanudar tiene que retomar donde
+        # quedó, no volver a empezar: en un lote grande eso es una hora de trabajo.
         for pag in cx.execute(
-            "SELECT id, nro, tiene_texto FROM pagina WHERE sha256=? ORDER BY nro", (sha,)
+            """SELECT id, nro, tiene_texto FROM pagina p
+                WHERE p.sha256=? AND NOT EXISTS
+                      (SELECT 1 FROM lectura l WHERE l.pagina_id = p.id)
+                ORDER BY nro""", (sha,)
         ).fetchall():
             trabajos.append((sha, ruta_pdf, pag["id"], pag["nro"], bool(pag["tiene_texto"])))
 
@@ -368,6 +373,12 @@ def leer_lote(cx: sqlite3.Connection, shas: list[str], *, con_vlm: bool = False,
                            (sha, "lectura_fallida",
                             f"pág {nro}: {type(e).__name__}: {e}", ahora()))
             hechas += 1
+            # Confirmar cada tanto, no al final. Si se corta la luz o alguien cierra la
+            # terminal, lo leído hasta ahí queda guardado y al reanudar se retoma desde
+            # esa página. Antes, un lote de noventa minutos cortado en el ochenta y cinco
+            # perdía las noventa.
+            if hechas % config.CONFIRMAR_CADA == 0:
+                cx.commit()
             if avance:
                 avance(hechas, total)
     cx.commit()

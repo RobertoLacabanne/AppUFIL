@@ -493,6 +493,83 @@ class PaginasTorcidas(unittest.TestCase):
         self.assertFalse(tiene_tinta(png), "una hoja en blanco no gasta detección")
 
 
+class ReanudarDespuesDeUnCorte(unittest.TestCase):
+    """
+    Un lote grande tarda una hora. Si se corta la luz o alguien cierra la terminal, lo
+    leído hasta ahí tiene que quedar guardado y el trabajo tiene que retomar ahí.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        import ufil.config as cfg
+        self._der = cfg.DERIVADOS
+        cfg.DERIVADOS = Path(self.tmp.name) / "der"
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+
+    def tearDown(self):
+        import ufil.config as cfg
+        cfg.DERIVADOS = self._der
+        self.cx.close(); self.tmp.cleanup()
+
+    def _corpus(self, hojas=3):
+        import fitz
+        corpus = Path(self.tmp.name) / "corpus"; corpus.mkdir()
+        doc = fitz.open()
+        for i in range(hojas):
+            pag = doc.new_page(width=595, height=842)
+            pag.insert_text((60, 140), "CONTRATO DE LOCACION DE SERVICIOS",
+                            fontsize=15, fontname="helv")
+            pag.insert_text((60, 200), f"foja numero {i + 1}", fontsize=12, fontname="cour")
+        doc.save(corpus / "x.pdf"); doc.close()
+        return corpus
+
+    def test_solo_lee_las_paginas_que_faltan(self):
+        from ufil.capa0_ingesta import ingerir
+        from ufil.capa1_texto import leer_lote
+        ingerir(self.cx, self._corpus(3), lote="t")
+        sha = self.cx.execute("SELECT sha256 FROM archivo").fetchone()["sha256"]
+
+        leer_lote(self.cx, [sha])
+        antes = self.cx.execute("SELECT COUNT(*) FROM lectura").fetchone()[0]
+        self.assertGreater(antes, 0)
+
+        # Se simula el corte: la foja 2 quedó sin guardar.
+        pid = self.cx.execute("SELECT id FROM pagina WHERE sha256=? AND nro=2",
+                              (sha,)).fetchone()["id"]
+        self.cx.execute("""DELETE FROM palabra WHERE lectura_id IN
+                           (SELECT id FROM lectura WHERE pagina_id=?)""", (pid,))
+        self.cx.execute("DELETE FROM lectura WHERE pagina_id=?", (pid,))
+        self.cx.commit()
+        parcial = self.cx.execute("SELECT COUNT(*) FROM lectura").fetchone()[0]
+
+        r = leer_lote(self.cx, [sha])
+        self.assertEqual(r["paginas"], 1, "sólo tiene que releer la foja que faltaba")
+        self.assertEqual(self.cx.execute("SELECT COUNT(*) FROM lectura").fetchone()[0], antes,
+                         "y quedar exactamente como antes del corte, sin duplicar")
+        self.assertGreater(antes, parcial)
+
+    def test_un_archivo_leido_a_medias_sigue_estando_pendiente(self):
+        """Antes lo pendiente se contaba por ARCHIVO: uno a medias quedaba incompleto."""
+        from ufil.capa0_ingesta import ingerir
+        from ufil.capa1_texto import leer_lote
+        ingerir(self.cx, self._corpus(3), lote="t")
+        sha = self.cx.execute("SELECT sha256 FROM archivo").fetchone()["sha256"]
+        leer_lote(self.cx, [sha])
+        pid = self.cx.execute("SELECT id FROM pagina WHERE sha256=? AND nro=3",
+                              (sha,)).fetchone()["id"]
+        self.cx.execute("""DELETE FROM palabra WHERE lectura_id IN
+                           (SELECT id FROM lectura WHERE pagina_id=?)""", (pid,))
+        self.cx.execute("DELETE FROM lectura WHERE pagina_id=?", (pid,))
+        self.cx.commit()
+
+        pendientes = [f["sha256"] for f in self.cx.execute(
+            """SELECT DISTINCT a.sha256 FROM archivo a
+                 JOIN pagina p ON p.sha256 = a.sha256
+                WHERE NOT EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id = p.id)""")]
+        self.assertEqual(pendientes, [sha],
+                         "un archivo con una foja sin leer tiene que seguir pendiente")
+
+
 class VariantesDeFormulario(unittest.TestCase):
     """El formulario cambia entre cámaras y años: mismos campos, otros rótulos."""
 

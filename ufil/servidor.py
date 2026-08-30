@@ -92,6 +92,8 @@ def api_panel(cx) -> dict:
         "excluidos": c4.correr(cx, "06_excluidos_del_cruce")["n"],
         "lote": (cx.execute("SELECT lote FROM procedencia LIMIT 1").fetchone() or ["—"])[0],
         "demostracion": es_demostracion(cx),
+        "marca": any((config.MARCA / n).exists()
+                     for n in ("logo.svg", "logo.png", "logo.jpg", "logo.webp")),
         # Los tres hallazgos más grandes, para que el panel abra con lo que encontró y
         # no con una grilla de números que hay que interpretar.
         "destacados": [dict(r) for r in cx.execute("""
@@ -335,6 +337,14 @@ class Manejador(BaseHTTPRequestHandler):
             if ruta.startswith("/estatico/"):
                 p = self._seguro(config.WEB, ruta[len("/estatico/"):])
                 return self._archivo(p, cache=True) if p else self._json({"error": "ruta"}, 400)
+            if ruta == "/marca":
+                # El escudo oficial del organismo, si lo pusieron. No hay ninguno por
+                # omisión: un emblema institucional redibujado no corresponde.
+                for nombre in ("logo.svg", "logo.png", "logo.jpg", "logo.webp"):
+                    archivo = config.MARCA / nombre
+                    if archivo.exists():
+                        return self._archivo(archivo, cache=True)
+                return self._json({"error": "sin marca institucional cargada"}, 404)
             if ruta.startswith("/fuentes/"):
                 p = self._seguro(config.FUENTES, ruta[len("/fuentes/"):])
                 return self._archivo(p, cache=True) if p else self._json({"error": "ruta"}, 400)
@@ -413,9 +423,10 @@ class Manejador(BaseHTTPRequestHandler):
                     if ruta == "/api/trabajo":
                         est = PROCESADOR.estado.como_dict() if PROCESADOR else {"estado": "inactivo"}
                         est["sin_leer"] = cx.execute(
-                            """SELECT COUNT(*) FROM archivo a
-                                WHERE (SELECT COUNT(*) FROM pagina p JOIN lectura l
-                                        ON l.pagina_id=p.id WHERE p.sha256=a.sha256) = 0"""
+                            """SELECT COUNT(DISTINCT a.sha256) FROM archivo a
+                                 JOIN pagina p ON p.sha256 = a.sha256
+                                WHERE NOT EXISTS (SELECT 1 FROM lectura l
+                                                   WHERE l.pagina_id = p.id)"""
                         ).fetchone()[0]
                         est["lotes"] = [dict(r) for r in cx.execute(
                             """SELECT p.lote, COUNT(*) AS archivos,
