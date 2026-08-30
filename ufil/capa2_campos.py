@@ -64,6 +64,66 @@ def parse_documento(bruto: str):
     return literal, None, "ambiguo"
 
 
+# ─────────────────────────────────────────────────── CUIT, CUIL y el DNI adentro ──
+# Un CUIL de persona se construye como PREFIJO + DNI + DÍGITO VERIFICADOR: en
+# 27-27200341-1, los ocho del medio SON el DNI 27200341. No es una inferencia ni un
+# parecido: es cómo se arma el número.
+#
+# Eso importa mucho acá. El contrato identifica al contratado por DNI y la factura lo
+# identifica por CUIT. Sin esta equivalencia, la misma persona entra dos veces y el
+# pago nunca se cruza con el contrato que lo justifica, que es exactamente el cruce que
+# el caso necesita.
+#
+# Los prefijos 30, 33 y 34 son de PERSONA JURÍDICA y no llevan DNI adentro: ahí no hay
+# nada que extraer y la clave sigue siendo el CUIT entero.
+PREFIJOS_PERSONA = {"20", "23", "24", "27"}
+PREFIJOS_EMPRESA = {"30", "33", "34"}
+
+
+def dni_de_cuil(digitos: str) -> str | None:
+    """El DNI que lleva adentro un CUIL de persona. None si es de empresa o no calza."""
+    if len(digitos) != 11 or digitos[:2] not in PREFIJOS_PERSONA:
+        return None
+    return digitos[2:10].lstrip("0") or None
+
+
+def cuit_valido(digitos: str) -> bool:
+    """
+    ¿El dígito verificador cierra?
+
+    Es la misma idea que el monto escrito en números y en letras: el documento trae
+    consigo con qué comprobarse. Un CUIT que no cierra casi siempre es un dígito mal
+    leído, y usarlo como clave de identidad uniría o separaría personas por un error de
+    OCR. Acá NO se corrige: se informa, y el campo va a revisión.
+    """
+    if len(digitos) != 11 or not digitos.isdigit():
+        return False
+    pesos = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
+    suma = sum(int(d) * p for d, p in zip(digitos, pesos))
+    resto = 11 - (suma % 11)
+    esperado = 0 if resto == 11 else (9 if resto == 10 else resto)
+    return esperado == int(digitos[10])
+
+
+def clave_de_persona(doc_norm: str | None) -> str | None:
+    """
+    La clave con la que dos documentos hablan de la misma persona.
+
+    Colapsa el CUIL de una factura y el DNI de un contrato al MISMO valor, que es lo
+    que permite que el pago encuentre al contrato. Para una empresa devuelve el CUIT
+    entero, porque ahí no hay DNI.
+    """
+    if not doc_norm or ":" not in doc_norm:
+        return None
+    tipo, numero = doc_norm.split(":", 1)
+    if tipo in ("CUIL", "CUIT"):
+        dni = dni_de_cuil(numero)
+        return f"DNI:{dni}" if dni else f"CUIT:{numero}"
+    if tipo == "DNI":
+        return f"DNI:{numero.lstrip('0') or numero}"
+    return doc_norm
+
+
 # ───────────────────────────────────────────────────────────────────── fecha ──
 _FECHA = re.compile(r"\b(\d{1,2})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(\d{2,4})\b")
 

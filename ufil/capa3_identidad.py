@@ -21,7 +21,7 @@ from __future__ import annotations
 import sqlite3
 from difflib import SequenceMatcher
 
-from .capa2_campos import normalizar_cotejo
+from .capa2_campos import normalizar_cotejo, clave_de_persona
 from .db import ahora
 
 UMBRAL_PROPUESTA = 0.86
@@ -56,13 +56,19 @@ def resolver(cx: sqlite3.Connection) -> dict:
 
         if doc_norm:                                   # ── clave fuerte ──
             tipo, numero = doc_norm.split(":", 1)
-            fila = cx.execute("SELECT id FROM persona WHERE clave_fuerte=?", (doc_norm,)).fetchone()
+            # El contrato identifica al contratado por DNI y la factura por CUIT. Un
+            # CUIL de persona lleva el DNI adentro por construcción —en 27-27200341-1
+            # los ocho del medio SON el DNI—, así que las dos claves se colapsan a la
+            # misma. Sin esto, la misma persona entraba dos veces y el pago nunca se
+            # cruzaba con el contrato que lo justifica, que es el cruce que hace falta.
+            clave = clave_de_persona(doc_norm) or doc_norm
+            fila = cx.execute("SELECT id FROM persona WHERE clave_fuerte=?", (clave,)).fetchone()
             if fila:
                 pid = fila["id"]; unidas += 1
             else:
                 pid = cx.execute(
                     """INSERT INTO persona (clave_fuerte, doc_tipo, doc_numero, creado_en)
-                       VALUES (?,?,?,?)""", (doc_norm, tipo, numero, ahora())).lastrowid
+                       VALUES (?,?,?,?)""", (clave, tipo, numero, ahora())).lastrowid
                 creadas += 1
             via = "clave_fuerte"
         else:                                          # ── sin clave: aislada ──

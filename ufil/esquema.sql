@@ -322,6 +322,7 @@ SELECT
   d.sha256        AS sha256,
   dp.persona_id   AS persona_id,
   d.camara        AS camara,
+  d.tipo          AS tipo,
   a.nombre        AS archivo,
   MAX(CASE WHEN c.nombre='nombre'        THEN c.valor_literal END) AS nombre_literal,
   MAX(CASE WHEN c.nombre='nombre'        THEN n.valor_norm    END) AS nombre_norm,
@@ -330,6 +331,9 @@ SELECT
   MAX(CASE WHEN c.nombre='fecha_inicio'  THEN n.valor_norm    END) AS inicio,
   MAX(CASE WHEN c.nombre='fecha_fin'     THEN n.valor_norm    END) AS fin,
   CAST(MAX(CASE WHEN c.nombre='monto'    THEN n.valor_norm    END) AS INTEGER) AS monto_centavos,
+  CAST(MAX(CASE WHEN c.nombre='monto_total' THEN n.valor_norm  END) AS INTEGER) AS monto_total_centavos,
+  CAST(MAX(CASE WHEN c.nombre='monto_total_letras' THEN n.valor_norm END) AS INTEGER)
+                                                                       AS monto_total_letras_centavos,
   MAX(CASE WHEN c.nombre='cargo'         THEN c.valor_literal END) AS cargo,
   d.orden         AS orden,
   d.pagina_desde  AS pagina_desde,
