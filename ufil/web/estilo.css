@@ -297,6 +297,21 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
 .tramo:hover{outline:1px solid var(--tinta); outline-offset:1px}
 .tramo.solapa{background:var(--marca-solape)}
 .tramo-dato{font-size:10.5px; color:var(--tinta-2); white-space:nowrap}
+/* En un celular las tres columnas suman 364 px de mínimo y no entran: el rótulo, la
+   barra y las fechas se apilan. La barra sigue siendo lo importante —es lo que muestra
+   la superposición— así que se queda a lo ancho de la pantalla. */
+@media (max-width:720px){
+  .tramo-fila{grid-template-columns:1fr; gap:3px; padding:9px 0;
+    border-bottom:1px solid var(--filete-2)}
+  .tramo-fila:last-child{border-bottom:none}
+  .tramo-rot{flex-direction:row; flex-wrap:wrap; gap:4px 9px; text-align:left;
+    align-items:baseline}
+  .tramo-dato{font-size:11px}
+  /* El renglón del eje sólo tiene la escala de años: sus otras dos celdas están
+     vacías y en una sola columna dejarían dos huecos. */
+  .tramo-fila.eje{padding-bottom:6px}
+  .tramo-fila.eje .tramo-rot, .tramo-fila.eje .tramo-dato{display:none}
+}
 .leyenda{display:flex; gap:18px; flex-wrap:wrap; margin-top:9px; font-size:11px;
   color:var(--tinta-2); align-items:center}
 .leyenda i.mues{display:inline-block; width:16px; height:8px; background:var(--marca);
@@ -359,6 +374,18 @@ a.destacado-fila:hover{background:var(--papel-2)}
 .destacado-fila .dias{text-align:right; font-variant-numeric:tabular-nums; font-weight:500}
 .destacado-fila.cab .dias{font-family:var(--sans)}
 .destacado-fila .fol{font-size:10.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+/* En un celular cuatro columnas no entran: con 342 px de ancho útil, a la del nombre
+   le tocaban 47 y el apellido se pisaba con la columna de al lado. Se apilan. */
+@media (max-width:720px){
+  .destacado-fila{grid-template-columns:52px minmax(0,1fr); gap:1px 12px; padding:11px 13px;
+    grid-template-areas:"dias quien" ".    cruce" ".    fol"}
+  .destacado-fila.cab{display:none}
+  .destacado-fila .dias{grid-area:dias; align-self:start}
+  .destacado-fila .dias::after{content:" d"; font-size:10px; color:var(--tinta-3)}
+  .destacado-fila .quien{grid-area:quien; font-weight:600}
+  .destacado-fila .cruce{grid-area:cruce; font-size:11px}
+  .destacado-fila .fol{grid-area:fol; color:var(--tinta-3)}
+}
 
 /* ── Visor: los datos arriba, sin estirarse ───────────────────────────── */
 .visor{align-items:start}
@@ -511,3 +538,94 @@ table.salud tr:not(:last-child) td{border-bottom:1px solid var(--filete)}
   font-family:var(--sans); font-size:11px; letter-spacing:.04em; text-transform:uppercase}
 ul.fallas{margin:0; padding-left:20px}
 ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
+/* En un celular esta no es una tabla de datos: es una lista de chequeos, y el detalle
+   —que es lo único que dice qué pasa y qué hacer— no puede quedar detrás de un
+   desplazamiento horizontal. Cada chequeo pasa a ser un bloque. */
+@media (max-width:720px){
+  table.salud, table.salud tbody{display:block}
+  table.salud tr{display:grid; grid-template-columns:auto minmax(0,1fr); gap:3px 11px;
+    padding:11px 0; border-bottom:1px solid var(--filete)}
+  table.salud tr:last-child{border-bottom:none}
+  table.salud td{display:block; padding:0; border:none}
+  /* El filete de la versión de escritorio va por celda: apiladas, dibuja una raya
+     suelta debajo de cada renglón. La separación acá la da el borde de la fila. */
+  table.salud tr:not(:last-child) td{border-bottom:none}
+  /* Estas dos traen `width:1%` de la versión de escritorio, que en un bloque las
+     achica hasta hacerlas desaparecer. Hay que devolverles el ancho. */
+  table.salud td:first-child, table.salud td:nth-child(2){width:auto; white-space:normal}
+  table.salud td:first-child{grid-row:span 2; align-self:start}
+  table.salud td:last-child{color:var(--tinta-2)}
+}
+
+/* ══ Celular ══════════════════════════════════════════════════════════════
+   Un fiscal mira esto parado en un pasillo, no sentado en el escritorio. Lo que
+   cambia no es el tamaño de la letra: cambia qué ocupa la pantalla.
+
+   1. El encabezado y la barra dejan de estar clavados arriba. En una pantalla de
+      844 px de alto se comían 200 entre las dos, y la lista de trabajo empezaba a
+      la mitad. Se van con el scroll.
+   2. Los botones pasan a ser botones de dedo, no de mouse: 44 px de alto, que es
+      la medida abajo de la cual se falla el toque.
+   3. Los atajos de teclado se ocultan. En un teléfono no hay teclado, y decir
+      «apretá J» donde no hay J es peor que no decir nada.
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width:720px){
+  .barra{position:static}
+  nav{position:static; padding:0 16px}
+  main{padding:0 16px 60px}
+  .barra{padding:12px 16px 10px}
+  #aviso-demo{position:static}
+
+  /* Botones y campos que se puedan tocar sin errar. */
+  .boton, .tecla, .chip{min-height:44px; display:inline-flex; align-items:center}
+  input, select, textarea{min-height:44px; font-size:16px}   /* 16px: iOS no hace zoom */
+  nav a{padding:11px 14px}
+
+  /* En un teléfono no hay teclado: los atajos son ruido que ocupa lugar. */
+  kbd, .solo-teclado{display:none}
+}
+
+/* ── La cola de revisión en un teléfono ────────────────────────────────────
+   Es la pantalla donde se trabaja, así que es la que más importa que ande. La
+   regla que la sostiene es la misma que en el escritorio: la foja tiene que estar
+   a la vista al mismo tiempo que el campo. Si hay que ir y volver, con cuarenta y
+   dos campos son ochenta y cuatro saltos y nadie lo hace.
+
+   Acá la lupa se clava arriba y la lista corre por debajo. La foja entera no
+   entra en una pantalla de teléfono y tampoco hace falta: para decidir alcanza
+   con leer ESE renglón, que es justo lo que la lupa muestra. */
+@media (max-width:720px){
+  .cola-partida{display:flex; flex-direction:column; gap:0}
+  .cola-partida .cola{max-height:none; overflow:visible}
+  /* `body.con-demo .folio-lado{top:190px}` es más específica que esta, así que hay que
+     repetir el selector: si no, la lupa queda clavada 190 px más abajo y en un teléfono
+     eso es media pantalla en blanco. */
+  .folio-lado, body.con-demo .folio-lado{
+    order:-1; position:sticky; top:0; z-index:18; background:var(--papel);
+    border-bottom:1px solid var(--tinta); padding:6px 0 8px; margin-bottom:6px}
+  .folio-lado .lienzo{display:none}
+  .folio-lado .lupa{max-height:104px}
+  /* El pie y el enlace, en un renglón: cada píxel que ocupa la lupa es un píxel que
+     le falta a la lista de abajo. */
+  .folio-lado .pie-lamina{display:flex; gap:10px; flex-wrap:wrap; font-size:10.5px}
+  .folio-lado .chip{min-height:34px; font-size:11px}
+
+  .cola-partida .fila{grid-template-columns:1fr; padding:2px 0 0}
+  /* El nombre del archivo y la foja SÍ sirven acá: son lo que ubica el campo. */
+  .cola-partida .fila .marginalia{display:flex; flex-direction:row; gap:12px;
+    text-align:left; padding:9px 0 0; border-right:none}
+  .cola-partida .fila .med{padding:7px 0}
+  .cola-partida .fila .acc{border-left:none; border-top:1px solid var(--filete-2);
+    padding:7px 0 10px; flex-direction:row; flex-wrap:wrap; gap:7px}
+  .cola-partida .tecla{border:1px solid var(--filete); background:var(--papel);
+    padding:0 13px; font-size:12.5px; color:var(--tinta)}
+  .cola-partida .tecla:active{background:var(--papel-2)}
+  /* Con la fila entera a lo ancho, el fondo del foco se pierde: se marca al costado. */
+  .cola-partida .fila.foco{box-shadow:inset 3px 0 0 var(--sello); padding-left:9px}
+}
+
+/* Las dos rutas de un conflicto, una arriba de la otra: en 360 px no entran al lado. */
+@media (max-width:720px){
+  .conflicto .ruta{flex-direction:column; align-items:flex-start; gap:0; padding:5px 0}
+  .conflicto .ruta span:first-child{font-size:10px; color:var(--tinta-3)}
+}

@@ -226,13 +226,17 @@ def cmd_demo(a):
     print(f"  Referencia para medir: {corpus / 'referencia.csv'}")
     print()
     from . import servidor
-    servidor.servir(base, a.puerto, a.host)
+    servidor.servir(base, a.puerto, "0.0.0.0" if getattr(a, "red", False) else a.host)
     return 0
 
 
 def cmd_servir(a):
     from . import servidor
-    servidor.servir(Path(a.base) if a.base else None, a.puerto, a.host)
+    # `--red` es la forma legible de decir «escuchá en todas las placas». Existe para
+    # que nadie tenga que acordarse de qué significa 0.0.0.0, y para que quede
+    # explícito en el comando que se está abriendo el sistema a la red.
+    host = "0.0.0.0" if getattr(a, "red", False) else a.host
+    servidor.servir(Path(a.base) if a.base else None, a.puerto, host)
     return 0
 
 
@@ -313,6 +317,9 @@ def main(argv=None) -> int:
     s = sub.add_parser("servir", help="Capa 6: interfaz web local")
     s.add_argument("--puerto", type=int, default=8713)
     s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--red", action="store_true",
+                   help="dejarlo visible para otros equipos de la red (celulares). "
+                        "Genera una clave de acceso y la muestra al arrancar")
     s.set_defaults(func=cmd_servir)
 
     s = sub.add_parser("demo", help="deja la app cargada y lista para mostrar, y la levanta")
@@ -322,6 +329,8 @@ def main(argv=None) -> int:
                    help="perfil de formulario; «auto» prueba todos y elige el que mejor calce")
     s.add_argument("--puerto", type=int, default=8713)
     s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--red", action="store_true",
+                   help="dejarlo visible para otros equipos de la red (celulares)")
     s.add_argument("--limpiar", action="store_true", help="borrar la base y empezar de cero")
     s.set_defaults(func=cmd_demo)
 

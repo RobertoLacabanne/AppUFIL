@@ -17,6 +17,13 @@ async function api(ruta, opciones) {
   let r, j;
   try {
     r = await fetch(ruta, opciones);
+    // Si el servidor se reinició, la sesión murió y esto es la pantalla de la clave.
+    // Sin este chequeo, la app mostraría un error de sintaxis en vez de mandarte a
+    // escribir la clave, que es lo único que hay que hacer.
+    if (r.headers.get('X-UFIL-Acceso') === 'requerido') {
+      location.reload();
+      return new Promise(() => {});          // no sigue: la página se está recargando
+    }
     j = await r.json();
   } catch (e) {
     const err = new Error('No se pudo hablar con el servidor. ¿Sigue corriendo?');
@@ -438,9 +445,10 @@ async function vCola(campoId) {
   vista.innerHTML = bloque('f. 0006', 'Cola', `
     <h2>Cola de revisión</h2>
     <p class="prosa">${filas.length} campos en ${porDoc} documentos, ordenados por lo que
-      más daño hace si queda mal. <strong>El folio está al lado</strong>: no hace falta
-      salir de acá. <kbd>J</kbd>/<kbd>K</kbd> para moverse, las teclas de cada fila para
-      decidir. <strong>Ninguna acción es «aceptar todo».</strong></p>
+      más daño hace si queda mal. <strong>El folio está a la vista</strong>: no hace falta
+      salir de acá.<span class="solo-teclado"> <kbd>J</kbd>/<kbd>K</kbd> para moverse,
+      las teclas de cada fila para decidir.</span>
+      <strong>Ninguna acción es «aceptar todo».</strong></p>
     <div class="cola-partida">
       <div class="cola" id="cola">${filas.map(filaCola).join('')}</div>
       <aside class="folio-lado" id="folio-lado">
@@ -927,6 +935,25 @@ async function vIngesta() {
       <p>Si igual conviene escanear de corrido —y muchas veces conviene, porque es más
         rápido en el escáner—, hacelo: el sistema los separa y avisa cuáles quedaron
         repetidos. Sólo que después hay que resolverlos a mano.</p>
+    </div>
+
+    <div class="consejo">
+      <b>Pedí que escaneen a 300 DPI, en escala de grises.</b>
+      <p>Cómo se parte el PDF casi no mueve la aguja. <strong>Con qué calidad se escanea,
+        sí, y mucho.</strong> Sobre papel de mala calidad —fotocopia de fotocopia, hoja
+        torcida, contraste caído, que es como llega un expediente viejo— la diferencia
+        entre escanear a 100 y a 300 DPI es de treinta y un puntos de exactitud.</p>
+      <p class="medido">Medido sobre noventa contratos: a <span class="mono">100 DPI</span>
+        se lee bien el <span class="marca">52,5 %</span> de los campos;
+        a <span class="mono">300 DPI</span>, el <span class="mono">83,9 %</span>.
+        Los dos casos, con <strong>cero errores silenciosos</strong>: cuando el escaneo
+        es malo el sistema no inventa, deja el campo vacío y lo manda a revisión.</p>
+      <p><strong>Más de 300 no hace falta:</strong> de ahí para arriba no se gana nada
+        medible y el archivo pesa el doble. Y <strong>evitá el «modo texto»</strong> en
+        blanco y negro puro que muchos escáneres traen puesto: lo que cae del lado
+        equivocado del umbral se borra para siempre, y no hay software que lo recupere.</p>
+      <p>Esto conviene pedirlo <strong>por escrito y antes de que empiecen</strong>.
+        Reescanear dos mil fojas porque salieron a 100 DPI es una semana perdida.</p>
     </div>
 
     <div class="campos-lote">

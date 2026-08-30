@@ -28,8 +28,23 @@ exactitud** propuestos en la Fase 0. El detalle honesto, con lo que falta, está
 
 ```bash
 ./scripts/descargar-fuentes.sh    # una vez, con internet
+python3 -m ufil.cli diagnostico   # ¿está todo lo que hace falta en esta máquina?
 python3 -m ufil.cli servir        # http://127.0.0.1:8713
 ```
+
+`diagnostico` es lo primero que conviene correr en una máquina nueva: chequea Tesseract,
+el idioma castellano, el detector de orientación, la búsqueda de texto, permisos, disco
+y aislamiento de red, y si algo falta dice qué instalar. Lo mismo está en la interfaz,
+en **Estado del sistema**, para quien no abre la terminal.
+
+**Desde un celular**, en la misma red:
+
+```bash
+python3 -m ufil.cli servir --red   # muestra la dirección y una clave de acceso
+```
+
+Cómo funciona y qué protege, en
+[`docs/07-desde-el-celular.md`](docs/07-desde-el-celular.md).
 
 **Para mostrarlo**, un solo comando deja todo cargado, marca la base como demostración
 —aparece un aviso en toda pantalla de que los contratos no son reales— y levanta el
@@ -134,6 +149,8 @@ por accidente.
 | [`docs/04-guion-demostracion.md`](docs/04-guion-demostracion.md) | Cómo mostrarlo en una reunión, con las preguntas que van a hacer y qué contestar. |
 | [`docs/05-como-conviene-cargar.md`](docs/05-como-conviene-cargar.md) | **¿Un PDF por contrato o todo junto?** La respuesta, medida. |
 | [`docs/06-lo-que-el-papel-trae.md`](docs/06-lo-que-el-papel-trae.md) | Hojas al revés, carátulas, formularios distintos: qué se rompía y cómo quedó. |
+| [`docs/07-desde-el-celular.md`](docs/07-desde-el-celular.md) | Entrar desde un teléfono: cómo se hace, qué protege la clave y qué no. |
+| [`docs/08-hasta-donde-aguanta-el-escaneo.md`](docs/08-hasta-donde-aguanta-el-escaneo.md) | **¿A cuántos DPI hay que escanear?** El punto de quiebre, medido. |
 | [`docs/identidad/guia-visual.html`](docs/identidad/guia-visual.html) | La guía visual, se abre con doble clic |
 | [`INSTALAR.md`](INSTALAR.md) | Instalación en dos etapas y operación diaria |
 

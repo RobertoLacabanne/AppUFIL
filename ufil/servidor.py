@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import config, db
+from . import acceso, config, db
 from . import capa3_identidad as c3
 from . import capa4_analisis as c4
 from . import capa5_interpretacion as c5
@@ -38,6 +38,7 @@ class NoEncontrado(Exception):
 
 RUTA_BASE: Path | None = None
 PROCESADOR: Procesador | None = None
+PORTERIA: acceso.Porteria = acceso.Porteria(exigir=False)
 
 
 def _cx() -> sqlite3.Connection:
@@ -404,36 +405,101 @@ class Manejador(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(cuerpo)))
         self.end_headers()
-        self.wfile.write(cuerpo)
+        if self.command != "HEAD":
+            self.wfile.write(cuerpo)
 
     def _archivo(self, ruta: Path, cache=False):
+        """
+        Sirve un archivo del disco.
+
+        `cache=True` es para lo que NO cambia entre versiones: tipografías, renders de
+        página, el escudo. La hoja de estilos y el JavaScript nunca llevan caché larga:
+        con un día de vencimiento, después de actualizar la app la gente seguía viendo
+        la interfaz vieja —o peor, el JavaScript nuevo con el CSS viejo— y la única
+        salida era enseñarle a cada uno a recargar sin caché. Van con etiqueta de
+        versión: el navegador pregunta, y en una máquina local preguntar no cuesta nada.
+        """
         if not ruta.exists() or not ruta.is_file():
             return self._json({"error": "no encontrado"}, 404)
+        st = ruta.stat()
+        etag = f'"{int(st.st_mtime)}-{st.st_size}"'
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.end_headers()
+            return
         datos = ruta.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", mimetypes.guess_type(ruta.name)[0] or "application/octet-stream")
         self.send_header("Content-Length", str(len(datos)))
-        if cache:
-            self.send_header("Cache-Control", "max-age=86400")
+        self.send_header("ETag", etag)
+        self.send_header("Cache-Control", "max-age=86400" if cache else "no-cache")
         self.end_headers()
-        self.wfile.write(datos)
+        if self.command != "HEAD":
+            self.wfile.write(datos)
+
+    def do_HEAD(self):
+        """Igual que GET pero sin cuerpo. Sin esto el servidor contesta 501."""
+        return self.do_GET()
 
     def _seguro(self, raiz: Path, nombre: str) -> Path | None:
         """Impide salir del directorio permitido (../../etc/passwd y compañía)."""
         destino = (raiz / unquote(nombre)).resolve()
         return destino if raiz.resolve() in destino.parents or destino.parent == raiz.resolve() else None
 
+    # -- portería --
+    def _vale(self) -> str | None:
+        """El vale de sesión que trae la cookie, si trae alguno."""
+        for parte in (self.headers.get("Cookie") or "").split(";"):
+            nombre, _, valor = parte.strip().partition("=")
+            if nombre == "ufil_acceso":
+                return valor
+        return None
+
+    def _sin_permiso(self, ruta: str) -> bool:
+        """
+        ¿Hay que mandar a este pedido a escribir la clave?
+
+        En modo local nunca: la portería no exige nada. En modo red, todo menos la
+        pantalla de acceso misma. Ojo con la tentación de dejar pasar «lo estático»:
+        el nombre de un archivo del corpus ya es información del legajo.
+        """
+        if PORTERIA.deja_pasar(self._vale()):
+            return False
+        # Las tipografías pasan: son archivos de fuente libre, iguales para cualquier
+        # instalación, y no dicen nada del legajo. Dejarlas entrar es lo que hace que la
+        # pantalla de acceso se vea como el resto del sistema en vez de como una página
+        # cualquiera —que en un organismo también es una forma de decir que es el
+        # sistema de verdad y no algo que alguien puso en el medio—. El resto no pasa:
+        # hasta el nombre de un archivo del corpus es información del legajo.
+        return ruta != "/acceso" and not ruta.startswith("/fuentes/")
+
+    def _a_la_puerta(self, error: bool = False):
+        cuerpo = acceso.pagina_de_acceso(error)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        # Para que la app, si se le venció la sesión mientras trabajaba, sepa que esto
+        # es la puerta y no una respuesta rota, y mande a escribir la clave de nuevo.
+        self.send_header("X-UFIL-Acceso", "requerido")
+        self.send_header("Content-Length", str(len(cuerpo)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(cuerpo)
+
     # -- rutas --
     def do_GET(self):
         u = urlparse(self.path)
         q = parse_qs(u.query)
         ruta = u.path
+        if self._sin_permiso(ruta):
+            return self._a_la_puerta()
         try:
             if ruta in ("/", "/index.html"):
                 return self._archivo(config.WEB / "index.html")
             if ruta.startswith("/estatico/"):
                 p = self._seguro(config.WEB, ruta[len("/estatico/"):])
-                return self._archivo(p, cache=True) if p else self._json({"error": "ruta"}, 400)
+                return self._archivo(p) if p else self._json({"error": "ruta"}, 400)
             if ruta == "/marca":
                 # El escudo oficial del organismo, si lo pusieron. No hay ninguno por
                 # omisión: un emblema institucional redibujado no corresponde.
@@ -574,6 +640,29 @@ class Manejador(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         largo = int(self.headers.get("Content-Length", 0))
 
+        # La pantalla de acceso: el único POST que se atiende sin haber pasado antes.
+        if u.path == "/acceso":
+            cuerpo = self.rfile.read(largo).decode("utf-8", "replace") if largo else ""
+            intento = parse_qs(cuerpo).get("clave", [""])[0]
+            quien = self.client_address[0]
+            vale = PORTERIA.abrir(intento, quien)
+            if not vale:
+                print(f"  acceso rechazado desde {quien}")
+                return self._a_la_puerta(error=True)
+            print(f"  acceso concedido a {quien}")
+            self.send_response(303)
+            # HttpOnly para que ningún script pueda leer el vale; SameSite=Strict para
+            # que no viaje si a alguien lo mandan acá desde otra página.
+            self.send_header("Set-Cookie",
+                             f"ufil_acceso={vale}; Path=/; HttpOnly; SameSite=Strict")
+            self.send_header("Location", "/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
+        if self._sin_permiso(u.path):
+            return self._a_la_puerta()
+
         # La subida manda el PDF crudo en el cuerpo, con los metadatos en la URL. Es a
         # propósito: evita parsear multipart (que salió de la biblioteca estándar) y da
         # progreso archivo por archivo sin esfuerzo.
@@ -639,14 +728,21 @@ class Manejador(BaseHTTPRequestHandler):
 
 
 def servir(base: Path | None, puerto: int = 8713, host: str = "127.0.0.1") -> None:
-    global RUTA_BASE, PROCESADOR
+    global RUTA_BASE, PROCESADOR, PORTERIA
     RUTA_BASE = base
     db.abrir(base).close()          # el esquema se aplica UNA vez, acá
     PROCESADOR = Procesador(base)
+    # Escuchar en la red cambia quién puede entrar: de «el que está sentado acá» a
+    # «cualquiera en el mismo wifi». Ahí, y sólo ahí, se pide clave. Se decide por la
+    # dirección de escucha y no por una opción aparte, así no hay forma de abrirlo a la
+    # red y quedarse sin clave por olvido.
+    PORTERIA = acceso.Porteria(exigir=not acceso.es_local(host))
     srv = ThreadingHTTPServer((host, puerto), Manejador)
     print(f"  UFIL · análisis documental")
-    print(f"  http://{host}:{puerto}")
+    print(f"  http://{'127.0.0.1' if host == '0.0.0.0' else host}:{puerto}")
     print(f"  base: {base or config.BASE}")
+    if PORTERIA.exigir:
+        print(acceso.texto_de_arranque(puerto, PORTERIA.clave))
     print(f"  (Ctrl-C para parar)")
     try:
         srv.serve_forever()

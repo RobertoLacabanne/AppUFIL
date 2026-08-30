@@ -53,6 +53,19 @@ cd AppUFIL
 mkdir -p corpus datos
 ```
 
+**Antes de cargar nada, chequear que la máquina tenga todo:**
+
+```bash
+python3 -m ufil.cli diagnostico
+```
+
+Sale una lista de todo lo que el sistema necesita, con el estado de cada cosa. Si algo
+falta, dice qué instalar. Devuelve error si falta algo imprescindible, así que se puede
+usar como paso previo en un script.
+
+El momento de descubrir que falta el paquete de castellano de Tesseract no puede ser la
+página 300 de un lote de dos mil.
+
 **Poner los PDF adentro de `corpus/`.** Se pueden copiar o, mejor, montar el directorio
 donde ya están. El sistema los abre en solo lectura y no los modifica nunca.
 
@@ -61,6 +74,18 @@ docker compose up -d
 ```
 
 Abrir **http://127.0.0.1:8713**
+
+### Desde un celular
+
+```bash
+python3 -m ufil.cli servir --red
+```
+
+Muestra la dirección para escribir en el teléfono y una clave de acceso que cambia en
+cada arranque. Los detalles y el alcance real de esa clave, en
+[`docs/07-desde-el-celular.md`](docs/07-desde-el-celular.md). Sin `--red` el sistema lo
+ve **sólo quien está sentado en esa computadora**, que es el modo por omisión y el más
+seguro.
 
 ### Sin Docker
 
@@ -80,6 +105,9 @@ python3 -m ufil.cli servir
 3. **Procesar**. Barra de progreso, etapa actual y cuánto falta. Se puede cerrar la
    pestaña: el trabajo sigue.
 4. **Panel** para ver el estado, **Cola de revisión** para resolver lo dudoso.
+5. **Quedaron afuera** para ver qué PDF no produjo ningún contrato y por qué. Conviene
+   mirarla después de cada lote: es la única pantalla que muestra lo que entró y no
+   salió, y un documento que se pierde en silencio es lo peor que puede pasar.
 
 Sólo se procesa lo que falta, así que subir un lote nuevo la semana que viene no
 reprocesa lo de esta semana.
@@ -105,7 +133,13 @@ python3 -m ufil.cli piloto /corpus --lote "contratos-2024"
 
 ## Comprobaciones que conviene hacer
 
+Las dos primeras están también en la interfaz, en **Estado del sistema**, para quien no
+abre la terminal.
+
 ```bash
+# ¿Esta máquina tiene todo lo que hace falta?
+python3 -m ufil.cli diagnostico
+
 # Las restricciones del pliego siguen valiendo (incluye rehashear originales)
 python3 -m ufil.cli verificar
 

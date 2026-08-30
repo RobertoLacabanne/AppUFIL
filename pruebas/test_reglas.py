@@ -810,5 +810,56 @@ class ElEntornoSeChequeaAntes(unittest.TestCase):
         self.assertFalse(diagnostico.resumen(fallas)["puede_trabajar"])
 
 
+class LaPuertaCuandoSeAbreALaRed(unittest.TestCase):
+    """
+    En 127.0.0.1 entra sólo quien está sentado en la máquina. En la red entra quien
+    tenga la clave, y nadie más. Es la diferencia entre un legajo penal en una
+    computadora y un legajo penal en el wifi de la fiscalía.
+    """
+
+    def test_en_modo_local_no_se_pide_nada(self):
+        from ufil.acceso import Porteria
+        self.assertTrue(Porteria(exigir=False).deja_pasar(None))
+
+    def test_en_modo_red_sin_vale_no_se_pasa(self):
+        from ufil.acceso import Porteria
+        p = Porteria(exigir=True)
+        self.assertFalse(p.deja_pasar(None))
+        self.assertFalse(p.deja_pasar("cualquier-cosa"))
+
+    def test_la_clave_correcta_abre_y_la_incorrecta_no(self):
+        from ufil.acceso import Porteria
+        p = Porteria(exigir=True)
+        self.assertIsNone(p.abrir("NOESLA", "10.0.0.9"))
+        vale = p.abrir(p.clave, "10.0.0.9")
+        self.assertIsNotNone(vale)
+        self.assertTrue(p.deja_pasar(vale))
+
+    def test_la_clave_no_distingue_mayusculas_ni_espacios(self):
+        """Se escribe en un teléfono: el corrector pone mayúscula y sobra un espacio."""
+        from ufil.acceso import Porteria
+        p = Porteria(exigir=True)
+        self.assertIsNotNone(p.abrir(f"  {p.clave.lower()} ", "10.0.0.9"))
+
+    def test_cada_arranque_genera_una_clave_distinta(self):
+        from ufil.acceso import Porteria
+        claves = {Porteria(exigir=True).clave for _ in range(50)}
+        self.assertGreater(len(claves), 45, "las claves se están repitiendo")
+
+    def test_un_vale_ajeno_no_sirve(self):
+        """Dos servidores distintos no comparten sesiones."""
+        from ufil.acceso import Porteria
+        a, b = Porteria(exigir=True), Porteria(exigir=True)
+        vale = a.abrir(a.clave, "10.0.0.9")
+        self.assertFalse(b.deja_pasar(vale))
+
+    def test_que_direccion_cuenta_como_local(self):
+        from ufil.acceso import es_local
+        for h in ("127.0.0.1", "localhost", "::1", ""):
+            self.assertTrue(es_local(h), h)
+        for h in ("0.0.0.0", "192.168.1.40", "10.0.0.9"):
+            self.assertFalse(es_local(h), h)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
