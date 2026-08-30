@@ -157,6 +157,45 @@ verificación y desde cuándo.
 
 ---
 
+## Respaldo
+
+**Lo importante primero: lo único que no se puede volver a generar es el trabajo de las
+personas.** Los PDF originales están en su carpeta; las imágenes de página y el texto
+leído se rehacen procesando de nuevo, que cuesta tiempo de máquina y nada más. Pero cada
+campo que alguien miró contra el folio y corrigió, y cada identidad que alguien
+confirmó, con quién y cuándo, viven en un solo archivo.
+
+**Desde la interfaz**, al final del Panel: **Descargar una copia de respaldo**. Sale un
+`.sqlite` con fecha y hora en el nombre. Conviene hacerlo al terminar cada jornada de
+revisión y dejarlo en otro disco.
+
+**Por línea de comandos:**
+
+```bash
+python3 -m ufil.cli respaldo                  # va a datos/respaldos/
+python3 -m ufil.cli respaldo /media/pendrive  # o donde se quiera
+```
+
+La copia se hace con el sistema andando: no hay que parar nada ni pedirle a nadie que
+deje de trabajar. Usa `VACUUM INTO`, que es la forma que tiene SQLite de copiar una base
+viva de manera consistente. **Copiar el archivo a mano mientras el sistema anda puede
+dar una base rota**, porque el diario de escrituras va en un archivo aparte.
+
+Un respaldo nunca pisa a otro: si el nombre ya existe, el comando avisa y no escribe.
+
+### Restaurar
+
+1. Parar el sistema.
+2. Borrar `datos/ufil.sqlite`, `datos/ufil.sqlite-wal` y `datos/ufil.sqlite-shm`.
+3. Copiar el respaldo a `datos/ufil.sqlite`.
+4. Levantar el sistema.
+
+Si además se perdieron los derivados, hay que volver a correr `leer` y `extraer` sobre
+el corpus: las revisiones a mano se reaplican solas después, porque están indexadas por
+el hash de cada archivo.
+
+---
+
 ## Exportar
 
 ```bash

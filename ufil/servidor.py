@@ -527,7 +527,16 @@ class Manejador(BaseHTTPRequestHandler):
                 cx = _cx()
                 try:
                     destino = config.DATOS / "export"
-                    if que == "rtf":
+                    if que == "respaldo":
+                        # Copia consistente de la base viva, sin parar el sistema. Es la
+                        # forma en que esto se va a usar de verdad: bajarla y ponerla en
+                        # un pendrive. Nadie va a abrir una terminal para esto.
+                        from . import respaldo as rp
+                        carpeta = config.DATOS / "respaldos"
+                        archivo = rp.hacer(cx, carpeta)
+                        tipo = "application/vnd.sqlite3"
+                        nombre = Path(archivo).name
+                    elif que == "rtf":
                         archivo = c7.a_rtf(cx, destino / "informe.rtf")
                         tipo, nombre = "application/rtf", "informe-analisis.rtf"
                     else:

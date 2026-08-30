@@ -235,7 +235,18 @@ async function vPanel() {
       </div>
       <p class="prosa" style="font-size:12.5px;margin-top:12px">La planilla abre con una
         portada que aclara qué campos no están verificados por una persona. Nada de lo que
-        sale de acá debería incorporarse a un legajo sin cotejarlo contra el original.</p>`);
+        sale de acá debería incorporarse a un legajo sin cotejarlo contra el original.</p>
+      <h3 style="margin-top:22px">Y guardar una copia</h3>
+      <p class="prosa">Los PDF originales están en su carpeta y las imágenes de página se
+        rehacen procesando de nuevo. Lo que <strong>no</strong> se regenera es el trabajo
+        de las personas: cada campo revisado contra el folio, cada identidad confirmada,
+        con quién y cuándo. Eso vive en un solo archivo.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px">
+        <a class="boton" href="/descargar?que=respaldo">Descargar una copia de respaldo</a>
+      </div>
+      <p class="prosa" style="font-size:12.5px;margin-top:12px">La copia se hace con el
+        sistema andando, sin pedirle a nadie que deje de trabajar. Conviene bajarla al
+        terminar cada jornada de revisión y dejarla en otro disco.</p>`);
 }
 
 async function vContratos() {

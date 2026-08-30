@@ -861,6 +861,64 @@ class LoQueFaltaSeDiceEnLaPlanilla(unittest.TestCase):
         self.assertNotIn("no produjeron", texto)
 
 
+class ElTrabajoDeLasPersonasSeRespalda(unittest.TestCase):
+    """
+    Los PDF están en su carpeta y las imágenes de página se rehacen procesando de nuevo.
+    Lo que NO se regenera es cada campo que alguien miró contra el folio y corrigió, y
+    cada identidad que alguien confirmó. Semanas de trabajo de la unidad, en un archivo.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,ingerido_en)
+                           VALUES ('aa','/x/a.pdf','a.pdf',1,?)""", (ahora(),))
+        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','c','p')")
+        self.cx.execute("""INSERT INTO revision_humana
+                           (sha256,orden,campo,accion,valor,quien,cuando)
+                           VALUES ('aa',1,'monto','corregir','74200','perez.ana',?)""",
+                        (ahora(),))
+        self.cx.commit()
+
+    def tearDown(self):
+        self.cx.close(); self.tmp.cleanup()
+
+    def test_la_copia_se_abre_y_trae_las_revisiones(self):
+        from ufil import respaldo
+        destino = respaldo.hacer(self.cx, Path(self.tmp.name) / "copias")
+        self.assertTrue(destino.exists())
+        copia = sqlite3.connect(destino)
+        self.assertEqual(
+            copia.execute("SELECT COUNT(*) FROM revision_humana").fetchone()[0], 1)
+        self.assertEqual(
+            copia.execute("SELECT quien FROM revision_humana").fetchone()[0],
+            "perez.ana", "la constancia de quién revisó tiene que viajar con el dato")
+        copia.close()
+
+    def test_un_respaldo_nunca_pisa_a_otro(self):
+        from ufil import respaldo
+        destino = Path(self.tmp.name) / "c.sqlite"
+        respaldo.hacer(self.cx, destino)
+        with self.assertRaises(FileExistsError):
+            respaldo.hacer(self.cx, destino)
+
+    def test_se_puede_respaldar_con_el_sistema_andando(self):
+        """
+        `VACUUM INTO` copia una base VIVA de forma consistente. Copiar el archivo a mano
+        mientras se escribe puede dar una base rota, porque el diario (WAL) va aparte.
+        """
+        from ufil import respaldo
+        # Con una escritura sin confirmar en curso, la copia igual tiene que salir sana.
+        self.cx.execute("""INSERT INTO documento (sha256,orden,tipo,perfil)
+                           VALUES ('aa',2,'c','q')""")
+        self.cx.commit()
+        destino = respaldo.hacer(self.cx, Path(self.tmp.name) / "viva.sqlite")
+        copia = sqlite3.connect(destino)
+        self.assertEqual(copia.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+        self.assertEqual(copia.execute("SELECT COUNT(*) FROM documento").fetchone()[0], 2)
+        copia.close()
+
+
 class OcultarTieneQueOcultar(unittest.TestCase):
     """
     El atributo `hidden` del HTML es sólo un `display:none` del navegador: cualquier

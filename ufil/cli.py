@@ -141,6 +141,27 @@ def cmd_diagnostico(a):
     return 0 if diagnostico.resumen(salidas)["puede_trabajar"] else 1
 
 
+def cmd_respaldo(a):
+    """Copia consistente de la base, sin parar el sistema."""
+    from . import respaldo
+    cx = _cx(a)
+    r = respaldo.resumen(cx)
+    try:
+        destino = respaldo.hacer(cx, Path(a.destino))
+    except FileExistsError as e:
+        # Un respaldo no pisa a otro, pero eso se avisa en castellano y no con una
+        # excepción de Python en la cara de quien lo corrió.
+        print(f"  No se hizo el respaldo: {e}")
+        print("  Elegí otro nombre, o borrá el que está si ya no lo necesitás.")
+        return 1
+    except OSError as e:
+        print(f"  No se pudo escribir el respaldo en {a.destino}: {e}")
+        print("  Revisá que la carpeta exista y que haya lugar y permiso para escribir.")
+        return 1
+    print(respaldo.texto(destino, r))
+    return 0
+
+
 def cmd_verificar(a):
     from . import verificacion
     cx = _cx(a)
@@ -305,6 +326,11 @@ def main(argv=None) -> int:
     s = sub.add_parser("exportar", help="Capa 7: .xlsx y .rtf con cita de archivo y foja")
     s.add_argument("destino"); s.add_argument("--consulta", action="append")
     s.set_defaults(func=cmd_exportar)
+
+    s = sub.add_parser("respaldo", help="copia de la base; lo único que no se regenera")
+    s.add_argument("destino", nargs="?", default="datos/respaldos",
+                   help="carpeta o archivo destino (por omisión datos/respaldos/)")
+    s.set_defaults(func=cmd_respaldo)
 
     s = sub.add_parser("diagnostico", help="¿está todo lo que hace falta para trabajar?")
     s.set_defaults(func=cmd_diagnostico)
