@@ -62,6 +62,14 @@ def a_xlsx(cx: sqlite3.Connection, destino: Path, consultas: list[str]) -> Path:
                     cx.execute("SELECT COUNT(*) FROM documento").fetchone()[0]])
     portada.append(["Campos pendientes de revisión",
                     cx.execute("SELECT COUNT(*) FROM campo WHERE estado='a_revisar'").fetchone()[0]])
+    # Los archivos que entraron y no produjeron ningún contrato tienen que estar en la
+    # portada. Si no, quien lee la planilla la toma por el panorama completo del corpus
+    # y no se entera de lo que no está adentro. Un documento que se pierde en silencio
+    # es lo peor que puede hacer un sistema que existe para no perder documentos.
+    afuera = cx.execute("""SELECT COUNT(*) FROM archivo a
+                            WHERE NOT EXISTS (SELECT 1 FROM documento d
+                                               WHERE d.sha256 = a.sha256)""").fetchone()[0]
+    portada.append(["Archivos que NO dieron ningún contrato", afuera])
     portada.append([])
     portada.append(["Advertencia:"])
     portada.append(["Los valores de estas planillas se leyeron automáticamente de los "
@@ -69,6 +77,13 @@ def a_xlsx(cx: sqlite3.Connection, destino: Path, consultas: list[str]) -> Path:
     portada.append(["pendientes de revisión NO están verificados por una persona. "
                     "Antes de incorporar cualquier"])
     portada.append(["dato a un legajo, verificarlo contra el original citado."])
+    if afuera:
+        portada.append([])
+        portada.append([f"Atención: {afuera} archivo(s) cargados no produjeron ningún "
+                        f"contrato y por lo tanto"])
+        portada.append(["NO están representados en ninguna de estas planillas. En la "
+                        "pantalla «Quedaron"])
+        portada.append(["afuera» del sistema está la lista con el motivo de cada uno."])
     portada.column_dimensions["A"].width = 34
     portada.column_dimensions["B"].width = 22
 
@@ -123,6 +138,18 @@ def a_rtf(cx: sqlite3.Connection, destino: Path) -> Path:
         f"Quedaron fuera del cruce de superposición {len(exc)} contratos por faltarles algún "
         f"dato firme. Se detallan en la planilla adjunta: el total de hallazgos no debe leerse "
         f"como si el universo estuviera completo.") + r"\i0\par")
+    # Y lo otro que falta: los archivos que ni siquiera llegaron a ser un contrato. Sin
+    # esta línea, el informe se lee como si el universo fueran los documentos que sí
+    # entraron, y quien lo lee no tiene forma de saber que hay papel afuera.
+    afuera = cx.execute("""SELECT COUNT(*) FROM archivo a
+                            WHERE NOT EXISTS (SELECT 1 FROM documento d
+                                               WHERE d.sha256 = a.sha256)""").fetchone()[0]
+    if afuera:
+        p.append(P + r"\i " + _rtf(
+            f"Además, {afuera} archivo(s) cargados no produjeron ningún contrato —porque no "
+            f"se pudieron abrir, o porque ninguna de sus fojas se reconoció como un "
+            f"formulario conocido— y por lo tanto no están representados en ninguna cifra "
+            f"de este informe. El motivo de cada uno figura en el sistema.") + r"\i0\par")
 
     p.append(H + _rtf("2. Superposición temporal de contratos") + r"\b0\par")
     if not sup:

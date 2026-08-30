@@ -810,6 +810,57 @@ class NingunArchivoSePierdeEnSilencio(unittest.TestCase):
         self.assertFalse(fila["leido"])
 
 
+class LoQueFaltaSeDiceEnLaPlanilla(unittest.TestCase):
+    """
+    La planilla y el informe son lo que sale del sistema y llega a un fiscal. Si un
+    archivo entró y no produjo ningún contrato, eso tiene que estar dicho ahí adentro:
+    de otro modo quien lee la planilla la toma por el panorama completo del corpus y no
+    tiene forma de saber que hay papel afuera.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        # Dos archivos: uno que dio contrato y otro que no.
+        for sha, nombre in (("aa", "con_contrato.pdf"), ("bb", "sin_nada.pdf")):
+            self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,
+                                                    paginas,ingerido_en)
+                               VALUES (?,?,?,1,1,?)""",
+                            (sha, f"/x/{nombre}", nombre, ahora()))
+        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','c','p')")
+        self.cx.commit()
+
+    def tearDown(self):
+        self.cx.close(); self.tmp.cleanup()
+
+    def test_la_portada_de_la_planilla_lo_dice(self):
+        import openpyxl
+        from ufil import capa4_analisis as c4, capa7_export as c7
+        destino = Path(self.tmp.name) / "a.xlsx"
+        c7.a_xlsx(self.cx, destino, [c["id"] for c in c4.catalogo()])
+        texto = " ".join(
+            str(c) for f in openpyxl.load_workbook(destino)["procedencia"].iter_rows(
+                values_only=True) for c in f if c is not None)
+        self.assertIn("NO dieron ningún contrato", texto)
+        self.assertIn("1", texto)
+        self.assertIn("Quedaron", texto, "tiene que decir dónde está la lista")
+
+    def test_el_informe_lo_dice(self):
+        from ufil import capa7_export as c7
+        destino = Path(self.tmp.name) / "a.rtf"
+        texto = Path(c7.a_rtf(self.cx, destino)).read_text(encoding="utf-8")
+        self.assertIn("archivo(s) cargados no produjeron", texto)
+
+    def test_si_no_falta_nada_no_se_asusta_a_nadie(self):
+        """Sin archivos afuera, la advertencia no aparece."""
+        from ufil import capa7_export as c7
+        self.cx.execute("DELETE FROM archivo WHERE sha256='bb'")
+        self.cx.commit()
+        texto = Path(c7.a_rtf(self.cx, Path(self.tmp.name) / "b.rtf")).read_text(
+            encoding="utf-8")
+        self.assertNotIn("no produjeron", texto)
+
+
 class OcultarTieneQueOcultar(unittest.TestCase):
     """
     El atributo `hidden` del HTML es sólo un `display:none` del navegador: cualquier
