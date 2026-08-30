@@ -949,9 +949,19 @@ async function vIngesta() {
         Los dos casos, con <strong>cero errores silenciosos</strong>: cuando el escaneo
         es malo el sistema no inventa, deja el campo vacío y lo manda a revisión.</p>
       <p><strong>Más de 300 no hace falta:</strong> de ahí para arriba no se gana nada
-        medible y el archivo pesa el doble. Y <strong>evitá el «modo texto»</strong> en
-        blanco y negro puro que muchos escáneres traen puesto: lo que cae del lado
-        equivocado del umbral se borra para siempre, y no hay software que lo recupere.</p>
+        medible y el archivo pesa el doble.</p>
+      <p><strong>Y nunca el «modo texto»</strong> en blanco y negro puro que muchos
+        escáneres traen puesto, aunque el número de exactitud mejore. Es la única
+        configuración de todo lo que probamos que <strong>guardó un dato falso dándolo
+        por bueno</strong>.</p>
+      <p class="medido">El mismo contrato, el mismo campo. En grises, las dos rutas de
+        lectura discreparon: conflicto, campo vacío, a la cola.
+        En blanco y negro leyeron las dos <span class="mono">ALMADA, Rosa 1</span>
+        —la inicial <span class="mono">I.</span> convertida en un
+        <span class="mono">1</span>— y el sistema lo aceptó solo con
+        <span class="mono">0,92</span> de confianza. El umbral limpió la mancha del
+        punto, las dos rutas coincidieron <span class="marca">en el error</span>, y el
+        sistema se quedó sin la señal que usa para saber que no sabe.</p>
       <p>Esto conviene pedirlo <strong>por escrito y antes de que empiecen</strong>.
         Reescanear dos mil fojas porque salieron a 100 DPI es una semana perdida.</p>
     </div>

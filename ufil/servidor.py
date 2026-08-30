@@ -39,6 +39,7 @@ class NoEncontrado(Exception):
 RUTA_BASE: Path | None = None
 PROCESADOR: Procesador | None = None
 PORTERIA: acceso.Porteria = acceso.Porteria(exigir=False)
+HOST_ESCUCHA: str = "127.0.0.1"
 
 
 def _cx() -> sqlite3.Connection:
@@ -615,17 +616,8 @@ class Manejador(BaseHTTPRequestHandler):
                         # Que el sistema esté abierto a la red no es un detalle de
                         # configuración: cambia quién puede leer el legajo. Tiene que
                         # verse en la misma pantalla que todo lo demás, sin buscarlo.
-                        chequeos.append(
-                            {"nombre": "Quién puede entrar", "estado": "aviso",
-                             "detalle": "el sistema está abierto a los demás equipos de "
-                                        "la red y pide clave de acceso. El tráfico va "
-                                        "sin cifrar",
-                             "arreglo": "para volver a dejarlo sólo en esta computadora, "
-                                        "levantarlo sin --red"}
-                            if PORTERIA.exigir else
-                            {"nombre": "Quién puede entrar", "estado": "ok",
-                             "detalle": "sólo quien esté sentado en esta computadora "
-                                        "(escucha en 127.0.0.1)", "arreglo": None})
+                        chequeos.append(acceso.como_se_entra(HOST_ESCUCHA,
+                                                            PORTERIA.exigir))
                         r = diagnostico.resumen(chequeos)
                         integ = cx.execute("""SELECT COUNT(*) c, MIN(verificado_en) v
                                                 FROM integridad""").fetchone()
@@ -757,7 +749,7 @@ class Manejador(BaseHTTPRequestHandler):
 
 
 def servir(base: Path | None, puerto: int = 8713, host: str = "127.0.0.1") -> None:
-    global RUTA_BASE, PROCESADOR, PORTERIA
+    global RUTA_BASE, PROCESADOR, PORTERIA, HOST_ESCUCHA
     RUTA_BASE = base
     db.abrir(base).close()          # el esquema se aplica UNA vez, acá
     PROCESADOR = Procesador(base)
@@ -765,7 +757,8 @@ def servir(base: Path | None, puerto: int = 8713, host: str = "127.0.0.1") -> No
     # «cualquiera en el mismo wifi». Ahí, y sólo ahí, se pide clave. Se decide por la
     # dirección de escucha y no por una opción aparte, así no hay forma de abrirlo a la
     # red y quedarse sin clave por olvido.
-    PORTERIA = acceso.Porteria(exigir=not acceso.es_local(host))
+    PORTERIA = acceso.Porteria(exigir=acceso.hace_falta_clave(host))
+    HOST_ESCUCHA = host
     srv = ThreadingHTTPServer((host, puerto), Manejador)
     print(f"  UFIL · análisis documental")
     print(f"  http://{'127.0.0.1' if host == '0.0.0.0' else host}:{puerto}")

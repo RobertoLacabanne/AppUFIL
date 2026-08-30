@@ -13,8 +13,12 @@ no opinada. Y a diferencia de la pregunta de cómo partir los PDF, acá la respu
 > A 100 DPI el sistema deja de servir: sobre papel de mala calidad la exactitud cae de
 > 83,9 % a **52,5 %**. Uno de cada dos campos no se lee.
 >
-> Y **no hay que reescanear a más de 300**: de 300 para arriba no se gana nada medible y
+> **No hay que reescanear a más de 300**: de 300 para arriba no se gana nada medible y
 > el archivo pesa el doble.
+>
+> Y **nunca en «modo texto» blanco y negro**, aunque el número de exactitud mejore. Es
+> la única configuración de todo el barrido que guardó un dato falso dándolo por bueno.
+> Está explicado abajo, con el caso entero.
 
 Esto se le puede pedir a quien escanea, por escrito, antes de que empiece. Reescanear
 dos mil fojas porque salieron a 100 DPI es una semana perdida que se evita con una
@@ -60,7 +64,8 @@ cola de revisión. A 52,5 % de exactitud el sistema es inútil —hay que tipear
 mano—, pero **no es peligroso**: no mete un dato falso en un cruce.
 
 Esa es exactamente la diferencia entre una herramienta que decepciona y una que
-perjudica.
+perjudica. Y hay una sola configuración, en todo el barrido, que cruzó esa línea: el
+modo blanco y negro. Está más abajo, y es el hallazgo más importante de esta página.
 
 ---
 
@@ -116,19 +121,52 @@ volver a medir cuando haya escaneos reales, que es cuando la respuesta va a vale
 
 ---
 
-## El modo blanco y negro
+## El modo blanco y negro: el resultado que da vuelta la medición
 
 Muchos escáneres de oficina vienen configurados en «modo texto»: un bit por píxel, con
-un umbral fijo. Sobre este corpus sintético **no hizo diferencia** (96,6 %).
+un umbral fijo. Sobre papel de buena calidad no hizo diferencia. Sobre papel malo, que
+es el que importa, pasó esto:
 
-**Ese resultado no se puede usar como permiso.** El texto de estos documentos sintéticos
-es negro parejo sobre blanco: justo el caso donde un umbral fijo no pierde nada. Un
-sello de tinta corrida, un renglón manuscrito flojo o una fotocopia de tercera
-generación son exactamente lo contrario, y ahí un umbral fijo **borra para siempre** lo
-que caiga del lado equivocado. No hay software que lo recupere después.
+| Escaneo, papel malo | Exactitud | **Errores silenciosos** |
+|---|---|---|
+| 300 DPI, escala de grises | 83,9 % | **0** |
+| 300 DPI, blanco y negro | **95,8 %** | **1** |
 
-Por eso la recomendación es escala de grises igual. La información que no se escaneó
-no existe.
+Leído rápido, el blanco y negro gana por doce puntos. **Leído bien, es la única
+configuración de todo el barrido que metió un dato falso en la base.**
+
+### El caso, entero
+
+Mismo archivo, mismo campo, los dos escaneos:
+
+| | Lo que quedó guardado | Estado |
+|---|---|---|
+| Referencia | `ALMADA, Rosa I.` | |
+| **Escala de grises** | *(vacío)* | **conflicto → cola de revisión** |
+| **Blanco y negro** | `ALMADA, Rosa 1` | **aceptado solo, confianza 0,92** |
+
+La inicial `I.` se convirtió en un `1`.
+
+En escala de grises, las dos rutas de lectura **leyeron cosas distintas**. Esa
+discrepancia es la señal que usa el sistema para saber que no sabe: levantó conflicto,
+dejó el campo vacío y lo mandó a que lo mire una persona.
+
+En blanco y negro, el umbral limpió la mancha del punto y el resto del gris. Con la
+imagen «más limpia», **las dos rutas leyeron lo mismo, y lo mismo estaba mal.** Sin
+discrepancia no hay conflicto; con el trazo neto la confianza subió a 0,92; y el campo
+pasó de largo. La binarización no sólo borró información: **borró la evidencia de que
+la lectura era dudosa**, que es lo único que hace que este sistema sea confiable.
+
+### Por qué esto importa más que los doce puntos
+
+Un campo en la cola de revisión cuesta quince segundos de alguien. Un nombre falso
+aceptado con 0,92 de confianza entra en todos los cruces, sale en la planilla y en el
+informe, y **no lo mira nadie**. Los doce puntos de exactitud del modo blanco y negro
+están comprados exactamente con eso.
+
+**Escala de grises. Siempre.** Y si el escáner sólo puede blanco y negro, hay que saber
+que todo lo que salga de ahí necesita revisión humana, porque el sistema perdió la
+capacidad de avisar cuál.
 
 ---
 

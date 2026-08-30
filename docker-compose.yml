@@ -13,7 +13,11 @@ services:
     # Sin red hacia afuera. El contenedor no puede salir a internet ni queriendo.
     network_mode: bridge
     ports:
-      - "127.0.0.1:8713:8713"       # sólo esta máquina. Nunca 0.0.0.0.
+      # Sólo esta máquina. Si esto se cambiara a "0.0.0.0:8713:8713" para entrar desde
+      # un celular, hay que sacar `UFIL_ACCESO=abierto` del Dockerfile en la misma
+      # edición: esa variable existe porque acá dice 127.0.0.1, y sin ella el sistema
+      # pide clave. Cambiar una sin la otra deja el legajo abierto a toda la red.
+      - "127.0.0.1:8713:8713"
     volumes:
       - ./corpus:/corpus:ro
       - ./datos:/app/datos

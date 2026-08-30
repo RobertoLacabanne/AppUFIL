@@ -870,6 +870,35 @@ class LaPuertaCuandoSeAbreALaRed(unittest.TestCase):
         vale = a.abrir(a.clave, "10.0.0.9")
         self.assertFalse(b.deja_pasar(vale))
 
+    def test_adentro_de_un_contenedor_no_se_pide_clave_de_mas(self):
+        """
+        En un contenedor el proceso está obligado a escuchar en 0.0.0.0, pero quién
+        llega lo decide la publicación del puerto. Pedir clave ahí sería pedírsela a
+        alguien que ya está sentado en la computadora.
+        """
+        import os
+        from ufil.acceso import hace_falta_clave
+        previo = os.environ.get("UFIL_ACCESO")
+        try:
+            os.environ["UFIL_ACCESO"] = "abierto"
+            self.assertFalse(hace_falta_clave("0.0.0.0"))
+            os.environ["UFIL_ACCESO"] = "clave"
+            self.assertTrue(hace_falta_clave("127.0.0.1"))
+            os.environ.pop("UFIL_ACCESO")
+            self.assertTrue(hace_falta_clave("0.0.0.0"), "el default tiene que ser seguro")
+            self.assertFalse(hace_falta_clave("127.0.0.1"))
+        finally:
+            os.environ.pop("UFIL_ACCESO", None)
+            if previo is not None:
+                os.environ["UFIL_ACCESO"] = previo
+
+    def test_escuchar_en_toda_la_red_sin_clave_se_avisa(self):
+        """El caso peligroso —abierto y sin puerta— no puede reportarse como «ok»."""
+        from ufil.acceso import como_se_entra
+        self.assertEqual(como_se_entra("127.0.0.1", False)["estado"], "ok")
+        self.assertEqual(como_se_entra("0.0.0.0", True)["estado"], "aviso")
+        self.assertEqual(como_se_entra("0.0.0.0", False)["estado"], "aviso")
+
     def test_que_direccion_cuenta_como_local(self):
         from ufil.acceso import es_local
         for h in ("127.0.0.1", "localhost", "::1", ""):

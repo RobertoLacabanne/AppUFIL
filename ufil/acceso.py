@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import html
 import ipaddress
+import os
 import secrets
 import socket
 import time
@@ -48,6 +49,35 @@ def es_local(host: str) -> bool:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return False
+
+
+def hace_falta_clave(host: str) -> bool:
+    """
+    ¿Este arranque tiene que pedir clave?
+
+    La regla por omisión es la dirección de escucha: si el proceso escucha en algo que
+    no es loopback, cualquiera de la red llega, y entonces hay clave. Decidirlo así
+    —y no con una opción aparte— evita el caso de abrirlo a la red y quedarse sin clave
+    por olvido.
+
+    Hay UN caso donde esa regla se equivoca, y es adentro de un contenedor. Ahí el
+    proceso está obligado a escuchar en 0.0.0.0 —si escuchara en 127.0.0.1 no lo
+    alcanzaría ni el propio Docker—, pero quién llega de verdad no lo decide el
+    proceso: lo decide la publicación del puerto, que en docker-compose.yml es
+    `127.0.0.1:8713:8713`, o sea sólo esa máquina. Pedir clave ahí sería pedírsela a
+    alguien que ya está sentado en la computadora, y mandarlo a buscarla a
+    `docker compose logs`.
+
+    Para ese caso, y sólo para ese, está `UFIL_ACCESO=abierto`. Significa: «quién puede
+    llegar a este puerto ya está restringido afuera de este proceso». Ponerla en una
+    instalación sin contenedor deja el sistema abierto de par en par.
+    """
+    modo = os.environ.get("UFIL_ACCESO", "auto").strip().lower()
+    if modo == "abierto":
+        return False
+    if modo == "clave":
+        return True
+    return not es_local(host)
 
 
 def direccion_en_la_red() -> str | None:
@@ -171,3 +201,32 @@ def texto_de_arranque(puerto: int, clave: str) -> str:
         r("fiscalía, nunca en un wifi abierto."),
         "  └" + "─" * (ANCHO - 1) + "┘",
     ])
+
+
+def como_se_entra(host: str, con_clave: bool) -> dict:
+    """
+    Un chequeo más para la pantalla de estado: quién puede entrar hoy.
+
+    Son tres situaciones distintas y hay que distinguirlas, porque la del medio es la
+    que puede estar mal sin que nadie se entere.
+    """
+    if con_clave:
+        return {"nombre": "Quién puede entrar", "estado": "aviso",
+                "detalle": "el sistema está abierto a los demás equipos de la red y pide "
+                           "clave de acceso. El tráfico va sin cifrar, así que esto sirve "
+                           "en la red de la fiscalía y no en un wifi abierto",
+                "arreglo": "para dejarlo sólo en esta computadora, levantarlo sin --red"}
+    if es_local(host):
+        return {"nombre": "Quién puede entrar", "estado": "ok",
+                "detalle": f"sólo quien esté sentado en esta computadora "
+                           f"(escucha en {host})", "arreglo": None}
+    # Escucha en toda la red y NO pide clave: es el caso del contenedor, donde el
+    # puerto está restringido afuera. Si esa restricción no existe, esto está abierto
+    # de par en par y nadie lo va a notar. Hay que decirlo.
+    return {"nombre": "Quién puede entrar", "estado": "aviso",
+            "detalle": f"escucha en {host} SIN pedir clave (UFIL_ACCESO=abierto). Es "
+                       f"correcto si el puerto está restringido afuera de este proceso "
+                       f"—un contenedor publicado en 127.0.0.1—; si no lo está, "
+                       f"cualquiera de la red entra sin nada",
+            "arreglo": "comprobar la publicación del puerto en docker-compose.yml, o "
+                       "sacar UFIL_ACCESO=abierto"}

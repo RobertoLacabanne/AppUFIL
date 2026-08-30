@@ -29,7 +29,16 @@ RUN mkdir -p /app/datos && chown -R ufil:ufil /app
 USER ufil
 
 VOLUME ["/corpus", "/app/datos"]
-ENV UFIL_DATOS=/app/datos PYTHONUNBUFFERED=1
+
+# UFIL_ACCESO=abierto: adentro de un contenedor el proceso está OBLIGADO a escuchar en
+# 0.0.0.0 —si escuchara en 127.0.0.1 no lo alcanzaría ni el propio Docker—, pero quién
+# llega de verdad no lo decide el proceso: lo decide la publicación del puerto, que en
+# docker-compose.yml es `127.0.0.1:8713:8713`, o sea sólo esa máquina. Sin esta variable
+# el sistema pediría clave a alguien que ya está sentado adelante de la computadora.
+#
+# Si alguna vez se cambia esa publicación a `0.0.0.0:8713:8713`, HAY QUE SACAR esta
+# variable: si no, el legajo queda abierto para toda la red sin ninguna puerta.
+ENV UFIL_DATOS=/app/datos PYTHONUNBUFFERED=1 UFIL_ACCESO=abierto
 EXPOSE 8713
 
 # Chequeo de arranque: si las invariantes no se cumplen, se ve en el log.

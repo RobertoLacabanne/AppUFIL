@@ -24,7 +24,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import fitz
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 APELLIDOS = ["ALMADA", "BENÍTEZ", "CORREA", "DUARTE", "ESQUIVEL", "FRANCO", "GAUNA",
              "HEREÑÚ", "IRIGOYEN", "JAUREGUI", "LEDESMA", "MONZÓN", "NÚÑEZ", "OJEDA",
@@ -147,13 +147,14 @@ def a_escaneo(pdf_limpio: Path, destino: Path, semilla: int, calidad: str,
             png = destino.with_suffix(f".tmp{i}.png")
             pix.save(png)
         _degradar_y_pegar(doc, png, destino, random.Random(semilla * 100 + i),
-                          calidad, i, binario)
+                          calidad, i, binario, dpi=dpi)
         png.unlink(missing_ok=True)
     doc.save(destino, deflate=True); doc.close()
 
 
 def _degradar_y_pegar(doc, png: Path, destino: Path, rng: random.Random,
-                      calidad: str, i: int, binario: bool = False) -> None:
+                      calidad: str, i: int, binario: bool = False,
+                      dpi: int = 200) -> None:
     im = Image.open(png).convert("L")
     # El desenfoque y las motas se expresan en milímetros de papel, no en píxeles, así
     # que escalan con la resolución. Si no, a 300 DPI el mismo desenfoque taparía la
@@ -163,9 +164,21 @@ def _degradar_y_pegar(doc, png: Path, destino: Path, rng: random.Random,
         im = im.rotate(rng.uniform(-1.4, 1.4), resample=Image.BICUBIC,
                        fillcolor=248, expand=False)
         im = im.filter(ImageFilter.GaussianBlur(0.7 * escala))
-        px = im.load()
-        for _ in range(int(im.width * im.height * 0.004)):        # motas de fotocopia
-            px[rng.randrange(im.width), rng.randrange(im.height)] = rng.randrange(0, 90)
+        # Motas de fotocopia. Tienen que ser marcas FÍSICAS, no un píxel: una mota de
+        # un píxel se borra sola con sólo bajar la resolución, y entonces la medición
+        # diría que rasterizar más bajo mejora la lectura cuando lo único que hizo fue
+        # tapar un ruido que en el papel no se tapa. Acá miden entre 0,1 y 0,25 mm y
+        # son tantas por centímetro cuadrado, no tantas por píxel.
+        motas = ImageDraw.Draw(im)
+        # 25 por cm² es la densidad que tenía la versión anterior (0,4 % de los
+        # píxeles a 200 DPI), sólo que ahora expresada en papel y no en píxeles.
+        por_cm2 = 25
+        cm2 = (im.width / (dpi / 2.54)) * (im.height / (dpi / 2.54))
+        radio_px = max(1.0, dpi * 0.15 / 25.4 / 2)       # 0,15 mm de diámetro
+        for _ in range(int(por_cm2 * cm2)):
+            x, y = rng.randrange(im.width), rng.randrange(im.height)
+            r = radio_px * rng.uniform(0.7, 1.7)
+            motas.ellipse([x - r, y - r, x + r, y + r], fill=rng.randrange(0, 90))
         im = im.point(lambda v: max(0, min(255, int((v - 128) * 1.18 + 128) - 14)))
     elif calidad == "regular":
         im = im.rotate(rng.uniform(-0.5, 0.5), resample=Image.BICUBIC,
