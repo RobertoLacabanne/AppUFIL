@@ -211,7 +211,8 @@ def listar(estado: str | None = None) -> list[dict]:
 
 def _resumen(base: Path) -> dict:
     """Cuántos documentos y cuánto pendiente. Si la base no existe todavía, ceros."""
-    vacio = {"documentos": 0, "archivos": 0, "pendientes": 0, "existe": False}
+    vacio = {"documentos": 0, "archivos": 0, "pendientes": 0, "existe": False,
+             "demostracion": False}
     if not base.exists():
         return vacio
     try:
@@ -219,16 +220,32 @@ def _resumen(base: Path) -> dict:
     except sqlite3.OperationalError:
         return vacio
     try:
-        def uno(sql):
+        def uno(sql, sin_filas=0):
+            """
+            El primer valor de la consulta, o `sin_filas` si no hay ninguna.
+
+            OJO con el caso de cero filas: un COUNT siempre devuelve una fila, pero un
+            `SELECT valor ... WHERE clave=?` no, y `fetchone()` da None. Sin este
+            chequeo, un ajuste que no está reventaba la lista ENTERA de legajos —no el
+            legajo, la lista— y la pantalla desde la que se elige causa quedaba en
+            «Algo falló».
+            """
             try:
-                return cx.execute(sql).fetchone()[0]
+                f = cx.execute(sql).fetchone()
             except sqlite3.OperationalError:
-                return 0
+                return sin_filas               # la tabla todavía no existe
+            return sin_filas if f is None else f[0]
         return {
             "documentos": uno("SELECT COUNT(*) FROM documento"),
             "archivos": uno("SELECT COUNT(*) FROM archivo"),
             "pendientes": uno("SELECT COUNT(*) FROM campo WHERE estado IN "
                               "('pendiente_baja','conflicto','no_revisado')"),
+            # Si el legajo tiene contratos inventados, la lista tiene que decirlo ANTES
+            # de que alguien entre. Adentro ya hay un cartel; acá también, porque la
+            # confusión que importa evitar —tomar por real algo que no lo es— empieza
+            # en la pantalla donde se elige.
+            "demostracion": uno("SELECT valor FROM ajuste WHERE clave='demostracion'",
+                                None) == "1",
             "existe": True,
         }
     finally:

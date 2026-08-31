@@ -744,6 +744,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .archivados[open] summary{margin-bottom:8px}
 .tabla-legajos .apagado{color:var(--tinta-3)}
 .tabla-legajos td:empty::after{content:"—"; color:var(--tinta-3)}
+.tabla-legajos .sello{margin-left:9px; vertical-align:1px}
 
 /* En un teléfono esto no puede ser una tabla. Elegir legajo es comparar cuánto
    material tiene cada uno y cuánto falta revisar, y esas tres columnas quedaban

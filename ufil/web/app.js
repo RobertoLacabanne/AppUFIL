@@ -168,7 +168,8 @@ async function vLegajos() {
   const filaFecha = f => f.ultima_actividad ? fmtFecha(f.ultima_actividad) : '—';
   const cols = [
     {t:'Número', c:'mono', r:f => `<b>${esc(f.numero)}</b>`},
-    {t:'Carátula', r:f => esc(f.caratula)},
+    {t:'Carátula', r:f => esc(f.caratula) + (f.demostracion
+        ? ' <span class="sello alerta">datos de prueba</span>' : '')},
     // Vacío de verdad cuando no hay fiscal cargado: en la tabla de escritorio el CSS
     // le pone la raya, y en el teléfono —donde cada renglón cuesta— no aparece nada.
     {t:'Fiscal responsable', r:f => esc(f.fiscal || '')},
@@ -288,9 +289,9 @@ async function vPanel() {
         tiene${p.fechas_imposibles === 1 ? '' : 'n'} fechas imposibles` : ''}.
         De los <strong>${n(p.campos_criticos_total)} campos críticos</strong> del legajo,
         <strong>${n(p.campos_criticos_firmes)}</strong> están firmes
-        (${fmtPct(p.cobertura_pct)}) y <strong>${n(p.a_revisar)}</strong> esperan revisión
-        ${p.excluidos ? `y <strong>${n(p.excluidos)} contratos afuera del cruce</strong>
-          por faltarles algún dato firme` : ''}.
+        (${fmtPct(p.cobertura_pct)}) y <strong>${n(p.a_revisar)}</strong> esperan
+        revisión${p.excluidos ? `, y <strong>${n(p.excluidos)} contratos quedan afuera
+          del cruce</strong> por faltarles algún dato firme` : ''}.
       </p>
       ${(p.contratos_repetidos || p.archivos_con_varios) ? `
         <div class="aviso" style="margin-top:14px">
@@ -1603,9 +1604,13 @@ function pintarLegajo(p) {
     $('#l-fiscal').textContent = l.fiscal ? 'Fiscal: ' + l.fiscal : '';
   }
   medirTecho();          // aparecer o irse una tira corre todo lo de abajo
-  // Sin legajo abierto y con legajos para elegir, no se muestra un panel en cero: eso
-  // se lee como «no hay nada cargado», que es una afirmación distinta y falsa.
-  if (!l && p.hay_legajos && !location.hash.startsWith('#/legajos')) {
+  // Sin legajo abierto, a elegir uno. Vale tanto para la instalación recién puesta
+  // —donde lo primero que hay que hacer es abrir la causa, no cargar escaneos en una
+  // base suelta— como para el que acaba de cerrar la que tenía.
+  //
+  // La excepción es la instalación anterior a los legajos, que tiene material en la
+  // base suelta y sigue trabajando ahí: a esa no se la manda a ningún lado.
+  if (!l && !p.documentos && !location.hash.startsWith('#/legajos')) {
     location.hash = '#/legajos';
     return true;
   }
@@ -1623,12 +1628,20 @@ async function refrescarCuentas() {
     c.textContent = p.a_revisar; c.hidden = !p.a_revisar;
     f.textContent = p.fusiones;  f.hidden = !p.fusiones;
     if (af) { af.textContent = p.afuera; af.hidden = !p.afuera; }
-    $('#f-lote').textContent = 'lote ' + (p.lote || '—');
+    // El lote sólo cuando hay uno. «lote —» es una etiqueta sin dato: ocupa el mismo
+    // lugar que algo útil y no dice nada.
+    $('#f-lote').textContent = p.lote ? 'lote ' + p.lote : '';
     const marca = document.getElementById('marca');
     if (marca) marca.hidden = !p.marca;
     const s = $('#sello-estado');
-    s.textContent = p.a_revisar ? `${p.a_revisar} a revisar` : 'al día';
-    s.className = 'sello ' + (p.a_revisar ? 'alerta' : 'ok');
+    // «Al día» sobre una base vacía es afirmar terminado un trabajo que no empezó.
+    // Sin documentos no hay estado que informar, y decirlo así es lo honesto.
+    if (!p.documentos) { s.textContent = 'Sin datos'; s.className = 'sello'; }
+    else {
+      s.textContent = p.a_revisar ? plural(p.a_revisar, 'campo a revisar', 'campos a revisar')
+                                  : 'al día';
+      s.className = 'sello ' + (p.a_revisar ? 'alerta' : 'ok');
+    }
   } catch (e) { /* base todavía vacía */ }
 }
 

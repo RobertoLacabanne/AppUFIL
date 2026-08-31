@@ -166,7 +166,10 @@ def api_panel(cx) -> dict:
         "ambas_camaras": c4.correr(cx, "03_ambas_camaras")["n"],
         "fechas_imposibles": c4.correr(cx, "04_fechas_imposibles")["n"],
         "excluidos": c4.correr(cx, "06_excluidos_del_cruce")["n"],
-        "lote": (cx.execute("SELECT lote FROM procedencia LIMIT 1").fetchone() or ["—"])[0],
+        # Sin lote va `null`, no una raya: el dato faltante se decide en la pantalla,
+        # que es la que sabe si conviene dejar el lugar vacío o poner algo. Con la raya
+        # acá, la interfaz no puede distinguir «no hay lote» de «el lote se llama —».
+        "lote": (cx.execute("SELECT lote FROM procedencia LIMIT 1").fetchone() or [None])[0],
         "demostracion": es_demostracion(cx),
         "marca": any((config.MARCA / n).exists()
                      for n in ("logo.svg", "logo.png", "logo.jpg", "logo.webp")),

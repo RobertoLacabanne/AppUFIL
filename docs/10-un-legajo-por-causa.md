@@ -128,3 +128,28 @@ sin heredar nada:
 La regla está cubierta por `pruebas/test_legajos.py`, que la verifica de las dos formas:
 llamando a las funciones, y por HTTP contra un servidor de verdad con cuatro hilos
 pidiendo en paralelo sobre dos legajos.
+
+## La demostración vive en su propio legajo
+
+`ufil demo` carga cincuenta contratos inventados para poder mostrar el sistema andando.
+Esos contratos **van siempre al legajo `DEMOSTRACIÓN`**, nunca a uno de trabajo, y ese
+legajo aparece marcado como **«datos de prueba»** en la lista, antes de que nadie entre.
+
+Antes escribían en la base que estuviera activa, y `--limpiar` borraba esa base sin
+preguntar: `ufil --legajo 87.933 demo --limpiar` borraba el legajo 87.933 entero, con
+las revisiones hechas a mano adentro —lo único del sistema que no se puede volver a
+generar a partir de los originales—. Hoy hay tres cerrojos:
+
+1. si hay un legajo de trabajo activo, `demo` se planta y no hace nada;
+2. `demo` no acepta `--base`;
+3. `--limpiar` sólo borra una base que esté marcada como demostración; si tiene
+   archivos y no está marcada, se niega.
+
+Están cubiertos por `pruebas/test_legajos.py::LaDemostracionNoTocaUnaCausa`.
+
+## Qué muestra una instalación recién puesta
+
+Nada, que es lo correcto: no viene con datos de ejemplo. Lo primero que aparece es la
+pantalla de legajos con el formulario de alta, porque lo primero que hay que hacer es
+abrir la causa. El sello de arriba a la derecha dice **«Sin datos»** y no «al día»: al
+día es afirmar terminado un trabajo que no empezó.

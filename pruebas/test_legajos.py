@@ -199,6 +199,32 @@ class DosLegajos(unittest.TestCase):
         with self.assertRaises(legajos.LegajoDuplicado):
             legajos.crear("87.933", "La misma causa cargada dos veces")
 
+    def test_la_lista_aguanta_un_legajo_al_que_le_falta_un_ajuste(self):
+        """
+        La lista de legajos abre la base de cada uno para contar. Una consulta que no
+        devuelve filas —un ajuste que no está— hacía reventar la lista ENTERA, no ese
+        legajo: la pantalla desde la que se elige causa quedaba en «Algo falló» y no
+        había forma de entrar a ninguna.
+        """
+        self._cargar(self.a.slug, "aa", "PEREZ, Ana", 1_000_00, "27-11111111-4")
+        config.activar_legajo(None)
+        filas = {f["slug"]: f for f in legajos.listar()}
+        self.assertEqual(len(filas), 2)
+        for f in filas.values():
+            self.assertIs(f["demostracion"], False,
+                          "un legajo sin la marca de demostración no está marcado")
+
+    def test_un_legajo_con_contratos_inventados_sale_marcado_en_la_lista(self):
+        """La confusión que importa evitar empieza en la pantalla donde se elige."""
+        config.activar_legajo(self.b.slug)
+        cx = db.abrir()
+        db.ajuste(cx, "demostracion", "1")
+        cx.close()
+        config.activar_legajo(None)
+        filas = {f["slug"]: f for f in legajos.listar()}
+        self.assertTrue(filas[self.b.slug]["demostracion"])
+        self.assertFalse(filas[self.a.slug]["demostracion"])
+
     def test_la_lista_cuenta_lo_de_cada_uno(self):
         self._cargar(self.a.slug, "aa", "PEREZ, Ana", 1_000_00, "27-11111111-4")
         config.activar_legajo(None)
@@ -206,6 +232,74 @@ class DosLegajos(unittest.TestCase):
         self.assertEqual(por_slug[self.a.slug]["documentos"], 1)
         self.assertEqual(por_slug[self.b.slug]["documentos"], 0)
         self.assertEqual(por_slug[self.b.slug]["archivos"], 0)
+
+
+class LaDemostracionNoTocaUnaCausa(unittest.TestCase):
+    """
+    `ufil demo` carga contratos inventados. No puede acercarse a un legajo de verdad.
+
+    El caso concreto: `demo --limpiar` borraba la base activa sin preguntar, así que
+    `ufil --legajo 87.933 demo --limpiar` borraba el legajo 87.933 entero —con las
+    revisiones hechas a mano adentro, que es lo único del sistema que no se puede
+    volver a generar a partir de los originales—.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self._datos = config.DATOS
+        config.DATOS = Path(self.tmp.name)
+        config.activar_legajo(None)
+        config.fijar_legajo_por_omision(None)
+        self.real = legajos.crear("87.933", "Una causa de verdad")
+        config.activar_legajo(self.real.slug)
+        cx = db.abrir()
+        cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,paginas,
+                                           ingerido_en)
+                      VALUES ('aa','/x/real.pdf','real.pdf',1,1,?)""", (ahora(),))
+        cx.commit(); cx.close()
+        config.activar_legajo(None)
+
+    def tearDown(self):
+        config.activar_legajo(None)
+        config.fijar_legajo_por_omision(None)
+        config.DATOS = self._datos
+        self.tmp.cleanup()
+
+    def _demo(self, *argv):
+        from ufil import cli
+        return cli.main(list(argv))
+
+    def test_no_corre_sobre_un_legajo_de_trabajo(self):
+        self.assertEqual(self._demo("--legajo", "87.933", "demo", "--limpiar"), 1)
+        self.assertTrue(self.real.base.exists(),
+                        "la demostración borró la base de un legajo de verdad")
+
+    def test_no_acepta_que_le_apunten_una_base(self):
+        self.assertEqual(self._demo("--base", str(self.real.base), "demo", "--limpiar"), 1)
+        self.assertTrue(self.real.base.exists())
+
+    def test_limpiar_no_borra_una_base_con_material_sin_marcar(self):
+        """
+        El segundo cerrojo, por si algún día el primero se rompe: aunque la base fuera
+        la de la demostración, si tiene archivos y NO está marcada como demostración,
+        no se borra. Es redundante a propósito.
+        """
+        from ufil import cli
+        config.activar_legajo(None)
+        legajos.crear("DEMOSTRACIÓN", "x")
+        config.activar_legajo(cli.LEGAJO_DEMO)
+        cx = db.abrir()
+        cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,paginas,
+                                           ingerido_en)
+                      VALUES ('bb','/x/algo.pdf','algo.pdf',1,1,?)""", (ahora(),))
+        cx.commit(); cx.close()
+        base = Path(config.BASE)
+        config.activar_legajo(None)
+
+        # corpus vacío: no tiene que llegar a generarlo, se planta antes
+        self.assertEqual(self._demo("demo", "--limpiar", "--corpus",
+                                    str(Path(self.tmp.name) / "no-existe")), 1)
+        self.assertTrue(base.exists(), "borró una base con material sin marcar")
 
 
 class PorHTTP(unittest.TestCase):

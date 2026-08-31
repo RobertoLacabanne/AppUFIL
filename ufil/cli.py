@@ -320,34 +320,73 @@ def cmd_verificar(a):
     return 1 if fallas else 0
 
 
+# El legajo donde vive la demostración. Uno solo, siempre el mismo, y nunca uno real.
+LEGAJO_DEMO = "demostracion"
+
+
 def cmd_demo(a):
     """
     Deja la aplicación lista para mostrar, de un solo comando.
 
-    Genera el corpus sintético si falta, lo procesa entero, marca la base como
-    DEMOSTRACIÓN —para que la interfaz avise en toda pantalla que ninguno de esos
-    contratos es real— y levanta el servidor.
+    Los contratos inventados van A SU PROPIO LEGAJO, siempre. Nunca a uno de verdad.
+
+    Antes escribían en la base que estuviera activa, y `--limpiar` borraba esa base sin
+    preguntar: `ufil --legajo 87.933 demo --limpiar` borraba el legajo 87.933 entero,
+    con las revisiones hechas a mano adentro, que es lo único que no se puede volver a
+    generar. Ahora la demostración tiene su carpeta y su base, y no hay forma de que
+    toque otra: si le pasan un legajo real, se planta.
     """
     import subprocess
     from . import capa5_interpretacion as c5
     from . import busqueda
     from . import capa0_ingesta as c0
 
+    activo = config.legajo_activo()
+    if activo and activo != LEGAJO_DEMO:
+        print(f"  No: «{activo}» es un legajo de trabajo y la demostración carga "
+              f"contratos inventados.")
+        print(f"  Corré `ufil demo` sin --legajo: va a su propio legajo, aparte.")
+        return 1
+    if a.base:
+        print("  No: `demo` no acepta --base. Los contratos inventados van a su propio")
+        print("  legajo, para que no haya forma de mezclarlos con material de una causa.")
+        return 1
+
+    if LEGAJO_DEMO not in legajos.slugs():
+        legajos.crear("DEMOSTRACIÓN", "Contratos inventados para probar el sistema",
+                      fiscal=None, creado_por="demo")
+    config.activar_legajo(LEGAJO_DEMO)
+    config.fijar_legajo_por_omision(LEGAJO_DEMO)
+    base = Path(config.BASE)
+
+    if a.limpiar:
+        # Sólo puede borrar la base de la demostración, y sólo si la base es realmente
+        # de la demostración. El chequeo es redundante con el de arriba: cuesta dos
+        # líneas y lo que hay del otro lado es un borrado sin vuelta atrás.
+        if base.exists():
+            cx = db.abrir(base)
+            marcada = db.ajuste(cx, "demostracion") == "1"
+            n = cx.execute("SELECT COUNT(*) FROM archivo").fetchone()[0]
+            cx.close()
+            if n and not marcada:
+                print(f"  No se borra: {base} tiene {n} archivo(s) y NO está marcada")
+                print("  como demostración. Si de verdad querés borrarla, hacelo a mano.")
+                return 1
+        for suf in ("", "-wal", "-shm"):
+            Path(str(base) + suf).unlink(missing_ok=True)
+        print("── base de la demostración borrada")
+
+    # El corpus se genera DESPUÉS de los chequeos. Generarlo antes eran cincuenta
+    # contratos y veinte segundos de trabajo para después plantarse y no usarlos.
     corpus = Path(a.corpus)
     if not list(corpus.glob("*.pdf")):
         print(f"── generando el corpus sintético en {corpus}")
         subprocess.run([sys.executable, str(config.RAIZ / "herramientas" / "generar_fixtures.py"),
                         "--destino", str(corpus), "--cantidad", str(a.cantidad)], check=True)
 
-    base = Path(a.base) if a.base else config.BASE
-    if a.limpiar:
-        for suf in ("", "-wal", "-shm"):
-            Path(str(base) + suf).unlink(missing_ok=True)
-        print("── base anterior borrada")
-
     cx = db.abrir(base)
     db.ajuste(cx, "demostracion", "1")
-    print("── la base queda marcada como DEMOSTRACIÓN")
+    print(f"── legajo «DEMOSTRACIÓN», marcado como tal, en {base.parent}")
 
     print("── ingesta")
     r = c0.ingerir(cx, corpus, lote="demostracion", operador="demo",
@@ -382,7 +421,10 @@ def cmd_demo(a):
     print(f"  Referencia para medir: {corpus / 'referencia.csv'}")
     print()
     from . import servidor
-    servidor.servir(base, a.puerto, "0.0.0.0" if getattr(a, "red", False) else a.host)
+    # `None` y no `base`: el servidor resuelve la base por el legajo activo, que acá es
+    # el de la demostración. Pasarle la ruta a mano lo dejaría clavado ahí aunque
+    # alguien cambie de legajo desde la pantalla.
+    servidor.servir(None, a.puerto, "0.0.0.0" if getattr(a, "red", False) else a.host)
     return 0
 
 
