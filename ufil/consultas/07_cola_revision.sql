@@ -12,6 +12,14 @@ SELECT
   c.x0, c.y0, c.x1, c.y1,
   c.ruta,
   c.estado        AS estado,
+  d.tipo          AS tipo_documento,
+  -- La familia viaja con cada fila para poder filtrar la cola por tipo de documento:
+  -- revisar los montos de los contratos y los de las facturas son dos tareas distintas
+  -- y con criterios distintos, y mezclarlas obliga a cambiar de cabeza en cada fila.
+  CASE WHEN d.tipo IN ({{TIPOS_CONTRATO}})    THEN 'contrato'
+       WHEN d.tipo IN ({{TIPOS_COMPROBANTE}}) THEN 'comprobante'
+       WHEN d.tipo IN ({{TIPOS_ACTO}})        THEN 'acto'
+  END             AS familia,
   CASE WHEN c.estado='conflicto' THEN 'conflicto'
        WHEN c.nulo_motivo IS NOT NULL THEN 'nulo'
        ELSE 'baja confianza' END AS clase

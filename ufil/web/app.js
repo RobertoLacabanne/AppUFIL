@@ -84,6 +84,15 @@ const TIPO_DOC = {
 };
 const FAMILIA_DOC = {contrato:'Contrato', comprobante:'Comprobante de pago',
                      acto:'Acto administrativo'};
+/* Por qué está esperando este campo. Es lo que se filtra en la cola. */
+const CLASE_COLA = {conflicto:'Dos lecturas distintas', nulo:'No se pudo leer',
+                    'baja confianza':'Leído con poca seguridad'};
+/* Por qué el campo quedó vacío. La base guarda la clave; la pantalla dice la frase. */
+const MOTIVO_NULO = {
+  ilegible:'no se puede leer', ausente:'no está en el documento',
+  ambiguo:'dice dos cosas distintas', conflicto:'dos lecturas no coinciden',
+  manuscrito:'está escrito a mano', fuera_de_rango:'el valor no es posible',
+};
 /* La base guarda «A» y «B» porque así lo escribe el perfil de extracción. En pantalla
    eso no dice nada: «Cámara A» obliga a acordarse de cuál es cuál, y el que lee un
    informe no tiene por qué saberlo. */
@@ -776,8 +785,15 @@ async function vDocumento(id) {
            c.estado === 'corregido' ? 'cargado a mano' : 'verificado'}</span>` +
         ` <button class="deshacer" data-campo="${c.id}"
             title="volver a lo que había leído el sistema">deshacer</button>` : '';
+    // Cada campo puede contar su historia. Va atrás de un botón y no siempre abierto:
+    // lo normal es que un campo tenga una línea, y catorce fichas desplegadas serían
+    // ruido; pero cuando alguien pregunta «¿quién puso esto?», la respuesta está a un
+    // clic y no depende de que nadie se acuerde.
+    const historial = `<button class="historial" data-campo="${c.id}"
+        title="quién decidió esto, y cuándo">rastro</button>`;
     return `<div class="campo"><dt>${esc(rotularCampo(c.nombre, doc.familia))}</dt>
-      <dd>${celdaValor(c)}${ancla}${marca}</dd></div>`;
+      <dd>${celdaValor(c)}${ancla}${marca}${historial}
+        <div class="rastro" id="rastro-${c.id}" hidden></div></dd></div>`;
   }).join('');
 
   const tiras = paginas.map(p =>
@@ -873,6 +889,9 @@ async function vDocumento(id) {
   });
   verFoja(actual);
 
+  vista.querySelectorAll('.historial').forEach(b =>
+    b.onclick = () => verRastro(+b.dataset.campo));
+
   vista.querySelectorAll('.ancla').forEach(b => b.onclick = () => {
     const c = anclables.find(x => x.id === +b.dataset.campo);
     if (!c) return;
@@ -897,13 +916,22 @@ async function vDocumento(id) {
    acompaña a la fila que tiene el foco, con una lupa sobre el campo. */
 let colaEstado = {filas: [], foco: 0};
 
+/* Qué filtros hay puestos. Vive afuera de la vista para sobrevivir al repintado que
+   hace cada decisión: filtrar por «montos de contratos», decidir uno y que se te
+   borre el filtro es peor que no tener filtros. */
+let filtroCola = {familia: '', campo: '', clase: ''};
+
 async function vCola(campoId) {
-  const filas = await api('/api/cola');
+  const todas = await api('/api/cola');
+  const filas = todas.filter(f =>
+    (!filtroCola.familia || f.familia === filtroCola.familia) &&
+    (!filtroCola.campo   || f.campo === filtroCola.campo) &&
+    (!filtroCola.clase   || f.clase === filtroCola.clase));
   // Se puede enlazar un campo puntual: #/cola/123 abre la cola parada en ese campo.
   // Sirve para decirle a un compañero "mirá este" sin explicarle dónde está.
   const pedido = campoId ? filas.findIndex(f => String(f.campo_id) === String(campoId)) : -1;
-  colaEstado = {filas, foco: pedido >= 0 ? pedido : 0};
-  if (!filas.length) {
+  colaEstado = {filas, foco: pedido >= 0 ? pedido : 0, total: todas.length};
+  if (!todas.length) {
     vista.innerHTML = bloque('f. 0006', 'Cola', `<h2>Cola de revisión</h2>
       ${vacio('No queda nada por revisar',
         'Todos los campos están resueltos o verificados. Cuando entre un lote nuevo, ' +
@@ -912,14 +940,41 @@ async function vCola(campoId) {
     return;
   }
   const porDoc = new Set(filas.map(f => f.documento_id)).size;
+  // Los filtros salen de lo que HAY en la cola, no de una lista fija: ofrecer «facturas»
+  // en un legajo sin facturas es prometer un filtro que no filtra nada.
+  const opciones = (clave, rotular) => {
+    const cuenta = new Map();
+    todas.forEach(f => cuenta.set(f[clave], (cuenta.get(f[clave]) || 0) + 1));
+    return [...cuenta.entries()].sort((a, b) => b[1] - a[1])
+      .map(([v, n]) => `<option value="${esc(v ?? '')}">${esc(rotular(v))} (${n})</option>`).join('');
+  };
 
   vista.innerHTML = bloque('f. 0006', 'Cola', `
     <h2>Cola de revisión</h2>
-    <p class="prosa">${filas.length} campos en ${porDoc} documentos, ordenados por lo que
-      más daño hace si queda mal. <strong>El folio está a la vista</strong>: no hace falta
-      salir de acá.<span class="solo-teclado"> <kbd>J</kbd>/<kbd>K</kbd> para moverse,
-      las teclas de cada fila para decidir.</span>
-      <strong>Ninguna acción es «aceptar todo».</strong></p>
+    <p class="prosa">${plural(filas.length, 'campo', 'campos')} en
+      ${plural(porDoc, 'documento', 'documentos')}, ordenados por lo que más daño hace si
+      queda mal. <strong>El folio está a la vista</strong>: no hace falta salir de acá.<span
+      class="solo-teclado"> <kbd>J</kbd>/<kbd>K</kbd> para moverse, las teclas de cada
+      fila para decidir.</span> <strong>Ninguna acción es «aceptar todo».</strong></p>
+
+    <div class="filtros-cola">
+      <label>Documento
+        <select id="f-familia"><option value="">todos (${todas.length})</option>
+          ${opciones('familia', v => FAMILIA_DOC[v] || 'sin clasificar')}</select></label>
+      <label>Campo
+        <select id="f-campo"><option value="">todos</option>
+          ${opciones('campo', v => rotularCampo(v))}</select></label>
+      <label>Motivo
+        <select id="f-clase"><option value="">todos</option>
+          ${opciones('clase', v => CLASE_COLA[v] || v)}</select></label>
+      ${filtroCola.familia || filtroCola.campo || filtroCola.clase
+        ? `<button class="boton gris" id="f-limpiar">Quitar los filtros</button>` : ''}
+      <span class="posicion" id="posicion"></span>
+    </div>
+    ${!filas.length ? vacio('Ningún campo entra en ese filtro',
+        'Hay ' + plural(todas.length, 'campo esperando revisión', 'campos esperando revisión') +
+        ', pero ninguno cumple lo que pediste.') : ''}
+    <div class="deshacer-barra" id="deshacer-barra" hidden></div>
     <div class="cola-partida">
       <div class="cola" id="cola">${filas.map(filaCola).join('')}</div>
       <aside class="folio-lado" id="folio-lado">
@@ -941,6 +996,14 @@ async function vCola(campoId) {
     if (e.target.closest('[data-accion]')) return;
     colaEstado.foco = +f.dataset.i; pintarFoco();
   });
+  [['f-familia','familia'], ['f-campo','campo'], ['f-clase','clase']].forEach(([id, clave]) => {
+    const sel = $('#' + id);
+    sel.value = filtroCola[clave];
+    sel.onchange = () => { filtroCola[clave] = sel.value; vCola(); };
+  });
+  if ($('#f-limpiar')) $('#f-limpiar').onclick = () => {
+    filtroCola = {familia: '', campo: '', clase: ''}; vCola();
+  };
   pintarFoco();
 }
 
@@ -986,15 +1049,20 @@ function filaCola(f, i) {
     ? `<div class="conflicto">${f.variantes.map(v =>
         `<div class="ruta"><span>${esc(v.ruta)}</span><span>${esc(v.valor)}</span></div>`).join('')}</div>`
     : `<div class="mono" style="font-size:13px">${f.valor
-        ? esc(f.valor) : `<span class="nulo">Ø ${esc(f.motivo)}</span>`} ${barraConf(f.confianza)}</div>`;
+        ? esc(f.valor)
+        : `<span class="nulo">Ø ${esc(MOTIVO_NULO[f.motivo] || f.motivo)}</span>`
+      } ${barraConf(f.confianza)}</div>`;
 
   return `<div class="fila" data-i="${i}">
     <div class="marginalia"><span>${esc(f.archivo.replace('.pdf', ''))}</span>
       <span>f. ${f.pagina_nro ?? '—'}</span></div>
     <div class="med">
       <div style="display:flex;gap:9px;align-items:baseline;margin-bottom:7px;flex-wrap:wrap">
-        <span class="rotulo">${esc(f.clase)}</span>
-        <span class="etiqueta-campo ${f.clase === 'conflicto' ? 'alerta' : ''}">${esc(f.campo)}</span>
+        <span class="rotulo">${esc(CLASE_COLA[f.clase] || f.clase)}</span>
+        <span class="etiqueta-campo ${f.clase === 'conflicto' ? 'alerta' : ''}"
+          >${esc(rotularCampo(f.campo, f.familia))}</span>
+        ${f.familia && f.familia !== 'contrato'
+          ? `<span class="rotulo">${esc(FAMILIA_DOC[f.familia])}</span>` : ''}
       </div>
       ${cuerpo}
       ${propuesta}
@@ -1070,6 +1138,56 @@ function pintarFoco() {
     const ir = $('#ir-doc');
     if (ir) ir.href = '#/documento/' + f.documento_id;
   }
+  // Dónde estás. «Cola de revisión» sin número no dice si faltan tres o trescientos, y
+  // sin saber eso nadie puede decidir si lo termina hoy.
+  const pos = $('#posicion');
+  if (pos) {
+    const n = colaEstado.filas.length;
+    const filtrado = n !== colaEstado.total;
+    pos.innerHTML = n
+      ? `<b>${colaEstado.foco + 1}</b> de ${fmtNum.format(n)}` +
+        (filtrado ? ` <span class="de-todo">(${fmtNum.format(colaEstado.total)} en total)</span>` : '')
+      : '';
+  }
+}
+
+/* La última decisión, para poder deshacerla. Una sola: deshacer en cadena obligaría a
+   recordar un orden que la cola ya cambió abajo, y lo que hace falta es corregir el
+   error que acabás de cometer, no rebobinar la jornada. Lo anterior se deshace desde
+   la ficha del documento, que muestra el historial completo. */
+let ultimaDecision = null;
+
+/* El rastro de un campo: todo lo que le pasó, en orden y sin editar. */
+const ACCION_RASTRO = {
+  verificar: 'confirmó que estaba bien', corregir: 'cargó el valor a mano',
+  ilegible: 'marcó que no se puede leer', ausente: 'marcó que no está en el documento',
+  ambiguo: 'marcó que dice dos cosas distintas', revertir: 'deshizo su decisión',
+};
+
+async function verRastro(campoId) {
+  const caja = $('#rastro-' + campoId);
+  if (!caja) return;
+  if (!caja.hidden) { caja.hidden = true; return; }
+  caja.hidden = false;
+  caja.innerHTML = '<span class="rotulo">buscando…</span>';
+  try {
+    const filas = await api('/api/auditoria', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({campo_id: campoId})});
+    caja.innerHTML = filas.length ? filas.map(r => `
+      <div class="paso">
+        <span class="cuando mono">${esc(fmtFechaHora(r.cuando))}</span>
+        <span class="quien">${esc(r.quien || '—')}</span>
+        <span class="que">${esc(ACCION_RASTRO[r.accion] || r.accion)}${
+          r.valor_nuevo ? `: <span class="mono">${esc(r.valor_nuevo)}</span>` : ''}${
+          r.valor_anterior && r.valor_anterior !== r.valor_nuevo
+            ? ` <span class="antes">antes decía <span class="mono">${esc(r.valor_anterior)}</span></span>` : ''}
+          ${r.observacion ? `<span class="nota">${esc(r.observacion)}</span>` : ''}</span>
+      </div>`).join('')
+      : `<div class="paso vacio">Nadie lo tocó todavía: es como lo leyó el sistema.</div>`;
+  } catch (e) {
+    caja.innerHTML = `<div class="paso vacio">No se pudo leer el rastro: ${esc(e.message)}</div>`;
+  }
 }
 
 async function decidir(campoId, accion, valor) {
@@ -1081,16 +1199,56 @@ async function decidir(campoId, accion, valor) {
     accion = 'corregir';
   }
   const posicion = colaEstado.foco;
+  // El estado en que ESTA pantalla vio el campo. Si otra persona lo decidió mientras
+  // tanto, el servidor rechaza y avisa en vez de dejar que gane el último en apretar.
+  const fila = colaEstado.filas.find(f => String(f.campo_id) === String(campoId));
   try {
     await api('/api/campo', {method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({campo_id: campoId, accion, valor, quien})});
+      body: JSON.stringify({campo_id: campoId, accion, valor, quien,
+                            estado_esperado: fila ? fila.estado : null})});
+    ultimaDecision = fila ? {campo_id: campoId, quien, antes: fila} : null;
     await vCola();
     // Quedarse donde estaba: al sacar una fila, la que sigue ocupa su lugar. Volver
     // al principio en cada decisión obligaba a bajar de nuevo cada vez.
     colaEstado.foco = posicion;
     pintarFoco();
+    mostrarDeshacer();
     refrescarCuentas();
-  } catch (e) { alert('No se pudo guardar: ' + e.message); }
+  } catch (e) {
+    if (e.estado === 409) {
+      // No es un error de quien apretó: el mundo cambió abajo. Se recarga la cola para
+      // que vea cómo quedó, y recién ahí decide de nuevo.
+      alert(e.message);
+      await vCola(); pintarFoco(); refrescarCuentas();
+      return;
+    }
+    alert('No se pudo guardar: ' + e.message);
+  }
+}
+
+/* Deshacer lo último. Vuelve el campo a como estaba y QUEDA REGISTRADO: la auditoría
+   es append-only, así que deshacer no borra la decisión anterior — agrega una línea
+   más que dice que se revirtió, quién y cuándo. */
+function mostrarDeshacer() {
+  const barra = $('#deshacer-barra');
+  if (!barra || !ultimaDecision) return;
+  const a = ultimaDecision.antes;
+  barra.hidden = false;
+  barra.innerHTML = `<span>Decidiste
+    <b>${esc(rotularCampo(a.campo, a.familia))}</b> de
+    <span class="fol">${esc(a.archivo)}</span>.</span>
+    <button class="boton gris" id="b-deshacer">Deshacer</button>`;
+  $('#b-deshacer').onclick = async () => {
+    try {
+      await api('/api/campo', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({campo_id: ultimaDecision.campo_id, accion: 'revertir',
+                              quien: ultimaDecision.quien,
+                              observacion: 'deshecho desde la cola'})});
+      ultimaDecision = null;
+      barra.hidden = true;
+      await vCola(); pintarFoco(); refrescarCuentas();
+    } catch (e) { alert('No se pudo deshacer: ' + e.message); }
+  };
 }
 
 document.addEventListener('keydown', e => {

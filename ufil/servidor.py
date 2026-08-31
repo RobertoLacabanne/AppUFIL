@@ -30,6 +30,7 @@ from . import capa4_analisis as c4
 from . import capa5_interpretacion as c5
 from . import busqueda
 from .almacen import ArchivoInvalido, guardar
+from .aplicar_revision import DecisionDesactualizada
 from .db import ahora
 from .trabajo import Procesador
 
@@ -501,9 +502,46 @@ def api_cola(cx, limite=400) -> list[dict]:
     return filas
 
 
-def api_decidir_campo(cx, campo_id: int, accion: str, valor, quien: str) -> dict:
+def api_decidir_campo(cx, campo_id: int, accion: str, valor, quien: str,
+                      estado_esperado: str | None = None,
+                      observacion: str | None = None) -> dict:
+    """
+    Una decisión humana sobre un campo.
+
+    `estado_esperado` es el bloqueo optimista y lo manda la pantalla: es el estado en
+    que estaba el campo cuando se pintó la cola. Si otra persona lo decidió mientras
+    tanto, la decisión NO se aplica y se avisa quién y cómo lo dejó. Sin esto, dos
+    revisores sobre el mismo legajo se pisan en silencio y gana el último en apretar,
+    que no es necesariamente el que tenía razón.
+    """
     from .aplicar_revision import aplicar
-    return aplicar(cx, campo_id, accion, valor, quien)
+    return aplicar(cx, campo_id, accion, valor, quien,
+                   estado_esperado=estado_esperado, observacion=observacion)
+
+
+def api_auditoria(cx, campo_id: int) -> list[dict]:
+    """
+    Todo lo que le pasó a un campo, en orden. Append-only: nada se edita ni se borra.
+
+    Es lo que permite contestar «¿quién puso esto y cuándo?» sin depender de que alguien
+    se acuerde. Va por archivo + orden + nombre de campo, y no por `campo_id`, porque
+    reprocesar un archivo vuelve a crear las filas de `campo` con ids nuevos: el rastro
+    tiene que sobrevivir a eso.
+
+    El `orden` no es opcional: un PDF trae varios contratos, cada uno con su «monto», y
+    sin esa columna el historial de uno mostraría también las decisiones de los otros.
+    """
+    c = cx.execute("""SELECT c.nombre, d.sha256, d.orden FROM campo c
+                        JOIN documento d ON d.id = c.documento_id
+                       WHERE c.id=?""", (campo_id,)).fetchone()
+    if not c:
+        raise NoEncontrado("No existe ese campo.")
+    return [dict(r) for r in cx.execute(
+        """SELECT accion, valor_anterior, valor_nuevo, motivo_anterior, motivo_nuevo,
+                  estado_anterior, estado_nuevo, observacion, quien, cuando
+             FROM auditoria
+            WHERE sha256=? AND orden=? AND campo_nombre=?
+            ORDER BY id""", (c["sha256"], c["orden"], c["nombre"]))]
 
 
 def api_interpretaciones(cx) -> list[dict]:
@@ -932,9 +970,18 @@ class Manejador(BaseHTTPRequestHandler):
                     perfil=cuerpo.get("perfil", "auto"),
                     con_vlm=bool(cuerpo.get("vlm"))))
             if u.path == "/api/campo":
-                return self._json(api_decidir_campo(
-                    cx, int(cuerpo["campo_id"]), cuerpo["accion"],
-                    cuerpo.get("valor"), cuerpo.get("quien", "")))
+                try:
+                    return self._json(api_decidir_campo(
+                        cx, int(cuerpo["campo_id"]), cuerpo["accion"],
+                        cuerpo.get("valor"), cuerpo.get("quien", ""),
+                        estado_esperado=cuerpo.get("estado_esperado"),
+                        observacion=cuerpo.get("observacion")))
+                except DecisionDesactualizada as e:
+                    # 409: no es un error de quien apretó, es que el mundo cambió. La
+                    # pantalla vuelve a cargar la cola y muestra el mensaje.
+                    return self._json({"error": str(e), "desactualizado": True}, 409)
+            if u.path == "/api/auditoria":
+                return self._json(api_auditoria(cx, int(cuerpo["campo_id"])))
             if u.path == "/api/fusion":
                 c3.decidir_fusion(cx, int(cuerpo["id"]), bool(cuerpo["aceptar"]),
                                   cuerpo.get("quien", ""))

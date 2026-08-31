@@ -787,6 +787,37 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   padding:6px 0}
 .detalle-cobertura summary:hover{color:var(--tinta)}
 
+/* ── Filtros y posición en la cola ────────────────────────────────────────
+   «Cola de revisión» sin número no dice si faltan tres o trescientos, y sin saber eso
+   nadie puede decidir si lo termina hoy. */
+.filtros-cola{display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;
+  padding:10px 0 12px; border-bottom:1px solid var(--filete); margin-bottom:4px}
+.filtros-cola label{display:grid; gap:3px; font-size:10.5px; font-weight:600;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--tinta-3)}
+.filtros-cola select{font:inherit; font-size:12.5px; padding:5px 8px;
+  border:1px solid var(--filete); background:var(--papel); color:var(--tinta);
+  min-height:32px; max-width:220px}
+.filtros-cola .boton{padding:5px 11px; font-size:11.5px; min-height:32px}
+.filtros-cola .posicion{margin-left:auto; font-family:var(--mono); font-size:12.5px;
+  color:var(--tinta-2); white-space:nowrap}
+.filtros-cola .posicion b{font-size:15px; color:var(--tinta)}
+.filtros-cola .de-donde, .filtros-cola .de-todo{color:var(--tinta-3); font-size:11.5px}
+
+/* Deshacer lo último. Aparece recién después de decidir algo y desaparece al recargar:
+   es para el error que acabás de cometer, no para rebobinar la jornada. */
+.deshacer-barra{display:flex; gap:12px; align-items:center; justify-content:space-between;
+  flex-wrap:wrap; background:var(--papel-2); border:1px solid var(--filete);
+  border-left:3px solid var(--sello); padding:8px 13px; margin:10px 0 2px;
+  font-size:12.5px}
+.deshacer-barra .fol{font-family:var(--mono); font-size:11.5px; color:var(--tinta-2)}
+
+@media (max-width:720px){
+  .filtros-cola{gap:9px}
+  .filtros-cola label{flex:1 1 45%}
+  .filtros-cola select{width:100%; max-width:none; min-height:44px}
+  .filtros-cola .posicion{margin-left:0; flex-basis:100%}
+}
+
 /* En un teléfono esto no puede ser una tabla. Elegir legajo es comparar cuánto
    material tiene cada uno y cuánto falta revisar, y esas tres columnas quedaban
    detrás de un desplazamiento horizontal —invisibles, en la práctica— mientras la
@@ -815,4 +846,25 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   .tabla-legajos td:nth-child(6)::before{content:"Actividad "}
   .tabla-legajos td:nth-child(n+4)::before{color:var(--tinta-3)}
   .tabla-legajos .sello{font-size:9px; padding:2px 6px}
+}
+
+
+/* ── El rastro de un campo ────────────────────────────────────────────────
+   Quién puso esto, cuándo y qué decía antes. La auditoría es append-only: deshacer no
+   borra la decisión anterior, agrega una línea que dice que se revirtió. */
+.historial{background:none; border:1px solid var(--filete); color:var(--tinta-3);
+  font-size:10px; letter-spacing:.08em; text-transform:uppercase; padding:2px 6px;
+  cursor:pointer; margin-left:6px; vertical-align:1px}
+.historial:hover{color:var(--tinta); border-color:var(--tinta-3)}
+.rastro{margin-top:8px; border-left:2px solid var(--filete); padding-left:11px}
+.rastro .paso{display:grid; grid-template-columns:120px 110px minmax(0,1fr); gap:10px;
+  font-size:12px; padding:4px 0; align-items:baseline}
+.rastro .cuando{color:var(--tinta-3); font-size:11px}
+.rastro .quien{color:var(--tinta-2); overflow:hidden; text-overflow:ellipsis}
+.rastro .antes{color:var(--tinta-3)}
+.rastro .nota{display:block; color:var(--tinta-3); font-style:italic}
+.rastro .paso.vacio{grid-template-columns:1fr; color:var(--tinta-3)}
+@media (max-width:720px){
+  .rastro .paso{grid-template-columns:1fr; gap:1px; padding:7px 0;
+    border-bottom:1px solid var(--filete-2)}
 }
