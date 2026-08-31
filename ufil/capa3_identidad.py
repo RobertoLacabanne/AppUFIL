@@ -69,7 +69,14 @@ def resolver(cx: sqlite3.Connection) -> dict:
         nombre_lit, nombre_norm = _valor(cx, doc_id, "nombre")
         _, doc_norm = _valor(cx, doc_id, "documento")
 
-        if doc_norm:                                   # ── clave fuerte ──
+        # Un documento normalizado tiene la forma «DNI:28456712» o «CUIL:27284567124».
+        # Si no la tiene, no es una clave y se trata como si no hubiera documento: la
+        # persona queda aislada y visible. Antes esto era un `split` a secas, y un solo
+        # valor con forma inesperada cortaba el `resolver` a la mitad con un ValueError
+        # —dejando al legajo entero SIN identidades resueltas, no sólo a ese documento—.
+        # Que un dato raro cueste una persona aislada es aceptable; que cueste todas las
+        # personas del legajo, no.
+        if doc_norm and ":" in doc_norm:               # ── clave fuerte ──
             tipo, numero = doc_norm.split(":", 1)
             # El contrato identifica al contratado por DNI y la factura por CUIT. Un
             # CUIL de persona lleva el DNI adentro por construcción —en 27-27200341-1

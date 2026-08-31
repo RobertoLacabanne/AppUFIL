@@ -71,6 +71,66 @@ ETIQUETAS["continuacion"] = "Continuación"
 ETIQUETAS["desconocida"] = "Sin reconocer"
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# UN CONTRATO NO ES UNA FACTURA, Y SUS PLATAS NO SE SUMAN
+# ═══════════════════════════════════════════════════════════════════════════
+# Los dos traen un nombre, un CUIT y un monto, y los dos salen del mismo PDF. Pero
+# dicen cosas distintas: el contrato dice cuánto se PACTÓ pagar, la factura dice cuánto
+# se COBRÓ. Sumarlos no da un total más completo: da un número que no corresponde a
+# nada. Y cuando la factura es el cobro de ese mismo contrato —que es el caso normal—
+# sumarlos cuenta la misma plata dos veces.
+#
+# Medido sobre un legajo con un contrato de $10.000 y su factura de $2.500: el
+# acumulado decía $12.500 y el panel decía «2 contratos». Ninguna de las dos cosas era
+# cierta.
+#
+# `documento.tipo` sale del perfil que extrajo el documento. Estas familias son la
+# única fuente de verdad sobre a qué carril va cada tipo; las vistas del esquema y las
+# consultas las usan a través de las constantes SQL de abajo, para que agregar un tipo
+# nuevo no obligue a acordarse de seis lugares.
+FAMILIA_CONTRATO = "contrato"        # lo pactado
+FAMILIA_COMPROBANTE = "comprobante"  # lo cobrado
+FAMILIA_ACTO = "acto"                # decretos, resoluciones: ni una cosa ni la otra
+
+TIPOS_CONTRATO = frozenset({"contrato_obra", "contrato_personal", "contrato_locacion"})
+TIPOS_COMPROBANTE = frozenset({"factura", "recibo", "remito"})
+TIPOS_ACTO = frozenset({"decreto", "resolucion", "rendicion"})
+
+ETIQUETA_FAMILIA = {
+    FAMILIA_CONTRATO: "Contrato",
+    FAMILIA_COMPROBANTE: "Comprobante de pago",
+    FAMILIA_ACTO: "Acto administrativo",
+}
+
+
+def familia(tipo: str | None) -> str | None:
+    """
+    A qué carril va un tipo de documento. `None` si no lo conocemos.
+
+    Devolver `None` y no adivinar es la parte importante: un tipo que no está en
+    ninguna familia NO se suma a ningún total ni se esconde. Se cuenta aparte y se
+    muestra, porque un documento que el sistema no sabe clasificar tiene que ser
+    visible. Meterlo en la familia más probable sería exactamente inventar un dato.
+    """
+    if tipo in TIPOS_CONTRATO:
+        return FAMILIA_CONTRATO
+    if tipo in TIPOS_COMPROBANTE:
+        return FAMILIA_COMPROBANTE
+    if tipo in TIPOS_ACTO:
+        return FAMILIA_ACTO
+    return None
+
+
+def _sql(claves) -> str:
+    return ",".join(f"'{c}'" for c in sorted(claves))
+
+
+# Para embeber en el esquema y en las consultas .sql, que no pueden importar Python.
+SQL_TIPOS_CONTRATO = _sql(TIPOS_CONTRATO)
+SQL_TIPOS_COMPROBANTE = _sql(TIPOS_COMPROBANTE)
+SQL_TIPOS_CONOCIDOS = _sql(TIPOS_CONTRATO | TIPOS_COMPROBANTE | TIPOS_ACTO)
+
+
 def _puntos(plano: str, tipo: Tipo) -> int:
     """Cuántas de sus marcas aparecen. Más marcas, más seguro el tipo."""
     return sum(1 for m in tipo.marcas if m in plano)

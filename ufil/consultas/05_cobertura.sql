@@ -3,6 +3,10 @@
 -- calla lo que no pudo leer. Cada columna dice exactamente qué cuenta, y el porcentaje
 -- dice sobre qué. «50 % resuelto solo» sin denominador no significa nada.
 SELECT
+  -- POR FAMILIA, además de por campo. El campo `nombre` de un contrato es el
+  -- contratado; el de una factura es quien la emitió. Contarlos juntos daba «Contratado
+  -- 10» en un legajo con 3 contratos, y el número no era de nadie.
+  d.familia                                                             AS familia,
   c.nombre                                                              AS campo,
   COUNT(*)                                                              AS total,
   -- FIRME: se puede sumar, cruzar y llevar a un informe.
@@ -22,7 +26,10 @@ SELECT
   ROUND(100.0 * SUM(CASE WHEN c.estado IN ('automatico_alta','verificado','corregido')
                          THEN 1 ELSE 0 END) / COUNT(*), 1)              AS pct_firme_sobre_total
 FROM campo c
-GROUP BY c.nombre
-ORDER BY CASE c.nombre
+JOIN v_documento_todo d ON d.documento_id = c.documento_id
+GROUP BY d.familia, c.nombre
+ORDER BY CASE d.familia WHEN 'contrato' THEN 1 WHEN 'comprobante' THEN 2
+                        WHEN 'acto' THEN 3 ELSE 4 END,
+         CASE c.nombre
            WHEN 'nombre' THEN 1 WHEN 'documento' THEN 2 WHEN 'fecha_inicio' THEN 3
            WHEN 'fecha_fin' THEN 4 WHEN 'monto' THEN 5 ELSE 9 END;

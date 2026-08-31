@@ -125,9 +125,12 @@ def api_panel(cx) -> dict:
         return cx.execute(sql, p).fetchone()[0]
 
     cobertura = c4.correr(cx, "05_cobertura")["filas"]
-    criticos = [c for c in cobertura if c["campo"] in config.CAMPOS_CRITICOS]
-    # El denominador se dice explícito: firmes sobre el total de campos críticos del
-    # legajo. «50 % resuelto solo» sin decir sobre qué no significa nada.
+    # El denominador se dice explícito: firmes sobre el total de campos críticos DE LOS
+    # CONTRATOS. «50 % resuelto solo» sin decir sobre qué no significa nada, y mezclar
+    # los campos de las facturas acá infla el denominador con documentos que no son de
+    # los que habla la frase.
+    criticos = [c for c in cobertura
+                if c["campo"] in config.CAMPOS_CRITICOS and c["familia"] == "contrato"]
     campos_criticos_total = sum(c["total"] for c in criticos)
     campos_criticos_firmes = sum(c["firmes"] for c in criticos)
     totales = c4.correr(cx, "10_totales")["filas"][0]
@@ -148,7 +151,14 @@ def api_panel(cx) -> dict:
         "archivos": uno("SELECT COUNT(*) FROM archivo"),
         "duplicados": uno("SELECT COUNT(*) FROM duplicado"),
         "paginas": uno("SELECT COUNT(*) FROM pagina"),
+        # `documentos` es TODO lo que se extrajo: contratos, facturas, decretos y lo que
+        # no se pudo clasificar. Los tres de abajo lo desagregan, porque la pantalla
+        # decía «N contratos» sobre este número y adentro había facturas.
         "documentos": uno("SELECT COUNT(*) FROM documento"),
+        "contratos": uno("SELECT COUNT(*) FROM v_documento_todo WHERE familia='contrato'"),
+        "comprobantes": uno("SELECT COUNT(*) FROM v_documento_todo WHERE familia='comprobante'"),
+        "actos": uno("SELECT COUNT(*) FROM v_documento_todo WHERE familia='acto'"),
+        "sin_familia": uno("SELECT COUNT(*) FROM v_documento_todo WHERE familia IS NULL"),
         "campos": uno("SELECT COUNT(*) FROM campo"),
         "a_revisar": uno(f"SELECT COUNT(*) FROM campo WHERE estado IN ({cf.SQL_PENDIENTES})"),
         "conflictos": uno("SELECT COUNT(*) FROM conflicto WHERE estado='abierto'"),
@@ -308,9 +318,11 @@ def api_afuera(cx) -> dict:
 
 def api_documento(cx, doc_id: int) -> dict:
     d = cx.execute("""SELECT d.*, a.nombre AS archivo, a.ruta_original, a.sha256,
-                             p.legajo, p.acta, p.domicilio, p.lote
+                             p.legajo, p.acta, p.domicilio, p.lote,
+                             v.familia AS familia
                         FROM documento d JOIN archivo a ON a.sha256=d.sha256
                         LEFT JOIN procedencia p ON p.sha256=d.sha256
+                        LEFT JOIN v_documento_todo v ON v.documento_id = d.id
                        WHERE d.id=?""", (doc_id,)).fetchone()
     if not d:
         raise NoEncontrado("No existe ese documento. Puede que se haya reprocesado el "
@@ -332,7 +344,7 @@ def api_documento(cx, doc_id: int) -> dict:
             WHERE sha256=? AND nro BETWEEN ? AND ? ORDER BY nro""",
         (d["sha256"], d["pagina_desde"] or 1, d["pagina_hasta"] or 99999))]
     hermanos = [dict(r) for r in cx.execute(
-        """SELECT id, orden, pagina_desde, pagina_hasta FROM documento
+        """SELECT id, orden, pagina_desde, pagina_hasta, tipo FROM documento
             WHERE sha256=? ORDER BY orden""", (d["sha256"],))]
     interp = [dict(r) for r in cx.execute("""
         SELECT DISTINCT i.* FROM interpretacion i
@@ -365,6 +377,12 @@ def api_persona(cx, persona_id: int) -> dict:
 
     contratos = [dict(r) for r in cx.execute("""
         SELECT * FROM v_contrato WHERE persona_id=? ORDER BY inicio, documento_id""",
+        (persona_id,))]
+    # Y sus comprobantes, en su propia lista. La ficha del contratado tiene que mostrar
+    # las dos cosas —qué se le pactó y qué facturó— sin sumarlas: son la misma plata
+    # vista de los dos lados, y un acumulado que las junte la cuenta dos veces.
+    comprobantes = [dict(r) for r in cx.execute("""
+        SELECT * FROM v_comprobante WHERE persona_id=? ORDER BY emitida, documento_id""",
         (persona_id,))]
     alias = [dict(r) for r in cx.execute("""
         SELECT nombre_literal, COUNT(*) AS veces FROM persona_alias
@@ -399,10 +417,12 @@ def api_persona(cx, persona_id: int) -> dict:
              WHERE f.interpretacion_id=? LIMIT 12""", (i["id"],))]
 
     con_monto = [c for c in contratos if c["monto_centavos"] is not None]
+    facturado = [f for f in comprobantes if f["monto_centavos"] is not None]
     return {
         "persona": dict(p),
         "alias": alias,
         "contratos": contratos,
+        "comprobantes": comprobantes,
         "solapes": solapes,
         "interpretaciones": interp,
         "totales": {
@@ -410,6 +430,14 @@ def api_persona(cx, persona_id: int) -> dict:
             "sin_monto": len(contratos) - len(con_monto),
             "sin_fechas": sum(1 for c in contratos if not (c["inicio"] and c["fin"])),
             "acumulado_centavos": sum(c["monto_centavos"] for c in con_monto),
+            # Lo facturado va aparte y NUNCA se suma con el acumulado de arriba: son la
+            # misma plata vista de los dos lados —lo que se pactó y lo que se cobró—, y
+            # un número que las junte la cuenta dos veces.
+            "comprobantes": len(comprobantes),
+            "facturado_centavos": sum(f["monto_centavos"] for f in facturado),
+            # Las facturas de talonario traen el importe a mano y no se leen. Si no se
+            # dice cuántas son, el facturado parece completo y no lo está.
+            "comprobantes_sin_importe": len(comprobantes) - len(facturado),
             "camaras": sorted({c["camara"] for c in contratos if c["camara"]}),
             "desde": min((c["inicio"] for c in contratos if c["inicio"]), default=None),
             "hasta": max((c["fin"] for c in contratos if c["fin"]), default=None),
@@ -710,6 +738,17 @@ class Manejador(BaseHTTPRequestHandler):
                         cur = cx.execute("SELECT * FROM v_contrato ORDER BY documento_id")
                         cols = [d[0] for d in cur.description]
                         return self._json([dict(zip(cols, f)) for f in cur.fetchall()])
+                    if ruta == "/api/comprobantes":
+                        # Las facturas de talonario salen con `monto_centavos` en null:
+                        # el importe va a mano y no se lee. Es la verdad —hay un
+                        # comprobante y no sabemos por cuánto— y la pantalla lo dice
+                        # así en vez de mostrar un cero.
+                        cur = cx.execute("""SELECT * FROM v_comprobante
+                                             ORDER BY emitida, documento_id""")
+                        cols = [d[0] for d in cur.description]
+                        return self._json([dict(zip(cols, f)) for f in cur.fetchall()])
+                    if ruta == "/api/cruce":
+                        return self._json(c4.correr(cx, "09_facturas_contra_contrato"))
                     if ruta == "/api/persona":
                         return self._json(api_persona(cx, int(q["id"][0])))
                     if ruta == "/api/buscar":

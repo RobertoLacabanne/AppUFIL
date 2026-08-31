@@ -26,6 +26,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from . import capa4_analisis as c4
+from . import confianza as cf
 
 TINTA = "FF1B1D21"; SELLO = "FF23477A"; FILETE = "FFCFCBC2"; PAPEL2 = "FFF1EFEA"
 
@@ -67,10 +68,28 @@ def a_xlsx(cx: sqlite3.Connection, destino: Path, consultas: list[str]) -> Path:
     portada.append(["Generado", date.today().isoformat()])
     portada.append(["Archivos ingeridos",
                     cx.execute("SELECT COUNT(*) FROM archivo").fetchone()[0]])
-    portada.append(["Documentos extraídos",
-                    cx.execute("SELECT COUNT(*) FROM documento").fetchone()[0]])
+    # Desagregado por tipo: «12 documentos» no dice si son doce contratos o dos
+    # contratos y diez facturas, que es una diferencia que cambia lo que se lee después.
+    def cuenta(sql):
+        return cx.execute(sql).fetchone()[0]
+
+    portada.append(["Documentos extraídos", cuenta("SELECT COUNT(*) FROM documento")])
+    portada.append(["· contratos",
+                    cuenta("SELECT COUNT(*) FROM v_documento_todo WHERE familia='contrato'")])
+    portada.append(["· facturas y recibos",
+                    cuenta("SELECT COUNT(*) FROM v_documento_todo WHERE familia='comprobante'")])
+    portada.append(["· otros documentos",
+                    cuenta("""SELECT COUNT(*) FROM v_documento_todo
+                               WHERE familia IS NULL OR familia='acto'""")])
+    # OJO: esto filtraba por estado='a_revisar', que dejó de existir cuando entraron los
+    # ocho estados de ufil/confianza.py. La consulta seguía corriendo sin error y
+    # devolvía SIEMPRE cero: la planilla que se lleva el fiscal decía «0 campos
+    # pendientes de revisión» con la cola llena. Una afirmación falsa en un documento
+    # que se firma. Ahora sale de la lista de estados, que es una sola y está en Python.
     portada.append(["Campos pendientes de revisión",
-                    cx.execute("SELECT COUNT(*) FROM campo WHERE estado='a_revisar'").fetchone()[0]])
+                    cuenta(f"SELECT COUNT(*) FROM campo WHERE estado IN ({cf.SQL_PENDIENTES})")])
+    portada.append(["Campos verificados por una persona",
+                    cuenta(f"SELECT COUNT(*) FROM campo WHERE estado IN ({cf.SQL_HUMANOS})")])
     # Los archivos que entraron y no produjeron ningún contrato tienen que estar en la
     # portada. Si no, quien lee la planilla la toma por el panorama completo del corpus
     # y no se entera de lo que no está adentro. Un documento que se pierde en silencio
@@ -78,7 +97,7 @@ def a_xlsx(cx: sqlite3.Connection, destino: Path, consultas: list[str]) -> Path:
     afuera = cx.execute("""SELECT COUNT(*) FROM archivo a
                             WHERE NOT EXISTS (SELECT 1 FROM documento d
                                                WHERE d.sha256 = a.sha256)""").fetchone()[0]
-    portada.append(["Archivos que NO dieron ningún contrato", afuera])
+    portada.append(["Archivos que NO dieron ningún documento", afuera])
     portada.append([])
     portada.append(["Advertencia:"])
     portada.append(["Los valores de estas planillas se leyeron automáticamente de los "
@@ -88,9 +107,11 @@ def a_xlsx(cx: sqlite3.Connection, destino: Path, consultas: list[str]) -> Path:
     portada.append(["dato a un legajo, verificarlo contra el original citado."])
     if afuera:
         portada.append([])
-        portada.append([f"Atención: {afuera} archivo(s) cargados no produjeron ningún "
-                        f"contrato y por lo tanto"])
-        portada.append(["NO están representados en ninguna de estas planillas. En la "
+        s = "s" if afuera != 1 else ""
+        portada.append([f"Atención: {afuera} archivo{s} cargado{s} no "
+                        f"produj{'eron' if afuera != 1 else 'o'} ningún documento y por "
+                        f"lo tanto"])
+        portada.append([f"NO est{'án' if afuera != 1 else 'á'} representado{s} en ninguna de estas planillas. En la "
                         "pantalla «Quedaron"])
         portada.append(["afuera» del sistema está la lista con el motivo de cada uno."])
     portada.column_dimensions["A"].width = 34

@@ -410,16 +410,41 @@ LEFT JOIN campo c
                          AND k.campo_nombre = c.nombre
                          AND k.estado = 'abierto')
 LEFT JOIN normalizacion n ON n.campo_id = c.id
+-- Y SOLAMENTE CONTRATOS. Sin esta línea, una factura de $2.500 entraba a la vista con
+-- su nombre y su monto, se sumaba al acumulado de lo contratado y el panel decía «2
+-- contratos» donde había un contrato y una factura. Peor todavía cuando la factura es
+-- el cobro de ese mismo contrato: la misma plata contada dos veces.
+--
+-- La lista sale de ufil/clasificacion.py y la sustituye db.py al aplicar el esquema.
+-- Es a propósito que no esté escrita acá: una lista repetida en dos archivos se separa
+-- el día que alguien agrega un tipo, y lo que se rompe es un total.
+WHERE d.tipo IN ({{TIPOS_CONTRATO}})
 GROUP BY d.id;
 
+-- Todos los documentos, de cualquier familia, con el estado de cada campo al lado y
+-- SIN filtrar por firmeza. Es para las pantallas que tienen que MOSTRAR lo provisional
+-- como provisional: la ficha del documento, la cola, los listados con su sello.
+--
+-- Se llama `v_documento_todo` y no `v_contrato_todo` porque acá adentro hay facturas,
+-- recibos y decretos además de contratos. El nombre viejo invitaba justo al error que
+-- este bloque existe para evitar: tomar por contrato cualquier fila que salga de acá.
 DROP VIEW IF EXISTS v_contrato_todo;
-CREATE VIEW v_contrato_todo AS
+DROP VIEW IF EXISTS v_documento_todo;
+CREATE VIEW v_documento_todo AS
 SELECT
   d.id            AS documento_id,
   d.sha256        AS sha256,
   dp.persona_id   AS persona_id,
   d.camara        AS camara,
   d.tipo          AS tipo,
+  -- A qué carril va: lo pactado, lo cobrado, o un acto administrativo. `null` cuando
+  -- el tipo no está en ninguna familia conocida, que es como tiene que salir: un
+  -- documento sin clasificar se ve y se cuenta, no se acomoda en la familia más
+  -- probable. Ver `familia()` en ufil/clasificacion.py.
+  CASE WHEN d.tipo IN ({{TIPOS_CONTRATO}})    THEN 'contrato'
+       WHEN d.tipo IN ({{TIPOS_COMPROBANTE}}) THEN 'comprobante'
+       WHEN d.tipo IN ({{TIPOS_ACTO}})        THEN 'acto'
+  END             AS familia,
   a.nombre        AS archivo,
   MAX(CASE WHEN c.nombre='nombre'        THEN c.valor_literal END) AS nombre_literal,
   MAX(CASE WHEN c.nombre='nombre'        THEN c.estado        END) AS nombre_estado,
@@ -452,4 +477,52 @@ JOIN archivo a ON a.sha256 = d.sha256
 LEFT JOIN documento_persona dp ON dp.documento_id = d.id
 LEFT JOIN campo c ON c.documento_id = d.id
 LEFT JOIN normalizacion n ON n.campo_id = c.id
+GROUP BY d.id;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- LO COBRADO. El otro carril.
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Facturas, recibos y remitos. Misma regla de firmeza que `v_contrato` —sólo campos
+-- que se pueden afirmar— y separada de los contratos porque dicen cosas distintas: el
+-- contrato es lo que se pactó pagar, el comprobante es lo que se cobró. Un total que
+-- los sume no es más completo: no corresponde a nada.
+--
+-- Las facturas de talonario traen el importe escrito a mano y NO se leen (ver
+-- ufil/manuscrito.py). Salen acá con `monto_centavos` en null, que es la verdad: hay
+-- un comprobante y no sabemos por cuánto. Contarlo como cero sería peor.
+DROP VIEW IF EXISTS v_comprobante;
+CREATE VIEW v_comprobante AS
+SELECT
+  d.id            AS documento_id,
+  d.sha256        AS sha256,
+  dp.persona_id   AS persona_id,
+  d.tipo          AS tipo,
+  a.nombre        AS archivo,
+  MAX(CASE WHEN c.nombre='nombre'      THEN c.valor_literal END) AS nombre_literal,
+  MAX(CASE WHEN c.nombre='nombre'      THEN n.valor_norm    END) AS nombre_norm,
+  MAX(CASE WHEN c.nombre='documento'   THEN c.valor_literal END) AS documento_literal,
+  MAX(CASE WHEN c.nombre='documento'   THEN n.valor_norm    END) AS documento_norm,
+  MAX(CASE WHEN c.nombre='comprobante' THEN c.valor_literal END) AS comprobante,
+  MAX(CASE WHEN c.nombre='fecha_inicio' THEN n.valor_norm   END) AS emitida,
+  CAST(MAX(CASE WHEN c.nombre='monto'  THEN n.valor_norm    END) AS INTEGER) AS monto_centavos,
+  d.orden         AS orden,
+  d.pagina_desde  AS pagina_desde,
+  d.pagina_hasta  AS pagina_hasta,
+  MIN(CASE WHEN c.nombre IN ('nombre','documento','monto') THEN c.confianza END)
+                                                                 AS confianza_min,
+  SUM(CASE WHEN c.estado IN ('verificado','corregido') THEN 1 ELSE 0 END) AS campos_humanos
+FROM documento d
+JOIN archivo a ON a.sha256 = d.sha256
+LEFT JOIN documento_persona dp ON dp.documento_id = d.id
+LEFT JOIN campo c
+       ON c.documento_id = d.id
+      AND c.valor_literal IS NOT NULL
+      AND c.estado IN ('automatico_alta','verificado','corregido')
+      AND NOT EXISTS (SELECT 1 FROM conflicto k
+                       WHERE k.documento_id = c.documento_id
+                         AND k.campo_nombre = c.nombre
+                         AND k.estado = 'abierto')
+LEFT JOIN normalizacion n ON n.campo_id = c.id
+WHERE d.tipo IN ({{TIPOS_COMPROBANTE}})
 GROUP BY d.id;

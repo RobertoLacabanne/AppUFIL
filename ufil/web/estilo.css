@@ -718,6 +718,11 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .cifra.provisional{background:var(--interp); border-left:3px solid var(--interp-filete)}
 .cifra.provisional b{color:var(--tinta-2); font-weight:500}
 .cifra.provisional span{color:var(--tinta-3)}
+/* Lo facturado. Filete distinto del de lo contratado y no sólo por decoración: son dos
+   platas que no se suman, y si los dos bloques se ven iguales el ojo los lee como
+   partes de un mismo total. */
+.cifra.facturado{border-left:3px solid var(--sello)}
+.cifra.facturado b{color:var(--tinta)}
 @media (max-width:720px){.cifras.totales{grid-template-columns:1fr}}
 
 /* Sellos de estado. El color acompaña, no manda: el texto dice el estado completo,
@@ -745,6 +750,9 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .tabla-legajos .apagado{color:var(--tinta-3)}
 .tabla-legajos td:empty::after{content:"—"; color:var(--tinta-3)}
 .tabla-legajos .sello{margin-left:9px; vertical-align:1px}
+/* Qué tipo de documento es, arriba de la ficha. Un contrato y una factura se leen
+   distinto y se usan para cosas distintas: la pantalla lo dice antes que nada. */
+.tipo-doc{margin:-6px 0 12px}
 
 /* En un teléfono esto no puede ser una tabla. Elegir legajo es comparar cuánto
    material tiene cada uno y cuánto falta revisar, y esas tres columnas quedaban

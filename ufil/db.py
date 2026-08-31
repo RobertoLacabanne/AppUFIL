@@ -6,11 +6,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
+from . import clasificacion as cl
 
 # Se sube cuando cambia `esquema.sql`. Sirve para no reejecutar el script en cada
 # conexión: con el servidor multihilo y el trabajador de fondo, dos conexiones que
 # corrían el esquema a la vez chocaban al recrear la vista `v_contrato`.
-ESQUEMA_VERSION = 13
+ESQUEMA_VERSION = 14
 
 _candado = threading.Lock()
 
@@ -50,7 +51,7 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
     with _candado:
         if not forzar and cx.execute("PRAGMA user_version").fetchone()[0] == ESQUEMA_VERSION:
             return False
-        cx.executescript(config.ESQUEMA.read_text(encoding="utf-8"))
+        cx.executescript(esquema_sql())
         _agregar_columnas_faltantes(cx)
         cx.execute(f"PRAGMA user_version={ESQUEMA_VERSION}")
         cx.commit()
@@ -117,6 +118,36 @@ def _agregar_columnas_faltantes(cx: sqlite3.Connection) -> list[str]:
             cx.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
             agregadas.append(f"{tabla}.{columna}")
     return agregadas
+
+
+# Los tipos de documento que van a cada carril viven en ufil/clasificacion.py, que es
+# donde se decide qué es un contrato y qué es un comprobante. El esquema los pide por
+# nombre y acá se los damos.
+#
+# Sustituir texto adentro de SQL es normalmente una mala idea; acá no lo es, y conviene
+# decir por qué: lo que se sustituye no es un dato de nadie sino una lista de literales
+# escrita en el código, a dos módulos de distancia de cualquier entrada. Lo que se gana
+# es que la lista exista UNA vez. Escrita en los dos archivos, el día que alguien
+# agregue un tipo de contrato nuevo va a acordarse de uno y no del otro, y lo que se
+# rompe en silencio es un total.
+SUSTITUCIONES = {
+    "{{TIPOS_CONTRATO}}": cl.SQL_TIPOS_CONTRATO,
+    "{{TIPOS_COMPROBANTE}}": cl.SQL_TIPOS_COMPROBANTE,
+    "{{TIPOS_ACTO}}": cl._sql(cl.TIPOS_ACTO),
+}
+
+
+def esquema_sql() -> str:
+    """El esquema con los tipos de documento ya puestos."""
+    sql = config.ESQUEMA.read_text(encoding="utf-8")
+    for marca, valor in SUSTITUCIONES.items():
+        sql = sql.replace(marca, valor)
+    if "{{" in sql:
+        # Una marca sin sustituir es SQL inválido, y el error de SQLite no dice cuál
+        # faltó. Mejor caerse acá, con el nombre.
+        falta = sql[sql.index("{{"):][:40].split("}}")[0] + "}}"
+        raise RuntimeError(f"el esquema tiene una marca sin sustituir: {falta}")
+    return sql
 
 
 def ajuste(cx: sqlite3.Connection, clave: str, valor=None):

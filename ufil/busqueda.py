@@ -73,15 +73,22 @@ def preparar(consulta: str) -> str:
 
 
 def en_campos(cx: sqlite3.Connection, consulta: str, limite: int = 60) -> list[dict]:
-    """Busca sobre los datos extraídos. Devuelve contratos."""
+    """
+    Busca sobre los datos extraídos. Devuelve documentos de cualquier familia.
+
+    Va contra `v_documento_todo` y no contra `v_contrato` a propósito: buscar un CUIT
+    tiene que encontrar el contrato Y las facturas de esa persona. Una búsqueda que
+    calla la mitad del material es peor que ninguna, porque el que busca concluye que
+    no hay nada.
+    """
     patron = f"%{consulta.strip()}%"
     digitos = re.sub(r"\D", "", consulta)
     filas = cx.execute("""
-        SELECT DISTINCT v.documento_id, v.archivo, v.camara, v.persona_id,
-               v.nombre_literal, v.documento_literal, v.inicio, v.fin, v.monto_centavos,
-               c.nombre AS campo, c.valor_literal, c.pagina_nro
+        SELECT DISTINCT v.documento_id, v.archivo, v.camara, v.persona_id, v.familia,
+               v.tipo, v.nombre_literal, v.documento_literal, v.inicio, v.fin,
+               v.monto_centavos, c.nombre AS campo, c.valor_literal, c.pagina_nro
           FROM campo c
-          JOIN v_contrato v ON v.documento_id = c.documento_id
+          JOIN v_documento_todo v ON v.documento_id = c.documento_id
          WHERE c.valor_literal LIKE ? COLLATE NOCASE
             OR (? <> '' AND REPLACE(REPLACE(REPLACE(c.valor_literal,'-',''),'.',''),' ','')
                             LIKE '%' || ? || '%')

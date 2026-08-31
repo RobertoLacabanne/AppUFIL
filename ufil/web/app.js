@@ -38,7 +38,24 @@ const NOMBRE_CAMPO = {
   monto_total: 'Monto total', monto_total_letras: 'Monto total en letras',
   plazo_meses: 'Plazo en meses', comprobante: 'Número de comprobante',
 };
-const rotularCampo = c => NOMBRE_CAMPO[c] || String(c || '').replace(/_/g, ' ');
+/* En una factura los mismos campos dicen otra cosa: `nombre` no es el contratado sino
+   quien la emitió, y `fecha_inicio` no es el inicio de nada sino la fecha de emisión.
+   Rotularlos igual que en un contrato es afirmar algo que el papel no dice. */
+const NOMBRE_CAMPO_POR_FAMILIA = {
+  comprobante: {
+    nombre: 'Emisor', documento: 'CUIT del emisor', fecha_inicio: 'Fecha de emisión',
+    monto: 'Importe', fecha_fin: 'Sin uso en comprobantes',
+  },
+  // Un decreto no tiene contratado ni fecha de inicio: tiene una referencia y una
+  // fecha. Dejarle el rótulo de contrato afirma algo que el documento no dice.
+  acto: {
+    nombre: 'Título o referencia', documento: 'Número o identificador',
+    fecha_inicio: 'Fecha', fecha_fin: 'Sin uso en actos', monto: 'Importe',
+  },
+};
+const rotularCampo = (c, familia) =>
+  ((NOMBRE_CAMPO_POR_FAMILIA[familia] || {})[c])
+  || NOMBRE_CAMPO[c] || String(c || '').replace(/_/g, ' ');
 
 /* Estados de confianza: etiqueta y explicación. Es el mismo modelo que está en
    ufil/confianza.py; si se agrega uno allá, se agrega acá. */
@@ -56,6 +73,22 @@ const badgeEstado = e => {
   const [txt, tono] = ESTADO[e] || [e || '—', 'neutro'];
   return `<span class="sello estado-${tono}">${esc(txt)}</span>`;
 };
+
+/* Los tipos de documento, en castellano. La clave es la que usa la base. */
+const TIPO_DOC = {
+  contrato_obra:'Contrato de obra', contrato_personal:'Contrato de personal',
+  contrato_locacion:'Contrato de locación', factura:'Factura', recibo:'Recibo',
+  remito:'Remito', decreto:'Decreto', resolucion:'Resolución', rendicion:'Rendición',
+  caratula:'Carátula', nota:'Nota', continuacion:'Continuación',
+  desconocida:'Sin reconocer',
+};
+const FAMILIA_DOC = {contrato:'Contrato', comprobante:'Comprobante de pago',
+                     acto:'Acto administrativo'};
+/* La base guarda «A» y «B» porque así lo escribe el perfil de extracción. En pantalla
+   eso no dice nada: «Cámara A» obliga a acordarse de cuál es cuál, y el que lee un
+   informe no tiene por qué saberlo. */
+const CAMARA = {A:'Diputados', B:'Senadores'};
+const camaraTexto = c => c ? (CAMARA[c] || c) : '';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -140,7 +173,11 @@ function tabla(cols, filas, opts = {}) {
   const tr = filas.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}" data-i="${i}">${
     cols.map(c => `<td class="${c.c || ''}">${c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
   }</tr>`).join('');
-  return `<div class="tabla-env"><table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div>`;
+  // `lista` marca QUÉ muestra esta tabla. Hace falta cuando una pantalla tiene más de
+  // una: enganchar el clic por «la última tabla» funcionaba hasta que se agregó otra
+  // debajo, y entonces cada fila abría el documento equivocado.
+  const marca = opts.lista ? ` data-lista="${esc(opts.lista)}"` : '';
+  return `<div class="tabla-env"><table${marca}><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div>`;
 }
 
 function interpHTML(i) {
@@ -250,7 +287,11 @@ async function abrirLegajo(slug) {
 
 async function vPanel() {
   const p = await api('/api/panel');
-  const cob = p.cobertura.filter(c => c.campo !== 'cargo');
+  // `cargo` se saca: no aporta al estado de lectura y alarga la tabla. `fecha_fin` de
+  // un comprobante también: una factura no tiene período, el campo se declara sólo para
+  // que el registro tenga la misma forma, y siempre está vacío.
+  const cob = p.cobertura.filter(c =>
+    c.campo !== 'cargo' && !(c.familia === 'comprobante' && c.campo === 'fecha_fin'));
 
   if (!p.documentos) {
     vista.innerHTML = bloque('f. 0001', 'Inicio', `
@@ -282,8 +323,9 @@ async function vPanel() {
     bloque('f. 0001', 'Resumen', `
       <h2>Qué encontró el sistema</h2>
       <p class="prosa resumen">
-        Sobre <strong>${n(p.documentos)} contratos</strong> leídos del lote
-        «${esc(p.lote)}»: <strong>${n(p.personas_ambas_camaras)} personas</strong> figuran en
+        Sobre <strong>${plural(p.contratos, 'contrato leído', 'contratos leídos')}</strong>${
+          p.comprobantes ? ` y <strong>${plural(p.comprobantes, 'comprobante', 'comprobantes')}</strong>` : ''}
+        del lote «${esc(p.lote)}»: <strong>${n(p.personas_ambas_camaras)} personas</strong> figuran en
         las dos cámaras y <strong>${n(p.superposiciones)} pares</strong> de contratos se pisan
         en el tiempo${p.fechas_imposibles ? `, y <strong>${n(p.fechas_imposibles)}</strong>
         tiene${p.fechas_imposibles === 1 ? '' : 'n'} fechas imposibles` : ''}.
@@ -337,14 +379,14 @@ async function vPanel() {
           <span>fojas enderezadas</span></div>` : ''}
       </div>
 
-      <h3 style="margin-top:22px">Los montos</h3>
+      <h3 style="margin-top:22px">Lo contratado</h3>
       <div class="cifras totales">
         <div class="cifra ancha firme">
           <b>${esc(fmtPesos(t.total_firme_centavos))}</b>
-          <span>total firme · ${n(t.contratos_con_monto_firme)} contratos</span></div>
+          <span>firme · ${plural(t.contratos_con_monto_firme, 'contrato', 'contratos')}</span></div>
         <div class="cifra ancha provisional">
           <b>${esc(fmtPesos(t.total_provisional_centavos))}</b>
-          <span>provisional · ${n(t.contratos_con_monto_provisional)} contratos sin revisar</span></div>
+          <span>provisional · ${plural(t.contratos_con_monto_provisional, 'contrato sin revisar', 'contratos sin revisar')}</span></div>
       </div>
       <div class="cifras">
         <div class="cifra ${t.montos_pendientes_sin_valor ? 'alerta' : ''}">
@@ -352,6 +394,31 @@ async function vPanel() {
         <div class="cifra ${t.contratos_sin_monto_firme ? 'alerta' : ''}">
           <b>${n(t.contratos_sin_monto_firme)}</b><span>contratos sin monto firme</span></div>
       </div>
+      ${t.comprobantes ? `
+      <h3 style="margin-top:22px">Lo facturado</h3>
+      <div class="cifras totales">
+        <div class="cifra ancha facturado">
+          <b>${esc(fmtPesos(t.total_facturado_firme_centavos))}</b>
+          <span>firme · ${plural(t.comprobantes_con_monto_firme, 'comprobante', 'comprobantes')}
+            de ${n(t.comprobantes)}</span></div>
+        <div class="cifra ancha ${t.comprobantes_sin_importe_legible ? 'alerta' : ''}">
+          <b>${n(t.comprobantes_sin_importe_legible)}</b>
+          <span>sin importe legible · escritos a mano</span></div>
+      </div>
+      <p class="prosa" style="font-size:12.5px;margin-top:10px">
+        <strong>Lo facturado no se suma con lo contratado.</strong> El contrato dice
+        cuánto se pactó pagar y la factura dice cuánto se cobró: cuando la factura es el
+        cobro de ese mismo contrato, sumarlos cuenta la misma plata dos veces. Para ver
+        uno contra otro, persona por persona, está
+        <a href="#/cruce">Lo facturado contra lo contratado</a>.</p>` : ''}
+      ${t.documentos_sin_familia ? `
+      <div class="aviso" style="margin-top:12px">
+        <span class="sello atencion" style="flex:none">Sin clasificar</span>
+        <span>${plural(t.documentos_sin_familia, 'documento', 'documentos')} no se
+          reconoce${t.documentos_sin_familia === 1 ? '' : 'n'} como contrato ni como
+          comprobante, así que no entra${t.documentos_sin_familia === 1 ? '' : 'n'} en
+          ningún total. Están en <a href="#/afuera">Quedaron afuera</a>.</span>
+      </div>` : ''}
       <p class="prosa" style="font-size:12.5px;margin-top:10px">
         <strong>El total firme</strong> suma únicamente los montos que el sistema leyó con
         confianza alta o que una persona verificó contra el documento. <strong>El
@@ -369,13 +436,17 @@ async function vPanel() {
 
     bloque('f. 0003', 'Cobertura', `
       <h2>Qué se pudo leer</h2>
-      <p class="prosa">El denominador honesto, campo por campo. <strong>Firme</strong> es lo
-        que puede sumarse y cruzarse: lo leyó el sistema con confianza alta, o lo verificó
-        una persona contra el documento. Todo lo demás existe y se ve, pero no entra en
-        ningún total. Una cola larga no es una falla: es el sistema prefiriendo dudar antes
-        que equivocarse callado.</p>
+      <p class="prosa">El denominador honesto, campo por campo y por tipo de documento.
+        <strong>Firme</strong> es lo que puede sumarse y cruzarse: lo leyó el sistema con
+        confianza alta, o lo verificó una persona contra el documento. Todo lo demás
+        existe y se ve, pero no entra en ningún total. Una cola larga no es una falla: es
+        el sistema prefiriendo dudar antes que equivocarse callado.</p>
+      <p class="prosa" style="font-size:12.5px">Van separados por tipo de documento
+        porque el mismo campo dice cosas distintas: en un contrato <em>Contratado</em> es
+        quien fue contratado, y en una factura es quien la emitió.</p>
       ${tabla([
-        {t:'Campo', r:f => esc(rotularCampo(f.campo))},
+        {t:'Documento', r:f => esc(FAMILIA_DOC[f.familia] || 'Sin clasificar')},
+        {t:'Campo', r:f => esc(rotularCampo(f.campo, f.familia))},
         {t:'Total en el legajo', k:'total', c:'num'},
         {t:'Firmes', c:'num', r:f => `<b>${fmtNum.format(f.firmes)}</b>`},
         {t:'· automáticos', k:'automaticos_firmes', c:'num'},
@@ -432,16 +503,116 @@ async function vContratos() {
     ${tabla([
       {t:'Doc', k:'documento_id', c:'fol'},
       {t:'Archivo', k:'archivo', c:'fol'},
-      {t:'Cámara', k:'camara'},
+      {t:'Cámara', r:f => esc(camaraTexto(f.camara))},
       {t:'Contratado/a', r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo">Ø sin dato</span>'},
       {t:'Documento', c:'mono', r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo">Ø sin dato</span>'},
-      {t:'Inicio', k:'inicio', c:'mono'},
-      {t:'Fin', r:f => f.fin ? `<span class="mono">${esc(f.fin)}</span>` : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Inicio', c:'mono', r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Fin', c:'mono', r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class="nulo">Ø sin dato</span>'},
       {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '<span class="nulo">Ø sin dato</span>' : esc(fmtPesos(f.monto_centavos))},
       {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
     ], filas, {alClic:true})}`);
   vista.querySelectorAll('tbody tr').forEach(tr =>
     tr.onclick = () => location.hash = '#/documento/' + filas[+tr.dataset.i].documento_id);
+}
+
+/* ── Comprobantes ──────────────────────────────────────────────────────────
+   El otro carril. Separado de los contratos porque dice otra cosa: el contrato es lo
+   que se pactó pagar, el comprobante es lo que se cobró. */
+async function vComprobantes() {
+  const filas = await api('/api/comprobantes');
+  if (!filas.length) return vistaVacia('f. 0004', 'Datos', 'Facturas y recibos',
+    'Todavía no hay comprobantes leídos',
+    'Acá van las facturas, recibos y remitos que vengan en los escaneos. Se separan de ' +
+    'los contratos porque dicen otra cosa: lo que se cobró, no lo que se pactó.');
+
+  const aMano = filas.filter(f => f.monto_centavos == null).length;
+  vista.innerHTML = bloque('f. 0004', 'Datos', `
+    <h2>Facturas y recibos</h2>
+    <p class="prosa">Lo que se cobró. <strong>No se suma con los contratos</strong>: son
+      la misma plata vista de los dos lados, y cuando la factura es el cobro de ese
+      contrato, sumarlas la cuenta dos veces. El cruce está en
+      <a href="#/cruce">Lo facturado contra lo contratado</a>.</p>
+    ${aMano ? `<div class="aviso">
+      <span class="sello atencion" style="flex:none">A mano</span>
+      <span>${plural(aMano, 'comprobante tiene', 'comprobantes tienen')} el importe
+        escrito a mano. <strong>No se lee con OCR</strong> —leerlo mal y no saberlo es
+        peor que no leerlo— así que aparece vacío y espera que una persona lo cargue
+        mirando la foja. Están en <a href="#/cola">la cola de revisión</a>.</span>
+    </div>` : ''}
+    ${tabla([
+      {t:'Doc', k:'documento_id', c:'fol'},
+      {t:'Tipo', r:f => esc(TIPO_DOC[f.tipo] || f.tipo)},
+      {t:'Archivo', k:'archivo', c:'fol'},
+      {t:'Emisor', r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'CUIT', c:'mono', r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Comprobante', c:'mono', r:f => f.comprobante ? esc(f.comprobante) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Emitida', c:'mono', r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Importe', c:'num', r:f => f.monto_centavos == null
+          ? '<span class="nulo">Ø a mano</span>' : esc(fmtPesos(f.monto_centavos))},
+      {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
+    ], filas, {alClic:true})}`);
+  vista.querySelectorAll('tbody tr').forEach(tr =>
+    tr.onclick = () => location.hash = '#/documento/' + filas[+tr.dataset.i].documento_id);
+}
+
+/* ── Lo facturado contra lo contratado ─────────────────────────────────────
+   El cruce que el caso necesita: cuánto se comprometió a pagar y cuánto se facturó
+   contra eso. Une por CUIT ↔ DNI, no por nombre, que se escribe de mil maneras. */
+async function vCruce() {
+  const r = await api('/api/cruce');
+  if (!r.filas.length) return vistaVacia('f. 0006', 'Cruce', 'Lo facturado contra lo contratado',
+    'Todavía no hay con qué cruzar',
+    'Hace falta al menos un contrato con documento leído. Las facturas se le enganchan ' +
+    'solas: el CUIL lleva adentro el DNI del contrato.');
+
+  vista.innerHTML = bloque('f. 0006', 'Cruce', `
+    <h2>Lo facturado contra lo contratado</h2>
+    <p class="prosa">Qué se comprometió a pagar y qué se facturó contra eso, persona por
+      persona. Se unen por el documento y no por el nombre: <strong>el CUIL de la
+      factura lleva adentro el DNI del contrato</strong>, así que se cruzan solos aunque
+      el nombre esté escrito distinto en cada foja.</p>
+    ${tabla([
+      {t:'Contratado/a', r:f => `<a href="#/persona/${f.persona_id}">${esc(f.contratado)}</a>`},
+      {t:'Documento', k:'documento', c:'mono'},
+      {t:'Contratos', c:'num', k:'contratos'},
+      {t:'Período', c:'mono', r:f => f.contrato_desde
+          ? `${esc(fmtFecha(f.contrato_desde))} → ${esc(fmtFecha(f.contrato_hasta))}`
+          : '<span class="nulo">Ø sin fechas</span>'},
+      // Mensual y total son magnitudes distintas y se muestran en columnas distintas.
+      // El total es el único comparable con la facturación acumulada de al lado.
+      {t:'Mensual pactado', c:'num', r:f => f.mensual_centavos
+          ? esc(fmtPesos(f.mensual_centavos)) : '<span class="nulo">Ø sin dato</span>'},
+      // Cuando NINGÚN contrato trae el total legible, la celda no muestra $0,00: cero
+      // se lee como «no se contrató nada» y lo que pasa es que no se pudo leer.
+      {t:'Total contratado', c:'num', r:f => f.contratos_sin_total_firme >= f.contratos
+          ? '<span class="nulo">Ø sin leer</span>'
+          : esc(fmtPesos(f.contratado_centavos)) + (f.contratos_sin_total_firme
+              ? ` <span class="sello atencion">faltan ${f.contratos_sin_total_firme}</span>` : '')},
+      {t:'Facturas', c:'num', k:'facturas'},
+      {t:'Facturado legible', c:'num', r:f => esc(fmtPesos(f.facturado_legible_centavos))},
+      {t:'A mano', c:'num', r:f => f.facturas_a_mano
+          ? `<span class="sello atencion">${f.facturas_a_mano}</span>` : '—'},
+    ], r.filas)}
+    <p class="prosa" style="font-size:12.5px;margin-top:12px">
+      <strong>Mensual y total no son lo mismo, y no se comparan entre sí.</strong> El
+      contrato fija un importe <em>mensual</em>; las facturas se acumulan. El único
+      número comparable con lo facturado es el <strong>total contratado</strong>, que el
+      contrato dice aparte. Cuando ese total no se pudo leer, la celda queda vacía en
+      vez de mostrar un cero o el mensual en su lugar: el sistema no multiplica mensual
+      por plazo para llenarla, porque eso sería calcular un número que el papel dice o
+      no dice.</p>
+    <p class="prosa" style="font-size:12.5px">
+      <strong>Una fila por persona, no por contrato.</strong> Una factura no dice a qué
+      contrato corresponde, y repartirlas por fecha sería adivinar. Con una fila por
+      contrato, quien tiene dos aparecía dos veces y cada fila traía todas sus facturas:
+      sumar la columna daba el doble de lo facturado. El detalle contrato por contrato
+      está en la ficha de cada persona.</p>
+    <p class="prosa" style="font-size:12.5px">
+      <strong>Facturado legible</strong> suma sólo los importes impresos que se pudieron
+      leer con seguridad. La columna <strong>a mano</strong> cuenta las facturas de
+      talonario, donde el importe está manuscrito y el sistema no lo lee: existen y no
+      se sabe por cuánto. Mientras esa columna no sea cero, el facturado está incompleto
+      y no se puede comparar contra lo pactado como si fuera el total.</p>`);
 }
 
 async function vSuperposiciones() {
@@ -478,7 +649,7 @@ async function vDocumento(id) {
   const campos = d.campos.map(c => {
     const conf = d.conflictos[c.nombre];
     if (conf) {
-      return `<div class="campo"><dt>${esc(c.nombre)}</dt><dd><div class="conflicto">${
+      return `<div class="campo"><dt>${esc(rotularCampo(c.nombre, doc.familia))}</dt><dd><div class="conflicto">${
         conf.map(v => `<div class="ruta"><span>${esc(v.ruta)}</span><span>${esc(v.valor)}</span></div>`).join('')
       }</div></dd></div>`;
     }
@@ -490,7 +661,7 @@ async function vDocumento(id) {
            c.estado === 'corregido' ? 'cargado a mano' : 'verificado'}</span>` +
         ` <button class="deshacer" data-campo="${c.id}"
             title="volver a lo que había leído el sistema">deshacer</button>` : '';
-    return `<div class="campo"><dt>${esc(c.nombre)}</dt>
+    return `<div class="campo"><dt>${esc(rotularCampo(c.nombre, doc.familia))}</dt>
       <dd>${celdaValor(c)}${ancla}${marca}</dd></div>`;
   }).join('');
 
@@ -501,9 +672,11 @@ async function vDocumento(id) {
   const enderezadas = paginas.filter(p => p.rotacion);
 
   vista.innerHTML = bloque('f. ' + String(id).padStart(4, '0'), 'Visor', `
-    <h2>${esc(doc.archivo)}${varios ? ` <span class="rotulo">contrato ${doc.orden} de ${d.hermanos.length}</span>` : ''}</h2>
+    <h2>${esc(doc.archivo)}${varios
+        ? ` <span class="rotulo">documento ${doc.orden} de ${d.hermanos.length}</span>` : ''}</h2>
+    <p class="tipo-doc"><span class="sello">${esc(TIPO_DOC[doc.tipo] || doc.tipo)}</span></p>
     <p class="prosa" style="font-size:13px">
-      Cámara ${esc(doc.camara || '—')} · perfil <span class="mono">${esc(doc.perfil)}</span> ·
+      ${doc.camara ? 'Cámara de ' + esc(camaraTexto(doc.camara)) + ' · ' : ''}perfil <span class="mono">${esc(doc.perfil)}</span> ·
       lote ${esc(doc.lote || '—')} ·
       fojas <span class="mono">${doc.pagina_desde}–${doc.pagina_hasta}</span><br>
       <span class="mono" style="font-size:11px">sha256 ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
@@ -514,11 +687,12 @@ async function vDocumento(id) {
       escaneo. <strong>El original no se tocó</strong>: se giró la copia de trabajo para
       poder leerla, y es esa la que ves acá.</span></div>` : ''}
     ${varios ? `<div class="aviso"><span class="sello alerta" style="flex:none">Ojo</span>
-      <span>Este PDF trae <strong>${d.hermanos.length} contratos</strong> adentro. Estás
-      viendo el número ${doc.orden}, que ocupa las fojas ${doc.pagina_desde} a
-      ${doc.pagina_hasta}. Los otros:
+      <span>Este PDF trae <strong>${plural(d.hermanos.length, 'documento', 'documentos')}</strong>
+      adentro. Estás viendo el número ${doc.orden}, que ocupa las fojas
+      ${doc.pagina_desde} a ${doc.pagina_hasta}. Los otros:
       ${d.hermanos.filter(h => h.id !== doc.id).map(h =>
-        `<a href="#/documento/${h.id}">#${h.orden} (f. ${h.pagina_desde}–${h.pagina_hasta})</a>`
+        `<a href="#/documento/${h.id}">#${h.orden} ${esc(TIPO_DOC[h.tipo] || h.tipo || '')}
+          (f. ${h.pagina_desde}–${h.pagina_hasta})</a>`
       ).join(' · ')}</span></div>` : ''}
     <div class="visor">
       <div class="datos">
@@ -946,7 +1120,8 @@ function resultadosHTML(r) {
         {t:'Campo', k:'campo'},
         {t:'Valor leído', c:'mono', r:f => esc(f.valor_literal)},
         {t:'Contratado/a', r:f => esc(f.nombre_literal || '—')},
-        {t:'Período', c:'mono', r:f => f.inicio ? `${esc(f.inicio)} → ${esc(f.fin || '?')}` : '—'},
+        {t:'Período', c:'mono', r:f => f.inicio
+            ? `${esc(fmtFecha(f.inicio))} → ${f.fin ? esc(fmtFecha(f.fin)) : '?'}` : '—'},
         {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '—' : esc(fmtPesos(f.monto_centavos))},
       ], r.campos, {alClic:true})}` : ''}
     ${r.paginas.length ? `
@@ -978,9 +1153,11 @@ async function vPersonas() {
       {t:'Contratos', k:'contratos', c:'num'},
       {t:'Sin monto', c:'num', r:f => f.contratos_sin_monto ? `<span class="marca">${f.contratos_sin_monto}</span>` : '0'},
       {t:'Acumulado', c:'num', r:f => esc(fmtPesos(f.acumulado_centavos))},
-      {t:'Cámaras', r:f => esc(f.camaras || '—')},
-      {t:'Desde', k:'primer_inicio', c:'mono'},
-      {t:'Hasta', k:'ultimo_fin', c:'mono'},
+      // Vienen como «A,B» de un GROUP_CONCAT. Se traducen y se separan legible.
+      {t:'Cámaras', r:f => esc((f.camaras || '').split(',').filter(Boolean)
+          .map(camaraTexto).join(' + ')) || '—'},
+      {t:'Desde', c:'mono', r:f => f.primer_inicio ? esc(fmtFecha(f.primer_inicio)) : '—'},
+      {t:'Hasta', c:'mono', r:f => f.ultimo_fin ? esc(fmtFecha(f.ultimo_fin)) : '—'},
       {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
     ], filas, {alClic:true})}`);
   vista.querySelectorAll('tbody tr').forEach(tr =>
@@ -1013,7 +1190,7 @@ function cronologia(contratos, solapes) {
     const dias = Math.round((f - i) / dia) + 1;
     return `<div class="tramo-fila">
       <div class="tramo-rot">
-        <span class="mono">Cám. ${esc(c.camara || '?')}</span>
+        <span>${esc(camaraTexto(c.camara) || 'sin cámara')}</span>
         <span class="fol">${esc(c.archivo.replace('.pdf',''))}</span>
       </div>
       <div class="tramo-pista">
@@ -1023,7 +1200,7 @@ function cronologia(contratos, solapes) {
            title="${esc(c.inicio)} → ${esc(c.fin)} · ${dias} días · ${esc(c.cargo || 'sin cargo')}${
              c.monto_centavos != null ? ' · ' + fmtPesos(c.monto_centavos) : ''}"></a>
       </div>
-      <div class="tramo-dato mono">${esc(c.inicio)} → ${esc(c.fin)}</div>
+      <div class="tramo-dato mono">${esc(fmtFecha(c.inicio))} → ${esc(fmtFecha(c.fin))}</div>
     </div>`;
   }).join('');
 
@@ -1065,14 +1242,28 @@ async function vPersona(id) {
 
     <div class="cifras" style="margin:14px 0 4px">
       <div class="cifra"><b>${t.contratos}</b><span>contratos</span></div>
-      <div class="cifra"><b>${esc(fmtPesos(t.acumulado_centavos) || '—')}</b><span>acumulado</span></div>
+      <div class="cifra"><b>${esc(fmtPesos(t.acumulado_centavos) || '—')}</b><span>mensual acumulado</span></div>
       <div class="cifra ${d.solapes.length ? 'alerta' : ''}"><b>${d.solapes.length}</b><span>superposiciones</span></div>
-      <div class="cifra"><b>${esc((t.camaras || []).join(' + ') || '—')}</b><span>cámaras</span></div>
+      <div class="cifra"><b>${esc((t.camaras || []).map(camaraTexto).join(' + ') || '—')}</b><span>cámaras</span></div>
       <div class="cifra ${t.sin_monto ? 'alerta' : ''}"><b>${t.sin_monto}</b><span>sin monto legible</span></div>
     </div>
     ${t.sin_monto || t.sin_fechas ? `<p class="prosa" style="font-size:12.5px">
       El acumulado suma sólo los contratos con monto firme: hay ${t.sin_monto} sin monto y
       ${t.sin_fechas} sin fechas completas. <strong>Es un piso, no un total.</strong></p>` : ''}
+    ${t.comprobantes ? `
+    <div class="cifras" style="margin:10px 0 4px">
+      <div class="cifra facturado"><b>${t.comprobantes}</b><span>facturas y recibos</span></div>
+      <div class="cifra facturado"><b>${esc(fmtPesos(t.facturado_centavos) || '—')}</b><span>facturado legible</span></div>
+      ${t.comprobantes_sin_importe ? `<div class="cifra alerta">
+        <b>${t.comprobantes_sin_importe}</b><span>importes a mano, sin leer</span></div>` : ''}
+    </div>
+    <p class="prosa" style="font-size:12.5px">
+      <strong>Lo facturado no se suma con lo contratado.</strong> El mensual acumulado es
+      lo que dicen los contratos por mes; lo facturado es lo que esta persona cobró. Son
+      la misma plata vista de los dos lados${t.comprobantes_sin_importe
+        ? `, y el facturado además está incompleto: ${plural(t.comprobantes_sin_importe,
+            'comprobante trae el importe a mano', 'comprobantes traen el importe a mano')}
+           y el sistema no lo lee` : ''}.</p>` : ''}
 
     <h3 style="margin-top:24px">Cronología</h3>
     ${cronologia(d.contratos, d.solapes)}
@@ -1082,21 +1273,35 @@ async function vPersona(id) {
       ${tabla([
         {t:'Folios', c:'fol', r:f => `${esc(f.archivo_a)}<br>${esc(f.archivo_b)}`},
         {t:'Cruce', r:f => f.cruce === 'intercámara' ? `<span class="marca">${esc(f.cruce)}</span>` : esc(f.cruce)},
-        {t:'Desde', k:'desde', c:'mono'},
-        {t:'Hasta', k:'hasta', c:'mono'},
+        {t:'Desde', c:'mono', r:f => esc(fmtFecha(f.desde))},
+        {t:'Hasta', c:'mono', r:f => esc(fmtFecha(f.hasta))},
         {t:'Días', k:'dias', c:'num'},
       ], d.solapes)}` : ''}
 
     <h3 style="margin-top:26px">Contratos</h3>
     ${tabla([
       {t:'Archivo', k:'archivo', c:'fol'},
-      {t:'Cámara', k:'camara'},
+      {t:'Cámara', r:f => esc(camaraTexto(f.camara))},
       {t:'Cargo', r:f => esc(f.cargo || '—')},
-      {t:'Inicio', k:'inicio', c:'mono'},
-      {t:'Fin', r:f => f.fin ? `<span class="mono">${esc(f.fin)}</span>` : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Inicio', c:'mono', r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Fin', c:'mono', r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class="nulo">Ø sin dato</span>'},
       {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '<span class="nulo">Ø sin dato</span>' : esc(fmtPesos(f.monto_centavos))},
       {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
-    ], d.contratos, {alClic:true})}
+    ], d.contratos, {alClic:true, lista:'contratos'})}
+
+    ${(d.comprobantes || []).length ? `
+      <h3 style="margin-top:26px">Facturas y recibos</h3>
+      <p class="prosa" style="font-size:12.5px">Emitidos con el mismo documento. El CUIL de
+        la factura lleva adentro el DNI del contrato, así que se enganchan solos.</p>
+      ${tabla([
+        {t:'Archivo', k:'archivo', c:'fol'},
+        {t:'Tipo', r:f => esc(TIPO_DOC[f.tipo] || f.tipo)},
+        {t:'Comprobante', c:'mono', r:f => f.comprobante ? esc(f.comprobante) : '<span class="nulo">Ø sin dato</span>'},
+        {t:'Emitida', c:'mono', r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class="nulo">Ø sin dato</span>'},
+        {t:'Importe', c:'num', r:f => f.monto_centavos == null
+            ? '<span class="nulo">Ø a mano</span>' : esc(fmtPesos(f.monto_centavos))},
+        {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
+      ], d.comprobantes, {alClic:true, lista:'comprobantes'})}` : ''}
 
     ${d.interpretaciones.length ? `
       <div style="margin-top:26px">
@@ -1106,10 +1311,14 @@ async function vPersona(id) {
         ${d.interpretaciones.map(interpHTML).join('')}
       </div>` : ''}`);
 
-  const tablas = vista.querySelectorAll('.tabla-env table');
-  const ultima = tablas[tablas.length - 1];
-  if (ultima) ultima.querySelectorAll('tbody tr').forEach(tr =>
-    tr.onclick = () => location.hash = '#/documento/' + d.contratos[+tr.dataset.i].documento_id);
+  // OJO: antes esto tomaba «la última tabla» y le enganchaba los contratos. Con la de
+  // comprobantes abajo, cada fila de una factura abría el contrato del mismo índice.
+  // Ahora cada tabla se marca con lo que muestra y el clic va a lo que dice la fila.
+  vista.querySelectorAll('table[data-lista]').forEach(tabla => {
+    const filas = tabla.dataset.lista === 'contratos' ? d.contratos : d.comprobantes;
+    tabla.querySelectorAll('tbody tr').forEach(tr =>
+      tr.onclick = () => location.hash = '#/documento/' + filas[+tr.dataset.i].documento_id);
+  });
 }
 
 /* ── Carga de escaneos ─────────────────────────────────────────────────── */
@@ -1567,6 +1776,7 @@ const TITULOS = {
   '#/consultas':'Consultas', '#/documento':'Documento', '#/persona':'Ficha',
   '#/como-funciona':'Cómo funciona', '#/salud':'Estado del sistema',
   '#/afuera':'Quedaron afuera', '#/legajos':'Legajos',
+  '#/comprobantes':'Facturas y recibos', '#/cruce':'Facturado contra contratado',
 };
 
 /* ── Cuánto ocupan las tiras de arriba ─────────────────────────────────────
@@ -1650,6 +1860,8 @@ const rutas = [
   [/^#\/panel$/,                 vPanel],
   [/^#\/ingesta$/,               vIngesta],
   [/^#\/contratos$/,             vContratos],
+  [/^#\/comprobantes$/,          vComprobantes],
+  [/^#\/cruce$/,                 vCruce],
   [/^#\/personas$/,              vPersonas],
   [/^#\/persona\/(\d+)$/,        vPersona],
   [/^#\/buscar\/?(.*)$/,         vBuscar],

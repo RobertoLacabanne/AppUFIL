@@ -177,6 +177,7 @@ por accidente.
 | [`INSTALAR.md`](INSTALAR.md) | Instalación en dos etapas (sin internet), operación diaria y respaldo |
 | [`docs/09-lo-escrito-a-mano.md`](docs/09-lo-escrito-a-mano.md) | Por qué el OCR no lee la manuscrita, con el número, y qué hace el sistema en cambio. |
 | [`docs/10-un-legajo-por-causa.md`](docs/10-un-legajo-por-causa.md) | **Por qué cada causa tiene su propia base**, y no una columna `legajo_id` que alguien pueda olvidar. |
+| [`docs/11-contrato-o-factura.md`](docs/11-contrato-o-factura.md) | **Un contrato no es una factura**, y sus platas no se suman. El defecto medido y cómo quedó. |
 
 ---
 

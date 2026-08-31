@@ -29,7 +29,7 @@ class BaseTemporal(unittest.TestCase):
         self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
         self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,ingerido_en)
                            VALUES ('aa','/x/a.pdf','a.pdf',1,?)""", (ahora(),))
-        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','c','p')")
+        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','contrato_obra','p')")
         self.doc = self.cx.execute("SELECT id FROM documento").fetchone()["id"]
 
     def tearDown(self):
@@ -144,7 +144,7 @@ class Identidad(BaseTemporal):
     def _doc_con(self, sha, nombre, documento):
         self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,ingerido_en)
                            VALUES (?,?,?,1,?)""", (sha, f"/x/{sha}.pdf", f"{sha}.pdf", ahora()))
-        d = self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES (?,'c','p')",
+        d = self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES (?,'contrato_obra','p')",
                             (sha,)).lastrowid
         for campo, valor, tipo, norm in (
             ("nombre", nombre, "nombre", nombre.upper().replace(",", "")),
@@ -301,11 +301,11 @@ class VariosContratosEnUnArchivo(unittest.TestCase):
         for orden, (d, h) in enumerate([(1, 2), (3, 4), (5, 6)], start=1):
             cx.execute("""INSERT INTO documento (sha256,orden,pagina_desde,pagina_hasta,
                                                  tipo,perfil)
-                          VALUES ('mm',?,?,?,'c','p')""", (orden, d, h))
+                          VALUES ('mm',?,?,?,'contrato_obra','p')""", (orden, d, h))
         self.assertEqual(cx.execute("SELECT COUNT(*) FROM documento").fetchone()[0], 3)
         with self.assertRaises(sqlite3.IntegrityError):
             cx.execute("""INSERT INTO documento (sha256,orden,tipo,perfil)
-                          VALUES ('mm',1,'c','p')""")   # mismo orden, no
+                          VALUES ('mm',1,'contrato_obra','p')""")   # mismo orden, no
         cx.close(); tmp.cleanup()
 
 
@@ -376,7 +376,7 @@ class ContratosRepetidos(BaseTemporal):
                            VALUES (?,?,?,1,?)""", (sha, f"/x/{sha}.pdf", f"{sha}.pdf", ahora()))
         d = self.cx.execute("""INSERT INTO documento (sha256,orden,tipo,perfil)
                                VALUES (?,(SELECT COALESCE(MAX(orden),0)+1 FROM documento
-                                          WHERE sha256=?),'c','p')""", (sha, sha)).lastrowid
+                                          WHERE sha256=?),'contrato_obra','p')""", (sha, sha)).lastrowid
         for campo, valor, tipo, norm in (
             ("nombre", nombre, "nombre", nombre.upper()),
             ("documento", doc, "documento", f"CUIL:{doc}"),
@@ -788,7 +788,7 @@ class NingunArchivoSePierdeEnSilencio(unittest.TestCase):
         from ufil.servidor import api_afuera
         self._archivo("bb", "contrato.pdf")
         self._leida("bb")
-        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('bb','c','p')")
+        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('bb','contrato_obra','p')")
         self.cx.commit()
         self.assertEqual(api_afuera(self.cx)["afuera"], 0)
 
@@ -836,7 +836,7 @@ class LoQueFaltaSeDiceEnLaPlanilla(unittest.TestCase):
                                                     paginas,ingerido_en)
                                VALUES (?,?,?,1,1,?)""",
                             (sha, f"/x/{nombre}", nombre, ahora()))
-        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','c','p')")
+        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','contrato_obra','p')")
         self.cx.commit()
 
     def tearDown(self):
@@ -850,7 +850,7 @@ class LoQueFaltaSeDiceEnLaPlanilla(unittest.TestCase):
         texto = " ".join(
             str(c) for f in openpyxl.load_workbook(destino)["procedencia"].iter_rows(
                 values_only=True) for c in f if c is not None)
-        self.assertIn("NO dieron ningún contrato", texto)
+        self.assertIn("NO dieron ningún documento", texto)
         self.assertIn("1", texto)
         self.assertIn("Quedaron", texto, "tiene que decir dónde está la lista")
 
@@ -882,7 +882,7 @@ class ElTrabajoDeLasPersonasSeRespalda(unittest.TestCase):
         self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
         self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,ingerido_en)
                            VALUES ('aa','/x/a.pdf','a.pdf',1,?)""", (ahora(),))
-        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','c','p')")
+        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','contrato_obra','p')")
         self.cx.execute("""INSERT INTO revision_humana
                            (sha256,orden,campo,accion,valor,quien,cuando)
                            VALUES ('aa',1,'monto','corregir','74200','perez.ana',?)""",
@@ -919,7 +919,7 @@ class ElTrabajoDeLasPersonasSeRespalda(unittest.TestCase):
         from ufil import respaldo
         # Con una escritura sin confirmar en curso, la copia igual tiene que salir sana.
         self.cx.execute("""INSERT INTO documento (sha256,orden,tipo,perfil)
-                           VALUES ('aa',2,'c','q')""")
+                           VALUES ('aa',2,'contrato_obra','q')""")
         self.cx.commit()
         destino = respaldo.hacer(self.cx, Path(self.tmp.name) / "viva.sqlite")
         copia = sqlite3.connect(destino)
@@ -991,7 +991,7 @@ class LoEscritoAManoNoSeAdivina(unittest.TestCase):
         self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
         self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,ingerido_en)
                            VALUES ('aa','/x/a.pdf','a.pdf',1,?)""", (ahora(),))
-        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','f','p')")
+        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','factura','p')")
         self.doc = self.cx.execute("SELECT id FROM documento").fetchone()["id"]
         self.campo = self.cx.execute(
             """INSERT INTO campo (documento_id,nombre,nulo_motivo,pagina_nro,
