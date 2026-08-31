@@ -16,6 +16,17 @@
     ninguna persona.</span>
 </div>
 
+<!-- Qué legajo está abierto, arriba de todo y siempre a la vista. Cada legajo es una
+     base separada: mirar el número equivocado es mirar otra causa. -->
+<div id="cinta-legajo" hidden>
+  <span class="etq">Legajo</span>
+  <b id="l-numero" class="mono"></b>
+  <span id="l-caratula"></span>
+  <span id="l-fiscal" class="fiscal"></span>
+  <a class="cambiar" href="#/legajos">Cambiar de legajo</a>
+</div>
+
+<div id="techo">
 <header class="barra">
   <div class="folio"><span id="f-lote">—</span><br><span id="f-fecha"></span></div>
   <div class="titulo">
@@ -49,6 +60,7 @@
   <a href="#/como-funciona">Cómo funciona</a>
   <a href="#/salud">Estado del sistema</a>
 </nav>
+</div>
 
 <main id="vista"><div class="esqueleto"><i></i><i></i><i></i></div></main>
 <script src="/estatico/app.js"></script>

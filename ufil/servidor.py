@@ -17,12 +17,13 @@ import json
 import mimetypes
 import os
 import sqlite3
+import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import acceso, config, db
+from . import acceso, config, db, legajos
 from . import confianza as cf
 from . import capa3_identidad as c3
 from . import capa4_analisis as c4
@@ -38,14 +39,67 @@ class NoEncontrado(Exception):
 
 
 RUTA_BASE: Path | None = None
-PROCESADOR: Procesador | None = None
 PORTERIA: acceso.Porteria = acceso.Porteria(exigir=False)
 HOST_ESCUCHA: str = "127.0.0.1"
 
+# Un trabajador POR LEGAJO. Con uno solo, procesar el legajo A dejaría al B esperando
+# sin motivo, y peor: el estado de avance que ve la pantalla sería el del otro legajo.
+_PROCESADORES: dict[str | None, Procesador] = {}
+_BASES_LISTAS: set[str] = set()
+_CANDADO = threading.Lock()
+_SLUGS_CONOCIDOS: set[str] = set()
+
 
 def _cx() -> sqlite3.Connection:
-    """Conexión por petición. El esquema ya se aplicó al arrancar, no se toca acá."""
-    return db.conectar(RUTA_BASE)
+    """
+    Conexión por petición, contra la base del legajo activo en ESTE hilo.
+
+    Sin legajo activo se usa la base suelta con la que arrancó el servidor: las
+    instalaciones anteriores a los legajos y las pruebas siguen andando igual.
+    """
+    # Se resuelve a una ruta concreta y no se deja en None: así el esquema se garantiza
+    # también para la base suelta. Antes se confiaba en que `servir()` la hubiera
+    # preparado, y bastaba con que alguien borrara el archivo —o con arrancar por otro
+    # camino— para que las consultas empezaran a fallar con «no such table».
+    ruta = Path(config.BASE) if (config.legajo_activo() or RUTA_BASE is None) else RUTA_BASE
+    if str(ruta) not in _BASES_LISTAS:
+        # El esquema se aplica una vez por base y por proceso. Un legajo recién creado
+        # tiene la carpeta pero no la base: la primera petición que lo abre es la que la
+        # crea. Serializado, porque dos pestañas abriendo el mismo legajo nuevo a la vez
+        # correrían el `CREATE VIEW` en paralelo.
+        with _CANDADO:
+            if str(ruta) not in _BASES_LISTAS:
+                db.abrir(ruta).close()
+                _BASES_LISTAS.add(str(ruta))
+    return db.conectar(ruta)
+
+
+def _procesador() -> Procesador:
+    """El trabajador del legajo activo. Se crea la primera vez que se lo pide."""
+    slug = config.legajo_activo()
+    with _CANDADO:
+        p = _PROCESADORES.get(slug)
+        if p is None:
+            base = Path(config.BASE) if slug else RUTA_BASE
+            p = _PROCESADORES[slug] = Procesador(base, legajo=slug)
+        return p
+
+
+def _slug_valido(slug: str) -> bool:
+    """
+    ¿Ese legajo existe de verdad?
+
+    Se chequea SIEMPRE, en cada pedido. La cookie la puede escribir cualquiera, y un
+    slug inventado sin este control crearía una base nueva en una carpeta arbitraria.
+    El conjunto se guarda en memoria y se relee sólo cuando el slug no está: así un
+    legajo recién creado se reconoce enseguida y el caso normal no toca el disco.
+    """
+    if slug in _SLUGS_CONOCIDOS:
+        return True
+    with _CANDADO:
+        _SLUGS_CONOCIDOS.clear()
+        _SLUGS_CONOCIDOS.update(legajos.slugs())
+    return slug in _SLUGS_CONOCIDOS
 
 
 # ─────────────────────────────────────────────────────────────────── consultas ──
@@ -77,7 +131,18 @@ def api_panel(cx) -> dict:
     campos_criticos_total = sum(c["total"] for c in criticos)
     campos_criticos_firmes = sum(c["firmes"] for c in criticos)
     totales = c4.correr(cx, "10_totales")["filas"][0]
+    # Qué legajo se está mirando. Va en el panel y no en una llamada aparte porque la
+    # interfaz tiene que poder decirlo SIEMPRE, arriba de todo: un número al lado de una
+    # carátula equivocada es peor que no mostrar el número.
+    abierto = config.legajo_activo()
+    try:
+        l = legajos.obtener(abierto) if abierto else None
+    except legajos.LegajoInexistente:
+        l = None
     return {
+        "legajo": ({"slug": l.slug, "numero": l.numero, "caratula": l.caratula,
+                    "fiscal": l.fiscal} if l else None),
+        "hay_legajos": bool(legajos.slugs()),
         # ── Totales, SEPARADOS. Ver ufil/confianza.py y consultas/10_totales.sql ──
         "totales": dict(totales),
         "archivos": uno("SELECT COUNT(*) FROM archivo"),
@@ -481,13 +546,39 @@ class Manejador(BaseHTTPRequestHandler):
         return destino if raiz.resolve() in destino.parents or destino.parent == raiz.resolve() else None
 
     # -- portería --
-    def _vale(self) -> str | None:
-        """El vale de sesión que trae la cookie, si trae alguno."""
+    def _cookie(self, buscada: str) -> str | None:
         for parte in (self.headers.get("Cookie") or "").split(";"):
             nombre, _, valor = parte.strip().partition("=")
-            if nombre == "ufil_acceso":
+            if nombre == buscada:
                 return valor
         return None
+
+    def _vale(self) -> str | None:
+        """El vale de sesión que trae la cookie, si trae alguno."""
+        return self._cookie("ufil_acceso")
+
+    # -- legajo --
+    def _activar_legajo(self) -> None:
+        """
+        Fija el legajo de este pedido, y con él la base y la carpeta de derivados.
+
+        Se llama al principio de CADA pedido, incluso cuando no viene ninguno. Eso no es
+        una precaución de más: los hilos del servidor se reciclan entre pedidos, así que
+        el hilo que atendió el legajo A sigue teniéndolo activo cuando le toca el
+        siguiente pedido. Si ese pedido no trae legajo y no limpiamos, se le contesta
+        con datos de A. Ese es exactamente el cruce que todo esto existe para evitar.
+
+        Un legajo que no está en el registro se trata como ninguno, no como el que
+        venía: la cookie la escribe el navegador y no es una fuente confiable.
+        """
+        pedido = (self._cookie("ufil_legajo") or "").strip()
+        if pedido and _slug_valido(pedido):
+            config.activar_legajo(pedido)
+        else:
+            # Sin cookie válida se vuelve a la omisión del proceso —lo que haya fijado
+            # `ufil --legajo X servir`, o nada—, NO a lo que este hilo tenía del pedido
+            # anterior.
+            config.activar_legajo(config.LEGAJO_POR_OMISION)
 
     def _sin_permiso(self, ruta: str) -> bool:
         """
@@ -527,6 +618,7 @@ class Manejador(BaseHTTPRequestHandler):
         ruta = u.path
         if self._sin_permiso(ruta):
             return self._a_la_puerta()
+        self._activar_legajo()
         try:
             if ruta in ("/", "/index.html"):
                 return self._archivo(config.WEB / "index.html")
@@ -551,13 +643,13 @@ class Manejador(BaseHTTPRequestHandler):
                 que = q.get("que", ["xlsx"])[0]
                 cx = _cx()
                 try:
-                    destino = config.DATOS / "export"
+                    destino = config.EXPORT
                     if que == "respaldo":
                         # Copia consistente de la base viva, sin parar el sistema. Es la
                         # forma en que esto se va a usar de verdad: bajarla y ponerla en
                         # un pendrive. Nadie va a abrir una terminal para esto.
                         from . import respaldo as rp
-                        carpeta = config.DATOS / "respaldos"
+                        carpeta = config.RESPALDOS
                         archivo = rp.hacer(cx, carpeta)
                         tipo = "application/vnd.sqlite3"
                         nombre = Path(archivo).name
@@ -590,6 +682,14 @@ class Manejador(BaseHTTPRequestHandler):
                 if not r or not r["render"]:
                     return self._json({"error": "sin render"}, 404)
                 return self._archivo(Path(r["render"]), cache=True)
+
+            # Los legajos se contestan ANTES de abrir ninguna base de legajo: esta es
+            # la pantalla desde la que se elige cuál, así que todavía no hay uno.
+            if ruta == "/api/legajos":
+                return self._json({
+                    "legajos": legajos.listar(),
+                    "activo": config.legajo_activo(),
+                })
 
             if ruta.startswith("/api/"):
                 cx = _cx()
@@ -626,7 +726,7 @@ class Manejador(BaseHTTPRequestHandler):
                     if ruta == "/api/interpretaciones":
                         return self._json(api_interpretaciones(cx))
                     if ruta == "/api/trabajo":
-                        est = PROCESADOR.estado.como_dict() if PROCESADOR else {"estado": "inactivo"}
+                        est = _procesador().estado.como_dict()
                         est["sin_leer"] = cx.execute(
                             """SELECT COUNT(DISTINCT a.sha256) FROM archivo a
                                  JOIN pagina p ON p.sha256 = a.sha256
@@ -711,6 +811,7 @@ class Manejador(BaseHTTPRequestHandler):
 
         if self._sin_permiso(u.path):
             return self._a_la_puerta()
+        self._activar_legajo()
 
         # La subida manda el PDF crudo en el cuerpo, con los metadatos en la URL. Es a
         # propósito: evita parsear multipart (que salió de la biblioteca estándar) y da
@@ -740,12 +841,52 @@ class Manejador(BaseHTTPRequestHandler):
             cuerpo = json.loads(self.rfile.read(largo) or b"{}")
         except json.JSONDecodeError:
             return self._json({"error": "cuerpo JSON inválido"}, 400)
+        # ── legajos ──
+        # Antes de abrir ninguna base: elegir legajo es justamente lo que se hace
+        # cuando todavía no hay uno abierto.
+        if u.path == "/api/legajos":
+            try:
+                l = legajos.crear(cuerpo.get("numero", ""),
+                                  cuerpo.get("caratula", ""),
+                                  fiscal=cuerpo.get("fiscal"),
+                                  creado_por=cuerpo.get("quien"))
+            except legajos.LegajoDuplicado as e:
+                return self._json({"ok": False, "error": str(e)}, 409)
+            except ValueError as e:
+                return self._json({"ok": False, "error": str(e)}, 400)
+            _SLUGS_CONOCIDOS.add(l.slug)
+            return self._json({"ok": True, "slug": l.slug, "numero": l.numero,
+                               "caratula": l.caratula})
+        if u.path == "/api/legajo/abrir":
+            slug = (cuerpo.get("slug") or "").strip()
+            # Abrir «ninguno» es válido y es cómo se vuelve a la lista de legajos.
+            if slug and not _slug_valido(slug):
+                return self._json({"ok": False, "error": "ese legajo no existe"}, 404)
+            if slug:
+                legajos.tocar(slug)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            # Sin Max-Age: la cookie muere al cerrar el navegador. Un legajo abierto
+            # no tiene por qué seguir abierto mañana en una máquina compartida.
+            self.send_header("Set-Cookie",
+                             f"ufil_legajo={slug}; Path=/; HttpOnly; SameSite=Strict"
+                             + ("" if slug else "; Max-Age=0"))
+            cuerpo_r = json.dumps({"ok": True, "slug": slug or None}).encode("utf-8")
+            self.send_header("Content-Length", str(len(cuerpo_r)))
+            self.end_headers()
+            self.wfile.write(cuerpo_r)
+            return
+        if u.path == "/api/legajo/archivar":
+            slug = (cuerpo.get("slug") or "").strip()
+            if not _slug_valido(slug):
+                return self._json({"ok": False, "error": "ese legajo no existe"}, 404)
+            legajos.archivar(slug, bool(cuerpo.get("archivar", True)))
+            return self._json({"ok": True})
+
         cx = _cx()
         try:
             if u.path == "/api/procesar":
-                if PROCESADOR is None:
-                    return self._json({"error": "procesador no disponible"}, 500)
-                return self._json(PROCESADOR.arrancar(
+                return self._json(_procesador().arrancar(
                     perfil=cuerpo.get("perfil", "auto"),
                     con_vlm=bool(cuerpo.get("vlm"))))
             if u.path == "/api/campo":
@@ -768,7 +909,7 @@ class Manejador(BaseHTTPRequestHandler):
                 return self._json(c5.regenerar(cx))
             if u.path == "/api/exportar":
                 from . import capa7_export as c7
-                destino = config.DATOS / "export"
+                destino = config.EXPORT
                 return self._json({"archivos": c7.exportar(cx, destino)})
             return self._json({"error": "ruta desconocida"}, 404)
         except NoEncontrado as e:
@@ -783,10 +924,13 @@ class Manejador(BaseHTTPRequestHandler):
 
 
 def servir(base: Path | None, puerto: int = 8713, host: str = "127.0.0.1") -> None:
-    global RUTA_BASE, PROCESADOR, PORTERIA, HOST_ESCUCHA
+    global RUTA_BASE, PORTERIA, HOST_ESCUCHA
     RUTA_BASE = base
-    db.abrir(base).close()          # el esquema se aplica UNA vez, acá
-    PROCESADOR = Procesador(base)
+    if base is not None or not config.legajo_activo():
+        db.abrir(base).close()      # el esquema de la base suelta, una vez
+    # Las bases de los legajos NO se tocan acá: se abren cuando alguien entra a ese
+    # legajo. Con veinte legajos archivados, arrancar no tiene por qué abrir veinte
+    # archivos para no usar diecinueve.
     # Escuchar en la red cambia quién puede entrar: de «el que está sentado acá» a
     # «cualquiera en el mismo wifi». Ahí, y sólo ahí, se pide clave. Se decide por la
     # dirección de escucha y no por una opción aparte, así no hay forma de abrirlo a la

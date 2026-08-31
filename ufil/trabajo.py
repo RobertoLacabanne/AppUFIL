@@ -51,8 +51,12 @@ class Estado:
 class Procesador:
     """Un trabajador. `arrancar` no hace nada si ya hay algo corriendo."""
 
-    def __init__(self, ruta_base: Path | None = None):
+    def __init__(self, ruta_base: Path | None = None, legajo: str | None = None):
         self.ruta_base = ruta_base
+        # De qué legajo es este trabajador. Hace falta guardarlo acá porque el legajo
+        # activo vive por hilo: el hilo que arranca el procesamiento no es el que lo
+        # corre, así que el trabajador tiene que volver a declararlo cuando empieza.
+        self.legajo = legajo
         self.estado = Estado()
         self._lock = threading.Lock()
         self._hilo: threading.Thread | None = None
@@ -73,6 +77,12 @@ class Procesador:
 
     # ── el trabajo propiamente dicho ──
     def _correr(self, perfil: str, con_vlm: bool) -> None:
+        # LO PRIMERO. Sin esta línea el hilo trabajador no tiene legajo activo y
+        # `config.DERIVADOS` le resuelve a la carpeta suelta: las imágenes de página de
+        # un legajo terminarían escritas afuera de su carpeta, y la base que abriría
+        # sería la que no es. El legajo se declara acá, adentro del hilo, porque es una
+        # variable por hilo y este hilo recién nace.
+        config.activar_legajo(self.legajo)
         cx = db.abrir(self.ruta_base)
         try:
             pendientes = [r["sha256"] for r in cx.execute(

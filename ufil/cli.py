@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import config, db
+from . import config, db, legajos
 from . import capa0_ingesta as c0
 from . import capa1_texto as c1
 from . import capa2_extraccion as c2
@@ -20,9 +20,80 @@ def _cx(a):
     return db.abrir(Path(a.base) if a.base else None)
 
 
+def _elegir_legajo(a) -> None:
+    """
+    Deja activo el legajo pedido con `--legajo`, para todo lo que venga después.
+
+    Se valida contra el registro: un número mal tipeado tiene que ser un error a la
+    vista y no un legajo nuevo creado en silencio, que es lo que pasaría si dejáramos
+    que la ruta se armara sola con lo que vino escrito.
+    """
+    slug = (getattr(a, "legajo_activo", None) or "").strip()
+    disponibles = legajos.slugs()
+    if not slug:
+        # Sin legajo se trabaja sobre la base suelta, que casi siempre está vacía. Si hay
+        # legajos cargados, decirlo evita la peor confusión posible acá: creer que no hay
+        # datos cuando lo que falta es decir de qué causa.
+        if disponibles and a.cmd not in ("legajos", "diagnostico"):
+            n = len(disponibles)
+            print(f"  (sin --legajo: se usa la base suelta. "
+                  f"Hay {n} legajo{'s' if n != 1 else ''} "
+                  f"cargado{'s' if n != 1 else ''}; mirá `ufil legajos`)")
+        return
+    if slug not in disponibles:
+        # También se acepta el número tal cual figura en la carátula: quien escribe el
+        # comando conoce «87.933», no el nombre de la carpeta.
+        from .legajos import _slug
+        if _slug(slug) in disponibles:
+            slug = _slug(slug)
+        else:
+            hay = ", ".join(sorted(disponibles)) or "ninguno todavía"
+            raise SystemExit(f"no existe el legajo «{slug}». Hay: {hay}\n"
+                             f"Se crea con: ufil legajos crear <numero> <caratula>")
+    config.activar_legajo(slug)
+    # Y también como omisión del proceso: `servir` levanta hilos nuevos por cada
+    # petición, y un valor sólo de este hilo no llegaría hasta ellos.
+    config.fijar_legajo_por_omision(slug)
+
+
+def cmd_legajos(a):
+    if a.accion == "crear":
+        # Los errores acá salen en castellano y no como excepción de Python: esto lo
+        # corre gente de la fiscalía, no quien escribió el programa.
+        try:
+            l = legajos.crear(a.numero or "", a.caratula or "", fiscal=a.fiscal)
+        except legajos.LegajoDuplicado as e:
+            print(f"  {e}")
+            print("  Si querés trabajar sobre ese, usá: "
+                  f"ufil --legajo {legajos._slug(a.numero or '')} <comando>")
+            return 1
+        except ValueError as e:
+            print(f"  Falta un dato: {e}")
+            print('  Se usa así: ufil legajos crear "87.933" "Contratos Legislatura"')
+            return 1
+        print(f"  legajo {l.numero} · {l.caratula}")
+        print(f"  carpeta: {l.carpeta}")
+        print(f"  para trabajar sobre él: ufil --legajo {l.slug} <comando>")
+        return 0
+    filas = legajos.listar()
+    if not filas:
+        print("  todavía no hay ningún legajo.")
+        print("  Se crea con: ufil legajos crear \"87.933\" \"Contratos Legislatura\"")
+        return 0
+    print(f"  {'LEGAJO':<16} {'DOCS':>5} {'PEND':>5}  CARÁTULA")
+    for f in filas:
+        marca = "  " if f["estado"] == "activo" else "· "
+        print(f"{marca}{f['numero']:<16} {f['documentos']:>5} {f['pendientes']:>5}  "
+              f"{f['caratula'][:44]}")
+    return 0
+
+
 def cmd_ingerir(a):
     cx = _cx(a)
-    r = c0.ingerir(cx, Path(a.carpeta), lote=a.lote, legajo=a.legajo, acta=a.acta,
+    # El `--legajo` de la ingesta es un dato de procedencia (de qué legajo salió el
+    # secuestro). Si no lo dicen, es el legajo sobre el que se está trabajando.
+    r = c0.ingerir(cx, Path(a.carpeta), lote=a.lote,
+                   legajo=a.legajo or config.legajo_activo(), acta=a.acta,
                    domicilio=a.domicilio, dispositivo=a.dispositivo,
                    fecha_secuestro=a.fecha_secuestro, operador=a.operador)
     print(f"nuevos {r.nuevos} · duplicados exactos {r.duplicados} · "
@@ -207,8 +278,11 @@ def cmd_respaldo(a):
     from . import respaldo
     cx = _cx(a)
     r = respaldo.resumen(cx)
+    # Sin destino explícito, la carpeta de respaldos DEL LEGAJO: dos causas guardando
+    # en el mismo lugar terminan con archivos del mismo nombre pisándose.
+    carpeta = Path(a.destino) if a.destino else Path(config.RESPALDOS)
     try:
-        destino = respaldo.hacer(cx, Path(a.destino))
+        destino = respaldo.hacer(cx, carpeta)
     except FileExistsError as e:
         # Un respaldo no pisa a otro, pero eso se avisa en castellano y no con una
         # excepción de Python en la cara de quien lo corrió.
@@ -216,7 +290,7 @@ def cmd_respaldo(a):
         print("  Elegí otro nombre, o borrá el que está si ya no lo necesitás.")
         return 1
     except OSError as e:
-        print(f"  No se pudo escribir el respaldo en {a.destino}: {e}")
+        print(f"  No se pudo escribir el respaldo en {carpeta}: {e}")
         print("  Revisá que la carpeta exista y que haya lugar y permiso para escribir.")
         return 1
     print(respaldo.texto(destino, r))
@@ -354,7 +428,16 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(
         prog="ufil", description="Análisis documental offline — UFIL Paraná")
     p.add_argument("--base", help="ruta del archivo SQLite (por defecto datos/ufil.sqlite)")
+    p.add_argument("--legajo", dest="legajo_activo", metavar="NUMERO",
+                   help="sobre qué legajo trabajar. Cada legajo tiene su propia base y "
+                        "sus propios derivados: nada se cruza entre uno y otro")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("legajos", help="listar o crear legajos")
+    s.add_argument("accion", nargs="?", default="listar", choices=("listar", "crear"))
+    s.add_argument("numero", nargs="?"); s.add_argument("caratula", nargs="?")
+    s.add_argument("--fiscal")
+    s.set_defaults(func=cmd_legajos)
 
     s = sub.add_parser("ingerir", help="Capa 0: recorre un lote en solo lectura")
     s.add_argument("carpeta"); s.add_argument("--lote", required=True)
@@ -393,8 +476,9 @@ def main(argv=None) -> int:
     s.set_defaults(func=cmd_manuscrita)
 
     s = sub.add_parser("respaldo", help="copia de la base; lo único que no se regenera")
-    s.add_argument("destino", nargs="?", default="datos/respaldos",
-                   help="carpeta o archivo destino (por omisión datos/respaldos/)")
+    s.add_argument("destino", nargs="?",
+                   help="carpeta o archivo destino (por omisión, la carpeta de respaldos "
+                        "del legajo)")
     s.set_defaults(func=cmd_respaldo)
 
     s = sub.add_parser("diagnostico", help="¿está todo lo que hace falta para trabajar?")
@@ -434,6 +518,7 @@ def main(argv=None) -> int:
     s.set_defaults(func=cmd_piloto)
 
     a = p.parse_args(argv)
+    _elegir_legajo(a)
     return a.func(a)
 
 

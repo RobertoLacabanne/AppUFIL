@@ -176,6 +176,7 @@ por accidente.
 | [`EMPEZAR.md`](EMPEZAR.md) | **Cómo hacerlo andar en una máquina nueva.** Tres pasos, para alguien que no participó del desarrollo. |
 | [`INSTALAR.md`](INSTALAR.md) | Instalación en dos etapas (sin internet), operación diaria y respaldo |
 | [`docs/09-lo-escrito-a-mano.md`](docs/09-lo-escrito-a-mano.md) | Por qué el OCR no lee la manuscrita, con el número, y qué hace el sistema en cambio. |
+| [`docs/10-un-legajo-por-causa.md`](docs/10-un-legajo-por-causa.md) | **Por qué cada causa tiene su propia base**, y no una columna `legajo_id` que alguien pueda olvidar. |
 
 ---
 

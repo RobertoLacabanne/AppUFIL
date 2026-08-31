@@ -154,6 +154,99 @@ function interpHTML(i) {
 }
 
 /* ── vistas ────────────────────────────────────────────────────────────── */
+/* ── legajos ───────────────────────────────────────────────────────────────
+   La portada. Se entra por acá y recién después se ve nada más.
+
+   Cada legajo es una base separada: mientras uno está abierto, el sistema no tiene
+   forma de ver los otros. Por eso esta pantalla no es un filtro ni un selector
+   decorativo — es el único lugar donde los legajos conviven, y es a propósito. */
+async function vLegajos() {
+  const r = await api('/api/legajos');
+  const activos = r.legajos.filter(l => l.estado === 'activo');
+  const archivados = r.legajos.filter(l => l.estado !== 'activo');
+
+  const filaFecha = f => f.ultima_actividad ? fmtFecha(f.ultima_actividad) : '—';
+  const cols = [
+    {t:'Número', c:'mono', r:f => `<b>${esc(f.numero)}</b>`},
+    {t:'Carátula', r:f => esc(f.caratula)},
+    // Vacío de verdad cuando no hay fiscal cargado: en la tabla de escritorio el CSS
+    // le pone la raya, y en el teléfono —donde cada renglón cuesta— no aparece nada.
+    {t:'Fiscal responsable', r:f => esc(f.fiscal || '')},
+    {t:'Documentos', c:'num', r:f => f.documentos
+        ? fmtNum.format(f.documentos) : '<span class="apagado">sin material</span>'},
+    // Un legajo vacío no está «al día»: no hay nada revisado porque no hay nada cargado.
+    // Poner el sello verde ahí sería decir que está terminado un trabajo que no empezó.
+    {t:'Revisiones pendientes', c:'num', r:f => !f.documentos ? '—' : (f.pendientes
+        ? `<span class="sello alerta">${plural(f.pendientes, 'campo', 'campos')}</span>`
+        : '<span class="sello ok">al día</span>')},
+    {t:'Última actividad', c:'mono', r:filaFecha},
+  ];
+
+  const listado = activos.length
+    ? `<div class="tabla-legajos">${tabla(cols, activos, {alClic: true})}</div>`
+    : vacio('Todavía no hay ningún legajo',
+        'Un legajo es una causa: sus documentos, sus personas y sus totales viven en un ' +
+        'archivo aparte y no se cruzan con los de ninguna otra. Creá el primero acá abajo.');
+
+  vista.innerHTML =
+    bloque('f. 0000', 'Legajos', `
+      <h2>¿Sobre qué legajo vas a trabajar?</h2>
+      <p class="prosa">Cada legajo tiene su propia base de datos. Mientras trabajás en uno,
+        el sistema <strong>no puede ver ni sumar</strong> nada de los demás: no es un filtro
+        que se pueda olvidar, están en archivos distintos.</p>
+      ${listado}` +
+      (archivados.length ? `
+      <details class="archivados">
+        <summary>${plural(archivados.length, 'legajo archivado', 'legajos archivados')}</summary>
+        <div class="tabla-legajos">${tabla(cols, archivados, {alClic: true})}</div>
+      </details>` : '')) +
+    bloque('f. 0000', 'Alta', `
+      <h2>Abrir un legajo nuevo</h2>
+      <form id="f-legajo" class="form-legajo">
+        <label>Número de legajo
+          <input name="numero" required placeholder="87.933" autocomplete="off"></label>
+        <label>Carátula
+          <input name="caratula" required placeholder="Contratos Legislatura"
+                 autocomplete="off"></label>
+        <label>Fiscal responsable <span class="opt">(opcional)</span>
+          <input name="fiscal" autocomplete="off"></label>
+        <button class="boton" type="submit">Crear el legajo</button>
+      </form>
+      <p id="err-legajo" class="aviso" hidden></p>
+      <p class="prosa" style="font-size:13px">El número queda como nombre de la carpeta en
+        disco, para que mirando los archivos se entienda qué hay adentro de cada una.</p>`);
+
+  vista.querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => {
+    const lista = tr.closest('details') ? archivados : activos;
+    abrirLegajo(lista[+tr.dataset.i].slug);
+  });
+
+  $('#f-legajo').onsubmit = async ev => {
+    ev.preventDefault();
+    const d = Object.fromEntries(new FormData(ev.target));
+    const err = $('#err-legajo');
+    try {
+      const nuevo = await api('/api/legajos', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({...d, quien: revisor()})});
+      abrirLegajo(nuevo.slug);
+    } catch (e) {
+      err.textContent = e.message;
+      err.hidden = false;
+    }
+  };
+}
+
+/* Abrir un legajo cambia la base entera: se recarga la página en vez de repintar.
+   Es deliberado — así no queda ni un dato del legajo anterior en pantalla. */
+async function abrirLegajo(slug) {
+  await api('/api/legajo/abrir', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({slug})});
+  location.hash = slug ? '#/panel' : '#/legajos';
+  location.reload();
+}
+
 async function vPanel() {
   const p = await api('/api/panel');
   const cob = p.cobertura.filter(c => c.campo !== 'cargo');
@@ -1472,12 +1565,57 @@ const TITULOS = {
   '#/identidad':'Identidad', '#/interpretacion':'Interpretación',
   '#/consultas':'Consultas', '#/documento':'Documento', '#/persona':'Ficha',
   '#/como-funciona':'Cómo funciona', '#/salud':'Estado del sistema',
-  '#/afuera':'Quedaron afuera',
+  '#/afuera':'Quedaron afuera', '#/legajos':'Legajos',
 };
+
+/* ── Cuánto ocupan las tiras de arriba ─────────────────────────────────────
+   Las tres tiras pegadas al borde superior (aviso de demostración, cinta de legajo,
+   techo) se apilan una debajo de la otra, y lo de más abajo —la lupa de la cola—
+   tiene que empezar donde terminan.
+
+   Eso estaba escrito a mano en el CSS y estaba mal: el encabezado mide 71 px y decía
+   59, así que las pestañas se le montaban encima. Y ningún número fijo puede acertar,
+   porque las pestañas entran en uno o dos renglones según el ancho de la ventana.
+   Así que se mide y se escribe en las variables. */
+function medirTecho() {
+  const alto = sel => {
+    const e = document.querySelector(sel);
+    if (!e || e.hidden || getComputedStyle(e).position === 'static') return 0;
+    return Math.round(e.getBoundingClientRect().height);
+  };
+  const r = document.documentElement.style;
+  r.setProperty('--h-demo',  alto('#aviso-demo') + 'px');
+  r.setProperty('--h-cinta', alto('#cinta-legajo') + 'px');
+  r.setProperty('--h-techo', alto('#techo') + 'px');
+}
+addEventListener('resize', medirTecho);
+
+/* Pinta la cinta de legajo y decide si hay que mandar a elegir uno. Devuelve true
+   cuando redirigió, para que quien la llame no siga pintando datos que no van. */
+function pintarLegajo(p) {
+  const cinta = document.getElementById('cinta-legajo');
+  const l = p.legajo;
+  document.body.classList.toggle('con-legajo', !!l);
+  cinta.hidden = !l;
+  if (l) {
+    $('#l-numero').textContent = l.numero;
+    $('#l-caratula').textContent = l.caratula;
+    $('#l-fiscal').textContent = l.fiscal ? 'Fiscal: ' + l.fiscal : '';
+  }
+  medirTecho();          // aparecer o irse una tira corre todo lo de abajo
+  // Sin legajo abierto y con legajos para elegir, no se muestra un panel en cero: eso
+  // se lee como «no hay nada cargado», que es una afirmación distinta y falsa.
+  if (!l && p.hay_legajos && !location.hash.startsWith('#/legajos')) {
+    location.hash = '#/legajos';
+    return true;
+  }
+  return false;
+}
 
 async function refrescarCuentas() {
   try {
     const p = await api('/api/panel');
+    pintarLegajo(p);
     const av = document.getElementById('aviso-demo');
     if (av) av.hidden = !p.demostracion;
     document.body.classList.toggle('con-demo', !!p.demostracion);
@@ -1495,6 +1633,7 @@ async function refrescarCuentas() {
 }
 
 const rutas = [
+  [/^#\/legajos$/,               vLegajos],
   [/^#\/panel$/,                 vPanel],
   [/^#\/ingesta$/,               vIngesta],
   [/^#\/contratos$/,             vContratos],
@@ -1550,6 +1689,7 @@ $('#b-tema').onclick = () => {
 try { const t = localStorage.getItem('ufil.tema'); if (t) document.documentElement.dataset.tema = t; } catch (e) {}
 
 $('#f-fecha').textContent = new Date().toLocaleDateString('es-AR');
+medirTecho();
 addEventListener('hashchange', rutear);
 rutear();
 refrescarCuentas();

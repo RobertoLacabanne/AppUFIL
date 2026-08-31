@@ -1,20 +1,121 @@
 """Configuración y constantes. Todo por ruta relativa: el proyecto es portable."""
 from __future__ import annotations
 import os
+import threading
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 
 # Los derivados NUNCA se escriben adentro del corpus (restricción 2).
 DATOS      = Path(os.environ.get("UFIL_DATOS", RAIZ / "datos"))
-DERIVADOS  = DATOS / "derivados"
-BASE       = Path(os.environ.get("UFIL_BASE", DATOS / "ufil.sqlite"))
+
+# Lo que es del programa y no del legajo: mismo lugar siempre, no se mueve al cambiar
+# de causa. Son constantes de verdad y por eso quedan acá arriba, lejos del bloque de
+# rutas dinámicas: si alguna de estas se resolviera por hilo, un pedido sin legajo
+# activo se quedaría sin esquema y sin interfaz.
 ESQUEMA    = RAIZ / "ufil" / "esquema.sql"
 CONSULTAS  = RAIZ / "ufil" / "consultas"
 PERFILES   = RAIZ / "ufil" / "perfiles"
 WEB        = RAIZ / "ufil" / "web"
 FUENTES    = RAIZ / "assets" / "fuentes"
 MARCA      = RAIZ / "assets" / "marca"
+
+# ── El legajo activo ────────────────────────────────────────────────────────
+# Cada legajo tiene su propia base y su propia carpeta de derivados (ver
+# ufil/legajos.py). Cuál está activo se guarda POR HILO, no en una variable global:
+# el servidor atiende pedidos en varios hilos y el procesamiento corre en otro, así
+# que un valor compartido significaría que abrir un legajo en una pestaña le cambia
+# el legajo al trabajo que está corriendo en otra. Eso es exactamente la mezcla que la
+# separación por archivo existe para evitar.
+#
+# `config.BASE` y `config.DERIVADOS` se siguen leyendo como siempre desde todo el
+# código: el `__getattr__` de abajo las resuelve al vuelo según el hilo. Ningún
+# llamador tuvo que cambiar.
+_local = threading.local()
+LEGAJO_POR_OMISION: str | None = os.environ.get("UFIL_LEGAJO", "").strip() or None
+_BASE_FIJA = os.environ.get("UFIL_BASE", "").strip()
+
+
+def legajo_activo() -> str | None:
+    return getattr(_local, "legajo", LEGAJO_POR_OMISION)
+
+
+def activar_legajo(slug: str | None) -> None:
+    """Cambia el legajo sobre el que trabaja ESTE hilo. Base y derivados se mueven juntos."""
+    _local.legajo = slug or None
+
+
+def fijar_legajo_por_omision(slug: str | None) -> None:
+    """
+    El legajo con el que arranca cualquier hilo que no diga otra cosa.
+
+    Es lo que fija `ufil --legajo X servir`: el proceso entero trabaja sobre ese legajo,
+    incluidos los hilos de petición que nacen después. Se hace con una variable de
+    módulo y no con la de hilo justamente porque tiene que alcanzar a hilos que todavía
+    no existen.
+    """
+    global LEGAJO_POR_OMISION
+    LEGAJO_POR_OMISION = slug or None
+
+
+def carpeta_legajo(slug: str) -> Path:
+    return DATOS / "legajos" / slug
+
+
+def _base() -> Path:
+    # UFIL_BASE fija manda sobre todo: es lo que usan las pruebas y las instalaciones
+    # anteriores a los legajos, que trabajan con una base suelta.
+    if _BASE_FIJA:
+        return Path(_BASE_FIJA)
+    slug = legajo_activo()
+    return carpeta_legajo(slug) / "ufil.sqlite" if slug else DATOS / "ufil.sqlite"
+
+
+def _derivados() -> Path:
+    slug = legajo_activo()
+    if slug and not _BASE_FIJA:
+        return carpeta_legajo(slug) / "derivados"
+    return _base().parent / "derivados"
+
+
+def _originales() -> Path:
+    """Dónde se guardan los PDF que entran por la interfaz, para ESTE legajo."""
+    return _por_legajo("originales")
+
+
+def _respaldos() -> Path:
+    """
+    Los respaldos también son por legajo.
+
+    Con una sola carpeta común, `respaldo-2026-08-31.sqlite` de dos causas distintas se
+    pisan entre sí, y el que restaure el archivo equivocado se entera cuando ya
+    trabajó media mañana sobre la causa que no era.
+    """
+    return _por_legajo("respaldos")
+
+
+def _export() -> Path:
+    return _por_legajo("export")
+
+
+def _por_legajo(sub: str) -> Path:
+    slug = legajo_activo()
+    if slug and not _BASE_FIJA:
+        return carpeta_legajo(slug) / sub
+    return DATOS / sub
+
+
+_DINAMICAS = {"BASE": _base, "DERIVADOS": _derivados, "ORIGINALES": _originales,
+              "RESPALDOS": _respaldos, "EXPORT": _export}
+
+
+def __getattr__(nombre: str):
+    """Resuelve BASE, DERIVADOS y ORIGINALES según el legajo activo en este hilo."""
+    fn = _DINAMICAS.get(nombre)
+    if fn is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {nombre!r}")
+    return fn()
+
 
 # Renderizado de páginas para el visor y para el OCR.
 DPI_RENDER = int(os.environ.get("UFIL_DPI_RENDER", 200))

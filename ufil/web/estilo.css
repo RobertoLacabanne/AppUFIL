@@ -55,9 +55,37 @@ body{background:var(--papel); color:var(--tinta); font-family:var(--sans);
 :focus-visible{outline:2px solid var(--sello); outline-offset:2px}
 button{font:inherit; color:inherit}
 
+/* ── Las tiras de arriba, y cómo se apilan ────────────────────────────────
+   Hay hasta tres pegadas al borde superior: el aviso de demostración, la cinta que
+   dice qué legajo está abierto, y el techo (encabezado + pestañas). Cada una tiene
+   que empezar donde termina la anterior.
+
+   Antes eso eran seis números escritos a mano (0, 37, 59, 96, 150, 190) repartidos
+   por la hoja, y agregar una tira significaba encontrarlos todos: una vez quedó uno
+   sin cambiar y la lupa de la cola apareció 190 px más abajo, media pantalla en
+   blanco en un teléfono. Peor todavía: esos números eran mentira. El encabezado
+   mide 71 px, no 59, así que la barra de pestañas se le montaba encima 12 px; y el
+   alto real depende de si las pestañas entran en uno o dos renglones, que a su vez
+   depende del ancho de la ventana. Ningún número escrito a mano puede acertar eso.
+
+   Así que las alturas las mide el navegador y las escribe acá (ver `medirTecho` en
+   app.js). Encabezado y pestañas se juntaron en `#techo` para que sean una sola
+   tira: menos que medir y menos que sumar. Los valores de abajo son sólo el
+   arranque, antes de la primera medición. */
+:root{
+  --h-demo:0px;                 /* el aviso de datos de demostración, si está */
+  --h-cinta:0px;                /* la cinta que dice qué legajo está abierto */
+  --h-techo:96px;               /* encabezado + pestañas */
+  --y-cinta:var(--h-demo);
+  --y-techo:calc(var(--h-demo) + var(--h-cinta));
+  --y-contenido:calc(var(--y-techo) + var(--h-techo));
+}
+
+#techo{position:sticky; top:var(--y-techo); z-index:20; background:var(--papel)}
+
 /* ── Encabezado institucional ─────────────────────────────────────────── */
 .barra{
-  position:sticky; top:0; z-index:20; background:var(--papel);
+  background:var(--papel);
   border-bottom:2px solid var(--tinta);
   display:grid; grid-template-columns:var(--canaleta) 1fr auto; align-items:end;
   padding:14px 24px 10px; gap:0;
@@ -81,7 +109,7 @@ button{font:inherit; color:inherit}
    horizontal, en una notebook de 1024 las dos últimas pestañas quedaban fuera de
    pantalla y sin ninguna señal de que estaban ahí: inalcanzables en la práctica. */
 nav{display:flex; flex-wrap:wrap; gap:0; border-bottom:1px solid var(--filete);
-    padding:0 24px; background:var(--papel); position:sticky; top:59px; z-index:19}
+    padding:0 24px; background:var(--papel)}
 nav a{padding:9px 15px; text-decoration:none; color:var(--tinta-2); font-size:12px;
       border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap}
 nav a:hover{color:var(--tinta); background:var(--papel-2)}
@@ -336,8 +364,22 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
   border-bottom:2px solid var(--lapiz); font-size:12px; color:var(--tinta);
 }
 #aviso-demo .sello{flex:none}
-body.con-demo .barra{top:37px}
-body.con-demo nav{top:96px}
+
+/* ── Cinta de legajo ──────────────────────────────────────────────────────
+   Qué causa está abierta, arriba de todo y sin scroll. Cada legajo es una base
+   separada: leer un total creyendo que es de otro legajo es el error más caro que
+   puede cometer este sistema, y es el único que no se ve mirando el número. */
+#cinta-legajo{
+  position:sticky; top:var(--y-cinta); z-index:30;
+  display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
+  padding:7px 24px; background:var(--papel-2);
+  border-bottom:1px solid var(--filete); font-size:12px; color:var(--tinta);
+}
+#cinta-legajo .etq{font-size:9.5px; font-weight:600; letter-spacing:.15em;
+  text-transform:uppercase; color:var(--tinta-3)}
+#cinta-legajo b{font-size:12.5px}
+#cinta-legajo .fiscal{color:var(--tinta-2)}
+#cinta-legajo .cambiar{margin-left:auto; font-size:11.5px; white-space:nowrap}
 
 /* ── Navegación agrupada ──────────────────────────────────────────────── */
 nav .sep{width:1px; height:14px; background:var(--filete); margin:0 9px;
@@ -405,8 +447,12 @@ a.destacado-fila:hover{background:var(--papel-2)}
         --filete:#999; --filete-2:#ccc; --interp:#f2f4f7}
   nav, .der, #b-tema, .boton, .acc, .ancla, .esqueleto{display:none !important}
   body{font-size:10.5pt}
-  .barra{position:static; border-bottom:2px solid #000; padding:0 0 8px}
+  #techo{position:static}
+  .barra{border-bottom:2px solid #000; padding:0 0 8px}
   #aviso-demo{position:static; border:2px solid #000}
+  /* Impreso, el legajo es dato de la carátula: se queda, y sin el enlace. */
+  #cinta-legajo{position:static; border-bottom:1px solid #000}
+  #cinta-legajo .cambiar{display:none}
   main{padding:0}
   .bloque{break-inside:avoid; page-break-inside:avoid; margin-top:18px}
   .tabla-env, .cifras, .carriles, .cronologia, .interp{break-inside:avoid}
@@ -489,9 +535,9 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 .cola-partida{display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,40%); gap:16px;
   align-items:start; margin-top:12px}
 .cola-partida .cola{max-height:calc(100vh - 250px); overflow-y:auto}
-.folio-lado{position:sticky; top:150px; display:flex; flex-direction:column; gap:8px;
+.folio-lado{position:sticky; top:calc(var(--y-contenido) + 54px);
+  display:flex; flex-direction:column; gap:8px;
   border:1px solid var(--filete); background:var(--papel-2); padding:12px}
-body.con-demo .folio-lado{top:190px}
 
 /* La lupa: el renglón del campo, ampliado. Es lo que hace falta para decidir. */
 .lupa{position:relative; overflow:hidden; height:132px; background:#fff;
@@ -583,11 +629,16 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
       «apretá J» donde no hay J es peor que no decir nada.
    ═══════════════════════════════════════════════════════════════════════ */
 @media (max-width:720px){
-  .barra{position:static}
-  nav{position:static; padding:0 16px}
+  #techo{position:static}
+  nav{padding:0 16px}
   main{padding:0 16px 60px}
   .barra{padding:12px 16px 10px}
   #aviso-demo{position:static}
+  /* La cinta de legajo SÍ se queda: es una línea y es lo único que dice sobre qué
+     causa se está mirando. Arriba de todo, porque las otras dos ya se fueron con el
+     scroll y no hay nada que sumarle. */
+  #cinta-legajo{position:sticky; top:0; padding:6px 16px; font-size:11.5px}
+  #cinta-legajo .cambiar{margin-left:0}
 
   /* Botones y campos que se puedan tocar sin errar. */
   .boton, .tecla, .chip{min-height:44px; display:inline-flex; align-items:center}
@@ -610,10 +661,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 @media (max-width:720px){
   .cola-partida{display:flex; flex-direction:column; gap:0}
   .cola-partida .cola{max-height:none; overflow:visible}
-  /* `body.con-demo .folio-lado{top:190px}` es más específica que esta, así que hay que
-     repetir el selector: si no, la lupa queda clavada 190 px más abajo y en un teléfono
-     eso es media pantalla en blanco. */
-  .folio-lado, body.con-demo .folio-lado{
+  .folio-lado{
     order:-1; position:sticky; top:0; z-index:18; background:var(--papel);
     border-bottom:1px solid var(--tinta); padding:6px 0 8px; margin-bottom:6px}
   .folio-lado .lienzo{display:none}
@@ -678,3 +726,51 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .sello.estado-aviso{color:var(--ambar)}
 .sello.estado-alerta{color:var(--lapiz)}
 .sello.estado-neutro{color:var(--tinta-3)}
+
+
+/* ── Pantalla de legajos ──────────────────────────────────────────────────
+   Es la portada: acá se elige la causa antes de ver nada más. Tabla compacta, sin
+   tarjetas: son datos de expediente y se leen como una foja, comparando renglones. */
+.form-legajo{display:grid; gap:12px; max-width:520px; margin:14px 0 10px}
+.form-legajo label{display:grid; gap:4px; font-size:12px; color:var(--tinta-2)}
+.form-legajo .opt{color:var(--tinta-3); font-weight:400}
+.form-legajo input{font:inherit; padding:8px 10px; border:1px solid var(--filete);
+  background:var(--papel); color:var(--tinta); min-height:38px}
+.form-legajo input:focus{border-color:var(--sello)}
+.form-legajo button{justify-self:start; margin-top:2px}
+.archivados{margin-top:20px; border-top:1px solid var(--filete); padding-top:10px}
+.archivados summary{cursor:pointer; font-size:12px; color:var(--tinta-2); padding:4px 0}
+.archivados summary:hover{color:var(--tinta)}
+.archivados[open] summary{margin-bottom:8px}
+.tabla-legajos .apagado{color:var(--tinta-3)}
+.tabla-legajos td:empty::after{content:"—"; color:var(--tinta-3)}
+
+/* En un teléfono esto no puede ser una tabla. Elegir legajo es comparar cuánto
+   material tiene cada uno y cuánto falta revisar, y esas tres columnas quedaban
+   detrás de un desplazamiento horizontal —invisibles, en la práctica— mientras la
+   carátula se partía en cuatro renglones. Cada legajo pasa a ser un bloque, con el
+   número arriba y los tres datos que deciden en un renglón abajo. */
+@media (max-width:720px){
+  .tabla-legajos table, .tabla-legajos tbody, .tabla-legajos tr{display:block}
+  .tabla-legajos thead{display:none}
+  .tabla-legajos .tabla-env{overflow-x:visible}
+  .tabla-legajos tr{border:1px solid var(--filete); padding:12px 13px;
+    margin-bottom:10px; background:var(--papel)}
+  .tabla-legajos td{display:block; padding:0; border:none; text-align:left !important;
+    width:auto !important; white-space:normal}
+  .tabla-legajos td:nth-child(1){font-size:15px; margin-bottom:2px}
+  .tabla-legajos td:nth-child(2){font-family:var(--serif); font-size:14px;
+    color:var(--tinta-2); margin-bottom:6px}
+  .tabla-legajos td:nth-child(3){font-size:12px; color:var(--tinta-3); margin-bottom:8px}
+  /* Sin fiscal cargado no se deja un renglón con una raya sola: se saca el renglón. */
+  .tabla-legajos td:empty{display:none}
+  /* Los tres datos que deciden, en un renglón y con su rótulo: sin el encabezado de
+     la tabla, un número suelto no dice de qué es. */
+  .tabla-legajos td:nth-child(n+4){display:inline-block; font-size:11.5px;
+    margin-right:14px; color:var(--tinta-2)}
+  .tabla-legajos td:nth-child(4)::before{content:"Documentos "}
+  .tabla-legajos td:nth-child(5)::before{content:"Pendiente "}
+  .tabla-legajos td:nth-child(6)::before{content:"Actividad "}
+  .tabla-legajos td:nth-child(n+4)::before{color:var(--tinta-3)}
+  .tabla-legajos .sello{font-size:9px; padding:2px 6px}
+}

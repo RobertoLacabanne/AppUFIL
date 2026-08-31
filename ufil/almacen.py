@@ -45,7 +45,14 @@ class Guardado:
 
 
 def raiz_originales() -> Path:
-    d = Path(os.environ.get("UFIL_ORIGINALES", config.DATOS / "originales"))
+    """
+    Dónde se guardan los originales del legajo activo.
+
+    Sale de `config.ORIGINALES`, que se resuelve por hilo: los PDF de un legajo se
+    escriben adentro de la carpeta de ESE legajo. Si no hay legajo activo —instalación
+    vieja, o pruebas— cae en `datos/originales`, como antes.
+    """
+    d = Path(os.environ.get("UFIL_ORIGINALES") or config.ORIGINALES)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
