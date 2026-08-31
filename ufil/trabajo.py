@@ -27,7 +27,7 @@ from . import capa5_interpretacion as c5
 
 @dataclass
 class Estado:
-    estado: str = "inactivo"          # inactivo | corriendo | terminado | error
+    estado: str = "inactivo"          # inactivo | corriendo | terminado | detenido | error
     etapa: str = ""
     hecho: int = 0
     total: int = 0
@@ -60,14 +60,36 @@ class Procesador:
         self.estado = Estado()
         self._lock = threading.Lock()
         self._hilo: threading.Thread | None = None
+        # Se levanta para pedir que pare. Se consulta entre página y página: cortar en
+        # el medio de una es lo que deja basura, cortar entre dos no cuesta nada.
+        self._parar = threading.Event()
 
     def ocupado(self) -> bool:
         return bool(self._hilo and self._hilo.is_alive())
+
+    def detener(self) -> dict:
+        """
+        Pide que pare. No mata nada: levanta una bandera que el trabajo consulta.
+
+        Un lote grande son horas —cinco mil contratos son hora y media en cuatro
+        núcleos— y hasta acá arrancar sobre el lote equivocado dejaba una sola salida:
+        matar el proceso, que con SQLite en medio de una escritura es la peor de todas.
+
+        Cortar es seguro: la lectura confirma cada diez páginas, así que lo leído queda
+        guardado y al volver a procesar se retoma desde la página que faltaba.
+        """
+        if not self.ocupado():
+            return {"ok": False, "motivo": "no hay nada corriendo"}
+        self._parar.set()
+        with self._lock:
+            self.estado.mensaje = "parando… se termina la página que está en curso"
+        return {"ok": True}
 
     def arrancar(self, perfil: str = "auto", con_vlm: bool = False) -> dict:
         with self._lock:
             if self.ocupado():
                 return {"ok": False, "motivo": "ya hay un procesamiento en curso"}
+            self._parar.clear()
             self.estado = Estado(estado="corriendo", etapa="preparando",
                                  inicio=time.time(), mensaje="")
             self._hilo = threading.Thread(target=self._correr, args=(perfil, con_vlm),
@@ -105,7 +127,10 @@ class Procesador:
 
             if pendientes:
                 try:
-                    c1.leer_lote(cx, pendientes, con_vlm=con_vlm, avance=avance)
+                    r = c1.leer_lote(cx, pendientes, con_vlm=con_vlm, avance=avance,
+                                     seguir=lambda: not self._parar.is_set())
+                    if r.get("cortado"):
+                        return self._cortado(r["hechas"], r["paginas"])
                 except Exception as e:
                     self._error(cx, pendientes[0], "lectura", e)
 
@@ -114,7 +139,9 @@ class Procesador:
             self._fase("extrayendo los campos", len(shas))
             totales = {"documentos": 0, "campos": 0, "conflictos": 0,
                        "a_revisar": 0, "sin_perfil": 0}
-            for sha in shas:
+            for i, sha in enumerate(shas):
+                if self._parar.is_set():
+                    return self._cortado(i, len(shas))
                 try:
                     r = c2.extraer_documento(cx, sha, perfil)
                     for k in totales:
@@ -156,6 +183,16 @@ class Procesador:
                 self.estado.mensaje = f"{type(e).__name__}: {e}"
         finally:
             cx.close()
+
+    def _cortado(self, hechas: int, total: int) -> None:
+        """Lo paró una persona. No es un error y no se muestra como uno."""
+        with self._lock:
+            self.estado.estado = "detenido"
+            self.estado.etapa = "parado"
+            self.estado.fin = time.time()
+            self.estado.mensaje = (
+                f"Lo paraste en {hechas} de {total}. Lo leído quedó guardado: al "
+                f"procesar de nuevo, retoma donde iba y no repite nada.")
 
     def _fase(self, etapa: str, total: int) -> None:
         with self._lock:

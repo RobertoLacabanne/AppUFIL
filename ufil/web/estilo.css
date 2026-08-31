@@ -927,3 +927,26 @@ th.ord.desc::after{content:" ↓"; color:var(--sello)}
   .campo-buscar{flex-basis:100%; max-width:none}
   .campo-buscar input{min-height:44px; font-size:16px}
 }
+
+/* Parar un procesamiento. Un lote grande son horas; arrancar sobre el equivocado y no
+   poder frenarlo dejaba una sola salida —matar el proceso— que con SQLite en medio de
+   una escritura es la peor de todas. */
+.pie-progreso{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px}
+.pie-progreso span{font-family:var(--serif); font-size:12.5px; color:var(--tinta-2);
+  flex:1 1 260px; line-height:1.5}
+
+
+/* La versión, en «Estado del sistema». Se desplegó una versión nueva, el servidor la
+   estaba sirviendo, y desde afuera no había forma de saber si lo que se veía en
+   pantalla era esa o una guardada en el navegador. */
+.version-app{font-size:12px; color:var(--tinta-3); margin:10px 0 0}
+.version-app strong{color:var(--ambar)}
+
+/* Y el aviso cuando se actualiza con la pestaña abierta. Va arriba de todo, como el
+   aviso de demostración, pero no se recarga solo: alguien puede estar a mitad de un
+   valor tipeado en la cola. */
+#aviso-version{display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+  padding:8px 24px; background:var(--papel-3); border-bottom:1px solid var(--filete);
+  font-size:12.5px}
+#aviso-version .boton{padding:3px 10px; font-size:11.5px; margin-left:8px}
+@media (max-width:720px){#aviso-version{padding:8px 16px}}

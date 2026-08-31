@@ -317,7 +317,7 @@ def _guardar_pagina(cx: sqlite3.Connection, sha: str, pagina_id: int, r: dict) -
 
 
 def leer_lote(cx: sqlite3.Connection, shas: list[str], *, con_vlm: bool = False,
-              avance=None) -> dict:
+              avance=None, seguir=None) -> dict:
     """
     Lee varios archivos repartiendo las PÁGINAS entre los núcleos disponibles.
 
@@ -332,6 +332,12 @@ def leer_lote(cx: sqlite3.Connection, shas: list[str], *, con_vlm: bool = False,
 
     Tesseract usa varios hilos por su cuenta y eso pelea con el pool. Limitarlo a uno y
     correr varios en paralelo rinde bastante más.
+
+    `seguir` es una función que se consulta entre página y página: si devuelve False, se
+    corta. Existe porque un lote grande son horas —cinco mil contratos son hora y media
+    en cuatro núcleos— y arrancar sobre el lote equivocado sin poder frenarlo dejaba una
+    sola salida: matar el proceso. Cortar acá es seguro: lo leído hasta ese momento está
+    confirmado y al reanudar se retoma desde la página que faltaba.
     """
     os.environ.setdefault("OMP_THREAD_LIMIT", "1")
     trabajos = []
@@ -362,7 +368,16 @@ def leer_lote(cx: sqlite3.Connection, shas: list[str], *, con_vlm: bool = False,
                 (sha, pagina_id, nro)
             for sha, ruta_pdf, pagina_id, nro, con_texto in trabajos
         }
+        cortado = False
         for fut in as_completed(futuros):
+            if seguir is not None and not seguir():
+                # Se cancela lo que todavía no arrancó. Lo que ya está corriendo
+                # termina —matar un Tesseract a mitad de página deja basura— pero no
+                # se le manda nada más.
+                cortado = True
+                for otro in futuros:
+                    otro.cancel()
+                break
             sha, pagina_id, nro = futuros[fut]
             try:
                 lecturas += _guardar_pagina(cx, sha, pagina_id, fut.result())
@@ -382,7 +397,8 @@ def leer_lote(cx: sqlite3.Connection, shas: list[str], *, con_vlm: bool = False,
             if avance:
                 avance(hechas, total)
     cx.commit()
-    return {"paginas": total, "lecturas": lecturas, "fallidas": fallidas}
+    return {"paginas": total, "lecturas": lecturas, "fallidas": fallidas,
+            "hechas": hechas, "cortado": cortado}
 
 
 def leer_documento(cx: sqlite3.Connection, sha: str, *, con_vlm: bool = False) -> int:

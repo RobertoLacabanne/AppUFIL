@@ -1992,9 +1992,16 @@ function pintarTrabajo(t) {
       <div class="cab"><span class="rotulo">${esc(t.etapa || t.estado)}</span>
         <span class="mono">${t.hecho}/${t.total}${esc(falta)}</span></div>
       <div class="riel"><i style="width:${pct}%"></i></div>
+      ${t.estado === 'corriendo' ? `<div class="pie-progreso">
+         <button class="boton gris" id="b-detener">Parar</button>
+         <span>Se termina la página que está en curso y ahí frena. Lo leído queda
+           guardado: al procesar de nuevo retoma donde iba.</span></div>` : ''}
       ${t.estado === 'terminado' ? `<p class="prosa" style="font-size:13px;margin:10px 0 0">
          <strong>Listo.</strong> ${esc(t.mensaje)} · ${t.segundos} s.
          <a href="#/panel">Ver el panel</a> · <a href="#/cola">Ir a la cola</a></p>` : ''}
+      ${t.estado === 'detenido' ? `<div class="aviso" style="margin-top:10px">
+         <span class="sello atencion" style="flex:none">Parado</span>
+         <span>${esc(t.mensaje)}</span></div>` : ''}
       ${t.estado === 'error' ? `<div class="aviso" style="margin-top:10px">
          <span class="sello alerta">Error</span><span>${esc(t.mensaje)}</span></div>` : ''}
       ${(t.errores || []).length ? `<details style="margin-top:10px"><summary class="rotulo">
@@ -2002,6 +2009,16 @@ function pintarTrabajo(t) {
          <ul style="margin-top:8px">${t.errores.slice(0,20).map(e =>
            `<li>${esc(e.etapa)}: ${esc(e.detalle)}</li>`).join('')}</ul></details>` : ''}
     </div>`;
+
+  const parar = $('#b-detener');
+  if (parar) parar.onclick = async () => {
+    parar.disabled = true;
+    parar.textContent = 'parando…';
+    try { await api('/api/detener', {method: 'POST',
+                                     headers: {'Content-Type': 'application/json'},
+                                     body: '{}'}); }
+    catch (e) { alert('No se pudo parar: ' + e.message); parar.disabled = false; }
+  };
 }
 
 let temporizador = null;
@@ -2029,6 +2046,17 @@ async function vSalud() {
   const s = await api('/api/salud');
   const simbolos = {ok: 'ok', aviso: 'Aviso', falla: 'Falta'};
   const clase = {ok: 'ok', aviso: 'atencion', falla: 'alerta'};
+
+  // Qué versión se está viendo. Existe porque hubo que averiguarlo a mano: se
+  // desplegó una versión nueva, el servidor la estaba sirviendo, y desde afuera no
+  // había forma de saber si lo que aparecía en pantalla era esa o una guardada en el
+  // navegador. Con este número la pregunta se contesta mirando.
+  const version = `<p class="version-app">
+    Versión de la interfaz <span class="mono">${esc(s.version)}</span> ·
+    esquema de la base <span class="mono">v${esc(s.esquema)}</span>${
+      VERSION_CARGADA && VERSION_CARGADA !== s.version
+        ? ` · <strong>hay una versión más nueva en el servidor</strong>:
+            <a href="#" onclick="location.reload();return false">recargar</a>` : ''}</p>`;
 
   const veredicto = s.puede_trabajar
     ? `<div class="aviso ${s.avisos ? 'atento' : 'bien'}">
@@ -2078,6 +2106,7 @@ async function vSalud() {
         computadora tiene instalado todo lo que hace falta. Abajo: si lo que ya está cargado
         sigue cumpliendo las reglas con las que se cargó.</p>
       ${veredicto}
+    ${version}
       <div class="tabla-env"><table class="salud"><tbody>${filas}</tbody></table></div>`) +
 
     bloque('f. 0901', 'Reglas', `
@@ -2288,6 +2317,22 @@ function medirTecho() {
 }
 addEventListener('resize', medirTecho);
 
+/* Si el servidor pasó a servir otra versión, se avisa y se ofrece recargar. No se
+   recarga solo: alguien puede estar a mitad de un valor tipeado en la cola, y perderlo
+   por una actualización sería peor que seguir con la versión de antes un rato más. */
+function avisarSiHayVersionNueva(version) {
+  if (!VERSION_CARGADA || !version || version === VERSION_CARGADA) return;
+  if ($('#aviso-version')) return;
+  const barra = document.createElement('div');
+  barra.id = 'aviso-version';
+  barra.innerHTML = `<span class="sello atencion">Actualizado</span>
+    <span>Se instaló una versión nueva del sistema mientras tenías esto abierto.
+      <button class="boton gris" id="b-recargar">Recargar</button></span>`;
+  document.body.insertBefore(barra, document.body.firstChild);
+  $('#b-recargar').onclick = () => location.reload();
+  medirTecho();
+}
+
 /* Pinta la cinta de legajo y decide si hay que mandar a elegir uno. Devuelve true
    cuando redirigió, para que quien la llame no siga pintando datos que no van. */
 function pintarLegajo(p) {
@@ -2314,6 +2359,12 @@ function pintarLegajo(p) {
   return false;
 }
 
+/* La versión de interfaz que cargó ESTA pestaña. Se fija en el primer refresco y no
+   cambia más: si el servidor pasa a informar otra, es que se actualizó abajo mientras
+   la pestaña estaba abierta. Quien deja el sistema abierto todo el día seguiría usando
+   la anterior sin enterarse. */
+let VERSION_CARGADA = null;
+
 async function refrescarCuentas() {
   try {
     // `/api/cuentas` y no `/api/panel`: el panel entero corre nueve consultas de
@@ -2321,6 +2372,8 @@ async function refrescarCuentas() {
     // al abrir cualquier pantalla y después de CADA decisión de la cola; revisar cien
     // campos costaba cien segundos repartidos en pedacitos.
     const p = await api('/api/cuentas');
+    if (VERSION_CARGADA === null) VERSION_CARGADA = p.version;
+    avisarSiHayVersionNueva(p.version);
     pintarLegajo(p);
     const av = document.getElementById('aviso-demo');
     if (av) av.hidden = !p.demostracion;

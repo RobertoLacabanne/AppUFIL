@@ -59,6 +59,22 @@ _SLUGS_CONOCIDOS: set[str] = set()
 _HUELLAS: dict[str, tuple[float, int, str]] = {}
 
 
+def version_interfaz() -> str:
+    """
+    La versión de lo que se está mostrando: la huella del contenido de la interfaz.
+
+    Existe porque hubo que averiguarlo a mano. Se desplegó una versión nueva, el
+    servidor la estaba sirviendo, y desde afuera no había forma de saber si lo que se
+    veía en pantalla era esa o una guardada en el navegador. Con este número, la
+    pregunta «¿estás viendo lo último?» se contesta mirando, no probando.
+
+    Sale de los archivos de la interfaz y no de un número que alguien tenga que acordarse
+    de subir: si cambió la pantalla, cambió el número.
+    """
+    partes = "".join(huella(config.WEB / n) for n in ("app.js", "estilo.css", "index.html"))
+    return hashlib.sha256(partes.encode()).hexdigest()[:8]
+
+
 def huella(ruta: Path) -> str:
     st = ruta.stat()
     previa = _HUELLAS.get(str(ruta))
@@ -173,6 +189,11 @@ def api_cuentas(cx) -> dict:
                                              WHERE d.sha256 = a.sha256)"""),
         "lote": (cx.execute("SELECT lote FROM procedencia LIMIT 1").fetchone() or [None])[0],
         "demostracion": es_demostracion(cx),
+        # La versión que está sirviendo el servidor. La pantalla compara contra la que
+        # cargó ella: si no coinciden, es que se actualizó abajo mientras estaba abierta
+        # y hay que recargar. Sin esto, quien deja la pestaña abierta sigue usando la
+        # versión anterior sin enterarse.
+        "version": version_interfaz(),
         "marca": any((config.MARCA / n).exists()
                      for n in ("logo.svg", "logo.png", "logo.jpg", "logo.webp")),
     }
@@ -998,6 +1019,8 @@ class Manejador(BaseHTTPRequestHandler):
                         total = cx.execute("SELECT COUNT(*) FROM archivo").fetchone()[0]
                         return self._json({
                             **r,
+                            "version": version_interfaz(),
+                            "esquema": db.ESQUEMA_VERSION,
                             # Sin rehashear: abrir una pantalla no puede leer del
                             # disco doscientos cincuenta PDF. Eso va con el botón.
                             "invariantes": verificacion.correr(cx, con_integridad=False),
@@ -1125,6 +1148,8 @@ class Manejador(BaseHTTPRequestHandler):
 
         cx = _cx()
         try:
+            if u.path == "/api/detener":
+                return self._json(_procesador().detener())
             if u.path == "/api/procesar":
                 return self._json(_procesador().arrancar(
                     perfil=cuerpo.get("perfil", "auto"),
