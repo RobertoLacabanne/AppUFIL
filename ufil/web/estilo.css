@@ -97,13 +97,13 @@
    —no a gris— para que siga siendo la misma casa. Los dos bloques que siguen son
    idénticos a propósito: uno atiende la preferencia del sistema y el otro la
    elección explícita. Una prueba verifica que no se separen. */
-@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]){  --papel:#0B1119; --papel-2:#111A25; --papel-3:#18232F;
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]){  --papel:#080D14; --papel-2:#0F1723; --papel-3:#16202E;
   --tinta:#F2F5F8; --tinta-2:#AEB9C6; --tinta-3:#8A96A5;
   --filete:#2C3B4D; --filete-2:#1E2938;
   --borde-control:#5C6D80;
   --tribunal:#7FA9D6; --tribunal-txt:#7FA9D6; --rio:#6B9FCB; --oro:#E5C57C;
-  --barra:#111A25; --barra-2:#1B2836; --barra-3:#24354A;
-  --barra-txt:#F2F5F8; --barra-txt-2:#AEB9C6; --barra-filete:#2C3B4D;
+  --barra:#1E2C40; --barra-2:#293A52; --barra-3:#344863;
+  --barra-txt:#F2F5F8; --barra-txt-2:#AEB9C6; --barra-filete:#3E5372;
   --sello:#7FA9D6; --sello-suave:#15202E;
   --interp:#131E2A; --interp-filete:#5A82AC;
   --verde:#74BC97; --ambar:#E5C57C; --lapiz:#F08B8B; --lapiz-suave:#2A1A1C;
@@ -112,13 +112,13 @@
   --sombra:0 1px 2px rgba(0,0,0,.40), 0 1px 8px rgba(0,0,0,.30);
   --sombra-alta:0 2px 4px rgba(0,0,0,.45), 0 8px 24px rgba(0,0,0,.40);
 }}
-:root[data-tema="oscuro"]{  --papel:#0B1119; --papel-2:#111A25; --papel-3:#18232F;
+:root[data-tema="oscuro"]{  --papel:#080D14; --papel-2:#0F1723; --papel-3:#16202E;
   --tinta:#F2F5F8; --tinta-2:#AEB9C6; --tinta-3:#8A96A5;
   --filete:#2C3B4D; --filete-2:#1E2938;
   --borde-control:#5C6D80;
   --tribunal:#7FA9D6; --tribunal-txt:#7FA9D6; --rio:#6B9FCB; --oro:#E5C57C;
-  --barra:#111A25; --barra-2:#1B2836; --barra-3:#24354A;
-  --barra-txt:#F2F5F8; --barra-txt-2:#AEB9C6; --barra-filete:#2C3B4D;
+  --barra:#1E2C40; --barra-2:#293A52; --barra-3:#344863;
+  --barra-txt:#F2F5F8; --barra-txt-2:#AEB9C6; --barra-filete:#3E5372;
   --sello:#7FA9D6; --sello-suave:#15202E;
   --interp:#131E2A; --interp-filete:#5A82AC;
   --verde:#74BC97; --ambar:#E5C57C; --lapiz:#F08B8B; --lapiz-suave:#2A1A1C;
@@ -1326,5 +1326,19 @@ th.ord.desc::after{content:" ↓"; color:var(--sello)}
    Esconder media barra deja sin saber qué hace el sistema; apagarla dice a la vez
    que existe y que todavía no. Sigue siendo un enlace: quien la toca cae en la
    pantalla que le explica el paso que falta, y eso es mejor que un clic muerto. */
-.nav-lateral a.apagado{opacity:.45}
-.nav-lateral a.apagado:hover{opacity:.7}
+.nav-lateral a.apagado{opacity:.70}
+.nav-lateral a.apagado:hover{opacity:.92}
+
+/* El bloque de consejo, plegado. Lo que la persona vino a hacer —soltar los PDF— va
+   arriba y sin nada delante; esto queda abajo, cerrado, para cuando hay que redactarle
+   la instrucción a la oficina que escanea. Estaba al revés: sesenta líneas sobre
+   puntos de exactitud a 100 DPI antes del cuadro para soltar los archivos. */
+details.consejo{padding:0}
+details.consejo>summary{cursor:pointer; padding:11px 14px; font-weight:600;
+  list-style:none; display:flex; align-items:center; gap:8px}
+details.consejo>summary::-webkit-details-marker{display:none}
+details.consejo>summary::before{content:'▸'; color:var(--tinta-3); font-size:11px}
+details.consejo[open]>summary::before{content:'▾'}
+details.consejo>summary:hover{color:var(--sello)}
+details.consejo>p{margin:0 14px 11px; padding:0}
+details.consejo[open]>summary{border-bottom:1px solid var(--filete-2); margin-bottom:11px}

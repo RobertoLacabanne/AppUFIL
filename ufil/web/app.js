@@ -2117,56 +2117,6 @@ async function vIngesta() {
       vuelve a tocar nunca más</strong>. Si un PDF ya estaba, no se duplica — se anota que
       apareció de nuevo y se sigue.</p>
 
-    <div class="consejo">
-      <b>Un PDF por contrato es mejor que un PDF con muchos adentro.</b>
-      <p>El sistema separa igual los contratos que vengan juntos en un mismo PDF, y
-        tarda lo mismo: <span class="mono">25 s</span> contra <span class="mono">28 s</span>
-        para los mismos doce contratos. La diferencia aparece cuando se vuelve a escanear
-        parte de una pila.</p>
-      <p><strong>Con un PDF por contrato</strong>, el sistema reconoce por huella digital
-        los que ya tenía, no los vuelve a leer, y no los cuenta dos veces.
-        <strong>Con todo en un PDF grande</strong> alcanza una hoja de diferencia para que
-        sea un archivo nuevo: se relee entero y los contratos repetidos entran otra vez,
-        inflando los acumulados.</p>
-      <p class="medido">Medido: doce contratos subidos en dos tandas que se pisan en tres.
-        Sueltos → 12 contratos, 0 repetidos. Todo junto → 15 contratos,
-        <span class="marca">3 repetidos</span>.</p>
-      <p>Si igual conviene escanear de corrido —y muchas veces conviene, porque es más
-        rápido en el escáner—, hacelo: el sistema los separa y avisa cuáles quedaron
-        repetidos. Sólo que después hay que resolverlos a mano.</p>
-    </div>
-
-    <div class="consejo">
-      <b>Pedí que escaneen a 300 DPI, en escala de grises.</b>
-      <p>Cómo se parte el PDF casi no mueve la aguja. <strong>Con qué calidad se escanea,
-        sí, y mucho.</strong> Sobre papel de mala calidad —fotocopia de fotocopia, hoja
-        torcida, contraste caído, que es como llega un expediente viejo— la diferencia
-        entre escanear a 100 y a 300 DPI es de treinta y un puntos de exactitud.</p>
-      <p class="medido">La cifra exacta se está volviendo a medir: el generador de prueba
-        tenía motas de fotocopia de un píxel, y como el píxel es más grande a baja
-        resolución, castigaba al escaneo de 100 DPI por una razón que en el papel no
-        existe. Lo que ya no cambia: <strong>a 100 DPI el sistema deja de servir</strong>,
-        y en todos los casos con <strong>cero errores silenciosos</strong> —cuando el
-        escaneo es malo el sistema no inventa, deja el campo vacío y lo manda a
-        revisión—.</p>
-      <p><strong>Más de 300 no hace falta:</strong> de ahí para arriba no se gana nada
-        medible y el archivo pesa el doble.</p>
-      <p><strong>Y nunca el «modo texto»</strong> en blanco y negro puro que muchos
-        escáneres traen puesto, aunque el número de exactitud mejore. Es la única
-        configuración de todo lo que probamos que <strong>guardó un dato falso dándolo
-        por bueno</strong>.</p>
-      <p class="medido">El mismo contrato, el mismo campo. En grises, las dos rutas de
-        lectura discreparon: conflicto, campo vacío, a la cola.
-        En blanco y negro leyeron las dos <span class="mono">ALMADA, Rosa 1</span>
-        —la inicial <span class="mono">I.</span> convertida en un
-        <span class="mono">1</span>— y el sistema lo aceptó solo con
-        <span class="mono">0,92</span> de confianza. El umbral limpió la mancha del
-        punto, las dos rutas coincidieron <span class="marca">en el error</span>, y el
-        sistema se quedó sin la señal que usa para saber que no sabe.</p>
-      <p>Esto conviene pedirlo <strong>por escrito y antes de que empiecen</strong>.
-        Reescanear dos mil fojas porque salieron a 100 DPI es una semana perdida.</p>
-    </div>
-
     <div class="campos-lote">
       <label>Lote <input type="text" id="i-lote" value="${esc(lote)}"
         placeholder="contratos-camara-A-2024"></label>
@@ -2191,6 +2141,21 @@ async function vIngesta() {
       <span class="rotulo" id="estado-trabajo"></span>
     </div>
     <div id="progreso"></div>
+
+    <details class="consejo" id="c-escaneo">
+      <summary>Qué pedirle a quien escanea</summary>
+      <p><strong>300 DPI y escala de grises.</strong> Nunca el «modo texto» en blanco y
+        negro que muchos escáneres traen puesto: es la única configuración probada que
+        llegó a <strong>guardar un dato falso dándolo por bueno</strong>. Más de 300 no
+        hace falta; el archivo pesa el doble y no se gana nada medible.</p>
+      <p><strong>Un PDF por contrato, si se puede.</strong> Así el sistema reconoce por
+        huella los que ya tenía y no los cuenta dos veces. Si conviene escanear de
+        corrido, hacelo igual: los separa solo y avisa cuáles quedaron repetidos.</p>
+      <p>Conviene pedirlo <strong>por escrito y antes de que empiecen</strong>.
+        Reescanear dos mil fojas porque salieron a 100 DPI es una semana perdida.</p>
+      <p class="medido">El detalle de las mediciones está en
+        <a href="#/como-funciona">Cómo funciona</a>.</p>
+    </details>
 
     ${t.lotes && t.lotes.length ? `
       <h3 style="margin-top:26px">Lotes cargados</h3>
