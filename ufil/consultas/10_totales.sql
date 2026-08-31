@@ -14,13 +14,22 @@
 -- Lo firme sale de las vistas `v_contrato` y `v_comprobante`, que ya filtran por
 -- estado y por tipo. Lo provisional sale de `v_documento_todo`, que trae todo con el
 -- estado de cada campo al lado.
+--
+-- `todo` va MATERIALIZED a propósito. Sin eso, SQLite volvía a armar `v_documento_todo`
+-- —un GROUP BY sobre todos los documentos unidos a todos los campos— una vez por cada
+-- subconsulta que la nombra, y son cuatro. Medido en un legajo de 4.547 documentos y
+-- 24.235 campos: 397 ms la consulta entera, de los cuales unos 220 eran recorrer cuatro
+-- veces lo mismo. Con una sola pasada quedan.
+WITH todo AS MATERIALIZED (
+  SELECT familia, monto_centavos, monto_estado FROM v_documento_todo
+)
 SELECT
   -- ── LO CONTRATADO ────────────────────────────────────────────────────────
   (SELECT COALESCE(SUM(monto_centavos), 0) FROM v_contrato)             AS total_firme_centavos,
   (SELECT COUNT(*) FROM v_contrato WHERE monto_centavos IS NOT NULL)    AS contratos_con_monto_firme,
-  (SELECT COALESCE(SUM(monto_centavos), 0) FROM v_documento_todo
+  (SELECT COALESCE(SUM(monto_centavos), 0) FROM todo
     WHERE familia='contrato' AND monto_estado='pendiente_baja')         AS total_provisional_centavos,
-  (SELECT COUNT(*) FROM v_documento_todo
+  (SELECT COUNT(*) FROM todo
     WHERE familia='contrato' AND monto_estado='pendiente_baja')         AS contratos_con_monto_provisional,
 
   -- ── LO FACTURADO ─────────────────────────────────────────────────────────
@@ -30,9 +39,9 @@ SELECT
   -- Las facturas de talonario traen el importe a mano y NO se leen. Que existan y no
   -- se sepa por cuánto es un dato, y tiene que estar a la vista de quien lea el total
   -- facturado: sin esto, ese total parece completo y no lo está.
-  (SELECT COUNT(*) FROM v_documento_todo
+  (SELECT COUNT(*) FROM todo
     WHERE familia='comprobante' AND monto_centavos IS NULL)             AS comprobantes_sin_importe_legible,
-  (SELECT COUNT(*) FROM v_documento_todo WHERE familia='comprobante')   AS comprobantes,
+  (SELECT COUNT(*) FROM todo WHERE familia='comprobante')               AS comprobantes,
 
   -- ── PENDIENTE SIN NÚMERO ─────────────────────────────────────────────────
   -- En conflicto, sin leer, o escrito a mano. No hay monto que sumar; hay trabajo.
@@ -52,7 +61,7 @@ SELECT
   -- Tipos que no están en ninguna familia conocida. No entran a ningún total, y por
   -- eso mismo tienen que contarse: un documento que no se suma en ningún lado y
   -- tampoco se cuenta en ningún lado, desapareció.
-  (SELECT COUNT(*) FROM v_documento_todo WHERE familia IS NULL)         AS documentos_sin_familia,
+  (SELECT COUNT(*) FROM todo WHERE familia IS NULL)                     AS documentos_sin_familia,
 
   -- ── CUÁNTO MIRÓ UNA PERSONA, Y CUÁNDO ────────────────────────────────────
   (SELECT COUNT(*) FROM campo

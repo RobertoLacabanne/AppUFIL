@@ -198,5 +198,63 @@ class LaInterfazNoMuestraNombresTecnicos(unittest.TestCase):
                 f"la columna «{clave}» sale sin pasar por fmtFecha: muestra 2023-03-01")
 
 
+class LasTablasGrandesSePuedenRecorrer(unittest.TestCase):
+    """
+    Medido con un legajo del tamaño de una causa de verdad —1.500 contratos y 3.047
+    facturas—: la pantalla de facturas pintaba 3.047 filas, 51.085 nodos y 106.400 px
+    de alto. Cien metros de página, sin forma de encontrar a nadie salvo desplazarse
+    leyendo.
+
+    Las cuatro tablas que crecen con el legajo van con buscador, orden por columna y
+    render por tandas. Las que no crecen —superposiciones, fusiones— quedan como están:
+    un buscador arriba de cuatro filas es ruido.
+    """
+
+    GRANDES = ["tabla-contratos", "tabla-comprobantes", "tabla-personas", "tabla-cruce"]
+
+    def setUp(self):
+        self.js = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
+
+    def test_las_cuatro_tablas_grandes_usan_el_buscador(self):
+        for destino in self.GRANDES:
+            self.assertIn(f"tablaBuscable($('#{destino}')", self.js,
+                          f"«{destino}» volvió a pintar todas las filas de una")
+
+    def test_ninguna_pinta_mas_de_una_tanda_de_entrada(self):
+        m = re.search(r"const POR_TANDA = (\d+);", self.js)
+        self.assertIsNotNone(m, "se perdió el tamaño de la tanda")
+        self.assertLessEqual(int(m.group(1)), 300,
+                             "la tanda es tan grande que volvemos al problema")
+
+    def test_el_buscador_ignora_tildes_y_mayusculas(self):
+        """
+        Quien busca «peres» tiene que encontrar a Pérez: el nombre puede venir de un OCR
+        y nadie sabe cómo quedó escrito.
+        """
+        self.assertIn("normalize('NFD')", self.js)
+        self.assertIn(".toLowerCase()", self.js)
+
+    def test_el_buscador_filtra_sobre_todas_las_filas(self):
+        """
+        Filtrar sobre las pintadas sería el mismo problema con otra cara: buscar un
+        apellido y que aparezca o no según hasta dónde bajaste.
+        """
+        i = self.js.index("function tablaBuscable")
+        cuerpo = self.js[i:i + 4000]
+        self.assertIn("v = filas;", cuerpo,
+                      "el filtro dejó de partir del total de filas")
+        # y el corte por tanda va DESPUÉS de filtrar y ordenar
+        self.assertLess(cuerpo.index("v = filas;"), cuerpo.index("slice(0, estado.mostradas)"))
+
+    def test_lo_que_falta_se_ordena_al_final(self):
+        """
+        Ordenando por monto, los contratos sin monto legible no pueden colarse arriba
+        como si valieran cero: no valen cero, no se sabe cuánto valen.
+        """
+        i = self.js.index("function tablaBuscable")
+        cuerpo = self.js[i:i + 4000]
+        self.assertIn("if (x == null) return 1;", cuerpo)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

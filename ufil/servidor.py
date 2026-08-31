@@ -139,6 +139,45 @@ def es_demostracion(cx) -> bool:
     return n > 0
 
 
+def api_cuentas(cx) -> dict:
+    """
+    Lo poco que la interfaz necesita en CADA cambio de pantalla: qué legajo está
+    abierto y cuánto trabajo espera.
+
+    Existe porque para eso se estaba pidiendo `/api/panel` entero, que corre nueve
+    consultas de análisis —superposiciones, cruces, cobertura, totales— y en un legajo
+    de 1.500 contratos tarda casi un segundo. Eso se pagaba al abrir cualquier pantalla
+    y DESPUÉS DE CADA DECISIÓN de la cola: revisar cien campos costaba cien segundos de
+    espera repartidos en pedacitos, que es la clase de lentitud que nadie reporta y
+    todos sufren.
+
+    Acá hay cinco COUNT sobre índices. Tarda milésimas.
+    """
+    def uno(sql, *p):
+        return cx.execute(sql, p).fetchone()[0]
+
+    abierto = config.legajo_activo()
+    try:
+        l = legajos.obtener(abierto) if abierto else None
+    except legajos.LegajoInexistente:
+        l = None
+    return {
+        "legajo": ({"slug": l.slug, "numero": l.numero, "caratula": l.caratula,
+                    "fiscal": l.fiscal} if l else None),
+        "hay_legajos": bool(legajos.slugs()),
+        "documentos": uno("SELECT COUNT(*) FROM documento"),
+        "a_revisar": uno(f"SELECT COUNT(*) FROM campo WHERE estado IN ({cf.SQL_PENDIENTES})"),
+        "fusiones": uno("SELECT COUNT(*) FROM fusion_propuesta WHERE estado='pendiente'"),
+        "afuera": uno("""SELECT COUNT(*) FROM archivo a
+                          WHERE NOT EXISTS (SELECT 1 FROM documento d
+                                             WHERE d.sha256 = a.sha256)"""),
+        "lote": (cx.execute("SELECT lote FROM procedencia LIMIT 1").fetchone() or [None])[0],
+        "demostracion": es_demostracion(cx),
+        "marca": any((config.MARCA / n).exists()
+                     for n in ("logo.svg", "logo.png", "logo.jpg", "logo.webp")),
+    }
+
+
 def api_panel(cx) -> dict:
     def uno(sql, *p):
         return cx.execute(sql, p).fetchone()[0]
@@ -879,6 +918,8 @@ class Manejador(BaseHTTPRequestHandler):
                 try:
                     if ruta == "/api/panel":
                         return self._json(api_panel(cx))
+                    if ruta == "/api/cuentas":
+                        return self._json(api_cuentas(cx))
                     if ruta == "/api/consultas":
                         return self._json([{k: v for k, v in c.items() if k != "sql"}
                                            for c in c4.catalogo()])

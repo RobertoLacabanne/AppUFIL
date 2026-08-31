@@ -282,5 +282,67 @@ class LaColaSePuedeFiltrar(UnCampoEnLaCola):
         self.assertEqual(sorted(por_familia), ["comprobante", "contrato"])
 
 
+class RevisarNoPuedeCostarUnaEsperaPorCampo(UnCampoEnLaCola):
+    """
+    La interfaz refresca las cuentas al abrir cualquier pantalla y DESPUÉS DE CADA
+    DECISIÓN de la cola. Para eso pedía `/api/panel` entero, que corre nueve consultas
+    de análisis —superposiciones, cruces, cobertura, totales—. Medido en un legajo de
+    1.500 contratos: 950 ms. Revisar cien campos costaba cien segundos de espera
+    repartidos en pedacitos, que es la clase de lentitud que nadie reporta y todos
+    sufren.
+    """
+
+    def test_las_cuentas_traen_lo_que_la_barra_necesita(self):
+        from ufil.servidor import api_cuentas
+        c = api_cuentas(self.cx)
+        for clave in ("legajo", "hay_legajos", "documentos", "a_revisar", "fusiones",
+                      "afuera", "lote", "demostracion", "marca"):
+            self.assertIn(clave, c, f"la barra usa «{clave}» y las cuentas no lo traen")
+
+    def test_las_cuentas_no_corren_las_consultas_de_analisis(self):
+        """
+        Si alguna vez vuelven a entrar acá, esto deja de ser barato y nadie se entera
+        hasta que el legajo crece. Se cuenta cuántas consultas SQL hace.
+        """
+        from ufil.servidor import api_cuentas
+        consultas = []
+        # `set_trace_callback` es la forma que trae SQLite de mirar qué se ejecuta.
+        # `Connection.execute` no se puede sustituir: es de sólo lectura.
+        self.cx.set_trace_callback(lambda sql: consultas.append(" ".join(sql.split())[:90]))
+        try:
+            api_cuentas(self.cx)
+        finally:
+            self.cx.set_trace_callback(None)
+
+        pesadas = [c for c in consultas if "v_contrato" in c or "v_documento_todo" in c
+                   or "v_comprobante" in c]
+        self.assertEqual(pesadas, [],
+                         "las cuentas empezaron a tocar las vistas de análisis: "
+                         "vuelven a costar casi un segundo en un legajo grande")
+        self.assertLessEqual(len(consultas), 12,
+                             f"las cuentas hacen {len(consultas)} consultas; eran cinco")
+
+    def test_la_pantalla_pide_las_cuentas_y_no_el_panel(self):
+        js = (Path(__file__).resolve().parent.parent / "ufil/web/app.js").read_text(encoding="utf-8")
+        i = js.index("async function refrescarCuentas()")
+        cuerpo = js[i:i + 900]
+        self.assertIn("'/api/cuentas'", cuerpo)
+        self.assertNotIn("'/api/panel'", cuerpo,
+                         "volvió a pedir el panel entero en cada cambio de pantalla")
+
+    def test_los_totales_recorren_la_vista_una_sola_vez(self):
+        """
+        `v_documento_todo` es un GROUP BY sobre todos los documentos unidos a todos los
+        campos. Nombrarla cuatro veces sin materializar la arma cuatro veces: medido,
+        220 ms de los 397 que tardaba la consulta.
+        """
+        from ufil import config
+        sql = (config.CONSULTAS / "10_totales.sql").read_text(encoding="utf-8")
+        self.assertIn("AS MATERIALIZED", sql,
+                      "los totales volvieron a recorrer la misma vista una vez por "
+                      "subconsulta")
+        self.assertLessEqual(sql.count("FROM v_documento_todo"), 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

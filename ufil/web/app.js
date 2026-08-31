@@ -269,6 +269,127 @@ function pintarNav(hash) {
   medirTecho();
 }
 
+/* ── Tabla grande: buscar, ordenar y traer de a poco ───────────────────────
+   Con 1.500 contratos, una tabla suelta no sirve para nada: son 52.000 px de alto y no
+   hay forma de encontrar a alguien salvo desplazarse leyendo. Medido en un legajo del
+   tamaño de una causa de verdad, la de facturas pintaba 3.047 filas, 51.085 nodos y
+   106.400 px de alto — cien metros de página.
+
+   Tres cosas, y ninguna esconde nada:
+     · un campo que filtra sobre TODAS las filas, no sobre las pintadas;
+     · orden por columna, haciendo clic en el encabezado;
+     · se pintan de a 150 y el resto se trae con un botón que dice cuántas faltan.
+
+   El filtro busca sobre el texto de la fila sin tildes ni mayúsculas: quien busca
+   «peres» tiene que encontrar a Pérez, porque el nombre puede venir de un OCR y no se
+   sabe cómo quedó escrito. */
+const POR_TANDA = 150;
+
+const sinTildes = s => String(s ?? '')
+  .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+function tablaBuscable(destino, cols, filas, opts = {}) {
+  const estado = {q: '', orden: null, desc: false, mostradas: POR_TANDA};
+
+  // El texto por el que se busca cada fila: los valores crudos, no el HTML pintado.
+  // Sobre el HTML, buscar «span» encontraría todas.
+  const textoDe = f => sinTildes(cols.map(c => c.k ? f[c.k] : (c.b ? c.b(f) : '')).join(' ')
+                                 + ' ' + Object.values(f).join(' '));
+  filas.forEach(f => { f.__texto = textoDe(f); });
+
+  const valorDe = (f, c) => {
+    if (c.b) return c.b(f);                 // `b` = valor para ordenar y buscar
+    if (c.k) return f[c.k];
+    return null;
+  };
+
+  function visibles() {
+    let v = filas;
+    if (estado.q) {
+      const t = sinTildes(estado.q);
+      v = v.filter(f => f.__texto.includes(t));
+    }
+    if (estado.orden != null) {
+      const c = cols[estado.orden];
+      v = [...v].sort((a, b) => {
+        const x = valorDe(a, c), y = valorDe(b, c);
+        if (x == null && y == null) return 0;
+        if (x == null) return 1;            // lo que falta va al final, siempre
+        if (y == null) return -1;
+        const n = (typeof x === 'number' && typeof y === 'number')
+          ? x - y : String(x).localeCompare(String(y), 'es');
+        return estado.desc ? -n : n;
+      });
+    }
+    return v;
+  }
+
+  function pintar() {
+    const v = visibles();
+    const tanda = v.slice(0, estado.mostradas);
+    const th = cols.map((c, i) => {
+      const act = estado.orden === i ? (estado.desc ? ' desc' : ' asc') : '';
+      return `<th class="ord${act}" data-col="${i}" title="ordenar por ${esc(c.t)}"
+                >${esc(c.t)}</th>`;
+    }).join('');
+    const tr = tanda.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}"
+        data-i="${filas.indexOf(f)}">${
+      cols.map(c => `<td class="${c.c || ''}">${c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
+    }</tr>`).join('');
+
+    destino.innerHTML = `
+      <div class="buscador-tabla">
+        <label class="campo-buscar">
+          <input type="search" placeholder="${esc(opts.placeholder || 'Buscar en la tabla…')}"
+                 value="${esc(estado.q)}" autocomplete="off">
+        </label>
+        <span class="cuantas">${v.length === filas.length
+          ? plural(filas.length, 'fila', 'filas')
+          : `<b>${fmtNum.format(v.length)}</b> de ${fmtNum.format(filas.length)}`}</span>
+        ${estado.q || estado.orden != null
+          ? `<button class="boton gris limpiar-tabla">Quitar filtro y orden</button>` : ''}
+      </div>
+      ${v.length ? `<div class="tabla-env"><table${opts.lista ? ` data-lista="${esc(opts.lista)}"` : ''}
+          ><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div>`
+        : `<div class="tabla-env"><div class="vacio">Ninguna fila dice
+             «${esc(estado.q)}».</div></div>`}
+      ${tanda.length < v.length ? `<button class="mas-tabla">Ver
+        ${plural(Math.min(POR_TANDA, v.length - tanda.length), 'fila más', 'filas más')}
+        <span>quedan ${fmtNum.format(v.length - tanda.length)}</span></button>` : ''}`;
+
+    const buscar = destino.querySelector('input[type=search]');
+    // Se repinta al escribir, pero conservando el foco y el cursor: repintar el campo
+    // debajo de los dedos hace que se pierdan letras.
+    buscar.oninput = () => {
+      const pos = buscar.selectionStart;
+      estado.q = buscar.value;
+      estado.mostradas = POR_TANDA;
+      pintar();
+      const nuevo = destino.querySelector('input[type=search]');
+      nuevo.focus();
+      nuevo.setSelectionRange(pos, pos);
+    };
+    destino.querySelectorAll('th.ord').forEach(th => th.onclick = () => {
+      const i = +th.dataset.col;
+      estado.desc = estado.orden === i ? !estado.desc : false;
+      estado.orden = i;
+      estado.mostradas = POR_TANDA;
+      pintar();
+    });
+    const limpiar = destino.querySelector('.limpiar-tabla');
+    if (limpiar) limpiar.onclick = () => {
+      estado.q = ''; estado.orden = null; estado.desc = false;
+      estado.mostradas = POR_TANDA; pintar();
+    };
+    const mas = destino.querySelector('.mas-tabla');
+    if (mas) mas.onclick = () => { estado.mostradas += POR_TANDA; pintar(); };
+    if (opts.alClic) destino.querySelectorAll('tbody tr').forEach(tr =>
+      tr.onclick = () => opts.alClic(filas[+tr.dataset.i]));
+  }
+
+  pintar();
+}
+
 /* ── vistas ────────────────────────────────────────────────────────────── */
 /* ── legajos ───────────────────────────────────────────────────────────────
    La portada. Se entra por acá y recién después se ve nada más.
@@ -624,19 +745,24 @@ async function vContratos() {
     <h2>Contratos</h2>
     <p class="prosa">La tabla consolidada. Un campo entra sólo si tiene valor y no tiene
       conflicto abierto: lo que no se pudo leer aparece vacío, nunca completado.</p>
-    ${tabla([
+    <div id="tabla-contratos"></div>`);
+  tablaBuscable($('#tabla-contratos'), [
       {t:'Doc', k:'documento_id', c:'fol'},
       {t:'Archivo', k:'archivo', c:'fol'},
-      {t:'Cámara', r:f => esc(camaraTexto(f.camara))},
-      {t:'Contratado/a', r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo">Ø sin dato</span>'},
-      {t:'Documento', c:'mono', r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo">Ø sin dato</span>'},
-      {t:'Inicio', c:'mono', r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class="nulo">Ø sin dato</span>'},
-      {t:'Fin', c:'mono', r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class="nulo">Ø sin dato</span>'},
-      {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '<span class="nulo">Ø sin dato</span>' : esc(fmtPesos(f.monto_centavos))},
-      {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
-    ], filas, {alClic:true})}`);
-  vista.querySelectorAll('tbody tr').forEach(tr =>
-    tr.onclick = () => location.hash = '#/documento/' + filas[+tr.dataset.i].documento_id);
+      {t:'Cámara', b:f => camaraTexto(f.camara), r:f => esc(camaraTexto(f.camara))},
+      {t:'Contratado/a', b:f => f.nombre_literal,
+       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Documento', c:'mono', b:f => f.documento_literal,
+       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Inicio', c:'mono', b:f => f.inicio,
+       r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Fin', c:'mono', b:f => f.fin,
+       r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Monto', c:'num', b:f => f.monto_centavos,
+       r:f => f.monto_centavos == null ? '<span class="nulo">Ø sin dato</span>' : esc(fmtPesos(f.monto_centavos))},
+      {t:'Conf.', c:'num', b:f => f.confianza_min, r:f => barraConf(f.confianza_min)},
+    ], filas, {alClic: f => location.hash = '#/documento/' + f.documento_id,
+               placeholder: 'Buscar por nombre, documento, archivo…'});
 }
 
 /* ── Comprobantes ──────────────────────────────────────────────────────────
@@ -663,20 +789,24 @@ async function vComprobantes() {
         peor que no leerlo— así que aparece vacío y espera que una persona lo cargue
         mirando la foja. Están en <a href="#/cola">la cola de revisión</a>.</span>
     </div>` : ''}
-    ${tabla([
+    <div id="tabla-comprobantes"></div>`);
+  tablaBuscable($('#tabla-comprobantes'), [
       {t:'Doc', k:'documento_id', c:'fol'},
-      {t:'Tipo', r:f => esc(TIPO_DOC[f.tipo] || f.tipo)},
+      {t:'Tipo', b:f => TIPO_DOC[f.tipo] || f.tipo, r:f => esc(TIPO_DOC[f.tipo] || f.tipo)},
       {t:'Archivo', k:'archivo', c:'fol'},
-      {t:'Emisor', r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo">Ø sin dato</span>'},
-      {t:'CUIT', c:'mono', r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo">Ø sin dato</span>'},
-      {t:'Comprobante', c:'mono', r:f => f.comprobante ? esc(f.comprobante) : '<span class="nulo">Ø sin dato</span>'},
-      {t:'Emitida', c:'mono', r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class="nulo">Ø sin dato</span>'},
-      {t:'Importe', c:'num', r:f => f.monto_centavos == null
-          ? '<span class="nulo">Ø a mano</span>' : esc(fmtPesos(f.monto_centavos))},
-      {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
-    ], filas, {alClic:true})}`);
-  vista.querySelectorAll('tbody tr').forEach(tr =>
-    tr.onclick = () => location.hash = '#/documento/' + filas[+tr.dataset.i].documento_id);
+      {t:'Emisor', b:f => f.nombre_literal,
+       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'CUIT', c:'mono', b:f => f.documento_literal,
+       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Comprobante', c:'mono', b:f => f.comprobante,
+       r:f => f.comprobante ? esc(f.comprobante) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Emitida', c:'mono', b:f => f.emitida,
+       r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Importe', c:'num', b:f => f.monto_centavos,
+       r:f => f.monto_centavos == null ? '<span class="nulo">Ø a mano</span>' : esc(fmtPesos(f.monto_centavos))},
+      {t:'Conf.', c:'num', b:f => f.confianza_min, r:f => barraConf(f.confianza_min)},
+    ], filas, {alClic: f => location.hash = '#/documento/' + f.documento_id,
+               placeholder: 'Buscar por emisor, CUIT, número de comprobante…'});
 }
 
 /* ── Lo facturado contra lo contratado ─────────────────────────────────────
@@ -695,28 +825,7 @@ async function vCruce() {
       persona. Se unen por el documento y no por el nombre: <strong>el CUIL de la
       factura lleva adentro el DNI del contrato</strong>, así que se cruzan solos aunque
       el nombre esté escrito distinto en cada foja.</p>
-    ${tabla([
-      {t:'Contratado/a', r:f => `<a href="#/persona/${f.persona_id}">${esc(f.contratado)}</a>`},
-      {t:'Documento', k:'documento', c:'mono'},
-      {t:'Contratos', c:'num', k:'contratos'},
-      {t:'Período', c:'mono', r:f => f.contrato_desde
-          ? `${esc(fmtFecha(f.contrato_desde))} → ${esc(fmtFecha(f.contrato_hasta))}`
-          : '<span class="nulo">Ø sin fechas</span>'},
-      // Mensual y total son magnitudes distintas y se muestran en columnas distintas.
-      // El total es el único comparable con la facturación acumulada de al lado.
-      {t:'Mensual pactado', c:'num', r:f => f.mensual_centavos
-          ? esc(fmtPesos(f.mensual_centavos)) : '<span class="nulo">Ø sin dato</span>'},
-      // Cuando NINGÚN contrato trae el total legible, la celda no muestra $0,00: cero
-      // se lee como «no se contrató nada» y lo que pasa es que no se pudo leer.
-      {t:'Total contratado', c:'num', r:f => f.contratos_sin_total_firme >= f.contratos
-          ? '<span class="nulo">Ø sin leer</span>'
-          : esc(fmtPesos(f.contratado_centavos)) + (f.contratos_sin_total_firme
-              ? ` <span class="sello atencion">faltan ${f.contratos_sin_total_firme}</span>` : '')},
-      {t:'Facturas', c:'num', k:'facturas'},
-      {t:'Facturado legible', c:'num', r:f => esc(fmtPesos(f.facturado_legible_centavos))},
-      {t:'A mano', c:'num', r:f => f.facturas_a_mano
-          ? `<span class="sello atencion">${f.facturas_a_mano}</span>` : '—'},
-    ], r.filas)}
+    <div id="tabla-cruce"></div>
     <p class="prosa" style="font-size:12.5px;margin-top:12px">
       <strong>Mensual y total no son lo mismo, y no se comparan entre sí.</strong> El
       contrato fija un importe <em>mensual</em>; las facturas se acumulan. El único
@@ -737,6 +846,32 @@ async function vCruce() {
       talonario, donde el importe está manuscrito y el sistema no lo lee: existen y no
       se sabe por cuánto. Mientras esa columna no sea cero, el facturado está incompleto
       y no se puede comparar contra lo pactado como si fuera el total.</p>`);
+
+  tablaBuscable($('#tabla-cruce'), [
+      {t:'Contratado/a', b:f => f.contratado,
+       r:f => `<a href="#/persona/${f.persona_id}">${esc(f.contratado)}</a>`},
+      {t:'Documento', k:'documento', c:'mono'},
+      {t:'Contratos', c:'num', k:'contratos'},
+      {t:'Período', c:'mono', b:f => f.contrato_desde, r:f => f.contrato_desde
+          ? `${esc(fmtFecha(f.contrato_desde))} → ${esc(fmtFecha(f.contrato_hasta))}`
+          : '<span class="nulo">Ø sin fechas</span>'},
+      // Mensual y total son magnitudes distintas y se muestran en columnas distintas.
+      // El total es el único comparable con la facturación acumulada de al lado.
+      {t:'Mensual pactado', c:'num', b:f => f.mensual_centavos, r:f => f.mensual_centavos
+          ? esc(fmtPesos(f.mensual_centavos)) : '<span class="nulo">Ø sin dato</span>'},
+      // Cuando NINGÚN contrato trae el total legible, la celda no muestra $0,00: cero
+      // se lee como «no se contrató nada» y lo que pasa es que no se pudo leer.
+      {t:'Total contratado', c:'num', b:f => f.contratado_centavos,
+       r:f => f.contratos_sin_total_firme >= f.contratos
+          ? '<span class="nulo">Ø sin leer</span>'
+          : esc(fmtPesos(f.contratado_centavos)) + (f.contratos_sin_total_firme
+              ? ` <span class="sello atencion">faltan ${f.contratos_sin_total_firme}</span>` : '')},
+      {t:'Facturas', c:'num', k:'facturas'},
+      {t:'Facturado legible', c:'num', b:f => f.facturado_legible_centavos,
+       r:f => esc(fmtPesos(f.facturado_legible_centavos))},
+      {t:'A mano', c:'num', b:f => f.facturas_a_mano, r:f => f.facturas_a_mano
+          ? `<span class="sello atencion">${f.facturas_a_mano}</span>` : '—'},
+    ], r.filas, {placeholder: 'Buscar por nombre o documento…'});
 }
 
 async function vSuperposiciones() {
@@ -1492,21 +1627,28 @@ async function vPersonas() {
     <p class="prosa">Agrupados por documento cuando lo hay. <strong>Los que no tienen
       documento legible aparecen sueltos</strong>, uno por contrato: sin clave fuerte el
       sistema no los junta solo, y eso es a propósito.</p>
-    ${tabla([
+    <div id="tabla-personas"></div>`);
+  tablaBuscable($('#tabla-personas'), [
       {t:'Contratado/a', k:'contratado'},
-      {t:'Documento', c:'mono', r:f => f.documento ? esc(f.documento) : '<span class="nulo">Ø sin dato</span>'},
+      {t:'Documento', c:'mono', b:f => f.documento,
+       r:f => f.documento ? esc(f.documento) : '<span class="nulo">Ø sin dato</span>'},
       {t:'Contratos', k:'contratos', c:'num'},
-      {t:'Sin monto', c:'num', r:f => f.contratos_sin_monto ? `<span class="marca">${f.contratos_sin_monto}</span>` : '0'},
-      {t:'Acumulado', c:'num', r:f => esc(fmtPesos(f.acumulado_centavos))},
+      {t:'Sin monto', c:'num', b:f => f.contratos_sin_monto,
+       r:f => f.contratos_sin_monto ? `<span class="marca">${f.contratos_sin_monto}</span>` : '0'},
+      {t:'Acumulado', c:'num', b:f => f.acumulado_centavos,
+       r:f => esc(fmtPesos(f.acumulado_centavos))},
       // Vienen como «A,B» de un GROUP_CONCAT. Se traducen y se separan legible.
-      {t:'Cámaras', r:f => esc((f.camaras || '').split(',').filter(Boolean)
+      {t:'Cámaras',
+       b:f => (f.camaras || '').split(',').filter(Boolean).map(camaraTexto).join(' + '),
+       r:f => esc((f.camaras || '').split(',').filter(Boolean)
           .map(camaraTexto).join(' + ')) || '—'},
-      {t:'Desde', c:'mono', r:f => f.primer_inicio ? esc(fmtFecha(f.primer_inicio)) : '—'},
-      {t:'Hasta', c:'mono', r:f => f.ultimo_fin ? esc(fmtFecha(f.ultimo_fin)) : '—'},
-      {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
-    ], filas, {alClic:true})}`);
-  vista.querySelectorAll('tbody tr').forEach(tr =>
-    tr.onclick = () => location.hash = '#/persona/' + filas[+tr.dataset.i].persona_id);
+      {t:'Desde', c:'mono', b:f => f.primer_inicio,
+       r:f => f.primer_inicio ? esc(fmtFecha(f.primer_inicio)) : '—'},
+      {t:'Hasta', c:'mono', b:f => f.ultimo_fin,
+       r:f => f.ultimo_fin ? esc(fmtFecha(f.ultimo_fin)) : '—'},
+      {t:'Conf.', c:'num', b:f => f.confianza_min, r:f => barraConf(f.confianza_min)},
+    ], filas, {alClic: f => location.hash = '#/persona/' + f.persona_id,
+               placeholder: 'Buscar por nombre o documento…'});
 }
 
 /* Cronología de tramos: un renglón por contrato sobre un eje temporal común.
@@ -2174,7 +2316,11 @@ function pintarLegajo(p) {
 
 async function refrescarCuentas() {
   try {
-    const p = await api('/api/panel');
+    // `/api/cuentas` y no `/api/panel`: el panel entero corre nueve consultas de
+    // análisis y en un legajo de 1.500 contratos tarda casi un segundo. Esto se llama
+    // al abrir cualquier pantalla y después de CADA decisión de la cola; revisar cien
+    // campos costaba cien segundos repartidos en pedacitos.
+    const p = await api('/api/cuentas');
     pintarLegajo(p);
     const av = document.getElementById('aviso-demo');
     if (av) av.hidden = !p.demostracion;

@@ -894,3 +894,36 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   .rastro .paso{grid-template-columns:1fr; gap:1px; padding:7px 0;
     border-bottom:1px solid var(--filete-2)}
 }
+
+/* ── Buscar y ordenar adentro de una tabla grande ─────────────────────────
+   Con 1.500 contratos, una tabla suelta no sirve: son 52.000 px de alto y no hay forma
+   de encontrar a alguien salvo desplazarse leyendo. */
+.buscador-tabla{display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+  margin:14px 0 8px}
+.campo-buscar{flex:1 1 280px; max-width:420px; display:block}
+.campo-buscar input{width:100%; font:inherit; font-size:13px; padding:7px 10px;
+  border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta);
+  border-radius:0; min-height:34px}
+.campo-buscar input:focus{border-color:var(--sello)}
+.buscador-tabla .cuantas{font-family:var(--mono); font-size:12px; color:var(--tinta-2);
+  white-space:nowrap}
+.buscador-tabla .cuantas b{color:var(--tinta); font-size:13.5px}
+.buscador-tabla .boton{padding:5px 11px; font-size:11.5px; min-height:34px}
+
+/* El encabezado ordena. La flecha dice por cuál y para qué lado: sin marca, después de
+   ordenar no se sabe si la lista está ordenada o llegó así. */
+th.ord{cursor:pointer; user-select:none; white-space:nowrap}
+th.ord:hover{color:var(--tinta)}
+th.ord.asc::after{content:" ↑"; color:var(--sello)}
+th.ord.desc::after{content:" ↓"; color:var(--sello)}
+
+.mas-tabla{display:block; width:100%; background:var(--papel-2); border:1px solid var(--filete);
+  border-top:none; padding:12px; cursor:pointer; font:inherit; font-size:12.5px;
+  color:var(--tinta-2); text-align:center}
+.mas-tabla:hover{background:var(--papel-3); color:var(--tinta)}
+.mas-tabla span{display:block; font-size:11px; color:var(--tinta-3); margin-top:2px}
+
+@media (max-width:720px){
+  .campo-buscar{flex-basis:100%; max-width:none}
+  .campo-buscar input{min-height:44px; font-size:16px}
+}

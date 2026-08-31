@@ -235,6 +235,26 @@ nunca se desplaza de costado**, la tabla sí.
 una: enganchar el clic por «la última tabla» funcionaba hasta que se agregó otra debajo,
 y entonces cada fila abría el documento equivocado.
 
+### Tabla grande — `tablaBuscable(destino, cols, filas, opts)`
+Para las tablas que **crecen con el legajo**: contratos, facturas, personas, el cruce.
+Trae buscador, orden por columna y render por tandas de 150.
+
+Medido en un legajo de 1.500 contratos y 3.047 facturas: la de facturas pintaba 3.047
+filas, 51.085 nodos y **106.400 px de alto**. Cien metros de página, sin forma de
+encontrar a nadie salvo desplazarse leyendo. Con el componente: 2.681 nodos y 5.835 px.
+
+Tres reglas:
+
+* el filtro corre sobre **todas** las filas, no sobre las pintadas — si no, un apellido
+  aparece o no según hasta dónde bajaste;
+* ignora tildes y mayúsculas: quien busca «peres» tiene que encontrar a Pérez, porque el
+  nombre puede venir de un OCR y nadie sabe cómo quedó escrito;
+* al ordenar, **lo que falta va al final**. Un contrato sin monto legible no puede
+  colarse arriba como si valiera cero: no vale cero, no se sabe cuánto vale.
+
+Las tablas que no crecen —superposiciones, fusiones— usan `tabla()` a secas: un buscador
+arriba de cuatro filas es ruido.
+
 ### Estado vacío — `vacio(titulo, texto, accion)`
 Nunca una grilla de ceros: qué es esto, y qué hacer ahora.
 
