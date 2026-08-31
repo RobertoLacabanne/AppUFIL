@@ -90,6 +90,29 @@ PARES = [
     ("borde-control", "papel-2", 3.0, "borde de controles sobre gris"),
     ("marca",         "papel",   3.0, "barra de contrato en la cronología"),
     ("marca-solape",  "papel",   3.0, "barra de superposición en la cronología"),
+
+    # La barra lateral es verde macizo: no hereda del papel y hay que medirla aparte.
+    ("barra-txt",    "barra",   4.5, "ítems de la barra lateral"),
+    ("barra-txt-2",  "barra",   4.5, "rótulos de grupo en la barra lateral"),
+    ("barra-txt",    "barra-2", 4.5, "el ítem abierto de la barra lateral"),
+    ("barra-txt-2",  "barra-2", 4.5, "prosa del ítem abierto"),
+    ("barra-txt",    "barra-3", 4.5, "el ítem bajo el puntero"),
+    ("oro",          "barra",   3.0, "la marca del ítem activo, sobre el verde"),
+    ("barra-filete", "barra",   1.2, "separadores de la barra: adorno, no información"),
+
+    # El dorado sobre el papel da 1,91:1. No puede llevar información y por eso no
+    # aparece como par de texto en esta tabla: se usa como filete de adorno al lado
+    # de algo que ya está dicho con palabras. La regla se verifica más abajo, en
+    # ElDoradoNoLlevaInformacion.
+    ("verde-oper", "papel",   4.5, "botón principal en texto, y sellos de firme"),
+    ("verde-oper", "papel-2", 4.5, "botón principal sobre gris"),
+    ("papel",      "verde-oper", 4.5, "texto del botón principal"),
+    ("turquesa",   "papel",   3.0, "trazos de avance y borde del carril de interpretación"),
+    ("turquesa",   "papel-2", 3.0, "trazos de avance sobre gris"),
+    ("interp-filete", "interp", 3.0, "el borde que marca el carril de interpretación"),
+    ("verde-oper",     "interp", 4.5, "el rótulo de clase dentro del carril"),
+    ("ambar",      "ambar-suave", 4.5, "aviso de atención"),
+    ("tinta",      "ambar-suave", 4.5, "texto del aviso de atención"),
 ]
 
 
@@ -122,6 +145,46 @@ class ElContrasteAlcanzaAA(unittest.TestCase):
                          "los dos temas tienen que definir exactamente los mismos tokens")
 
 
+class ElOscuroEsUnaPaletaYNoDosSueltas(unittest.TestCase):
+    """
+    El tema oscuro se declara dos veces: una para quien lo tiene puesto en el sistema
+    (`prefers-color-scheme`) y otra para quien lo eligió con el botón. Son dos listas
+    idénticas de tokens, y por eso mismo se separan solas: se toca una, se olvida la
+    otra, y el que eligió el oscuro a mano ve una pantalla distinta que el que lo tiene
+    por preferencia del sistema. Que la diferencia la encuentre una prueba y no la
+    persona.
+    """
+
+    def test_las_dos_declaraciones_del_oscuro_son_iguales(self):
+        del_sistema = paleta('@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]){')
+        elegido = paleta(':root[data-tema="oscuro"]{')
+        self.assertEqual(del_sistema, elegido,
+                         "las dos declaraciones del tema oscuro se separaron")
+        self.assertTrue(del_sistema, "no se encontró la declaración del oscuro")
+
+
+class ElDoradoNoLlevaInformacion(unittest.TestCase):
+    """
+    El dorado da 1,91:1 sobre el papel: es de los colores más lindos de la paleta y
+    de los menos legibles. Sirve como filete al lado de algo que ya está dicho con
+    palabras, y no sirve para decir nada por su cuenta. La tentación de escribir un
+    número en dorado sobre el papel aparece sola, así que queda escrita la regla:
+    `--oro` como `color:` sólo puede aparecer dentro de la barra lateral, que es
+    verde macizo y ahí da 4,08:1.
+    """
+
+    def test_el_oro_como_texto_vive_solo_en_la_barra(self):
+        fuera = []
+        for regla in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS):
+            selector, cuerpo = regla.group(1).strip(), regla.group(2)
+            if re.search(r"(?<!-)\bcolor:\s*var\(--oro\)", cuerpo):
+                if "lateral" not in selector and "barra" not in selector:
+                    fuera.append(selector)
+        self.assertEqual(fuera, [],
+                         "el dorado escribe texto fuera de la barra lateral: "
+                         + "; ".join(fuera))
+
+
 class LoQueNoSeDiceSoloConColor(unittest.TestCase):
     """
     Un estado que se distingue SÓLO por el color no existe para quien no distingue ese
@@ -152,12 +215,45 @@ class LoQueNoSeDiceSoloConColor(unittest.TestCase):
         Un control se distingue de un filete decorativo. Si los campos volvieran a usar
         `--filete`, su borde daría 1,57:1 y quedaría por debajo del mínimo sin que nada
         falle a la vista.
+
+        La primera versión de esta prueba nombraba tres selectores a mano. Sirvió
+        hasta que uno se renombró en un rediseño: la prueba no falló por el borde,
+        falló porque no encontró el texto — y peor, dejó de mirar los controles que se
+        agregaron después. Ahora busca TODA regla que le ponga borde a un `input`, un
+        `select` o un `textarea`, así los que vengan quedan mirados solos.
         """
-        for regla in ("input[type=text]{", ".form-legajo input{", ".filtros-cola select{"):
-            i = CSS.index(regla)
-            cuerpo = CSS[i:CSS.index("}", i)]
-            self.assertIn("var(--borde-control)", cuerpo,
-                          f"«{regla}» usa un filete decorativo como borde de control")
+        flojos = []
+        for regla in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS):
+            selector, cuerpo = regla.group(1).strip(), regla.group(2)
+            if not re.search(r"\b(input|select|textarea)\b", selector):
+                continue
+            if not re.search(r"(?<!-)\bborder(-color)?:", cuerpo):
+                continue
+            if "currentColor" in cuerpo or "transparent" in cuerpo:
+                continue
+            # Lo que importa no es qué token se usó sino cuánto contrasta. El borde
+            # de foco, por ejemplo, usa el verde operativo y está perfecto: da 5,34:1.
+            # Verificar el NOMBRE del token en vez del contraste rechazaría eso y
+            # aceptaría cualquier token nuevo que resultara ser flojo.
+            usados = re.findall(r"border(?:-color)?:[^;]*var\(--([\w-]+)\)", cuerpo)
+            for token in usados:
+                for nombre, tema in (("claro", CLARO), ("oscuro", OSCURO)):
+                    if token not in tema:
+                        flojos.append(f"{selector}: --{token} no existe en el {nombre}")
+                        continue
+                    for fondo in ("papel", "papel-2"):
+                        r = relacion(tema[token], tema[fondo])
+                        if r < 3.0:
+                            flojos.append(f"{selector} ({nombre}): --{token} sobre "
+                                          f"--{fondo} da {r:.2f}:1 y pide 3:1")
+        self.assertEqual(flojos, [],
+                         "bordes de control por debajo del mínimo:\n"
+                         + "\n".join(flojos))
+        self.assertGreater(
+            len([1 for r in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS)
+                 if re.search(r"\b(input|select|textarea)\b", r.group(1))
+                 and "var(--borde-control)" in r.group(2)]), 2,
+            "la prueba dejó de encontrar controles: se le movió el terreno abajo")
 
 
 class SeVeEnUnTelefono(unittest.TestCase):

@@ -868,10 +868,28 @@ class Manejador(BaseHTTPRequestHandler):
             if ruta.startswith("/estatico/"):
                 p = self._seguro(config.WEB, ruta[len("/estatico/"):])
                 return self._archivo(p) if p else self._json({"error": "ruta"}, 400)
+            if ruta == "/api/identidad":
+                # Los nombres de la casa, resueltos: los valores del código, después
+                # `identidad.json` de la carpeta de datos, después el entorno. La
+                # interfaz no los tiene escritos adentro.
+                from . import identidad as ident
+                d = ident.actual()
+                d["linea_organismo"] = ident.linea_organismo(d)
+                d["firma"] = ident.firma(d)
+                d["encabezado"] = ident.encabezado_export(d)
+                return self._json(d)
             if ruta == "/marca":
                 # El escudo oficial del organismo, si lo pusieron. No hay ninguno por
                 # omisión: un emblema institucional redibujado no corresponde.
-                for nombre in ("logo.svg", "logo.png", "logo.jpg", "logo.webp"):
+                # Un escudo pensado para fondo claro se pierde sobre el fondo
+                # oscuro y viceversa: si dejaron la versión para oscuro, se sirve esa
+                # cuando el navegador pide el tema oscuro.
+                oscuro = "prefers-color-scheme: dark" in (
+                    self.headers.get("Sec-CH-Prefers-Color-Scheme") or "") \
+                    or q.get("tema", [""])[0] == "oscuro"
+                nombres = (("logo-oscuro.svg", "logo-oscuro.png") if oscuro else ()) + \
+                          ("logo.svg", "logo.png", "logo.jpg", "logo.webp")
+                for nombre in nombres:
                     archivo = config.MARCA / nombre
                     if archivo.exists():
                         return self._archivo(archivo, cache=True)
@@ -932,6 +950,7 @@ class Manejador(BaseHTTPRequestHandler):
                 return self._json({
                     "legajos": legajos.listar(),
                     "activo": config.legajo_activo(),
+                    "papelera": legajos.papelera(),
                 })
 
             if ruta.startswith("/api/"):
@@ -1146,6 +1165,56 @@ class Manejador(BaseHTTPRequestHandler):
             legajos.archivar(slug, bool(cuerpo.get("archivar", True)))
             return self._json({"ok": True})
 
+        # ── eliminar, y lo que hace falta para que eliminar no dé miedo ──
+        # Eliminar no borra: manda la carpeta entera a `datos/eliminados/`, con la
+        # base, los derivados y los originales adentro. Lo único que borra de verdad
+        # en todo el sistema es `/api/papelera/destruir`, y sólo alcanza a lo que ya
+        # está en la papelera.
+        if u.path == "/api/legajo/eliminar":
+            slug = (cuerpo.get("slug") or "").strip()
+            if not _slug_valido(slug):
+                return self._json({"ok": False, "error": "ese legajo no existe"}, 404)
+            # Un legajo con un procesamiento en curso tiene la base abierta por otro
+            # hilo. Moverla en el medio deja el trabajo escribiendo en un archivo que
+            # ya no está donde el registro dice.
+            t = _procesador().estado.como_dict()
+            if t.get("estado") == "corriendo":
+                return self._json({"ok": False, "error":
+                    "Hay un procesamiento en curso. Paralo antes de eliminar nada."}, 409)
+            try:
+                evento = legajos.eliminar(slug, cuerpo.get("confirmacion", ""))
+            except legajos.NoSePuede as e:
+                return self._json({"ok": False, "error": str(e)}, 400)
+            _SLUGS_CONOCIDOS.discard(slug)
+            # Si era el que estaba abierto, la cookie apunta a una carpeta que ya no
+            # está: se cierra acá y no cuando algo falle tres pantallas más adelante.
+            cerrar = config.legajo_activo() == slug
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            if cerrar:
+                self.send_header("Set-Cookie",
+                                 "ufil_legajo=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0")
+            r = json.dumps({"ok": True, "cerrado": cerrar, **evento}).encode("utf-8")
+            self.send_header("Content-Length", str(len(r)))
+            self.end_headers()
+            return self.wfile.write(r)
+
+        if u.path == "/api/papelera/restaurar":
+            try:
+                l = legajos.restaurar((cuerpo.get("marca") or "").strip())
+            except legajos.NoSePuede as e:
+                return self._json({"ok": False, "error": str(e)}, 400)
+            _SLUGS_CONOCIDOS.add(l.slug)
+            return self._json({"ok": True, "slug": l.slug, "numero": l.numero})
+
+        if u.path == "/api/papelera/destruir":
+            try:
+                evento = legajos.destruir((cuerpo.get("marca") or "").strip(),
+                                          cuerpo.get("confirmacion", ""))
+            except legajos.NoSePuede as e:
+                return self._json({"ok": False, "error": str(e)}, 400)
+            return self._json({"ok": True, **evento})
+
         cx = _cx()
         try:
             if u.path == "/api/detener":
@@ -1197,7 +1266,17 @@ class Manejador(BaseHTTPRequestHandler):
             cx.close()
 
 
-def servir(base: Path | None, puerto: int = 8713, host: str = "127.0.0.1") -> None:
+def armar(puerto: int = 8713, host: str = "127.0.0.1",
+          base: Path | None = None) -> ThreadingHTTPServer:
+    """
+    El servidor listo para atender, sin ponerse a atender.
+
+    Separado de `servir` para que una prueba pueda levantarlo en un puerto libre
+    —`armar(0)` y después mirar `server_address[1]`— y llamar a los endpoints de
+    verdad. Hacía falta: los endpoints del borrado de legajos pasaban todas las
+    pruebas de unidad mientras el manejador tiraba un TypeError en la primera línea,
+    porque nada llamaba al manejador.
+    """
     global RUTA_BASE, PORTERIA, HOST_ESCUCHA
     RUTA_BASE = base
     if base is not None or not config.legajo_activo():
@@ -1211,7 +1290,11 @@ def servir(base: Path | None, puerto: int = 8713, host: str = "127.0.0.1") -> No
     # red y quedarse sin clave por olvido.
     PORTERIA = acceso.Porteria(exigir=acceso.hace_falta_clave(host))
     HOST_ESCUCHA = host
-    srv = ThreadingHTTPServer((host, puerto), Manejador)
+    return ThreadingHTTPServer((host, puerto), Manejador)
+
+
+def servir(base: Path | None, puerto: int = 8713, host: str = "127.0.0.1") -> None:
+    srv = armar(puerto, host, base)
     print(f"  UFIL · análisis documental")
     print(f"  http://{'127.0.0.1' if host == '0.0.0.0' else host}:{puerto}")
     print(f"  base: {base or config.BASE}")

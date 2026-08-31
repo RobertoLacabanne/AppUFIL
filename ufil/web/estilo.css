@@ -19,50 +19,107 @@
    ocultar. */
 [hidden]{display:none !important}
 
+/* ── La paleta ─────────────────────────────────────────────────────────────
+   El color acá no decora: nombra. Cuatro familias, y cada una tiene un oficio
+   del que no se sale.
+
+     verde institucional  #23594C   quién sos y dónde estás parado: la barra
+                                    lateral, la marca, los enlaces, el botón que
+                                    hace la acción principal.
+     turquesa Paraná      #4D927F   información y avance: barras de progreso,
+                                    el carril de interpretación, los trazos de la
+                                    cronología. Da 3,54:1 sobre el papel — alcanza
+                                    para un trazo o un borde (WCAG 1.4.11 pide 3:1)
+                                    y NO alcanza para texto corriente, así que
+                                    donde el turquesa tiene que hablar habla el
+                                    verde operativo #2F7463 (5,34:1).
+     dorado justicia      #D7B46A   detalle institucional, y nada más: 1,91:1
+                                    sobre el papel. Sobre el papel es adorno y no
+                                    puede llevar información; sobre el verde de la
+                                    barra da 4,08:1 y ahí sí marca el ítem activo.
+     rojo                 #B71C1C   error, conflicto y destrucción. Sólo eso. Un
+                                    rojo que también sirve para «importante» es un
+                                    rojo que ya no alarma a nadie.
+
+   Todo par que existe de verdad en la pantalla está medido contra WCAG 2.1 AA en
+   pruebas/test_accesibilidad.py, en los dos temas. Y ningún estado se comunica
+   sólo con color: siempre hay ícono y palabra. */
 :root{
-  --tinta:#1B1D21; --tinta-2:#5A5D64; --tinta-3:#84868C;
-  --papel:#FCFBF9; --papel-2:#F1EFEA; --papel-3:#E7E4DD;
-  --filete:#CFCBC2; --filete-2:#E3E0D9;
+  --papel:#FCFBF8; --papel-2:#F2F0E9; --papel-3:#E8E5DB;
+  --tinta:#0F172A; --tinta-2:#5D6B66; --tinta-3:#78857F;
+  --filete:#DCD9CF; --filete-2:#EAE7DE;
   /* El borde de un control NO es lo mismo que un filete decorativo. Un campo de
-     formulario cuyo límite no se ve es un campo que alguien no encuentra, y WCAG 2.1
-     lo pide explícito (1.4.11): 3:1 contra el fondo. `--filete` da 1,57:1 — está bien
-     para una raya que separa, y está mal para el borde de algo que se toca. Medido en
-     pruebas/test_accesibilidad.py: 3,35:1 contra el papel y 3,01:1 contra el gris. */
-  --borde-control:#8C8A80;
+     formulario cuyo límite no se ve es un campo que alguien no encuentra, y WCAG
+     2.1 lo pide explícito (1.4.11): 3:1 contra el fondo. `--filete` da 1,3:1 —
+     está bien para una raya que separa, y está mal para el borde de algo que se
+     toca. Éste da 3,92:1 sobre el papel y 3,56:1 sobre el gris. */
+  --borde-control:#70827C;
+
+  --verde-inst:#23594C; --verde-oper:#2F7463; --turquesa:#4D927F; --oro:#D7B46A;
+
+  /* La barra lateral: verde institucional macizo, con su propio juego de textos.
+     No hereda del papel porque no está sobre el papel. */
+  --barra:#23594C; --barra-2:#1B4A3E; --barra-3:#2F7463;
+  --barra-txt:#F4F8F6; --barra-txt-2:#B9D2C8; --barra-filete:#3A6F60;
+
+  --sello:#23594C; --sello-suave:#E7F0EC;
+  --interp:#EDF3F0; --interp-filete:#43836F;
+  --verde:#2F7463; --ambar:#8A6714; --lapiz:#B71C1C; --lapiz-suave:#F6E9E8;
+  --ambar-suave:#FAF0DA;
   /* La cronología. Un solo tono para los contratos; el rojo marca ÚNICAMENTE la
      superposición, que es lo que el gráfico existe para mostrar. La cámara va como
-     texto en el rótulo: la identidad no depende del color.
-     Vivían en un `:root` suelto, doscientas líneas más abajo, y por eso ninguna prueba
-     de contraste los miraba: una barra que dice que dos contratos se pisan es
-     información, no adorno, y le corresponde 3:1 (WCAG 1.4.11). */
-  --marca:#31629E; --marca-solape:#A8402A;
-  --sello:#23477A; --sello-suave:#DCE4F0;
-  --interp:#E9EDF3; --interp-filete:#7F97B8;
-  --verde:#2C5946; --ambar:#8A6714; --lapiz:#96301F; --lapiz-suave:#F4E2DE;
+     texto en el rótulo: la identidad no depende del color. */
+  --marca:#2F7463; --marca-solape:#B71C1C;
+
   --sans:'Archivo','Helvetica Neue',Arial,sans-serif;
   --serif:'Source Serif 4',Georgia,'Times New Roman',serif;
   --mono:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;
   --canaleta:112px;
+  --lateral:232px;              /* ancho de la barra lateral */
+  --radio:5px;                  /* uno solo, chico: esto es un expediente */
+  --sombra:0 1px 2px rgba(15,23,42,.06), 0 1px 8px rgba(15,23,42,.05);
+  --sombra-alta:0 2px 4px rgba(15,23,42,.08), 0 8px 24px rgba(15,23,42,.10);
+  /* Un solo tiempo para todo lo que se mueve, y se apaga entero más abajo si la
+     persona pidió menos movimiento. */
+  --paso:140ms; --curva:cubic-bezier(.2,.6,.3,1);
 }
+
+/* El oscuro es una paleta pensada, no la clara dada vuelta: los verdes suben de
+   luminosidad para no apagarse contra el fondo, y el fondo tira a verde muy oscuro
+   —no a gris— para que siga siendo la misma casa. Los dos bloques que siguen son
+   idénticos a propósito: uno atiende la preferencia del sistema y el otro la
+   elección explícita. Una prueba verifica que no se separen. */
 @media (prefers-color-scheme:dark){:root:not([data-tema="claro"]){
-  --tinta:#E6E3DC; --tinta-2:#9B9A95; --tinta-3:#75767A;
-  --papel:#16181B; --papel-2:#1E2126; --papel-3:#272B31;
-  --filete:#33373D; --filete-2:#25292E;
-  --borde-control:#6D6B64;
-  --marca:#5A8CCF; --marca-solape:#CC6A52;
-  --sello:#7EA3D6; --sello-suave:#1C2836;
-  --interp:#1B2028; --interp-filete:#4A5E7A;
-  --verde:#79B79B; --ambar:#D0A63F; --lapiz:#E08472; --lapiz-suave:#31201D;
+  --papel:#0B1213; --papel-2:#111C1B; --papel-3:#172522;
+  --tinta:#F2F5F2; --tinta-2:#AEBBB7; --tinta-3:#8A9A95;
+  --filete:#2C413C; --filete-2:#1E2E2B;
+  --borde-control:#5A7A74;
+  --verde-inst:#72B5A2; --verde-oper:#72B5A2; --turquesa:#5FA894; --oro:#E5C57C;
+  --barra:#111C1B; --barra-2:#1B2E2A; --barra-3:#24413B;
+  --barra-txt:#F2F5F2; --barra-txt-2:#AEBBB7; --barra-filete:#2C413C;
+  --sello:#72B5A2; --sello-suave:#15241F;
+  --interp:#14201F; --interp-filete:#5A857A;
+  --verde:#72B5A2; --ambar:#E5C57C; --lapiz:#F08B8B; --lapiz-suave:#2A1A1C;
+  --ambar-suave:#221C10;
+  --marca:#5FA894; --marca-solape:#F08B8B;
+  --sombra:0 1px 2px rgba(0,0,0,.40), 0 1px 8px rgba(0,0,0,.30);
+  --sombra-alta:0 2px 4px rgba(0,0,0,.45), 0 8px 24px rgba(0,0,0,.40);
 }}
 :root[data-tema="oscuro"]{
-  --tinta:#E6E3DC; --tinta-2:#9B9A95; --tinta-3:#75767A;
-  --papel:#16181B; --papel-2:#1E2126; --papel-3:#272B31;
-  --filete:#33373D; --filete-2:#25292E;
-  --borde-control:#6D6B64;
-  --marca:#5A8CCF; --marca-solape:#CC6A52;
-  --sello:#7EA3D6; --sello-suave:#1C2836;
-  --interp:#1B2028; --interp-filete:#4A5E7A;
-  --verde:#79B79B; --ambar:#D0A63F; --lapiz:#E08472; --lapiz-suave:#31201D;
+  --papel:#0B1213; --papel-2:#111C1B; --papel-3:#172522;
+  --tinta:#F2F5F2; --tinta-2:#AEBBB7; --tinta-3:#8A9A95;
+  --filete:#2C413C; --filete-2:#1E2E2B;
+  --borde-control:#5A7A74;
+  --verde-inst:#72B5A2; --verde-oper:#72B5A2; --turquesa:#5FA894; --oro:#E5C57C;
+  --barra:#111C1B; --barra-2:#1B2E2A; --barra-3:#24413B;
+  --barra-txt:#F2F5F2; --barra-txt-2:#AEBBB7; --barra-filete:#2C413C;
+  --sello:#72B5A2; --sello-suave:#15241F;
+  --interp:#14201F; --interp-filete:#5A857A;
+  --verde:#72B5A2; --ambar:#E5C57C; --lapiz:#F08B8B; --lapiz-suave:#2A1A1C;
+  --ambar-suave:#221C10;
+  --marca:#5FA894; --marca-solape:#F08B8B;
+  --sombra:0 1px 2px rgba(0,0,0,.40), 0 1px 8px rgba(0,0,0,.30);
+  --sombra-alta:0 2px 4px rgba(0,0,0,.45), 0 8px 24px rgba(0,0,0,.40);
 }
 
 *{box-sizing:border-box}
@@ -72,80 +129,239 @@ body{background:var(--papel); color:var(--tinta); font-family:var(--sans);
 :focus-visible{outline:2px solid var(--sello); outline-offset:2px}
 button{font:inherit; color:inherit}
 
-/* ── Las tiras de arriba, y cómo se apilan ────────────────────────────────
-   Hay hasta tres pegadas al borde superior: el aviso de demostración, la cinta que
-   dice qué legajo está abierto, y el techo (encabezado + pestañas). Cada una tiene
-   que empezar donde termina la anterior.
+/* ── El armazón: barra lateral y barra de arriba ──────────────────────────
+   La pantalla se parte en dos y no cambia nunca: a la izquierda dónde estás
+   parado, a la derecha en qué estás trabajando.
 
-   Antes eso eran seis números escritos a mano (0, 37, 59, 96, 150, 190) repartidos
-   por la hoja, y agregar una tira significaba encontrarlos todos: una vez quedó uno
-   sin cambiar y la lupa de la cola apareció 190 px más abajo, media pantalla en
-   blanco en un teléfono. Peor todavía: esos números eran mentira. El encabezado
-   mide 71 px, no 59, así que la barra de pestañas se le montaba encima 12 px; y el
-   alto real depende de si las pestañas entran en uno o dos renglones, que a su vez
-   depende del ancho de la ventana. Ningún número escrito a mano puede acertar eso.
+   Antes eran tres tiras apiladas contra el borde superior —aviso, cinta de legajo,
+   encabezado con dos filas de pestañas— y cada una tenía que empezar donde
+   terminaba la anterior. Eso costaba: en 1024 px de ancho las pestañas caían en
+   dos renglones, el techo se comía 190 px de alto y de una pantalla de 768 px
+   quedaba menos de la mitad para el expediente. Y el alto del techo dependía del
+   ancho de la ventana, así que ningún número escrito a mano acertaba: hubo que
+   medirlo con el navegador.
 
-   Así que las alturas las mide el navegador y las escribe acá (ver `medirTecho` en
-   app.js). Encabezado y pestañas se juntaron en `#techo` para que sean una sola
-   tira: menos que medir y menos que sumar. Los valores de abajo son sólo el
-   arranque, antes de la primera medición. */
+   Con la barra al costado, el alto de arriba es uno solo y no depende del ancho.
+   Se sigue midiendo —el aviso de datos de demostración aparece y desaparece— pero
+   ahora hay una sola cosa que medir. Ver `medirTecho` en app.js. */
 :root{
-  --h-demo:0px;                 /* el aviso de datos de demostración, si está */
-  --h-cinta:0px;                /* la cinta que dice qué legajo está abierto */
-  --h-techo:96px;               /* encabezado + pestañas */
-  --y-cinta:var(--h-demo);
-  --y-techo:calc(var(--h-demo) + var(--h-cinta));
-  --y-contenido:calc(var(--y-techo) + var(--h-techo));
+  --h-techo:56px;               /* la barra de arriba, medida por el navegador */
+  --y-contenido:var(--h-techo); /* dónde puede empezar a pegarse el contenido */
 }
 
-#techo{position:sticky; top:var(--y-techo); z-index:20; background:var(--papel)}
+body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
+     min-height:100vh; min-height:100dvh}
+#cuerpo{min-width:0; display:flex; flex-direction:column}
 
-/* ── Encabezado institucional ─────────────────────────────────────────── */
-.barra{
-  background:var(--papel);
-  border-bottom:2px solid var(--tinta);
-  display:grid; grid-template-columns:var(--canaleta) 1fr auto; align-items:end;
-  padding:14px 24px 10px; gap:0;
+.saltar{position:absolute; left:8px; top:-60px; z-index:60; background:var(--verde-inst);
+        color:#FFF; padding:9px 14px; border-radius:var(--radio); font-weight:600;
+        text-decoration:none; transition:top var(--paso) var(--curva)}
+.saltar:focus{top:8px}
+.oculto{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);
+        white-space:nowrap}
+
+/* ── Barra lateral ─────────────────────────────────────────────────────── */
+#lateral{
+  position:sticky; top:0; align-self:start; height:100vh; height:100dvh;
+  background:var(--barra); color:var(--barra-txt);
+  display:flex; flex-direction:column; z-index:40;
+  border-right:1px solid var(--barra-filete);
 }
-.barra .titulo{padding-left:24px}
-.barra h1{margin:0; font-size:17px; font-weight:600; letter-spacing:-.015em}
-.barra .sub{font-size:11px; color:var(--tinta-2); margin-top:1px}
-.barra .folio{font-family:var(--mono); font-size:11px; color:var(--tinta-3);
-              text-align:right; padding-right:16px; line-height:1.35}
-.barra .der{display:flex; gap:8px; align-items:center; padding-bottom:2px}
+#lateral a{color:inherit; text-decoration:none}
 
+/* Se llama `.identidad` y no `.marca` porque `.marca` ya estaba tomada: es el
+   resaltado amarillo de lo que se buscó adentro de una tabla, doscientas líneas más
+   abajo, y su propio comentario avisaba de no usarla como nombre de bloque. Se usó
+   igual, y el nombre de la unidad salió pintado de rojo alarma en la barra lateral.
+   Un nombre de clase repetido no da ningún error: da otra pantalla. */
+.identidad{padding:16px 16px 14px; border-bottom:1px solid var(--barra-filete)}
+.identidad-enlace{display:flex; gap:11px; align-items:center; border-radius:var(--radio);
+              padding:2px; margin:-2px}
+.monograma{flex:none; display:grid; place-items:center; color:var(--barra-txt)}
+.identidad-texto{display:flex; flex-direction:column; min-width:0}
+.identidad-unidad{font-size:15px; font-weight:700; letter-spacing:-.01em; line-height:1.15}
+.identidad-area{font-size:10.5px; letter-spacing:.06em; color:var(--barra-txt-2);
+            margin-top:2px}
+/* El dorado no dice nada acá: subraya lo que ya dice la palabra de al lado. */
+.identidad-organismo{margin:11px 0 0; padding-top:10px; font-size:10.5px; line-height:1.4;
+                 color:var(--barra-txt-2); border-top:2px solid var(--oro);
+                 max-width:26ch}
+.identidad-oficial{display:block; max-width:150px; max-height:44px; margin:12px 0 0}
+
+.nav-lateral{flex:1; overflow-y:auto; padding:10px 8px 16px; display:flex;
+             flex-direction:column; gap:1px}
+.nav-lateral .grupo{margin-top:2px}
+.nav-lateral .cabeza{
+  display:flex; align-items:center; gap:9px; width:100%; text-align:left;
+  padding:8px 10px; border-radius:var(--radio); font-size:13px; font-weight:500;
+  color:var(--barra-txt); background:transparent; border:0; cursor:pointer;
+  transition:background var(--paso) var(--curva);
+}
+.nav-lateral .cabeza:hover{background:var(--barra-3)}
+.nav-lateral .cabeza .ico{flex:none; opacity:.85}
+.nav-lateral .cabeza .txt{flex:1; min-width:0}
+/* La sección abierta se marca de tres maneras a la vez —fondo, negrita y un filete
+   dorado al costado— porque una sola de las tres se le escapa a alguien. */
+.nav-lateral .cabeza.activo{background:var(--barra-2); font-weight:700;
+                            box-shadow:inset 3px 0 0 var(--oro)}
+.nav-lateral .cabeza.activo .ico{opacity:1}
+
+.nav-lateral .items{display:flex; flex-direction:column; gap:1px;
+                    margin:2px 0 6px; padding-left:10px;
+                    border-left:1px solid var(--barra-filete); margin-left:19px}
+.nav-lateral .items a{
+  display:flex; align-items:center; gap:8px; padding:6px 10px; font-size:12.5px;
+  color:var(--barra-txt-2); border-radius:var(--radio);
+  transition:background var(--paso) var(--curva), color var(--paso) var(--curva);
+}
+.nav-lateral .items a:hover{background:var(--barra-3); color:var(--barra-txt)}
+.nav-lateral .items a.activo{color:var(--barra-txt); font-weight:600;
+                             background:var(--barra-2)}
+.nav-lateral .items a .txt{flex:1; min-width:0}
+/* El número de pendientes: lo mismo que el sello rojo del resto del sistema, pero
+   acá el fondo es verde y el rojo del papel no se lee. Va en claro sobre el verde
+   oscuro del ítem abierto, con la cifra en negrita. */
+.nav-lateral .cuenta{
+  font-family:var(--mono); font-size:10.5px; font-variant-numeric:tabular-nums;
+  padding:1px 6px; border-radius:9px; background:var(--barra-3);
+  color:var(--barra-txt); flex:none;
+}
+.nav-lateral .cabeza.activo .cuenta, .nav-lateral .items a.activo .cuenta{
+  background:var(--oro); color:#1A2C25; font-weight:600}
+
+.lateral-pie{padding:10px 8px 12px; border-top:1px solid var(--barra-filete);
+             display:flex; flex-direction:column; gap:1px}
+.pie-boton{
+  display:flex; align-items:center; gap:9px; text-align:left; width:100%;
+  padding:7px 10px; font-size:12px; color:var(--barra-txt-2); background:transparent;
+  border:0; border-radius:var(--radio); cursor:pointer;
+  transition:background var(--paso) var(--curva), color var(--paso) var(--curva);
+}
+.pie-boton:hover{background:var(--barra-3); color:var(--barra-txt)}
+.pie-boton.activo{background:var(--barra-2); color:var(--barra-txt); font-weight:600;
+                  box-shadow:inset 3px 0 0 var(--oro)}
+
+/* ── La barra de arriba ────────────────────────────────────────────────── */
+#techo{
+  position:sticky; top:0; z-index:30; background:var(--papel);
+  border-bottom:1px solid var(--filete);
+  display:flex; align-items:center; gap:14px; padding:0 20px; min-height:56px;
+}
+.techo-menu{display:none; flex:none; background:transparent; border:1px solid var(--borde-control);
+            border-radius:var(--radio); padding:7px; cursor:pointer; color:var(--tinta)}
+.techo-legajo{
+  display:flex; align-items:baseline; gap:8px; min-width:0; text-decoration:none;
+  color:var(--tinta); padding:5px 9px; margin-left:-9px; border-radius:var(--radio);
+  transition:background var(--paso) var(--curva);
+}
+.techo-legajo:hover{background:var(--papel-2)}
+.techo-legajo .etq{font-size:9.5px; font-weight:600; letter-spacing:.13em;
+                   text-transform:uppercase; color:var(--tinta-3); flex:none}
+.techo-legajo b{font-size:14px; font-weight:600; font-variant-numeric:tabular-nums;
+                flex:none}
+.techo-legajo .caratula{font-size:12px; color:var(--tinta-2); overflow:hidden;
+                        text-overflow:ellipsis; white-space:nowrap}
+.techo-medio{display:flex; align-items:center; gap:10px; margin-left:auto; flex:none}
+.techo-dato{font-size:11px; color:var(--tinta-2); white-space:nowrap}
+.techo-dato .etq{font-size:9.5px; font-weight:600; letter-spacing:.13em;
+                 text-transform:uppercase; color:var(--tinta-3)}
+.techo-buscar{position:relative; flex:none; width:min(272px,30vw)}
+/* `.icono-buscar` y no `.lupa`: `.lupa` es el panel del renglón ampliado de la cola,
+   que mide 132 px de alto y tiene fondo blanco y borde. Puesto en el ícono del campo
+   de búsqueda dibujaba una caja blanca de 132 px colgando del techo. Es la segunda
+   colisión de nombres del rediseño; la primera fue `.marca`. Un nombre de clase
+   repetido no da error: da otra pantalla. */
+.techo-buscar .icono-buscar{position:absolute; left:9px; top:50%; margin-top:-7px;
+                    color:var(--tinta-3); pointer-events:none}
+.techo-buscar input{
+  width:100%; font:inherit; font-size:16px; padding:6px 10px 6px 28px;
+  border:1px solid var(--borde-control); border-radius:var(--radio);
+  background:var(--papel); color:var(--tinta);
+  transition:border-color var(--paso) var(--curva), box-shadow var(--paso) var(--curva);
+}
+.techo-buscar input:focus{border-color:var(--verde-oper); outline:none;
+                          box-shadow:0 0 0 3px var(--sello-suave)}
+@media (min-width:721px){.techo-buscar input{font-size:12.5px}}
+
+/* ── En un teléfono la barra lateral es un cajón ──────────────────────────
+   Con menos de 900 px de ancho, 232 px de barra fija son un cuarto de la pantalla
+   gastado en decir dónde estás. Se guarda, y se abre con el botón de la izquierda
+   del techo. Mientras está abierta, el fondo se apaga: si no, se toca la tabla de
+   atrás sin querer. */
+@media (max-width:1180px){
+  :root{--lateral:196px}
+  /* En una pantalla angosta el ancho se lo tiene que quedar el dato, no el nombre
+     del archivo ni los botones. El renglón de la cola se aprieta por los costados:
+     con 452 px de columna central, «DOS LECTURAS DISTINTAS» entra en un renglón y
+     los importes dejan de partirse a la mitad. */
+  .taller-cuerpo{grid-template-columns:minmax(0,1fr) minmax(292px,34%)}
+  .taller-cuerpo .fila{grid-template-columns:96px minmax(0,1fr) 148px}
+  .taller-cuerpo .fila .marginalia{padding-right:8px}
+  .taller-cuerpo .fila .med{padding:9px 10px}
+  .taller-cuerpo .cola{padding-left:16px}
+  .taller-cabeza, .taller-filtros, .taller-pie{padding-left:16px; padding-right:16px}
+  .taller-cuerpo .folio-lado{padding:12px 16px 14px}
+}
+@media (max-width:900px){
+  body{grid-template-columns:minmax(0,1fr)}
+  #lateral{position:fixed; left:0; top:0; width:min(288px,84vw);
+           transform:translateX(-100%); box-shadow:var(--sombra-alta);
+           transition:transform var(--paso) var(--curva)}
+  #lateral.abierta{transform:none}
+  #velo{position:fixed; inset:0; background:rgba(11,18,19,.45); z-index:35;
+        animation:aparecer var(--paso) var(--curva)}
+  .techo-menu{display:block}
+  #techo{padding:0 12px; gap:10px}
+  .techo-buscar{width:auto; flex:1; min-width:0}
+  .techo-medio{gap:8px}
+  .techo-legajo .caratula, .techo-dato{display:none}
+}
+@media (max-width:520px){
+  .techo-legajo .etq{display:none}
+  #sello-estado{display:none}
+}
+@keyframes aparecer{from{opacity:0}to{opacity:1}}
+
+/* Lo que se mueve, se mueve porque ayuda a entender qué pasó: de dónde salió el
+   cajón, que la fila que acabás de decidir se fue. A quien pidió menos movimiento
+   —y lo pide gente a la que el movimiento le da náuseas o le dispara una migraña—
+   se le apaga todo, sin excepciones. */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms !important; animation-iteration-count:1 !important;
+    transition-duration:.01ms !important; scroll-behavior:auto !important;
+  }
+}
+
+/* ── Sellos de estado ──────────────────────────────────────────────────────
+   Un solo componente para todo lo que informa un estado, en todas las pantallas:
+   ícono, palabra y color, siempre los tres. El color solo no alcanza —hay gente
+   que no distingue el rojo del verde, y esto además se imprime en blanco y negro—,
+   así que el color es el tercer refuerzo y nunca el único. */
+.estado{
+  display:inline-flex; align-items:center; gap:5px; padding:2px 8px 2px 6px;
+  border:1px solid currentColor; border-radius:20px; font-size:11px; font-weight:600;
+  line-height:1.5; white-space:nowrap; color:var(--sello); background:transparent;
+}
+.estado svg{flex:none}
+.estado--ok{color:var(--verde)}
+.estado--alerta{color:var(--lapiz)}
+/* Un aviso no es una falla: se puede trabajar igual. Merece su propio color. */
+.estado--atencion{color:var(--ambar)}
+.estado--neutro{color:var(--tinta-2)}
+.estado--trabajando{color:var(--verde-oper)}
+.estado--relleno{background:var(--sello-suave)}
+.estado--alerta.estado--relleno{background:var(--lapiz-suave)}
+.estado--atencion.estado--relleno{background:var(--ambar-suave)}
+
+/* El sello viejo, cuadrado y con doble filete, sigue existiendo donde hace falta un
+   cuño y no un estado: la portada de un informe, el rótulo de un bloque impreso. */
 .sello{display:inline-block; padding:4px 9px 3px; border:1px solid currentColor;
        outline:1px solid currentColor; outline-offset:2px; font-size:9.5px;
        font-weight:600; letter-spacing:.15em; text-transform:uppercase;
        color:var(--sello); background:transparent}
 .sello.alerta{color:var(--lapiz)} .sello.ok{color:var(--verde)}
-/* Un aviso no es una falla: se puede trabajar igual. Merece su propio color. */
 .sello.atencion{color:var(--ambar)}
-
-/* La barra baja de renglón en vez de desplazarse de costado. Con desplazamiento
-   horizontal, en una notebook de 1024 las dos últimas pestañas quedaban fuera de
-   pantalla y sin ninguna señal de que estaban ahí: inalcanzables en la práctica. */
-nav{display:flex; flex-wrap:wrap; gap:0; padding:0 24px; background:var(--papel)}
-nav a{text-decoration:none; white-space:nowrap; display:inline-flex; align-items:center}
-nav .cuenta{font-family:var(--mono); font-size:10px; color:var(--papel);
-            background:var(--lapiz); padding:0 4px; margin-left:6px; border-radius:2px}
-
-/* Las secciones: seis, con el peso de una barra de navegación de verdad. */
-nav.principal{border-bottom:1px solid var(--filete)}
-nav.principal a{padding:9px 15px; color:var(--tinta-2); font-size:12.5px;
-  border-bottom:2px solid transparent; margin-bottom:-1px}
-nav.principal a:hover{color:var(--tinta); background:var(--papel-2)}
-nav.principal a.activo{color:var(--tinta); border-bottom-color:var(--sello); font-weight:600}
-
-/* Lo que hay adentro de la sección abierta. Se distingue de la de arriba por el fondo
-   y por el tamaño: son dos niveles y tienen que leerse como dos niveles, no como dos
-   filas de lo mismo. */
-nav.secundaria{background:var(--papel-2); border-bottom:1px solid var(--filete);
-  padding:0 24px}
-nav.secundaria a{padding:7px 13px; color:var(--tinta-2); font-size:12px;
-  border-bottom:2px solid transparent; margin-bottom:-1px}
-nav.secundaria a:hover{color:var(--tinta)}
-nav.secundaria a.activo{color:var(--tinta); border-bottom-color:var(--tinta); font-weight:600}
 
 main{padding:0 24px 80px}
 .bloque{display:grid; grid-template-columns:var(--canaleta) 1fr;
@@ -221,7 +437,7 @@ tbody tr.clic{cursor:pointer}
       cursor:pointer; text-decoration:none}
 .chip:hover{background:var(--sello-suave); color:var(--tinta)}
 .clase{font-size:9.5px; font-weight:600; letter-spacing:.13em; text-transform:uppercase;
-       color:var(--interp-filete)}
+       color:var(--verde-oper)}
 
 /* ── Visor ────────────────────────────────────────────────────────────── */
 .visor{display:grid; grid-template-columns:minmax(0,1fr) minmax(340px,44%); gap:0;
@@ -270,21 +486,69 @@ kbd{font-family:var(--mono); font-size:10px; border:1px solid var(--borde-contro
 
 input[type=text]{font-family:var(--mono); font-size:12.5px; padding:4px 7px;
   border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta); border-radius:0}
-.boton{border:1px solid var(--sello); background:transparent; color:var(--sello);
-       padding:4px 11px; font-size:11px; cursor:pointer; letter-spacing:.03em}
-.boton:hover{background:var(--sello); color:var(--papel)}
+.boton{border:1px solid var(--verde-oper); background:transparent; color:var(--verde-oper);
+       padding:5px 12px; font-size:11.5px; cursor:pointer; letter-spacing:.02em;
+       border-radius:var(--radio); font-weight:500;
+       transition:background var(--paso) var(--curva), color var(--paso) var(--curva),
+                  border-color var(--paso) var(--curva)}
+.boton:hover{background:var(--verde-oper); color:var(--papel)}
+/* La acción principal de una pantalla va llena: en una hoja con ocho botones al
+   contorno, el que hay que apretar tiene que distinguirse sin leerlos todos. */
+.boton.lleno{background:var(--verde-inst); border-color:var(--verde-inst); color:var(--papel)}
+.boton.lleno:hover{background:var(--verde-oper); border-color:var(--verde-oper)}
 .boton.gris{border-color:var(--borde-control); color:var(--tinta-2)}
 .boton.gris:hover{background:var(--papel-2); color:var(--tinta)}
+/* Rojo sólo acá: lo que destruye algo. Un rojo que además sirve para «importante»
+   deja de alarmar, y entonces no sirve para nada. */
+.boton.peligro{border-color:var(--lapiz); color:var(--lapiz)}
+.boton.peligro:hover{background:var(--lapiz); color:var(--papel)}
+.boton:disabled{opacity:.45; cursor:not-allowed}
+.boton:disabled:hover{background:transparent; color:var(--verde-oper)}
+.boton.peligro:disabled:hover{background:transparent; color:var(--lapiz)}
+
+/* Botón chico, para adentro de una fila de tabla. */
+.mini{border:1px solid var(--borde-control); background:transparent; color:var(--tinta-2);
+      padding:3px 9px; font-size:11px; cursor:pointer; border-radius:var(--radio);
+      white-space:nowrap;
+      transition:background var(--paso) var(--curva), color var(--paso) var(--curva),
+                 border-color var(--paso) var(--curva)}
+.mini:hover{background:var(--papel-2); color:var(--tinta); border-color:var(--tinta-2)}
+.mini.peligro:hover{background:var(--lapiz); border-color:var(--lapiz); color:var(--papel)}
+.mini:disabled{opacity:.45; cursor:not-allowed}
+td.acciones{white-space:nowrap; text-align:right; width:1%}
+td.acciones .mini + .mini{margin-left:5px}
+.botonera{display:flex; gap:9px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap}
+
+/* ── Diálogo de confirmación ───────────────────────────────────────────────
+   `<dialog>` del navegador y no un div propio: trae solo el foco atrapado adentro,
+   Escape para cerrar, y el resto de la página marcado como inerte para quien navega
+   con lector de pantalla. Escribir eso a mano sale mal casi siempre. */
+.dialogo{border:1px solid var(--filete); border-radius:8px; padding:20px 22px;
+  max-width:min(480px,92vw); background:var(--papel); color:var(--tinta);
+  box-shadow:var(--sombra-alta); font-family:var(--sans); font-size:13px}
+.dialogo::backdrop{background:rgba(11,18,19,.5)}
+.dialogo h3{margin:0 0 4px; font-size:16px}
+.dialogo .prosa{font-size:13.5px; margin-bottom:12px}
+.dialogo label{display:block; font-size:12px; color:var(--tinta-2); margin-bottom:6px}
+.dialogo input{width:100%; font-family:var(--mono); font-size:16px; padding:8px 10px;
+  border:1px solid var(--borde-control); border-radius:var(--radio);
+  background:var(--papel-2); color:var(--tinta)}
+.dialogo input:focus{outline:none; border-color:var(--verde-oper);
+  box-shadow:0 0 0 3px var(--sello-suave)}
+.dialogo .mal{color:var(--lapiz); background:var(--lapiz-suave); padding:8px 11px;
+  border-radius:var(--radio); font-size:12px; margin:10px 0 0}
 
 pre.sql{font-family:var(--mono); font-size:11.5px; margin:0; padding:12px 14px;
   background:var(--papel-2); border-left:3px solid var(--sello); color:var(--tinta);
   overflow-x:auto; white-space:pre; line-height:1.45}
-.aviso{display:flex; gap:12px; align-items:baseline; border-left:3px solid var(--lapiz);
-       background:var(--lapiz-suave); padding:9px 13px; font-size:12px; margin-bottom:14px}
+.aviso{display:flex; gap:12px; align-items:baseline; border-left:3px solid var(--ambar);
+       background:var(--ambar-suave); padding:10px 13px; font-size:12px;
+       margin-bottom:14px; border-radius:0 var(--radio) var(--radio) 0}
 /* Un aviso de que TODO ESTÁ BIEN no puede pintarse con los colores de alarma: de un
    vistazo se lee como un problema, que es exactamente lo contrario de lo que dice. */
 .aviso.bien{border-left-color:var(--verde); background:var(--papel-2)}
-.aviso.atento{border-left-color:var(--ambar); background:var(--papel-2)}
+.aviso.atento{border-left-color:var(--ambar); background:var(--ambar-suave)}
+.aviso.alerta{border-left-color:var(--lapiz); background:var(--lapiz-suave)}
 .vacio{padding:26px; text-align:center; color:var(--tinta-3); font-family:var(--serif);
        font-style:italic; font-size:14px}
 .cargando{padding:26px; color:var(--tinta-3); font-size:12px}
@@ -293,9 +557,9 @@ pre.sql{font-family:var(--mono); font-size:11.5px; margin:0; padding:12px 14px;
   .visor .datos{border-right:none; border-bottom:1px solid var(--filete)} }
 @media (max-width:720px){
   :root{--canaleta:0px}
-  .bloque,.barra{grid-template-columns:1fr}
+  .bloque{grid-template-columns:1fr}
   .marginalia{display:none}
-  .cuerpo,.barra .titulo{padding-left:0}
+  .cuerpo{padding-left:0}
   .fila{grid-template-columns:1fr}
   .fila .acc{border-left:none; border-top:1px solid var(--filete-2)}
 }
@@ -382,39 +646,16 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
 /* Fijo arriba de todo y siempre visible. Si esto se muestra en una reunión, nadie
    puede confundir un contrato inventado con uno de la Legislatura, y eso no puede
    depender de que alguien se acuerde de aclararlo. */
+/* El cartel de datos inventados ocupa un renglón y no tres: en una pantalla de 768
+   px de alto, cada renglón de acá es un renglón menos de la lista de trabajo. */
 #aviso-demo{
-  position:sticky; top:0; z-index:40;
-  display:flex; gap:13px; align-items:baseline;
-  padding:8px 24px; background:var(--lapiz-suave);
-  border-bottom:2px solid var(--lapiz); font-size:12px; color:var(--tinta);
+  display:flex; gap:11px; align-items:center;
+  padding:7px 20px; background:var(--lapiz-suave);
+  border-bottom:1px solid var(--lapiz); font-size:11.5px; color:var(--tinta);
+  line-height:1.4;
 }
-#aviso-demo .sello{flex:none}
-
-/* ── Cinta de legajo ──────────────────────────────────────────────────────
-   Qué causa está abierta, arriba de todo y sin scroll. Cada legajo es una base
-   separada: leer un total creyendo que es de otro legajo es el error más caro que
-   puede cometer este sistema, y es el único que no se ve mirando el número. */
-#cinta-legajo{
-  position:sticky; top:var(--y-cinta); z-index:30;
-  display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
-  padding:7px 24px; background:var(--papel-2);
-  border-bottom:1px solid var(--filete); font-size:12px; color:var(--tinta);
-}
-#cinta-legajo .etq{font-size:9.5px; font-weight:600; letter-spacing:.15em;
-  text-transform:uppercase; color:var(--tinta-3)}
-#cinta-legajo b{font-size:12.5px}
-#cinta-legajo .fiscal{color:var(--tinta-2)}
-/* El color va explícito: la regla de enlaces está acotada a `main` —para que la
-   navegación no se subraye entera— y este enlace vive afuera. Sin esto tomaba el azul
-   por omisión del navegador, que sobre el fondo oscuro es casi invisible. Se ve
-   prendiendo el tema oscuro, no leyendo el CSS. */
-#cinta-legajo .cambiar{margin-left:auto; font-size:11.5px; white-space:nowrap;
-  color:var(--sello); text-decoration:underline; text-underline-offset:2px}
-#cinta-legajo .cambiar:hover{color:var(--tinta)}
-
-/* ── Navegación agrupada ──────────────────────────────────────────────── */
-nav .sep{width:1px; height:14px; background:var(--filete); margin:0 9px;
-  align-self:center; flex:none}
+#aviso-demo > span:last-child{min-width:0}
+#aviso-demo .estado{flex:none}
 
 /* ── Esqueleto de carga ───────────────────────────────────────────────── */
 /* Un bloque gris del tamaño de lo que viene, en vez de la palabra «Cargando». */
@@ -476,14 +717,14 @@ a.destacado-fila:hover{background:var(--papel-2)}
 @media print{
   :root{--papel:#fff; --papel-2:#fff; --tinta:#000; --tinta-2:#333; --tinta-3:#555;
         --filete:#999; --filete-2:#ccc; --interp:#f2f4f7}
-  nav, .der, #b-tema, .boton, .acc, .ancla, .esqueleto{display:none !important}
-  body{font-size:10.5pt}
-  #techo{position:static}
-  .barra{border-bottom:2px solid #000; padding:0 0 8px}
-  #aviso-demo{position:static; border:2px solid #000}
+  #lateral, #velo, .saltar, .boton, .acc, .ancla, .esqueleto,
+  .techo-buscar, .techo-menu{display:none !important}
+  body{font-size:10.5pt; display:block}
   /* Impreso, el legajo es dato de la carátula: se queda, y sin el enlace. */
-  #cinta-legajo{position:static; border-bottom:1px solid #000}
-  #cinta-legajo .cambiar{display:none}
+  #techo{position:static; border-bottom:2px solid #000; padding:0 0 8px;
+         min-height:0; display:block}
+  .techo-legajo{padding:0; margin:0}
+  #aviso-demo{border:2px solid #000}
   main{padding:0}
   .bloque{break-inside:avoid; page-break-inside:avoid; margin-top:18px}
   .tabla-env, .cifras, .carriles, .cronologia, .interp{break-inside:avoid}
@@ -560,15 +801,97 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 /* Foja que llegó girada y hubo que enderezar para leerla. */
 .foja[data-girada="1"]{border-style:dashed; border-color:var(--sello); color:var(--sello)}
 
-/* ── Cola partida: la lista y el folio, juntos ────────────────────────── */
-/* Revisar un campo costaba dos navegaciones y perder el lugar en la lista. Acá la foja
-   acompaña a la fila con el foco y no hay que salir de la pantalla. */
-.cola-partida{display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,40%); gap:16px;
-  align-items:start; margin-top:12px}
-.cola-partida .cola{max-height:calc(100vh - 250px); overflow-y:auto}
-.folio-lado{position:sticky; top:calc(var(--y-contenido) + 54px);
-  display:flex; flex-direction:column; gap:8px;
-  border:1px solid var(--filete); background:var(--papel-2); padding:12px}
+/* ── La cola de revisión: un puesto de trabajo, no una página ──────────────
+   Cuatro fajas de arriba abajo. Tres quedan quietas —encabezado con el «1 de N»,
+   filtros y pie— y sólo se mueve la lista.
+
+   Lo que había antes: la página tenía su barra de desplazamiento y la lista tenía
+   otra adentro, las dos a un centímetro de distancia, y cuál de las dos movía la
+   rueda del mouse dependía de dónde hubiera quedado el puntero. Encima el «1 de 42»
+   y los filtros se iban para arriba a las tres filas, justo cuando más falta hacen:
+   revisando el campo treinta, saber que vas por el treinta es la mitad del sentido
+   de la tarea.
+
+   El alto no se mide con JavaScript. `#cuerpo` toma el alto de la ventana, el techo
+   y el aviso ocupan lo suyo, y `main` se queda con el resto por ser el único que
+   crece. El navegador ya sabe restar. */
+body.taller-abierto #cuerpo{height:100vh; height:100dvh; overflow:hidden}
+body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
+
+.taller{height:100%; display:grid; grid-template-rows:auto auto minmax(0,1fr) auto;
+        min-height:0}
+.taller-cabeza{
+  display:flex; align-items:flex-start; gap:24px; justify-content:space-between;
+  padding:16px 24px 10px; border-bottom:1px solid var(--filete-2);
+}
+.taller-cabeza h2{margin:0 0 3px}
+.taller-sub{margin:0; font-family:var(--serif); font-size:13.5px; line-height:1.5;
+            color:var(--tinta-2); max-width:64ch}
+.taller-sub strong{color:var(--tinta)}
+/* El «1 de 42», que es lo único de esta pantalla que se mira de reojo cada treinta
+   segundos. Grande, alineado a la derecha y siempre en el mismo lugar. */
+.taller-cabeza .posicion{flex:none; text-align:right; font-family:var(--mono);
+  font-size:12px; color:var(--tinta-2); line-height:1.35; padding-top:2px}
+.taller-cabeza .posicion b{font-size:21px; font-weight:500; color:var(--tinta);
+  font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.taller-cabeza .de-todo{display:block; font-family:var(--sans); font-size:10.5px;
+  color:var(--tinta-3)}
+
+.taller-filtros{display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;
+  padding:10px 24px; background:var(--papel-2); border-bottom:1px solid var(--filete)}
+
+.taller-cuerpo{display:grid; grid-template-columns:minmax(0,1fr) minmax(340px,40%);
+  gap:0; min-height:0; overflow:hidden}
+/* La única cosa que se desplaza en toda la pantalla. */
+.taller-cuerpo .cola{overflow-y:auto; min-height:0; padding:0 4px 24px 24px;
+  scrollbar-gutter:stable}
+.taller-cuerpo .folio-lado{
+  min-height:0; overflow:hidden; display:grid;
+  grid-template-rows:auto auto minmax(0,1fr) auto; gap:8px;
+  border-left:1px solid var(--filete); background:var(--papel-2); padding:14px 20px 16px;
+}
+/* La foja entra entera, escalada: sin esto el panel de la derecha se hacía largo y
+   aparecía la segunda barra de desplazamiento que esto vino a sacar. */
+.taller-cuerpo .lienzo{min-height:0; overflow:hidden; display:flex;
+  align-items:flex-start; justify-content:center; background:#fff}
+.taller-cuerpo .lienzo img{max-height:100%; width:auto; max-width:100%;
+  object-fit:contain; display:block}
+
+.taller-pie{
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap; min-height:38px;
+  padding:8px 24px; border-top:1px solid var(--filete); background:var(--papel-2);
+  font-size:11.5px; color:var(--tinta-2);
+}
+.taller-pie .deshacer-barra{margin:0}
+
+/* Con la ventana angosta los dos paneles no entran uno al lado del otro y la foja
+   pasa arriba. Ahí se devuelve el desplazamiento normal de la página: forzar el alto
+   de la ventana en una pantalla angosta deja los dos paneles de 200 px cada uno y no
+   se puede trabajar en ninguno. */
+/* En una notebook de 1024 los dos paneles todavía entran: quedan 792 px de ancho
+   después de la barra lateral, y la fila de la cola necesita 452. El corte va en
+   1000 y no en 1100 justamente por eso — 1024×768 es la pantalla más chica en la
+   que alguien va a revisar ocho horas seguidas, y ahí el taller tiene que andar. */
+@media (max-width:1000px){
+  body.taller-abierto #cuerpo{height:auto; overflow:visible}
+  body.taller-abierto main{overflow:visible}
+  .taller{height:auto; display:block}
+  .taller-cabeza, .taller-filtros, .taller-pie{position:static}
+  .taller-cuerpo{display:flex; flex-direction:column; overflow:visible}
+  .taller-cuerpo .cola{overflow:visible; padding:0 0 20px}
+  .taller-cuerpo .folio-lado{
+    order:-1; position:sticky; top:var(--y-contenido); z-index:18; display:flex;
+    flex-direction:column; border-left:none; border-bottom:1px solid var(--filete);
+    padding:10px 24px 12px; overflow:visible}
+  .taller-cuerpo .lienzo{max-height:44vh}
+}
+@media (max-width:720px){
+  .taller-cabeza, .taller-filtros, .taller-pie{padding-left:16px; padding-right:16px}
+  .taller-cuerpo .folio-lado{padding:8px 16px 10px; top:0}
+  .taller-cuerpo .folio-lado .lienzo{display:none}
+  .taller-cabeza{flex-direction:column; gap:8px}
+  .taller-cabeza .posicion{text-align:left}
+}
 
 /* La lupa: el renglón del campo, ampliado. Es lo que hace falta para decidir. */
 .lupa{position:relative; overflow:hidden; height:132px; background:#fff;
@@ -585,21 +908,15 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 /* En la cola partida las filas son más compactas: la acción está a la derecha. */
 /* 124 px es lo que entra un nombre de archivo típico en una sola línea. Los más largos
    bajan de renglón (ver `.marginalia` abajo) en vez de cortarse. */
-.cola-partida .fila{grid-template-columns:124px minmax(0,1fr) 170px; cursor:pointer}
+.taller-cuerpo .fila{grid-template-columns:124px minmax(0,1fr) 170px; cursor:pointer}
 /* El nombre del archivo se corta por la izquierda si no entra, y con nombres reales
    —que son más largos que «contrato_A_0020»— eso deja ilegible justo lo que ubica el
    campo. Que baje de renglón antes de perderse. */
-.cola-partida .fila .marginalia{padding:9px 10px 9px 0; font-size:10px;
+.taller-cuerpo .fila .marginalia{padding:9px 10px 9px 0; font-size:10px;
   overflow-wrap:anywhere; line-height:1.35}
-.cola-partida .fila .med{padding:9px 12px}
-.cola-partida .fila .acc{padding:9px 10px; gap:3px}
-.cola-partida .tecla{font-size:10.5px}
-
-@media (max-width:1100px){
-  .cola-partida{grid-template-columns:1fr}
-  .folio-lado{position:static}
-  .cola-partida .cola{max-height:none}
-}
+.taller-cuerpo .fila .med{padding:9px 12px}
+.taller-cuerpo .fila .acc{padding:9px 10px; gap:3px}
+.taller-cuerpo .tecla{font-size:10.5px}
 
 /* Deshacer una revisión: discreto, pero siempre a mano. Equivocarse revisando es
    normal, y sin vuelta atrás habría que reprocesar el lote para arreglar un clic. */
@@ -607,13 +924,9 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
   color:var(--tinta-3); padding:1px 6px; cursor:pointer; margin-left:4px}
 .deshacer:hover{border-color:var(--lapiz); color:var(--lapiz)}
 
-/* Escudo institucional, si lo cargaron en assets/marca/. Sin archivo, la cabecera
-   funciona igual con la identificación tipográfica. */
-.barra .titulo{display:flex; align-items:center; gap:14px; flex-wrap:wrap}
-.barra .titulo > div{min-width:0}
-#marca{height:38px; width:auto; flex:none}
-@media (max-width:720px){#marca{height:30px}}
-@media print{#marca{height:44px}}
+/* Escudo institucional, si lo cargaron en assets/marca/ (ver el LEEME de esa
+   carpeta). Sin archivo manda el monograma, y la barra funciona igual. */
+@media print{.identidad-oficial{max-height:56px}}
 
 /* Estado del sistema. La primera columna es un sello, no un ícono de color: la
    diferencia entre "ok" y "falta" tiene que leerse también en blanco y negro y para
@@ -660,22 +973,15 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
       «apretá J» donde no hay J es peor que no decir nada.
    ═══════════════════════════════════════════════════════════════════════ */
 @media (max-width:720px){
-  #techo{position:static}
-  nav{padding:0 16px}
-  nav.secundaria{padding:0 16px}
+  /* La barra de arriba SÍ se queda pegada: es un renglón, y es lo único que dice
+     sobre qué causa se está mirando. */
   main{padding:0 16px 60px}
-  .barra{padding:12px 16px 10px}
-  #aviso-demo{position:static}
-  /* La cinta de legajo SÍ se queda: es una línea y es lo único que dice sobre qué
-     causa se está mirando. Arriba de todo, porque las otras dos ya se fueron con el
-     scroll y no hay nada que sumarle. */
-  #cinta-legajo{position:sticky; top:0; padding:6px 16px; font-size:11.5px}
-  #cinta-legajo .cambiar{margin-left:0}
+  #aviso-demo{padding:8px 16px}
 
   /* Botones y campos que se puedan tocar sin errar. */
   .boton, .tecla, .chip{min-height:44px; display:inline-flex; align-items:center}
   input, select, textarea{min-height:44px; font-size:16px}   /* 16px: iOS no hace zoom */
-  nav a{padding:11px 14px}
+  .nav-lateral .cabeza, .nav-lateral .items a, .pie-boton{min-height:44px}
 
   /* En un teléfono no hay teclado: los atajos son ruido que ocupa lugar. */
   kbd, .solo-teclado{display:none}
@@ -691,30 +997,24 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
    entra en una pantalla de teléfono y tampoco hace falta: para decidir alcanza
    con leer ESE renglón, que es justo lo que la lupa muestra. */
 @media (max-width:720px){
-  .cola-partida{display:flex; flex-direction:column; gap:0}
-  .cola-partida .cola{max-height:none; overflow:visible}
-  .folio-lado{
-    order:-1; position:sticky; top:0; z-index:18; background:var(--papel);
-    border-bottom:1px solid var(--tinta); padding:6px 0 8px; margin-bottom:6px}
-  .folio-lado .lienzo{display:none}
   .folio-lado .lupa{max-height:104px}
   /* El pie y el enlace, en un renglón: cada píxel que ocupa la lupa es un píxel que
      le falta a la lista de abajo. */
   .folio-lado .pie-lamina{display:flex; gap:10px; flex-wrap:wrap; font-size:10.5px}
   .folio-lado .chip{min-height:34px; font-size:11px}
 
-  .cola-partida .fila{grid-template-columns:1fr; padding:2px 0 0}
+  .taller-cuerpo .fila{grid-template-columns:1fr; padding:2px 0 0}
   /* El nombre del archivo y la foja SÍ sirven acá: son lo que ubica el campo. */
-  .cola-partida .fila .marginalia{display:flex; flex-direction:row; gap:12px;
+  .taller-cuerpo .fila .marginalia{display:flex; flex-direction:row; gap:12px;
     text-align:left; padding:9px 0 0; border-right:none}
-  .cola-partida .fila .med{padding:7px 0}
-  .cola-partida .fila .acc{border-left:none; border-top:1px solid var(--filete-2);
+  .taller-cuerpo .fila .med{padding:7px 0}
+  .taller-cuerpo .fila .acc{border-left:none; border-top:1px solid var(--filete-2);
     padding:7px 0 10px; flex-direction:row; flex-wrap:wrap; gap:7px}
-  .cola-partida .tecla{border:1px solid var(--filete); background:var(--papel);
+  .taller-cuerpo .tecla{border:1px solid var(--filete); background:var(--papel);
     padding:0 13px; font-size:12.5px; color:var(--tinta)}
-  .cola-partida .tecla:active{background:var(--papel-2)}
+  .taller-cuerpo .tecla:active{background:var(--papel-2)}
   /* Con la fila entera a lo ancho, el fondo del foco se pierde: se marca al costado. */
-  .cola-partida .fila.foco{box-shadow:inset 3px 0 0 var(--sello); padding-left:9px}
+  .taller-cuerpo .fila.foco{box-shadow:inset 3px 0 0 var(--sello); padding-left:9px}
 }
 
 /* Las dos rutas de un conflicto, una arriba de la otra: en 360 px no entran al lado. */
@@ -757,12 +1057,11 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .cifra.facturado b{color:var(--tinta)}
 @media (max-width:720px){.cifras.totales{grid-template-columns:1fr}}
 
-/* Sellos de estado. El color acompaña, no manda: el texto dice el estado completo,
-   porque un estado que sólo se distingue por color no existe para quien no lo ve. */
-.sello.estado-ok{color:var(--verde)}
-.sello.estado-aviso{color:var(--ambar)}
-.sello.estado-alerta{color:var(--lapiz)}
-.sello.estado-neutro{color:var(--tinta-3)}
+/* La rueda del sello «trabajando». Es la única cosa de la pantalla que se mueve
+   sola, y se mueve porque decir «esperá» con algo quieto no se distingue de decirlo
+   con algo colgado. Se apaga entera con `prefers-reduced-motion`. */
+.estado--gira svg{animation:girar 1.1s linear infinite}
+@keyframes girar{to{transform:rotate(360deg)}}
 
 
 /* ── Pantalla de legajos ──────────────────────────────────────────────────
@@ -808,18 +1107,13 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 /* ── Filtros y posición en la cola ────────────────────────────────────────
    «Cola de revisión» sin número no dice si faltan tres o trescientos, y sin saber eso
    nadie puede decidir si lo termina hoy. */
-.filtros-cola{display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;
-  padding:10px 0 12px; border-bottom:1px solid var(--filete); margin-bottom:4px}
-.filtros-cola label{display:grid; gap:3px; font-size:10.5px; font-weight:600;
+.taller-filtros label{display:grid; gap:3px; font-size:10.5px; font-weight:600;
   letter-spacing:.1em; text-transform:uppercase; color:var(--tinta-3)}
-.filtros-cola select{font:inherit; font-size:12.5px; padding:5px 8px;
+.taller-filtros select{font:inherit; font-size:12.5px; padding:5px 8px;
   border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta);
   min-height:32px; max-width:220px}
-.filtros-cola .boton{padding:5px 11px; font-size:11.5px; min-height:32px}
-.filtros-cola .posicion{margin-left:auto; font-family:var(--mono); font-size:12.5px;
-  color:var(--tinta-2); white-space:nowrap}
-.filtros-cola .posicion b{font-size:15px; color:var(--tinta)}
-.filtros-cola .de-donde, .filtros-cola .de-todo{color:var(--tinta-3); font-size:11.5px}
+.taller-filtros .boton{padding:5px 11px; font-size:11.5px; min-height:32px}
+.taller-filtros select{border-radius:var(--radio)}
 
 /* Deshacer lo último. Aparece recién después de decidir algo y desaparece al recargar:
    es para el error que acabás de cometer, no para rebobinar la jornada. */
@@ -838,10 +1132,10 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .mas-cola span{display:block; font-size:11px; color:var(--tinta-3); margin-top:2px}
 
 @media (max-width:720px){
-  .filtros-cola{gap:9px}
-  .filtros-cola label{flex:1 1 45%}
-  .filtros-cola select{width:100%; max-width:none; min-height:44px}
-  .filtros-cola .posicion{margin-left:0; flex-basis:100%}
+  .taller-filtros{gap:9px}
+  .taller-filtros label{flex:1 1 45%}
+  .taller-filtros select{width:100%; max-width:none; min-height:44px}
+  .taller-filtros .posicion{margin-left:0; flex-basis:100%}
 }
 
 /* En un teléfono esto no puede ser una tabla. Elegir legajo es comparar cuánto
@@ -950,3 +1244,33 @@ th.ord.desc::after{content:" ↓"; color:var(--sello)}
   font-size:12.5px}
 #aviso-version .boton{padding:3px 10px; font-size:11.5px; margin-left:8px}
 @media (max-width:720px){#aviso-version{padding:8px 16px}}
+
+/* ── Acerca del sistema ────────────────────────────────────────────────────
+   La jerarquía institucional dibujada como lo que es: cuatro niveles, del organismo
+   a la herramienta, cada uno con menos peso que el de arriba. No es adorno — es la
+   respuesta a «¿esto de dónde salió?», que en una audiencia hay que dar sin dudar. */
+.ficha-identidad{display:flex; gap:32px; flex-wrap:wrap; align-items:flex-start;
+  border:1px solid var(--filete); border-left:3px solid var(--verde-inst);
+  background:var(--papel-2); padding:16px 20px; margin:14px 0 16px;
+  border-radius:0 var(--radio) var(--radio) 0}
+.jerarquia{display:flex; flex-direction:column; gap:2px; min-width:0}
+.jerarquia .nivel{position:relative; padding-left:16px}
+/* Un filete corto delante de cada nivel, cada vez más adentro: se ve el anidamiento
+   sin necesidad de contar los tamaños de letra. */
+.jerarquia .nivel::before{content:''; position:absolute; left:0; top:.62em;
+  width:9px; height:1px; background:var(--filete)}
+.jerarquia .n1{font-size:14px; font-weight:600; color:var(--tinta)}
+.jerarquia .n2{font-size:13px; color:var(--tinta-2); margin-left:12px}
+.jerarquia .n3{font-size:12.5px; color:var(--tinta-2); margin-left:24px}
+.jerarquia .n4{font-size:12px; color:var(--tinta-3); margin-left:36px}
+.jerarquia .n1::before{background:var(--verde-inst); height:2px; width:11px}
+
+.ficha-identidad .fiscales{padding-left:20px; border-left:1px solid var(--filete)}
+.ficha-identidad .fiscales ul{margin:5px 0 0; padding:0; list-style:none;
+  font-size:13.5px; font-family:var(--serif)}
+.ficha-identidad .fiscales li{padding:1px 0}
+@media (max-width:720px){
+  .ficha-identidad{gap:14px}
+  .ficha-identidad .fiscales{padding-left:0; border-left:none; padding-top:12px;
+    border-top:1px solid var(--filete); width:100%}
+}

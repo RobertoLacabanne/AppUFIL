@@ -28,6 +28,7 @@ import os
 import secrets
 import socket
 import time
+from html import escape as esc
 
 # Sin caracteres que se confundan al copiarlos de una pantalla a un teléfono: nada de
 # O contra 0, ni I contra 1 contra l.
@@ -167,13 +168,21 @@ def pagina_de_acceso(error: bool = False) -> bytes:
     """
     Una sola pantalla, sin JavaScript y sin depender de nada del resto de la app: si
     alguien llega acá es porque todavía no tiene permiso para pedir el CSS siquiera.
+
+    Por eso los colores van escritos adentro y no como variables compartidas: no hay
+    hoja de estilo que traer. Son los mismos de ufil/web/estilo.css y hay una prueba
+    que verifica que no se separen.
     """
-    aviso = ('<p class="mal">Esa clave no es. Fijate en la pantalla de la computadora '
-             'donde levantaste el sistema.</p>') if error else ""
+    from . import identidad as ident
+    d = ident.actual()
+    aviso = ('<p class="mal"><b>Esa clave no es.</b> Fijate en la pantalla de la '
+             'computadora donde levantaste el sistema.</p>') if error else ""
+    firma = ident.firma(d)
     return f"""<!doctype html>
 <html lang="es-AR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Acceso · UFIL</title>
+<title>Acceso · {esc(d['unidad'])}</title>
+<meta name="theme-color" content="#23594C">
 <style>
   /* Las mismas tipografías del sistema, servidas del disco. Si por lo que sea no
      cargan, las de reserva mantienen la pantalla legible. */
@@ -181,31 +190,67 @@ def pagina_de_acceso(error: bool = False) -> bytes:
     format('truetype-variations'); font-weight:400 700; font-display:swap}}
   @font-face{{font-family:'IBM Plex Mono'; src:url('/fuentes/IBMPlexMono-Regular.ttf')
     format('truetype'); font-weight:400; font-display:swap}}
-  :root{{color-scheme:light dark}}
-  body{{margin:0; min-height:100vh; display:flex; align-items:center;
-    justify-content:center; background:#FCFBF9; color:#1B1D21;
-    font-family:'Archivo',ui-sans-serif,system-ui,sans-serif; padding:24px}}
-  @media (prefers-color-scheme:dark){{body{{background:#16171A; color:#E6E3DC}}}}
-  .caja{{width:100%; max-width:380px}}
-  h1{{font-size:19px; margin:0 0 4px; letter-spacing:-.01em}}
-  .sub{{font-size:12px; opacity:.7; margin:0 0 22px; line-height:1.5}}
+  :root{{
+    color-scheme:light dark;
+    --papel:#FCFBF8; --papel-2:#F2F0E9; --tinta:#0F172A; --tinta-2:#5D6B66;
+    --verde:#23594C; --verde-2:#2F7463; --oro:#D7B46A; --rojo:#B71C1C;
+    --borde:#70827C; --suave:#F6E9E8;
+  }}
+  @media (prefers-color-scheme:dark){{:root{{
+    --papel:#0B1213; --papel-2:#111C1B; --tinta:#F2F5F2; --tinta-2:#AEBBB7;
+    --verde:#72B5A2; --verde-2:#72B5A2; --oro:#E5C57C; --rojo:#F08B8B;
+    --borde:#5A7A74; --suave:#2A1A1C;
+  }}}}
+  *{{box-sizing:border-box}}
+  body{{margin:0; min-height:100vh; min-height:100dvh; display:flex; align-items:center;
+    justify-content:center; background:var(--papel); color:var(--tinta);
+    font-family:'Archivo',ui-sans-serif,system-ui,sans-serif; padding:24px;
+    line-height:1.5}}
+  .caja{{width:100%; max-width:392px}}
+  /* La marca, con la jerarquía completa: organismo, unidad, área, herramienta. */
+  .marca{{display:flex; gap:12px; align-items:center; margin-bottom:6px}}
+  .mono-marca{{flex:none; width:46px; height:46px; border-radius:9px;
+    background:var(--verde); display:grid; place-items:center; color:#F4F8F6}}
+  .unidad{{font-size:17px; font-weight:700; letter-spacing:-.01em}}
+  .area{{font-size:11px; color:var(--tinta-2)}}
+  .organismo{{font-size:11.5px; color:var(--tinta-2); margin:0 0 4px;
+    padding-top:10px; border-top:2px solid var(--oro); display:inline-block}}
+  h1{{font-size:14px; font-weight:600; margin:18px 0 20px; color:var(--tinta-2)}}
   label{{display:block; font-size:10px; letter-spacing:.12em; text-transform:uppercase;
-    opacity:.6; margin-bottom:7px}}
-  input{{width:100%; box-sizing:border-box;
-    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    color:var(--tinta-2); margin-bottom:7px; font-weight:600}}
+  input{{width:100%; font-family:'IBM Plex Mono',ui-monospace,monospace;
     font-size:24px; letter-spacing:.28em; text-align:center; padding:14px 10px;
-    border:1px solid currentColor; background:transparent; color:inherit;
-    text-transform:uppercase; min-height:56px}}
-  button{{width:100%; margin-top:12px; padding:15px; font-size:14px; cursor:pointer;
-    border:1px solid currentColor; background:transparent; color:inherit;
-    min-height:52px}}
-  .mal{{border-left:3px solid #96301F; padding:8px 12px; font-size:12.5px;
-    background:rgba(150,48,31,.08); margin:0 0 16px}}
-  .pie{{font-size:11px; opacity:.6; margin-top:26px; line-height:1.6}}
+    border:1px solid var(--borde); border-radius:5px; background:var(--papel-2);
+    color:inherit; text-transform:uppercase; min-height:56px}}
+  input:focus{{outline:none; border-color:var(--verde-2);
+    box-shadow:0 0 0 3px rgba(47,116,99,.22)}}
+  button{{width:100%; margin-top:12px; padding:15px; font-size:14px; font-weight:600;
+    cursor:pointer; border:1px solid var(--verde); border-radius:5px;
+    background:var(--verde); color:var(--papel); min-height:52px}}
+  button:hover{{background:var(--verde-2); border-color:var(--verde-2)}}
+  .mal{{border-left:3px solid var(--rojo); border-radius:0 5px 5px 0; padding:9px 13px;
+    font-size:12.5px; background:var(--suave); margin:0 0 16px; color:var(--tinta)}}
+  .mal b{{color:var(--rojo)}}
+  .pie{{font-size:11px; color:var(--tinta-2); margin-top:24px; line-height:1.6}}
+  .fiscales{{font-size:11px; color:var(--tinta-2); margin-top:8px}}
 </style></head><body>
 <form class="caja" method="post" action="/acceso">
-  <h1>Análisis documental</h1>
-  <p class="sub">Unidad Fiscal de Investigación y Litigación de Paraná · MPF Entre Ríos</p>
+  <div class="marca">
+    <span class="mono-marca" aria-hidden="true">
+      <svg viewBox="0 0 32 32" width="26" height="26" fill="none"
+           stroke="currentColor" stroke-width="1.7">
+        <rect x="5" y="4" width="22" height="24" rx="2"/>
+        <path d="M10 4v24"/><path d="M14 11h9" stroke="#D7B46A" stroke-width="2.4"/>
+        <path d="M14 16.5h9M14 22h6" stroke-width="1.4"/>
+      </svg>
+    </span>
+    <span>
+      <div class="unidad">{esc(d['unidad'])}</div>
+      <div class="area">{esc(d['area'])}</div>
+    </span>
+  </div>
+  <p class="organismo">{esc(ident.linea_organismo(d))}</p>
+  <h1>{esc(d['sistema'])}</h1>
   {aviso}
   <label for="c">Clave de acceso</label>
   <input id="c" name="clave" autocomplete="off" autocapitalize="characters"
@@ -213,6 +258,7 @@ def pagina_de_acceso(error: bool = False) -> bytes:
   <button type="submit">Entrar</button>
   <p class="pie">La clave se genera cada vez que se levanta el sistema y se muestra en
     la terminal de esa computadora. Si no la tenés, pedísela a quien lo levantó.</p>
+  {f'<p class="fiscales">{esc(firma)}</p>' if firma else ''}
 </form></body></html>""".encode("utf-8")
 
 

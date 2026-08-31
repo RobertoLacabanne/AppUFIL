@@ -194,10 +194,36 @@ recrea nada que tenga datos.
 | `UFIL_DPI_RENDER` | DPI de las imágenes de trabajo | 200 |
 | `UFIL_OCR_IDIOMA` | Idioma de Tesseract | `spa` |
 | `UFIL_DEMO` | Fuerza el cartel de datos de prueba | — |
+| `UFIL_UNIDAD` | «UFIL Paraná» | del módulo `ufil/identidad.py` |
+| `UFIL_AREA` | «Área Anticorrupción» | ídem |
+| `UFIL_FISCALES` | Fiscales, separados por **punto y coma** | ídem |
+| `UFIL_ORGANISMO`, `UFIL_JURISDICCION`, `UFIL_SISTEMA` | El resto de la marca | ídem |
 | `PORT` | Lo inyecta el servicio de nube; el contenedor lo respeta | `8713` |
 
 **`UFIL_ACCESO=abierto` significa «quién llega a este puerto ya está restringido afuera
 de este proceso».** Ponerla donde eso no es cierto deja el legajo abierto de par en par.
+
+Las de identidad también se pueden poner en un `identidad.json` en la carpeta de datos.
+El orden es: los valores del módulo, después el JSON, después el entorno. Un solo lugar
+cambia el encabezado de la pantalla de acceso, el de «Acerca del sistema» y la portada
+de todo lo que se exporta.
+
+### Eliminar un legajo
+
+Se hace desde **Sistema → Legajos**, con el botón «Eliminar» de cada renglón, y hay que
+**escribir el número del legajo** para confirmar.
+
+**Eliminar no borra:** mueve la carpeta entera —la base, las imágenes de página, los PDF
+que se subieron y los respaldos— a `datos/eliminados/<slug>--<fecha>/`, y queda anotado
+en `datos/eliminados/eliminados.jsonl`. Desde la papelera se restaura con todo adentro.
+
+Lo único que borra de verdad en todo el sistema es **«Borrar del disco»**, desde la
+papelera, y pide el número otra vez. Es la operación que libera espacio: la papelera
+sigue ocupando disco, y la pantalla dice cuánto.
+
+Un legajo con un procesamiento en curso no se puede eliminar: la base está abierta por
+otro hilo y moverla en el medio deja el trabajo escribiendo en un archivo que ya no está
+donde el registro dice. El sistema lo dice y pide pararlo primero.
 
 ---
 

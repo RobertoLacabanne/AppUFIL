@@ -86,8 +86,15 @@ def _hoja(wb: Workbook, res: dict) -> None:
 def a_xlsx(cx: sqlite3.Connection, destino: Path, consultas: list[str]) -> Path:
     wb = Workbook(); wb.remove(wb.active)
     portada = wb.create_sheet("procedencia", 0)
-    portada.append(["Sistema de análisis documental — UFIL Paraná"])
+    # El encabezado sale de ufil/identidad.py: es el mismo que muestra la pantalla y
+    # el mismo que va a llevar impreso lo que se presente. Escrito acá a mano, cambiar
+    # de fiscal dejaba el nombre viejo dentro de un Excel ya entregado.
+    from . import identidad as ident
+    lineas = ident.encabezado_export()
+    portada.append([lineas[0]])
     portada["A1"].font = Font(bold=True, size=13)
+    for linea in lineas[1:]:
+        portada.append([linea])
     portada.append([])
     portada.append(["Generado", date.today().isoformat()])
     portada.append(["Archivos ingeridos",

@@ -36,7 +36,9 @@ Estructura en disco
 """
 from __future__ import annotations
 
+import json
 import re
+import shutil
 import sqlite3
 import unicodedata
 from dataclasses import dataclass
@@ -270,3 +272,231 @@ def archivar(slug: str, archivado: bool = True) -> None:
         cx.commit()
     finally:
         cx.close()
+
+
+# ── Eliminar un legajo ─────────────────────────────────────────────────────
+#
+# Un legajo son meses de trabajo de lectura y revisión a mano, y adentro están los
+# PDF que alguien subió por la interfaz —que en una máquina de nube pueden ser la
+# única copia que existe de ese lote—. Un botón que borre eso de verdad, de una, es
+# un botón que tarde o temprano alguien va a tocar sin querer.
+#
+# Así que borrar tiene dos tiempos:
+#
+#   1. `eliminar` MUEVE la carpeta entera a `datos/eliminados/`. Nada se destruye:
+#      la base, los derivados, los originales y los respaldos siguen ahí, completos,
+#      y se pueden traer de vuelta. Es lo que hace el botón de la interfaz.
+#   2. `destruir` borra de verdad, y sólo desde la papelera, con el número escrito a
+#      mano otra vez. Es la única función de todo el sistema que borra algo.
+#
+# Y en los dos casos hay que escribir el número del legajo tal cual. No una casilla
+# que se tilda: el número, que obliga a mirar cuál es el que se está por borrar. Es la
+# diferencia entre confirmar y leer.
+
+CARPETA_PAPELERA = "eliminados"
+BITACORA = "eliminados.jsonl"
+
+
+class NoSePuede(Exception):
+    """Falta una condición para borrar. El mensaje es para mostrarlo tal cual."""
+
+
+def carpeta_papelera() -> Path:
+    return carpeta_registro() / CARPETA_PAPELERA
+
+
+def _pesa(carpeta: Path) -> int:
+    """Bytes que ocupa una carpeta. Un archivo que desaparece a mitad del recorrido
+    no puede hacer fallar el cálculo: se está informando un tamaño, no auditando."""
+    total = 0
+    for p in carpeta.rglob("*"):
+        try:
+            if p.is_file():
+                total += p.stat().st_size
+        except OSError:
+            pass
+    return total
+
+
+def _anotar(evento: dict) -> None:
+    """
+    Una línea por cada cosa que se borró, en un archivo aparte del registro.
+
+    Va afuera de la base a propósito: es el rastro de que un legajo existió, y tiene
+    que sobrevivir a que la base del registro se pierda o se rehaga. Si no se puede
+    escribir, la eliminación sigue: perder la anotación es malo, dejar el legajo a
+    medio borrar es peor.
+    """
+    try:
+        destino = carpeta_papelera()
+        destino.mkdir(parents=True, exist_ok=True)
+        with (destino / BITACORA).open("a", encoding="utf-8") as f:
+            f.write(json.dumps(evento, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
+def eliminar(slug: str, confirmacion: str) -> dict:
+    """
+    Saca el legajo del registro y le manda la carpeta a la papelera.
+
+    No borra nada: mueve. Devuelve con qué nombre quedó guardado, que es lo que hace
+    falta para traerlo de vuelta.
+    """
+    l = obtener(slug)                       # levanta LegajoInexistente si no existe
+    if (confirmacion or "").strip() != l.numero.strip():
+        raise NoSePuede(f"Para eliminarlo hay que escribir el número del legajo tal "
+                        f"como figura: {l.numero}")
+
+    carpeta = carpeta_de(slug)
+    # `20260831-164257`: fecha y hora, sin los dos puntos ni el huso, que en un nombre
+    # de carpeta y en una URL molestan. La interfaz la vuelve a leer para mostrarla como
+    # 31/08/2026 16:42.
+    sello = re.sub(r"[^0-9]", "", ahora())[:14]
+    marca = f"{slug}--{sello[:8]}-{sello[8:14]}"
+    destino = carpeta_papelera() / marca
+    destino.parent.mkdir(parents=True, exist_ok=True)
+
+    pesa = _pesa(carpeta) if carpeta.exists() else 0
+    resumen = _resumen(carpeta / "ufil.sqlite")
+
+    if carpeta.exists():
+        # `shutil.move` entre carpetas del mismo disco es un renombre: instantáneo, y
+        # sin la ventana en la que existen dos copias a medio hacer. Entre discos
+        # distintos copia y borra, que tarda pero termina igual de completo.
+        shutil.move(str(carpeta), str(destino))
+
+    cx = abrir_registro()
+    try:
+        cx.execute("DELETE FROM legajo WHERE slug=?", (slug,))
+        cx.commit()
+    finally:
+        cx.close()
+
+    evento = {"que": "eliminado", "cuando": ahora(), "slug": slug, "numero": l.numero,
+              "caratula": l.caratula, "fiscal": l.fiscal, "marca": marca,
+              "bytes": pesa, "documentos": resumen.get("documentos", 0),
+              "archivos": resumen.get("archivos", 0)}
+    _anotar(evento)
+    return evento
+
+
+def papelera() -> list[dict]:
+    """Lo que está en la papelera, de lo más nuevo a lo más viejo."""
+    raiz = carpeta_papelera()
+    if not raiz.is_dir():
+        return []
+    fuera = []
+    for c in raiz.iterdir():
+        if not c.is_dir():
+            continue
+        # El nombre guarda el slug y la fecha: `94-220--20260831-141203`.
+        slug, _, cuando = c.name.partition("--")
+        datos = _resumen(c / "ufil.sqlite")
+        fuera.append({"marca": c.name, "slug": slug, "eliminado_en": cuando,
+                      "bytes": _pesa(c), "documentos": datos.get("documentos", 0),
+                      "numero": _numero_guardado(c) or slug})
+    fuera.sort(key=lambda d: d["eliminado_en"], reverse=True)
+    return fuera
+
+
+def _en_la_papelera(marca: str) -> Path:
+    """
+    La carpeta que nombra `marca`, siempre que sea hija directa de la papelera.
+
+    `marca` viene escrita en un pedido HTTP. Sin esta comprobación, un `marca` de
+    «../legajos/94-220» hace que el botón de vaciar la papelera le pase el `rmtree`
+    a un legajo en uso.
+
+    La comprobación es en positivo —resolver el camino de verdad y exigir que el
+    padre sea la papelera— y no una lista de cosas prohibidas. Una lista de
+    prohibiciones hay que acertarla entera: la primera versión de esto miraba «/» y
+    «\\» y «.», y una prueba escrita para verificarla pasaba igual con las tres
+    sacadas, porque lo que estaba frenando el ataque era otra comprobación de más
+    abajo. Resolver y comparar no se puede rodear.
+    """
+    raiz = carpeta_papelera()
+    try:
+        real = (raiz / marca).resolve(strict=True)
+        if real.parent != raiz.resolve() or not real.is_dir():
+            raise NoSePuede("Eso no está en la papelera")
+    except (OSError, RuntimeError, ValueError):
+        raise NoSePuede("Eso no está en la papelera")
+    return real
+
+
+def _numero_guardado(carpeta: Path) -> str | None:
+    """
+    El número del legajo, leído de la bitácora.
+
+    El slug de la carpeta perdió los puntos («94-220» por «94.220») y ese es
+    justamente el número que la persona tiene que escribir para borrar en serio. Que
+    el sistema le pida escribir algo distinto de lo que ve en pantalla es la clase de
+    detalle que hace que alguien se dé por vencido y busque el atajo.
+    """
+    try:
+        with (carpeta.parent / BITACORA).open(encoding="utf-8") as f:
+            for linea in f:
+                d = json.loads(linea)
+                if d.get("marca") == carpeta.name:
+                    return d.get("numero")
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def restaurar(marca: str) -> Legajo:
+    """Trae un legajo de vuelta de la papelera y lo vuelve a poner en el registro."""
+    origen = _en_la_papelera(marca)
+    slug = origen.name.partition("--")[0]
+    destino = carpeta_de(slug)
+    if destino.exists():
+        raise NoSePuede(f"Ya hay un legajo usando esa carpeta ({slug}). Renombralo o "
+                        f"eliminalo antes de restaurar éste.")
+
+    guardado = {}
+    try:
+        with (origen.parent / BITACORA).open(encoding="utf-8") as f:
+            for linea in f:
+                d = json.loads(linea)
+                if d.get("marca") == origen.name:
+                    guardado = d
+    except (OSError, ValueError):
+        pass
+
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(origen), str(destino))
+
+    cx = abrir_registro()
+    try:
+        cx.execute("""INSERT INTO legajo (slug,numero,caratula,fiscal,estado,creado_en,
+                                          ultima_actividad)
+                      VALUES (?,?,?,?, 'activo', ?, ?)""",
+                   (slug, guardado.get("numero") or slug,
+                    guardado.get("caratula") or "(carátula perdida al eliminar)",
+                    guardado.get("fiscal"), ahora(), ahora()))
+        cx.commit()
+    finally:
+        cx.close()
+    _anotar({"que": "restaurado", "cuando": ahora(), "marca": origen.name, "slug": slug})
+    return obtener(slug)
+
+
+def destruir(marca: str, confirmacion: str) -> dict:
+    """
+    Borra de verdad, y sin vuelta atrás. Es la única función del sistema que destruye
+    algo, y por eso está sola, exige el número escrito a mano y sólo alcanza lo que ya
+    está en la papelera: no hay manera de llegar desde acá a un legajo en uso.
+    """
+    carpeta = _en_la_papelera(marca)
+    numero = _numero_guardado(carpeta) or carpeta.name.partition("--")[0]
+    if (confirmacion or "").strip() != numero.strip():
+        raise NoSePuede(f"Para borrarlo definitivamente hay que escribir su número: "
+                        f"{numero}")
+
+    pesa = _pesa(carpeta)
+    shutil.rmtree(carpeta)
+    evento = {"que": "destruido", "cuando": ahora(), "marca": carpeta.name,
+              "numero": numero, "bytes": pesa}
+    _anotar(evento)
+    return evento

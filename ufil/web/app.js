@@ -61,17 +61,64 @@ const rotularCampo = (c, familia) =>
    ufil/confianza.py; si se agrega uno allá, se agrega acá. */
 const ESTADO = {
   automatico_alta:     ['Automático',          'ok'],
-  pendiente_baja:      ['Pendiente',           'aviso'],
+  pendiente_baja:      ['Pendiente',           'atencion'],
   conflicto:           ['Conflicto',           'alerta'],
   verificado:          ['Verificado',          'ok'],
   corregido:           ['Corregido',           'ok'],
   ilegible_confirmado: ['Ilegible confirmado', 'neutro'],
   ausente_confirmado:  ['Ausente confirmado',  'neutro'],
-  no_revisado:         ['Sin revisar',         'aviso'],
+  no_revisado:         ['Sin revisar',         'atencion'],
 };
+
+/* Los íconos de los estados. Cinco trazos, sin relleno, del tamaño de la letra.
+
+   No son adorno: son la segunda manera de decir lo mismo. Una fila que informa su
+   estado sólo con color no le informa nada a quien no distingue el rojo del verde
+   —entre el 5 y el 8 % de los varones—, ni a nadie cuando esto sale impreso en
+   blanco y negro, que es como llega a una audiencia. Cada estado se dice tres
+   veces: forma, palabra y color, en ese orden de importancia. */
+const ICONO = {
+  ok:      '<path d="M3 8.3l3.4 3.4L13 4.6" fill="none" stroke="currentColor" ' +
+           'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
+  atencion:'<path d="M8 1.9 15 13.8H1z" fill="none" stroke="currentColor" ' +
+           'stroke-width="1.6" stroke-linejoin="round"/>' +
+           '<path d="M8 6.2v3.3M8 11.6v.1" stroke="currentColor" stroke-width="1.7" ' +
+           'stroke-linecap="round"/>',
+  alerta:  '<circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" ' +
+           'stroke-width="1.6"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" ' +
+           'stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  neutro:  '<circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" ' +
+           'stroke-width="1.6"/><path d="M4.8 8h6.4" stroke="currentColor" ' +
+           'stroke-width="1.7" stroke-linecap="round"/>',
+  trabajando:'<circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" ' +
+           'stroke-width="1.6" opacity=".35"/><path d="M8 1.6a6.4 6.4 0 0 1 6.4 6.4" ' +
+           'fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>',
+};
+
+/* El sello de estado, único para todo el sistema: ícono + palabra + color.
+   `tono` es uno de ok / atencion / alerta / neutro / trabajando. */
+const sello = (tono, texto, opts = {}) =>
+  `<span class="estado estado--${tono}${opts.relleno ? ' estado--relleno' : ''}` +
+  `${opts.gira ? ' estado--gira' : ''}"${opts.titulo ? ` title="${esc(opts.titulo)}"` : ''}>` +
+  `<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">` +
+  `${ICONO[tono] || ICONO.neutro}</svg>${esc(texto)}</span>`;
+
+/* Pinta un sello ADENTRO de un nodo que ya existe, sin reemplazarlo: el nodo del
+   techo se pinta en cada refresco y cambiarlo por otro le hace perder el id, los
+   escuchadores y el lugar en el orden de tabulación. */
+function pintarSello(el, tono, texto, opts = {}) {
+  if (!el) return;
+  el.className = `estado estado--${tono}${opts.relleno ? ' estado--relleno' : ''}`
+    + (opts.gira ? ' estado--gira' : '');
+  el.innerHTML = `<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"
+    >${ICONO[tono] || ICONO.neutro}</svg>${esc(texto)}`;
+  if (opts.titulo) el.title = opts.titulo; else el.removeAttribute('title');
+  el.hidden = false;
+}
+
 const badgeEstado = e => {
   const [txt, tono] = ESTADO[e] || [e || '—', 'neutro'];
-  return `<span class="sello estado-${tono}">${esc(txt)}</span>`;
+  return sello(tono, txt);
 };
 
 /* Los tipos de documento, en castellano. La clave es la que usa la base. */
@@ -248,24 +295,56 @@ const seccionDe = hash => {
       || (s.tambien || []).includes(base));
 };
 
+/* Un ícono por sección. Trazo simple, sin relleno: al lado de una tipografía nítida,
+   un ícono relleno pesa más que la palabra y se lleva la lectura. */
+const ICONO_SECCION = {
+  panel:      '<path d="M2.5 9.5 10 3l7.5 6.5M4.5 8.6V17h11V8.6" fill="none"/>',
+  ingesta:    '<path d="M10 13.5V3.5M6 7.2 10 3.2l4 4M3.5 13v3.5h13V13" fill="none"/>',
+  documentos: '<path d="M4.5 2.5h8L15.5 6v11.5h-11zM12 2.6V6h3.4M7 10h6M7 13h4" fill="none"/>',
+  hallazgos:  '<circle cx="8.6" cy="8.6" r="5.1" fill="none"/><path d="M12.4 12.4 17 17" fill="none"/>',
+  revision:   '<path d="M3 5.4 5 7.4 8.4 4M3 13.4l2 2 3.4-3.4M11 5.6h6M11 13.6h6" fill="none"/>',
+  sistema:    '<circle cx="10" cy="10" r="2.6" fill="none"/><path d="M10 2.6v2.2M10 15.2v2.2M2.6 10h2.2M15.2 10h2.2M4.8 4.8l1.6 1.6M13.6 13.6l1.6 1.6M15.2 4.8l-1.6 1.6M6.4 13.6l-1.6 1.6" fill="none"/>',
+};
+const iconoSeccion = id =>
+  `<svg class="ico" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"
+        stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+        stroke-linejoin="round">${ICONO_SECCION[id] || ICONO_SECCION.sistema}</svg>`;
+
 function pintarNav(hash) {
-  const activa = seccionDe(hash) || SECCIONES[0];
+  // Sin `|| SECCIONES[0]`: una pantalla que no está en ninguna sección —«Acerca del
+  // sistema»— no puede dejar «Panel» marcado como si estuvieras ahí. Estar en un
+  // lugar y que la barra diga otro es peor que no marcar nada.
+  const activa = seccionDe(hash);
   const num = clave => Number(cuentas[clave] || 0);
-  const chip = n => n ? ` <span class="cuenta">${fmtNum.format(n)}</span>` : '';
+  const chip = (n, que) => n
+    ? ` <span class="cuenta" title="${esc(plural(n, que + ' pendiente', que + 's pendientes'))}"
+        >${fmtNum.format(n)}</span>` : '';
+
+  // Lo del pie también se marca: es a donde va a parar quien no está en ninguna
+  // sección, y sin marca esa pantalla no aparece en ningún lado de la barra.
+  document.querySelectorAll('.lateral-pie a').forEach(a => {
+    const acá = hash.startsWith(a.getAttribute('href'));
+    a.classList.toggle('activo', acá);
+    if (acá) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
 
   $('#nav-secciones').innerHTML = SECCIONES.map(s => {
-    // La sección lleva la suma de lo que hay pendiente adentro.
+    const abierta = s === activa;
+    // La sección lleva la suma de lo que hay pendiente adentro. Cerrada, es la única
+    // manera de enterarse de que adentro quedó trabajo sin hacer.
     const n = (s.items || []).reduce((t, i) => t + (i.cuenta ? num(i.cuenta) : 0), 0);
     const destino = s.hash || s.items[0].hash;
-    return `<a href="${destino}" class="${s === activa ? 'activo' : ''}"
-              >${esc(s.rotulo)}${chip(n)}</a>`;
+    const cabeza = `<a href="${destino}" class="cabeza ${abierta ? 'activo' : ''}"
+        ${abierta ? 'aria-current="true"' : ''}>${iconoSeccion(s.id)}
+        <span class="txt">${esc(s.rotulo)}</span>${chip(n, 'cosa')}</a>`;
+    if (!abierta || !(s.items || []).length) return `<div class="grupo">${cabeza}</div>`;
+    const items = s.items.map(i =>
+      `<a href="${i.hash}" class="${hash.startsWith(i.hash) ? 'activo' : ''}"
+         ${hash.startsWith(i.hash) ? 'aria-current="page"' : ''}
+         ><span class="txt">${esc(i.rotulo)}</span>${chip(i.cuenta ? num(i.cuenta) : 0, 'cosa')}</a>`
+    ).join('');
+    return `<div class="grupo">${cabeza}<div class="items">${items}</div></div>`;
   }).join('');
-
-  const sub = $('#nav-items');
-  sub.hidden = !(activa.items || []).length;
-  sub.innerHTML = (activa.items || []).map(i =>
-    `<a href="${i.hash}" class="${hash.startsWith(i.hash) ? 'activo' : ''}"
-       >${esc(i.rotulo)}${chip(i.cuenta ? num(i.cuenta) : 0)}</a>`).join('');
   medirTecho();
 }
 
@@ -401,12 +480,13 @@ async function vLegajos() {
   const r = await api('/api/legajos');
   const activos = r.legajos.filter(l => l.estado === 'activo');
   const archivados = r.legajos.filter(l => l.estado !== 'activo');
+  const papelera = r.papelera || [];
 
   const filaFecha = f => f.ultima_actividad ? fmtFecha(f.ultima_actividad) : '—';
   const cols = [
     {t:'Número', c:'mono', r:f => `<b>${esc(f.numero)}</b>`},
     {t:'Carátula', r:f => esc(f.caratula) + (f.demostracion
-        ? ' <span class="sello alerta">datos de prueba</span>' : '')},
+        ? ' ' + sello('alerta', 'datos de prueba') : '')},
     // Vacío de verdad cuando no hay fiscal cargado: en la tabla de escritorio el CSS
     // le pone la raya, y en el teléfono —donde cada renglón cuesta— no aparece nada.
     {t:'Fiscal responsable', r:f => esc(f.fiscal || '')},
@@ -415,9 +495,15 @@ async function vLegajos() {
     // Un legajo vacío no está «al día»: no hay nada revisado porque no hay nada cargado.
     // Poner el sello verde ahí sería decir que está terminado un trabajo que no empezó.
     {t:'Revisiones pendientes', c:'num', r:f => !f.documentos ? '—' : (f.pendientes
-        ? `<span class="sello alerta">${plural(f.pendientes, 'campo', 'campos')}</span>`
-        : '<span class="sello ok">al día</span>')},
+        ? sello('atencion', plural(f.pendientes, 'campo', 'campos'))
+        : sello('ok', 'al día'))},
     {t:'Última actividad', c:'mono', r:filaFecha},
+    // La eliminación vive en su propia columna y no en el renglón que se toca para
+    // abrir. Un botón de borrar adentro de una fila entera clicable es un accidente
+    // esperando la mano apurada de un martes.
+    {t:'', c:'acciones', r:f =>
+      `<button class="mini peligro" data-borrar="${esc(f.slug)}"
+               title="Eliminar el legajo ${esc(f.numero)}">Eliminar</button>`},
   ];
 
   const listado = activos.length
@@ -427,7 +513,7 @@ async function vLegajos() {
         'archivo aparte y no se cruzan con los de ninguna otra. Creá el primero acá abajo.');
 
   vista.innerHTML =
-    bloque('f. 0000', 'Legajos', `
+    bloque('f. 0000', 'Índice de legajos', `
       <h2>¿Sobre qué legajo vas a trabajar?</h2>
       <p class="prosa">Cada legajo tiene su propia base de datos. Mientras trabajás en uno,
         el sistema <strong>no puede ver ni sumar</strong> nada de los demás: no es un filtro
@@ -452,12 +538,20 @@ async function vLegajos() {
       </form>
       <p id="err-legajo" class="aviso" hidden></p>
       <p class="prosa" style="font-size:13px">El número queda como nombre de la carpeta en
-        disco, para que mirando los archivos se entienda qué hay adentro de cada una.</p>`);
+        disco, para que mirando los archivos se entienda qué hay adentro de cada una.</p>`) +
+    papeleraHTML(papelera);
 
-  vista.querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => {
+  vista.querySelectorAll('tbody tr').forEach(tr => tr.onclick = ev => {
+    if (ev.target.closest('button')) return;      // los botones hacen lo suyo
     const lista = tr.closest('details') ? archivados : activos;
     abrirLegajo(lista[+tr.dataset.i].slug);
   });
+  vista.querySelectorAll('[data-borrar]').forEach(b => b.onclick = ev => {
+    ev.stopPropagation();
+    const l = r.legajos.find(x => x.slug === b.dataset.borrar);
+    if (l) pedirEliminar(l);
+  });
+  engancharPapelera(papelera);
 
   $('#f-legajo').onsubmit = async ev => {
     ev.preventDefault();
@@ -473,6 +567,159 @@ async function vLegajos() {
       err.hidden = false;
     }
   };
+}
+
+/* ── Eliminar un legajo ─────────────────────────────────────────────────────
+   Lo que se elimina no se borra: la carpeta entera —base, imágenes de página y los
+   PDF que se subieron— se mueve a la papelera y se puede traer de vuelta completa.
+   Eso hay que DECIRLO en el cartel, porque de un botón rojo que dice «Eliminar»
+   cualquiera supone lo peor y no lo toca ni cuando corresponde.
+
+   Y para confirmar hay que escribir el número del legajo. No es una molestia
+   gratuita: una casilla que se tilda se tilda mirando el cartel, y el número obliga
+   a mirar CUÁL es el legajo que se está por sacar de la lista. */
+const pesoLegible = b => {
+  if (!b) return '—';
+  const u = ['B', 'kB', 'MB', 'GB'];
+  let i = 0, n = b;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return `${n < 10 && i ? n.toFixed(1) : Math.round(n)} ${u[i]}`;
+};
+
+function dialogo(html) {
+  const d = document.createElement('dialog');
+  d.className = 'dialogo';
+  d.innerHTML = html;
+  document.body.appendChild(d);
+  d.addEventListener('close', () => d.remove());
+  d.showModal();
+  return d;
+}
+
+function pedirEliminar(l) {
+  const d = dialogo(`
+    <form method="dialog" id="f-borrar">
+      <h3>Eliminar el legajo ${esc(l.numero)}</h3>
+      <p class="prosa">${esc(l.caratula)}</p>
+      <div class="aviso">${sello('atencion', 'Se puede deshacer')}
+        <span>El legajo sale de la lista y su carpeta entera —la base, las imágenes de
+          página y los PDF que se subieron— se guarda en la papelera. Desde ahí se
+          puede traer de vuelta con todo adentro.
+          ${l.documentos ? `Son <strong>${fmtNum.format(l.documentos)}</strong>
+            ${l.documentos === 1 ? 'documento' : 'documentos'}
+            ${l.pendientes ? `y <strong>${fmtNum.format(l.pendientes)}</strong>
+              ${l.pendientes === 1 ? 'campo revisado a mano' : 'campos revisados a mano'}` : ''}.`
+            : 'No tiene material cargado.'}</span></div>
+      <label for="conf-borrar">Escribí el número del legajo para confirmar:
+        <b class="mono">${esc(l.numero)}</b></label>
+      <input id="conf-borrar" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <p class="mal" id="err-borrar" hidden></p>
+      <div class="botonera">
+        <button class="boton gris" value="no" type="submit">No, dejalo</button>
+        <button class="boton peligro" id="b-confirmar" type="button" disabled>
+          Eliminar el legajo</button>
+      </div>
+    </form>`);
+
+  const campo = $('#conf-borrar', d), ok = $('#b-confirmar', d);
+  // El botón se prende sólo cuando lo escrito coincide. Un botón prendido que después
+  // rechaza es un botón que enseña a apretar sin leer.
+  campo.oninput = () => { ok.disabled = campo.value.trim() !== l.numero.trim(); };
+  campo.focus();
+  ok.onclick = async () => {
+    ok.disabled = true;
+    ok.textContent = 'eliminando…';
+    try {
+      const res = await api('/api/legajo/eliminar', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({slug: l.slug, confirmacion: campo.value})});
+      d.close();
+      // Si era el que estaba abierto, la cookie ya no vale: recargar es lo único
+      // honesto, porque en pantalla quedaron datos de un legajo que ya no está.
+      if (res.cerrado) { location.hash = '#/legajos'; return location.reload(); }
+      vLegajos();
+    } catch (e) {
+      const err = $('#err-borrar', d);
+      err.textContent = e.message; err.hidden = false;
+      ok.disabled = false; ok.textContent = 'Eliminar el legajo';
+    }
+  };
+}
+
+function papeleraHTML(p) {
+  if (!p.length) return '';
+  const total = p.reduce((t, x) => t + (x.bytes || 0), 0);
+  const cols = [
+    {t:'Número', c:'mono', r:f => esc(f.numero)},
+    {t:'Eliminado', c:'mono', r:f => esc(fechaDeMarca(f.eliminado_en))},
+    {t:'Documentos', c:'num', r:f => f.documentos ? fmtNum.format(f.documentos) : '—'},
+    {t:'Ocupa', c:'num mono', r:f => esc(pesoLegible(f.bytes))},
+    {t:'', c:'acciones', r:f =>
+      `<button class="mini" data-restaurar="${esc(f.marca)}">Restaurar</button>
+       <button class="mini peligro" data-destruir="${esc(f.marca)}">Borrar del disco</button>`},
+  ];
+  return bloque('f. 0000', 'Papelera', `
+    <h2>Legajos eliminados</h2>
+    <p class="prosa">Están completos y se pueden restaurar. Siguen ocupando disco
+      —<strong>${esc(pesoLegible(total))}</strong> en total—, así que si hace falta
+      lugar, acá se libera. <strong>Borrarlos del disco no tiene vuelta atrás.</strong></p>
+    <div class="tabla-legajos">${tabla(cols, p)}</div>`);
+}
+
+/* La marca guarda la fecha como `20260831-141203`, que es un buen nombre de carpeta y
+   una mala cosa para leer. */
+function fechaDeMarca(m) {
+  const g = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/.exec(m || '');
+  return g ? `${g[3]}/${g[2]}/${g[1]} ${g[4]}:${g[5]}` : (m || '—');
+}
+
+function engancharPapelera(p) {
+  vista.querySelectorAll('[data-restaurar]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      await api('/api/papelera/restaurar', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({marca: b.dataset.restaurar})});
+      vLegajos();
+    } catch (e) { alert('No se pudo restaurar: ' + e.message); b.disabled = false; }
+  });
+  vista.querySelectorAll('[data-destruir]').forEach(b => b.onclick = () => {
+    const f = p.find(x => x.marca === b.dataset.destruir);
+    if (!f) return;
+    const d = dialogo(`
+      <form method="dialog">
+        <h3>Borrar del disco el legajo ${esc(f.numero)}</h3>
+        <div class="aviso alerta">${sello('alerta', 'Sin vuelta atrás')}
+          <span>Se borran la base, las imágenes de página y <strong>los PDF que se
+            subieron</strong>. Si esos PDF no están copiados en otro lado, esta es la
+            última copia. Se liberan ${esc(pesoLegible(f.bytes))}.</span></div>
+        <label for="conf-destruir">Escribí el número del legajo para confirmar:
+          <b class="mono">${esc(f.numero)}</b></label>
+        <input id="conf-destruir" autocomplete="off" spellcheck="false">
+        <p class="mal" id="err-destruir" hidden></p>
+        <div class="botonera">
+          <button class="boton gris" value="no" type="submit">Mejor no</button>
+          <button class="boton peligro" id="b-destruir" type="button" disabled>
+            Borrar definitivamente</button>
+        </div>
+      </form>`);
+    const campo = $('#conf-destruir', d), ok = $('#b-destruir', d);
+    campo.oninput = () => { ok.disabled = campo.value.trim() !== f.numero.trim(); };
+    campo.focus();
+    ok.onclick = async () => {
+      ok.disabled = true; ok.textContent = 'borrando…';
+      try {
+        await api('/api/papelera/destruir', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({marca: f.marca, confirmacion: campo.value})});
+        d.close(); vLegajos();
+      } catch (e) {
+        const err = $('#err-destruir', d);
+        err.textContent = e.message; err.hidden = false;
+        ok.disabled = false; ok.textContent = 'Borrar definitivamente';
+      }
+    };
+  });
 }
 
 /* Abrir un legajo cambia la base entera: se recarga la página en vez de repintar.
@@ -1091,47 +1338,73 @@ async function vCola(campoId) {
     .map(o => `<option value="${esc(o.valor ?? '')}">${esc(rotular(o.valor))} (${
       fmtNum.format(o.n)})</option>`).join('');
 
-  vista.innerHTML = bloque('f. 0006', 'Cola', `
-    <h2>Cola de revisión</h2>
-    <p class="prosa">${plural(r.total_sin_filtro, 'campo espera', 'campos esperan')}
-      revisión, ordenados por lo que más daño hace si queda mal.
-      <strong>El folio está a la vista</strong>: no hace falta salir de acá.<span
-      class="solo-teclado"> <kbd>J</kbd>/<kbd>K</kbd> para moverse, las teclas de cada
-      fila para decidir.</span> <strong>Ninguna acción es «aceptar todo».</strong></p>
+  /* La cola no es una página: es un puesto de trabajo, y por eso no se pinta dentro
+     del bloque con marginalia como el resto. Ocupa el alto entero de la ventana y se
+     parte en cuatro fajas —encabezado, filtros, los dos paneles, pie—, donde las tres
+     que no son los paneles quedan quietas.
 
-    <div class="filtros-cola">
-      <label>Documento
-        <select id="f-familia"><option value="">todos (${todas.length})</option>
-          ${opciones('familia', v => FAMILIA_DOC[v] || 'sin clasificar')}</select></label>
-      <label>Campo
-        <select id="f-campo"><option value="">todos</option>
-          ${opciones('campo', v => rotularCampo(v))}</select></label>
-      <label>Motivo
-        <select id="f-clase"><option value="">todos</option>
-          ${opciones('clase', v => CLASE_COLA[v] || v)}</select></label>
-      ${filtroCola.familia || filtroCola.campo || filtroCola.clase
-        ? `<button class="boton gris" id="f-limpiar">Quitar los filtros</button>` : ''}
-      <span class="posicion" id="posicion"></span>
-    </div>
-    ${!filas.length ? vacio('Ningún campo entra en ese filtro',
-        'Hay ' + plural(todas.length, 'campo esperando revisión', 'campos esperando revisión') +
-        ', pero ninguno cumple lo que pediste.') : ''}
-    <div class="deshacer-barra" id="deshacer-barra" hidden></div>
-    <div class="cola-partida">
-      <div class="cola" id="cola">${filas.map(filaCola).join('')}
-        ${filas.length < r.total ? `<button class="mas-cola" id="mas-cola">Traer
-          ${plural(Math.min(POR_PAGINA, r.total - filas.length), 'campo más', 'campos más')}
-          <span>quedan ${fmtNum.format(r.total - filas.length)}</span></button>` : ''}</div>
-      <aside class="folio-lado" id="folio-lado">
-        <div class="lupa" id="lupa"><img id="lupa-img" alt=""></div>
-        <div class="pie-lamina"><span id="lupa-campo"></span><span id="lupa-xy"></span></div>
-        <div class="lienzo" id="lienzo-cola">
-          <img id="folio-cola" alt="">
-          <div class="recuadro" id="recuadro-cola" style="display:none"></div>
+     Lo que se arregla con eso: antes la página tenía su propio desplazamiento Y la
+     lista tenía el suyo adentro, uno al lado del otro, y cuál de los dos se movía
+     dependía de dónde había quedado el puntero. La rueda del mouse hacía dos cosas
+     distintas a un centímetro de diferencia. Y el «1 de 42» y los filtros se iban para
+     arriba en cuanto bajabas tres filas, justo cuando más falta hacen: revisando el
+     campo treinta, saber que vas por el treinta es la mitad del sentido de la tarea.
+
+     Ahora se mueve una sola cosa: la lista. La foja de al lado entra entera en su
+     panel, escalada, sin desplazamiento propio. */
+  document.body.classList.add('taller-abierto');
+  vista.innerHTML = `
+    <div class="taller">
+      <header class="taller-cabeza">
+        <div>
+          <h2>Cola de revisión</h2>
+          <p class="taller-sub">${plural(r.total_sin_filtro, 'campo espera', 'campos esperan')}
+            revisión, ordenados por lo que más daño hace si queda mal. <strong>El folio
+            está a la vista</strong>: no hace falta salir de acá.</p>
         </div>
-        <a class="chip" id="ir-doc" href="#/panel">ver el documento completo</a>
-      </aside>
-    </div>`);
+        <div class="posicion" id="posicion"></div>
+      </header>
+
+      <div class="taller-filtros">
+        <label>Documento
+          <select id="f-familia"><option value="">todos (${todas.length})</option>
+            ${opciones('familia', v => FAMILIA_DOC[v] || 'sin clasificar')}</select></label>
+        <label>Campo
+          <select id="f-campo"><option value="">todos</option>
+            ${opciones('campo', v => rotularCampo(v))}</select></label>
+        <label>Motivo
+          <select id="f-clase"><option value="">todos</option>
+            ${opciones('clase', v => CLASE_COLA[v] || v)}</select></label>
+        ${filtroCola.familia || filtroCola.campo || filtroCola.clase
+          ? `<button class="boton gris" id="f-limpiar">Quitar los filtros</button>` : ''}
+      </div>
+
+      <div class="taller-cuerpo">
+        <div class="cola" id="cola">${
+          !filas.length ? vacio('Ningún campo entra en ese filtro',
+            'Hay ' + plural(todas.length, 'campo esperando revisión',
+                            'campos esperando revisión') +
+            ', pero ninguno cumple lo que pediste.') : ''}${filas.map(filaCola).join('')}
+          ${filas.length < r.total ? `<button class="mas-cola" id="mas-cola">Traer
+            ${plural(Math.min(POR_PAGINA, r.total - filas.length), 'campo más', 'campos más')}
+            <span>quedan ${fmtNum.format(r.total - filas.length)}</span></button>` : ''}</div>
+        <aside class="folio-lado" id="folio-lado">
+          <div class="lupa" id="lupa"><img id="lupa-img" alt=""></div>
+          <div class="pie-lamina"><span id="lupa-campo"></span><span id="lupa-xy"></span></div>
+          <div class="lienzo" id="lienzo-cola">
+            <img id="folio-cola" alt="">
+            <div class="recuadro" id="recuadro-cola" style="display:none"></div>
+          </div>
+          <a class="chip" id="ir-doc" href="#/panel">ver el documento completo</a>
+        </aside>
+      </div>
+
+      <footer class="taller-pie">
+        <span class="solo-teclado"><kbd>J</kbd>/<kbd>K</kbd> para moverse; las teclas de
+          cada fila para decidir. <strong>Ninguna acción es «aceptar todo».</strong></span>
+        <div class="deshacer-barra" id="deshacer-barra" hidden></div>
+      </footer>
+    </div>`;
 
   engancharFilasCola();
   [['f-familia','familia'], ['f-campo','campo'], ['f-clase','clase']].forEach(([id, clave]) => {
@@ -2036,6 +2309,53 @@ async function seguirTrabajo() {
 }
 
 
+/* ── Acerca del sistema ────────────────────────────────────────────────────
+   Quién firma esto y qué versión se está usando. Es la pantalla que se abre cuando
+   alguien pregunta «¿esto de dónde salió?» —en una audiencia, en una reunión— y hay
+   que contestar sin buscar en ningún lado. Los nombres salen de ufil/identidad.py:
+   acá no hay ninguno escrito. */
+async function vAcerca() {
+  const d = IDENTIDAD || await api('/api/identidad');
+  const c = await api('/api/cuentas').catch(() => ({}));
+  const fiscales = (d.fiscales || []);
+
+  vista.innerHTML =
+    bloque('f. 0000', 'Identidad', `
+      <h2>${esc(d.sistema)}</h2>
+      <div class="ficha-identidad">
+        <div class="jerarquia">
+          <div class="nivel n1">${esc(d.linea_organismo)}</div>
+          <div class="nivel n2">${esc(d.unidad_larga)}</div>
+          <div class="nivel n3">${esc(d.area)}</div>
+          <div class="nivel n4">${esc(d.sistema)}</div>
+        </div>
+        ${fiscales.length ? `<div class="fiscales">
+          <div class="rotulo">${esc(fiscales.length > 1 ? d.rotulo_fiscales : 'Fiscal')}</div>
+          <ul>${fiscales.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+        </div>` : ''}
+      </div>
+      <p class="prosa">Estos nombres son los que salen impresos en la portada de cada
+        planilla y de cada informe que genera el sistema. Se cambian en un solo lugar
+        —<span class="mono">ufil/identidad.py</span>, o un archivo
+        <span class="mono">identidad.json</span> en la carpeta de datos— y cambian en
+        todas partes a la vez.</p>`) +
+    bloque('f. 0000', 'Versión', `
+      <h2>Qué versión estás usando</h2>
+      <table class="salud"><tbody>
+        <tr><td>${sello('neutro', 'Interfaz')}</td>
+            <td class="mono">${esc(VERSION_CARGADA || c.version || '—')}</td>
+            <td>La huella del archivo de la interfaz que cargó esta pestaña. Si el
+              servidor pasa a servir otra, aparece un aviso arriba.</td></tr>
+        <tr><td>${sello('neutro', 'Legajo abierto')}</td>
+            <td class="mono">${esc(c.legajo ? c.legajo.numero : 'ninguno')}</td>
+            <td>${c.legajo ? esc(c.legajo.caratula)
+              : 'Cada legajo es una base separada. <a href="#/legajos">Elegir uno</a>.'}</td></tr>
+      </tbody></table>
+      <p class="prosa">Lo que hace y lo que <strong>no</strong> hace el sistema está
+        contado en <a href="#/como-funciona">Cómo funciona</a>. Si algo no anda,
+        <a href="#/salud">Estado del sistema</a> dice qué falta y cómo se arregla.</p>`);
+}
+
 /* ── Cómo funciona ─────────────────────────────────────────────────────── */
 /* La pantalla que contesta lo que pregunta cualquiera que ve esto por primera vez:
    de dónde salen los datos, qué pasa si el sistema se equivoca, y qué NO hace. */
@@ -2285,6 +2605,7 @@ function vComoFunciona() {
 
 /* ── ruteo ─────────────────────────────────────────────────────────────── */
 const TITULOS = {
+  '#/acerca': 'Acerca del sistema',
   '#/panel':'Panel', '#/ingesta':'Cargar escaneos', '#/buscar':'Buscar',
   '#/contratos':'Contratos', '#/personas':'Personas',
   '#/superposiciones':'Superposiciones', '#/cola':'Cola de revisión',
@@ -2295,25 +2616,22 @@ const TITULOS = {
   '#/comprobantes':'Facturas y recibos', '#/cruce':'Facturado contra contratado',
 };
 
-/* ── Cuánto ocupan las tiras de arriba ─────────────────────────────────────
-   Las tres tiras pegadas al borde superior (aviso de demostración, cinta de legajo,
-   techo) se apilan una debajo de la otra, y lo de más abajo —la lupa de la cola—
-   tiene que empezar donde terminan.
+/* ── Cuánto ocupa la barra de arriba ───────────────────────────────────────
+   Lo que se pega más abajo —la lupa de la cola de revisión— tiene que empezar donde
+   termina el techo.
 
-   Eso estaba escrito a mano en el CSS y estaba mal: el encabezado mide 71 px y decía
-   59, así que las pestañas se le montaban encima. Y ningún número fijo puede acertar,
-   porque las pestañas entran en uno o dos renglones según el ancho de la ventana.
-   Así que se mide y se escribe en las variables. */
+   Eso estuvo escrito a mano en el CSS y estaba mal: el encabezado medía 71 px y el
+   CSS decía 59, así que las pestañas se le montaban 12 px encima. Y ningún número
+   fijo podía acertar, porque las pestañas entraban en uno o dos renglones según el
+   ancho de la ventana.
+
+   Con la navegación al costado quedó una sola tira arriba y su alto ya no depende del
+   ancho, pero se sigue midiendo: es una línea de código contra un defecto que ya
+   apareció una vez. */
 function medirTecho() {
-  const alto = sel => {
-    const e = document.querySelector(sel);
-    if (!e || e.hidden || getComputedStyle(e).position === 'static') return 0;
-    return Math.round(e.getBoundingClientRect().height);
-  };
-  const r = document.documentElement.style;
-  r.setProperty('--h-demo',  alto('#aviso-demo') + 'px');
-  r.setProperty('--h-cinta', alto('#cinta-legajo') + 'px');
-  r.setProperty('--h-techo', alto('#techo') + 'px');
+  const e = document.querySelector('#techo');
+  const alto = e && !e.hidden ? Math.round(e.getBoundingClientRect().height) : 0;
+  document.documentElement.style.setProperty('--h-techo', alto + 'px');
 }
 addEventListener('resize', medirTecho);
 
@@ -2336,16 +2654,15 @@ function avisarSiHayVersionNueva(version) {
 /* Pinta la cinta de legajo y decide si hay que mandar a elegir uno. Devuelve true
    cuando redirigió, para que quien la llame no siga pintando datos que no van. */
 function pintarLegajo(p) {
-  const cinta = document.getElementById('cinta-legajo');
   const l = p.legajo;
   document.body.classList.toggle('con-legajo', !!l);
-  cinta.hidden = !l;
-  if (l) {
-    $('#l-numero').textContent = l.numero;
-    $('#l-caratula').textContent = l.caratula;
-    $('#l-fiscal').textContent = l.fiscal ? 'Fiscal: ' + l.fiscal : '';
-  }
-  medirTecho();          // aparecer o irse una tira corre todo lo de abajo
+  $('#l-numero').textContent = l ? l.numero : '—';
+  $('#l-caratula').textContent = l ? l.caratula : 'Ninguno abierto';
+  $('#t-legajo').title = l
+    ? `Legajo ${l.numero} — ${l.caratula}` + (l.fiscal ? ` · Fiscal: ${l.fiscal}` : '')
+      + '\nTocá para cambiar de legajo'
+    : 'Elegir un legajo';
+  medirTecho();          // aparecer o irse el aviso corre todo lo de abajo
   // Sin legajo abierto, a elegir uno. Vale tanto para la instalación recién puesta
   // —donde lo primero que hay que hacer es abrir la causa, no cargar escaneos en una
   // base suelta— como para el que acaba de cerrar la que tenía.
@@ -2382,19 +2699,59 @@ async function refrescarCuentas() {
     pintarNav(location.hash || '#/panel');
     // El lote sólo cuando hay uno. «lote —» es una etiqueta sin dato: ocupa el mismo
     // lugar que algo útil y no dice nada.
-    $('#f-lote').textContent = p.lote ? 'lote ' + p.lote : '';
-    const marca = document.getElementById('marca');
+    $('#f-lote').textContent = p.lote || '';
+    $('#t-lote').hidden = !p.lote;
+    const marca = document.getElementById('identidad-oficial');
     if (marca) marca.hidden = !p.marca;
-    const s = $('#sello-estado');
-    // «Al día» sobre una base vacía es afirmar terminado un trabajo que no empezó.
-    // Sin documentos no hay estado que informar, y decirlo así es lo honesto.
-    if (!p.documentos) { s.textContent = 'Sin datos'; s.className = 'sello'; }
-    else {
-      s.textContent = p.a_revisar ? plural(p.a_revisar, 'campo a revisar', 'campos a revisar')
-                                  : 'al día';
-      s.className = 'sello ' + (p.a_revisar ? 'alerta' : 'ok');
-    }
+
+    ULTIMO_PANEL = p;
+    pintarEstadoTecho();
   } catch (e) { /* base todavía vacía */ }
+}
+
+/* ── Qué está pasando, arriba a la derecha ─────────────────────────────────
+   Un solo sello dice lo único que importa saber sin ir a buscarlo: si el sistema
+   está leyendo escaneos en este momento y por dónde va, o —si no está haciendo
+   nada— cuánto queda por revisar.
+
+   Que el avance se vea desde cualquier pantalla no es un lujo: procesar un lote de
+   trescientas fojas tarda minutos, y hasta ahora la única manera de saber si seguía
+   era volver a la pantalla de carga. Quien se iba a mirar contratos no tenía forma
+   de enterarse de que había terminado. */
+let ULTIMO_PANEL = null;
+let TRABAJO = null;
+
+function pintarEstadoTecho() {
+  const el = $('#sello-estado');
+  const p = ULTIMO_PANEL;
+  if (TRABAJO && TRABAJO.estado === 'corriendo') {
+    const pct = TRABAJO.total ? Math.round(100 * TRABAJO.hecho / TRABAJO.total) : 0;
+    return pintarSello(el, 'trabajando', `Leyendo ${pct}%`, {gira: true,
+      titulo: `${TRABAJO.etapa || 'procesando'} · ${TRABAJO.hecho} de ${TRABAJO.total}`});
+  }
+  if (!p) { el.hidden = true; return; }
+  // «Al día» sobre una base vacía es afirmar terminado un trabajo que no empezó.
+  // Sin documentos no hay estado que informar, y decirlo así es lo honesto.
+  if (!p.documentos) return pintarSello(el, 'neutro', 'Sin documentos');
+  if (p.a_revisar) return pintarSello(el, 'atencion',
+    plural(p.a_revisar, 'campo a revisar', 'campos a revisar'), {relleno: true});
+  pintarSello(el, 'ok', 'Todo revisado');
+}
+
+/* Mientras hay algo corriendo se pregunta cada dos segundos; cuando no hay nada, no
+   se pregunta más y se espera al próximo refresco. Un temporizador que sigue latiendo
+   sobre una pestaña abierta toda la tarde es tráfico que no sirve a nadie. */
+let vigilando = null;
+async function vigilarTrabajo() {
+  clearTimeout(vigilando);
+  try {
+    const t = await api('/api/trabajo');
+    const terminaba = TRABAJO && TRABAJO.estado === 'corriendo';
+    TRABAJO = t;
+    pintarEstadoTecho();
+    if (t.estado === 'corriendo') vigilando = setTimeout(vigilarTrabajo, 2000);
+    else if (terminaba) refrescarCuentas();   // terminó: los números cambiaron
+  } catch (e) { TRABAJO = null; }
 }
 
 const rutas = [
@@ -2414,6 +2771,7 @@ const rutas = [
   [/^#\/interpretacion$/,        vInterpretacion],
   [/^#\/consultas\/?(.*)$/,      vConsultas],
   [/^#\/como-funciona$/,         vComoFunciona],
+  [/^#\/acerca$/,                vAcerca],
   [/^#\/afuera$/,                vAfuera],
   [/^#\/salud$/,                 vSalud],
 ];
@@ -2422,7 +2780,12 @@ async function rutear() {
   const h = location.hash || '#/panel';
   pintarNav(h);
   const base = '#/' + h.split('/')[1];
-  document.title = (TITULOS[base] || 'Análisis documental') + ' · UFIL Paraná';
+  document.title = (TITULOS[base] || 'Análisis documental')
+    + ' · ' + (IDENTIDAD ? IDENTIDAD.unidad : 'UFIL Paraná');
+  // La cola ocupa el alto entero de la ventana y apaga el desplazamiento de la
+  // página. Al salir de ahí hay que devolverlo, o el resto del sistema queda con el
+  // pie cortado y sin manera de bajar.
+  document.body.classList.remove('taller-abierto');
   vista.innerHTML = '<div class="esqueleto"><i></i><i></i><i></i></div>';
   for (const [re, fn] of rutas) {
     const m = h.match(re);
@@ -2446,16 +2809,99 @@ async function rutear() {
   location.hash = '#/panel';
 }
 
+/* ── El tema ───────────────────────────────────────────────────────────────
+   Decía «Tema», que no es ni una pregunta ni una respuesta: no se sabe si dice en
+   qué tema estás o qué tema vas a poner. Ahora dice qué va a pasar si lo tocás.
+
+   Sin elección guardada manda la preferencia del sistema, que es lo que la persona
+   ya configuró una vez y no tiene por qué repetir acá. */
+const temaDelSistema = () =>
+  matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro';
+const temaPuesto = () => document.documentElement.dataset.tema || temaDelSistema();
+
+const ICONO_TEMA = {
+  oscuro: '<circle cx="9" cy="9" r="3.6" fill="none"/><path d="M9 1.4v2M9 14.6v2' +
+          'M1.4 9h2M14.6 9h2M3.6 3.6 5 5M13 13l1.4 1.4M14.4 3.6 13 5M5 13l-1.4 1.4"/>',
+  claro:  '<path d="M15.3 10.6A6.6 6.6 0 0 1 7.4 2.7a6.9 6.9 0 1 0 7.9 7.9z" fill="none"/>',
+};
+
+function pintarBotonTema() {
+  const proximo = temaPuesto() === 'oscuro' ? 'claro' : 'oscuro';
+  const b = $('#b-tema');
+  b.innerHTML = `<svg viewBox="0 0 18 18" width="15" height="15" aria-hidden="true"
+      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"
+      >${ICONO_TEMA[proximo]}</svg><span>Activar modo ${proximo}</span>`;
+  b.setAttribute('aria-pressed', String(temaPuesto() === 'oscuro'));
+}
+
 $('#b-tema').onclick = () => {
-  const actual = document.documentElement.dataset.tema;
-  const nuevo = actual === 'oscuro' ? 'claro' : 'oscuro';
+  const nuevo = temaPuesto() === 'oscuro' ? 'claro' : 'oscuro';
   document.documentElement.dataset.tema = nuevo;
-  localStorage.setItem('ufil.tema', nuevo);
+  try { localStorage.setItem('ufil.tema', nuevo); } catch (e) {}
+  pintarBotonTema();
 };
 try { const t = localStorage.getItem('ufil.tema'); if (t) document.documentElement.dataset.tema = t; } catch (e) {}
+// Quien no eligió sigue al sistema, y lo sigue también cuando el sistema cambia solo
+// —muchos escritorios pasan a oscuro al anochecer—.
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', pintarBotonTema);
+pintarBotonTema();
 
-$('#f-fecha').textContent = new Date().toLocaleDateString('es-AR');
+/* ── El cajón de la barra lateral, en pantallas chicas ─────────────────────
+   Se cierra con Escape, tocando el velo, y sola cuando se elige a dónde ir: dejarla
+   abierta tapando lo que la persona acaba de pedir es hacerle tocar dos veces. */
+const lateral = $('#lateral'), velo = $('#velo'), bMenu = $('#b-menu');
+function cajon(abrir) {
+  lateral.classList.toggle('abierta', abrir);
+  velo.hidden = !abrir;
+  bMenu.setAttribute('aria-expanded', String(abrir));
+  if (abrir) lateral.querySelector('a, button')?.focus();
+}
+bMenu.onclick = () => cajon(!lateral.classList.contains('abierta'));
+velo.onclick = () => cajon(false);
+lateral.addEventListener('click', e => { if (e.target.closest('a')) cajon(false); });
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && lateral.classList.contains('abierta')) { cajon(false); bMenu.focus(); }
+});
+
+/* ── La búsqueda de arriba ─────────────────────────────────────────────────
+   Es la misma pantalla de búsqueda de siempre; lo único que cambia es que se puede
+   empezar desde cualquier lado sin ir a buscarla. */
+$('#t-buscar').onsubmit = e => {
+  e.preventDefault();
+  const q = $('#q-rapida').value.trim();
+  if (q) location.hash = '#/buscar/' + encodeURIComponent(q);
+};
+// «/» para empezar a buscar, como en cualquier otra herramienta de texto. No se roba
+// la tecla si la persona está escribiendo en otro campo.
+addEventListener('keydown', e => {
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+  e.preventDefault();
+  $('#q-rapida').focus();
+  $('#q-rapida').select();
+});
+
+/* ── Quién firma ───────────────────────────────────────────────────────────
+   Los nombres de la casa vienen del servidor (ufil/identidad.py), no escritos acá:
+   cambiar de fiscal no puede obligar a tocar seis archivos. */
+async function pintarIdentidad() {
+  try {
+    const d = await api('/api/identidad');
+    IDENTIDAD = d;
+    $('#m-unidad').textContent = d.unidad;
+    $('#m-area').textContent = d.area;
+    $('#m-organismo').textContent = d.linea_organismo;
+    const oficial = $('#identidad-oficial');
+    if (oficial) oficial.alt = d.linea_organismo;
+    document.title = document.title.replace(/· .*$/, '· ' + d.unidad);
+  } catch (e) { /* la barra ya trae los valores de la casa escritos en el HTML */ }
+}
+let IDENTIDAD = null;
+
 medirTecho();
 addEventListener('hashchange', rutear);
+pintarIdentidad();
 rutear();
 refrescarCuentas();
+vigilarTrabajo();

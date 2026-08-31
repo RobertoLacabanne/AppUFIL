@@ -32,48 +32,87 @@ CDN también le cuenta a alguien que este equipo está mirando este legajo.
 
 ## 2. Color
 
-### La paleta
+### La paleta institucional
 
-Papel y tinta, no blanco y negro. El fondo es un blanco cálido de papel de expediente
-y la tinta es un negro azulado, no `#000`.
+Los colores son los del Ministerio Público Fiscal de Entre Ríos. No decoran: nombran.
+Cuatro familias, y cada una tiene un oficio del que no se sale.
 
-| Token | Claro | Oscuro |
-|---|---|---|
-| `--papel` | `#FCFBF9` | `#16181B` |
-| `--papel-2` | `#F1EFEA` | `#1E2126` |
-| `--papel-3` | `#E7E4DD` | `#272B31` |
-| `--tinta` | `#1B1D21` | `#E6E3DC` |
-| `--tinta-2` | `#5A5D64` | `#9B9A95` |
-| `--tinta-3` | `#84868C` | `#75767A` |
-| `--filete` | `#CFCBC2` | `#33373D` |
-| `--filete-2` | `#E3E0D9` | `#25292E` |
-| `--borde-control` | `#8C8A80` | `#6D6B64` |
-| `--sello` | `#23477A` | `#7EA3D6` |
-| `--sello-suave` | `#DCE4F0` | `#1C2836` |
-| `--interp` | `#E9EDF3` | `#1B2028` |
-| `--interp-filete` | `#7F97B8` | `#4A5E7A` |
-| `--verde` | `#2C5946` | `#79B79B` |
-| `--ambar` | `#8A6714` | `#D0A63F` |
-| `--lapiz` | `#96301F` | `#E08472` |
-| `--lapiz-suave` | `#F4E2DE` | `#31201D` |
-| `--marca` | `#31629E` | `#5A8CCF` |
-| `--marca-solape` | `#A8402A` | `#CC6A52` |
+| | Token | Claro | Oscuro |
+|---|---|---|---|
+| **verde institucional** | `--verde-inst` | `#23594C` | `#72B5A2` |
+| **verde operativo** | `--verde-oper` | `#2F7463` | `#72B5A2` |
+| **turquesa Paraná** | `--turquesa` | `#4D927F` | `#5FA894` |
+| **dorado justicia** | `--oro` | `#D7B46A` | `#E5C57C` |
+| **rojo** | `--lapiz` | `#B71C1C` | `#F08B8B` |
+| papel cálido | `--papel` | `#FCFBF8` | `#0B1213` |
+| fondo secundario | `--papel-2` | `#F2F0E9` | `#111C1B` |
+| superficie elevada | `--papel-3` | `#E8E5DB` | `#172522` |
+| azul tinta | `--tinta` | `#0F172A` | `#F2F5F2` |
+| texto secundario | `--tinta-2` | `#5D6B66` | `#AEBBB7` |
+| marginalia | `--tinta-3` | `#78857F` | `#8A9A95` |
+| filete decorativo | `--filete` | `#DCD9CF` | `#2C413C` |
+| borde de control | `--borde-control` | `#70827C` | `#5A7A74` |
+| barra lateral | `--barra` | `#23594C` | `#111C1B` |
+| ítem abierto | `--barra-2` | `#1B4A3E` | `#1B2E2A` |
+| ítem bajo el puntero | `--barra-3` | `#2F7463` | `#24413B` |
+| texto de la barra | `--barra-txt` | `#F4F8F6` | `#F2F5F2` |
+| rótulos de la barra | `--barra-txt-2` | `#B9D2C8` | `#AEBBB7` |
+| enlaces y sellos | `--sello` | `#23594C` | `#72B5A2` |
+| carril de interpretación | `--interp` | `#EDF3F0` | `#14201F` |
+| su borde | `--interp-filete` | `#43836F` | `#5A857A` |
+| atención | `--ambar` | `#8A6714` | `#E5C57C` |
+| cronología | `--marca` | `#2F7463` | `#5FA894` |
+| superposición | `--marca-solape` | `#B71C1C` | `#F08B8B` |
 
-### Qué significa cada color
+### Qué puede decir cada color
 
-* **`--sello` (azul)** — el sistema afirmando algo: enlaces, sellos, la pestaña activa.
-* **`--verde`** — firme. Se puede sumar, cruzar y llevar a un informe.
-* **`--ambar`** — atención: se puede trabajar igual, pero conviene mirarlo.
-* **`--lapiz` (rojo)** — alerta o trabajo pendiente. Es el lápiz rojo del corrector.
+* **Verde institucional** — quién sos y dónde estás parado: la barra lateral, la marca,
+  los enlaces, el botón que hace la acción principal.
+* **Turquesa Paraná** — información y avance: barras de progreso, el carril de
+  interpretación, los trazos de la cronología. Da **3,54:1** sobre el papel: alcanza
+  para un trazo o un borde (WCAG 1.4.11 pide 3:1) y **no alcanza para texto corriente**.
+  Donde el turquesa tiene que hablar, habla el verde operativo (5,34:1).
+* **Dorado justicia** — detalle institucional, y nada más. Da **1,91:1** sobre el papel:
+  sobre el papel es adorno y no puede llevar información. Sobre el verde de la barra da
+  4,08:1 y ahí sí marca el ítem activo. Hay una prueba
+  (`ElDoradoNoLlevaInformacion`) que verifica que `color:var(--oro)` no aparezca fuera
+  de la barra lateral.
+* **Rojo** — error, conflicto y destrucción. Sólo eso. Un rojo que también sirve para
+  «importante» es un rojo que ya no alarma a nadie. En los botones vive únicamente en
+  `.boton.peligro` y `.mini.peligro`, que son los que borran algo.
 * **`--interp`** — el carril de interpretación. Fondo propio, para que una hipótesis
   nunca se lea como un dato.
 * **`--marca` / `--marca-solape`** — la cronología. Un solo tono para los contratos; el
   rojo marca **únicamente** la superposición, que es lo que el gráfico existe para
   mostrar. La cámara va como texto en el rótulo: la identidad no depende del color.
 
-**Todos los colores viven en los dos bloques de paleta.** `--marca` y `--marca-solape`
-estaban en un `:root` suelto doscientas líneas más abajo, y por eso ninguna prueba de
+**Todos los colores viven en los tres bloques de paleta.** `--marca` y `--marca-solape`
+estuvieron en un `:root` suelto doscientas líneas más abajo, y por eso ninguna prueba de
 contraste los miraba. Un color fuera de la paleta es un color que nadie mide.
+
+### El oscuro es una paleta pensada, no la clara dada vuelta
+
+Los verdes suben de luminosidad para no apagarse contra el fondo, y el fondo tira a
+verde muy oscuro —no a gris— para que siga siendo la misma casa. Se declara **dos
+veces**: una para `prefers-color-scheme: dark` y otra para `[data-tema="oscuro"]`, que
+es la elección explícita. Son idénticas a propósito, y por eso mismo se separan solas:
+se toca una, se olvida la otra, y el que eligió el oscuro a mano ve una pantalla
+distinta que el que lo tiene por preferencia del sistema.
+`ElOscuroEsUnaPaletaYNoDosSueltas` verifica que no se separen.
+
+El botón dice **«Activar modo oscuro»** / **«Activar modo claro»**: qué va a pasar si lo
+tocás. Decía «Tema», que no es ni una pregunta ni una respuesta.
+
+### Movimiento
+
+Un solo tiempo para todo: `--paso: 140ms` con `--curva: cubic-bezier(.2,.6,.3,1)`. Se
+mueve lo que ayuda a entender qué pasó —de dónde salió el cajón de la barra lateral, que
+la fila que acabás de decidir se fue— y nada más. La única cosa que se mueve sola es la
+rueda del sello «trabajando», porque decir «esperá» con algo quieto no se distingue de
+decirlo con algo colgado.
+
+`prefers-reduced-motion: reduce` lo apaga **todo**, sin excepciones: hay gente a la que
+el movimiento le da náuseas o le dispara una migraña.
 
 ### `--filete` no es `--borde-control`
 
@@ -145,8 +184,10 @@ J» donde no hay teclado es peor que no decir nada.
 
 * Botones y campos: `min-height:44px`, que es la medida abajo de la cual se falla el toque.
 * Campos a `font-size:16px`: con menos, iOS hace zoom al tocarlos y descuadra la pantalla.
-* La cinta de legajo se queda pegada arriba; el encabezado y las pestañas se van con el
-  scroll. En una pantalla de 844 px de alto se comían 200 entre las dos.
+* La barra lateral se guarda y se abre con el botón de la izquierda del techo. 232 px
+  fijos son un cuarto de la pantalla gastado en decir dónde estás.
+* La barra de arriba se queda pegada: es un renglón, y es lo único que dice sobre qué
+  causa se está mirando.
 
 ---
 
@@ -165,49 +206,113 @@ marginalia de un expediente: dice dónde estás sin ocupar el lugar del contenid
 
 En pantallas de menos de 720 px la canaleta desaparece y el rótulo pasa arriba.
 
-### Las tiras de arriba, y cómo se apilan
+### El armazón
 
-Hay hasta tres pegadas al borde superior: el **aviso de datos de demostración**, la
-**cinta de legajo** y el **techo** (encabezado + pestañas).
+La pantalla se parte en dos y no cambia nunca: a la izquierda **dónde estás parado**
+(la barra lateral, verde institucional macizo), a la derecha **en qué estás trabajando**.
+Arriba de la derecha, una barra de un renglón con el legajo abierto, el lote, qué está
+haciendo el sistema y la búsqueda.
 
-Sus posiciones **las mide el navegador** y las escribe en `--h-demo`, `--h-cinta` y
-`--h-techo` (ver `medirTecho` en `app.js`). No están escritas a mano, y hay un motivo:
-antes eran seis números repartidos por la hoja (`0`, `37`, `59`, `96`, `150`, `190`) y
-**eran mentira** — el encabezado mide 71 px y el CSS decía 59, así que la barra de
-pestañas se le montaba encima 12 px. Peor: el alto real depende de si las pestañas
-entran en uno o dos renglones, que depende del ancho de la ventana. Ningún número
-escrito a mano puede acertar eso.
+Antes eran tres tiras apiladas contra el borde superior —aviso, cinta de legajo,
+encabezado con dos filas de pestañas— y cada una tenía que empezar donde terminaba la
+anterior. En 1024 px de ancho las pestañas caían en dos renglones, el techo se comía
+190 px de alto y de una pantalla de 768 px quedaba menos de la mitad para el expediente.
+Y el alto dependía del ancho de la ventana, así que ningún número escrito a mano
+acertaba: seis números repartidos por la hoja (`0`, `37`, `59`, `96`, `150`, `190`) y
+**eran mentira** — el encabezado medía 71 px y el CSS decía 59, así que la barra de
+pestañas se le montaba encima 12 px.
+
+Con la barra al costado el alto de arriba es uno solo y ya no depende del ancho. Se
+sigue midiendo con `medirTecho` —el aviso de datos de demostración aparece y
+desaparece— pero ahora hay **una sola cosa que medir**.
 
 ---
 
 ## 5. Navegación
 
-**Dos niveles.** Seis secciones arriba y, debajo, lo que hay adentro de la que está
-abierta. La estructura vive en `SECCIONES`, en `app.js`; la barra se arma sola.
+**Tres niveles, en la barra lateral.** La marca arriba (organismo → unidad → área →
+herramienta), las seis secciones en el medio, y adentro de la que está abierta sus
+ítems. La estructura vive en `SECCIONES`, en `app.js`; la barra se arma sola.
 
 ```
-Panel │ Cargar escaneos │ Documentos │ Hallazgos │ Revisión (6) │ Sistema
-──────────────────────────────────────────────────────────────────────────
-Contratos │ Facturas y recibos │ Personas │ Buscar
+┌─ UFIL Paraná ───────────────┐
+│  Área Anticorrupción        │
+│  ─────────────────────────  │  ← filete dorado
+│  Ministerio Público Fiscal  │
+│  de la Provincia de …       │
+├─────────────────────────────┤
+│  ⌂ Panel                    │
+│  ↑ Cargar escaneos          │
+│  ▤ Documentos               │
+│  ⌕ Hallazgos                │
+│ ▌⋮ Revisión            (49) │  ← abierta: fondo, negrita y filete dorado
+│    · Cola de revisión  (42) │
+│    · Identidad          (7) │
+│    · Quedaron afuera        │
+│  ✳ Sistema                  │
+├─────────────────────────────┤
+│  ☾ Activar modo oscuro      │
+│    Acerca del sistema       │
+└─────────────────────────────┘
 ```
 
-**Dos barras y no un menú desplegable, a propósito.** Un desplegable esconde: hay que
-saber qué hay adentro para ir a buscarlo, no anda con el dedo igual que con el mouse, y
-el que no lo encuentra concluye que el sistema no lo tiene.
+**Al costado y no arriba, a propósito.** Las pantallas son anchas y bajas: 1366×768 y
+1024×768 son las que hay en las oficinas. Cada renglón que se gasta arriba es un
+renglón menos de expediente; a lo ancho, en cambio, sobra.
 
-Las **cuentas de trabajo pendiente suben a la sección**: si «Revisión» esconde 88 campos
+**Nada de menús desplegables.** Un desplegable esconde: hay que saber qué hay adentro
+para ir a buscarlo, no anda con el dedo igual que con el mouse, y el que no lo encuentra
+concluye que el sistema no lo tiene.
+
+La sección abierta se marca **de tres maneras a la vez** —fondo, negrita y un filete
+dorado al costado— porque una sola de las tres se le escapa a alguien.
+
+Las **cuentas de trabajo pendiente suben a la sección**: si «Revisión» esconde 49 cosas
 esperando, la barra lo dice sin que haya que entrar.
 
-Medido: una fila por barra en 1440, 1366 y 1024 (antes eran dieciséis enlaces planos que
-se partían en dos renglones), y tres renglones en un teléfono en vez de cinco.
+En pantallas de menos de 900 px la barra es un **cajón**: se abre con el botón de la
+izquierda del techo, se cierra con Escape, tocando el velo, o sola cuando elegís a dónde
+ir. Verificado en 390×844.
 
 ---
 
 ## 6. Componentes
 
-### Sello — `.sello`
-Estado, en versalitas con doble filete. Variantes: `.ok` (verde), `.alerta` (rojo),
-`.atencion` (ámbar), y la de base (azul).
+### Sello de estado — `.estado`, `sello(tono, texto)`
+**Ícono + palabra + color, siempre los tres, en todas las pantallas.** Tonos: `ok`,
+`atencion`, `alerta`, `neutro`, `trabajando`.
+
+El color es el **tercer** refuerzo y nunca el único. Una fila que informa su estado sólo
+con color no le informa nada a quien no distingue el rojo del verde —entre el 5 y el 8 %
+de los varones— ni a nadie cuando esto sale impreso en blanco y negro, que es como llega
+a una audiencia.
+
+Los íconos son cinco trazos sin relleno, del tamaño de la letra: al lado de una
+tipografía nítida, un ícono relleno pesa más que la palabra y se lleva la lectura.
+
+`pintarSello(el, tono, texto)` pinta adentro de un nodo que ya existe, sin reemplazarlo:
+el sello del techo se repinta en cada refresco y cambiarlo por otro le haría perder el
+id, los escuchadores y el lugar en el orden de tabulación.
+
+### Cuño — `.sello`
+El sello viejo, cuadrado y con doble filete. Sigue existiendo donde hace falta un cuño y
+no un estado: la portada de un informe, el rótulo de un bloque impreso.
+
+### Diálogo de confirmación — `.dialogo`
+`<dialog>` del navegador y no un `div` propio: trae solo el foco atrapado adentro,
+Escape para cerrar, y el resto de la página marcado como inerte para quien navega con
+lector de pantalla. Escribir eso a mano sale mal casi siempre.
+
+**Para confirmar algo destructivo hay que escribir el número del legajo**, y el botón
+está apagado hasta que coincide. Una casilla que se tilda se tilda mirando el cartel; el
+número obliga a mirar *cuál* es el legajo que se está por sacar. Y un botón prendido que
+después rechaza es un botón que enseña a apretar sin leer.
+
+### Botones
+`.boton` al contorno en verde operativo; `.boton.lleno` para la acción principal de una
+pantalla —en una hoja con ocho botones al contorno, el que hay que apretar tiene que
+distinguirse sin leerlos todos—; `.boton.gris` para lo secundario; `.boton.peligro` y
+`.mini.peligro` en rojo, **sólo** para lo que destruye algo.
 
 ### Cifra — `.cifra`
 Un número grande con su rótulo abajo. En grilla auto-ajustable de mínimo 132 px.
@@ -234,6 +339,49 @@ nunca se desplaza de costado**, la tabla sí.
 `opts.lista` marca qué muestra la tabla. Hace falta cuando una pantalla tiene más de
 una: enganchar el clic por «la última tabla» funcionaba hasta que se agregó otra debajo,
 y entonces cada fila abría el documento equivocado.
+
+### Taller — `.taller` (la cola de revisión)
+La cola no es una página: es un **puesto de trabajo**. Ocupa el alto entero de la
+ventana y se parte en cuatro fajas —encabezado con el «1 de N», filtros, los dos paneles,
+pie—, donde las tres que no son los paneles quedan quietas.
+
+```
+┌──────────────────────────────────────────────┬──────────────┐
+│ Cola de revisión                    1 de 42  │              │  ← queda quieta
+├──────────────────────────────────────────────┴──────────────┤
+│ DOCUMENTO ▾   CAMPO ▾   MOTIVO ▾                            │  ← queda quieta
+├──────────────────────────────────────┬──────────────────────┤
+│ contrato_A_0020  Monto mensual   C X │   ┌──────────────┐   │
+│ contrato_A_0029  Monto mensual  1 2 N│   │  el renglón  │   │
+│ contrato_A_0031  Monto mensual  1 2 N│   └──────────────┘   │  ← la foja entra
+│              ↕ lo único que se mueve │   la foja entera     │     entera
+├──────────────────────────────────────┴──────────────────────┤
+│ J/K para moverse. Ninguna acción es «aceptar todo».         │  ← queda quieta
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Una sola barra de desplazamiento.** Antes la página tenía la suya y la lista tenía otra
+adentro, a un centímetro de distancia, y cuál de las dos movía la rueda del mouse
+dependía de dónde hubiera quedado el puntero. Encima el «1 de 42» y los filtros se iban
+para arriba a las tres filas, justo cuando más falta hacen: revisando el campo treinta,
+saber que vas por el treinta es la mitad del sentido de la tarea.
+
+El alto **no se mide con JavaScript**: `#cuerpo` toma el alto de la ventana, el techo y
+el aviso ocupan lo suyo, y `main` se queda con el resto por ser el único que crece. El
+navegador ya sabe restar.
+
+Medido con la cola de 42 campos abierta:
+
+| | la página | adentro |
+|---|---|---|
+| 1440×900 claro y oscuro | no se desplaza | `#cola` (3483 > 593) |
+| 1366×768 claro | no se desplaza | `#cola` (3492 > 461) |
+| 1024×768 claro y oscuro | no se desplaza | `#cola` (5583 > 451) |
+| 390×844 claro | se desplaza | nada |
+
+En el teléfono la que corre es la página, que es lo correcto: los dos paneles no entran
+uno al lado del otro y forzar el alto de la ventana dejaría dos cajitas de 200 px donde
+no se puede trabajar. `pruebas/test_taller.py` verifica las reglas de las que sale eso.
 
 ### Tabla grande — `tablaBuscable(destino, cols, filas, opts)`
 Para las tablas que **crecen con el legajo**: contratos, facturas, personas, el cruce.
@@ -285,6 +433,47 @@ Vive en `ufil/castellano.py` y en las funciones de formato de `app.js`.
 Se imprime, y se imprime en blanco y negro. `@media print` quita la navegación y los
 botones, vuelve todo estático, y **deja la cinta de legajo**: en un papel suelto, saber
 de qué causa es lo primero que hace falta.
+
+---
+
+## 9. La identidad institucional
+
+La jerarquía se respeta en todas las pantallas, de arriba abajo:
+
+```
+Ministerio Público Fiscal de la Provincia de Entre Ríos   ← el organismo
+  UFIL Paraná                                             ← la unidad
+    Área Anticorrupción                                   ← el área
+      Análisis documental                                 ← esta herramienta
+```
+
+Los **fiscales** van en segundo plano —pantalla de acceso, «Acerca del sistema»,
+encabezado de lo que se exporta— y nunca compitiendo con el dato de la pantalla.
+
+**Ningún nombre está escrito en un componente.** Todos salen de `ufil/identidad.py`, que
+se puede pisar de tres maneras, de la más general a la más particular:
+
+1. los valores del módulo, que son los que corresponden hoy;
+2. un `identidad.json` en la carpeta de datos;
+3. variables de entorno `UFIL_UNIDAD`, `UFIL_AREA`, `UFIL_FISCALES`… —así se cambia en
+   un despliegue sin tocar el código. Varios fiscales se separan con **punto y coma**:
+   los nombres llevan coma adentro («Pérez, Juan») y la coma no sirve de separador.
+
+Estaban repartidos en once archivos: el encabezado HTML, la portada del Excel, la
+pantalla de acceso, el título de la pestaña, el pie de los informes. Cambiar de fiscal
+significaba buscarlos todos, y el que quedaba sin cambiar era el que después aparecía
+impreso en una presentación.
+
+### El monograma, y el escudo oficial
+
+El monograma es una **foja con su lomo y un filete dorado**: SVG en línea, 2 kB, nítido
+en cualquier tamaño, cambia de color con el tema. Nada de mazos, balanzas, columnas
+grecorromanas ni escudos inventados.
+
+El **archivo oficial** del organismo se deja caer en `assets/marca/logo.svg` (o `.png`) y
+la barra lateral lo muestra sola. No viaja en el repositorio: es material institucional
+del organismo, no del proyecto, y un emblema oficial redibujado de memoria queda mal y
+no corresponde usarlo así. Ver `assets/marca/LEEME.md`.
 
 ---
 
