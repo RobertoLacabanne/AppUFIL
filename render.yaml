@@ -1,0 +1,56 @@
+# Despliegue en Render — https://render.com
+#
+# Sirve para mostrarle el sistema al fiscal desde cualquier lado sin instalarle nada.
+# NO reemplaza a la instalación de la fiscalía: acá el material vive en un servidor de
+# un tercero. Ver «Lo que hay que decidir antes de subir material real» abajo.
+#
+# Se aplica con Blueprints (New → Blueprint → apuntar a este repositorio).
+services:
+  - type: web
+    name: ufil
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter          # el plan gratuito NO permite disco persistente: ver abajo
+    region: oregon
+    healthCheckPath: /api/panel
+
+    # ── EL DISCO ────────────────────────────────────────────────────────────
+    # Sin esto, el sistema de archivos del contenedor es efímero: se borra en cada
+    # despliegue y en cada reinicio. Eso significa perder los PDF subidos, las bases de
+    # los legajos y —lo único que no se puede volver a generar— TODAS LAS REVISIONES
+    # HECHAS A MANO. Un lote de trescientos contratos revisado durante dos días
+    # desaparece con un `git push`.
+    disk:
+      name: datos
+      mountPath: /app/datos
+      sizeGB: 10
+
+    envVars:
+      # Dónde vive todo. Coincide con el punto de montaje del disco de arriba.
+      - key: UFIL_DATOS
+        value: /app/datos
+
+      # ── LA PUERTA ───────────────────────────────────────────────────────
+      # Acá el puerto SALE A INTERNET: cualquiera que sepa la dirección llega. Así que
+      # se pide clave, que es el comportamiento por omisión de la imagen.
+      #
+      # NO poner `UFIL_ACCESO=abierto` en este archivo. Esa variable significa «quién
+      # llega a este puerto ya está restringido afuera del proceso», y acá es falso.
+      # Ponerla deja el legajo abierto para cualquiera.
+      - key: UFIL_ACCESO
+        value: clave
+
+      # La clave. `generateValue` la crea una vez y la guarda en Render; se lee en el
+      # panel del servicio (Environment) y se le dicta a quien tenga que entrar.
+      # Sin esto la genera el proceso en cada arranque y sale sólo en el log, que en un
+      # servicio que se reinicia solo es una clave que nadie llega a leer.
+      - key: UFIL_CLAVE
+        generateValue: true
+
+      # Cuántas páginas se leen en paralelo. En un plan chico, más hilos que núcleos
+      # sólo hace que se peleen: medido, 4 hilos rinden 4× y 8 rinden lo mismo que 4.
+      - key: UFIL_NUCLEOS
+        value: "2"
+
+    # Render inyecta PORT y espera que el proceso escuche ahí. El CMD del Dockerfile lo
+    # toma de ahí; no hace falta declararlo.

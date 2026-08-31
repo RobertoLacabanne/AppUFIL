@@ -14,10 +14,23 @@ services:
     network_mode: bridge
     ports:
       # Sólo esta máquina. Si esto se cambiara a "0.0.0.0:8713:8713" para entrar desde
-      # un celular, hay que sacar `UFIL_ACCESO=abierto` del Dockerfile en la misma
-      # edición: esa variable existe porque acá dice 127.0.0.1, y sin ella el sistema
-      # pide clave. Cambiar una sin la otra deja el legajo abierto a toda la red.
+      # un celular, hay que sacar `UFIL_ACCESO: abierto` de acá abajo en la misma
+      # edición: esa variable existe porque esta línea dice 127.0.0.1, y sin ella el
+      # sistema pide clave. Cambiar una sin la otra deja el legajo abierto a la red.
       - "127.0.0.1:8713:8713"
+    environment:
+      # Acá SÍ corresponde: el puerto de arriba se publica en 127.0.0.1, o sea que a
+      # este servicio sólo llega quien ya está sentado en esta máquina. Pedirle clave
+      # sería mandarlo a buscarla a `docker compose logs`.
+      #
+      # Va acá y no en el Dockerfile justamente por eso: la variable dice algo sobre la
+      # PUBLICACIÓN, y la publicación se declara tres líneas más arriba. En la imagen
+      # viajaba con ella a cualquier lado —incluido un servicio de nube, donde el puerto
+      # sale a internet— y ahí la afirmación es falsa.
+      #
+      # Si la publicación de arriba cambia a `0.0.0.0:8713:8713`, HAY QUE SACAR esta
+      # línea en la misma edición.
+      UFIL_ACCESO: abierto
     volumes:
       - ./corpus:/corpus:ro
       - ./datos:/app/datos

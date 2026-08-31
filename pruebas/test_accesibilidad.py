@@ -175,5 +175,64 @@ class SeVeEnUnTelefono(unittest.TestCase):
         self.assertIn("font-size:16px", CSS)
 
 
+class LaPuertaDeLaNube(unittest.TestCase):
+    """
+    Una imagen que se publica a internet no puede venir con la puerta abierta.
+
+    `UFIL_ACCESO=abierto` significa «quién llega a este puerto ya está restringido
+    afuera de este proceso». Es cierto en docker-compose.yml, que publica en
+    127.0.0.1. En un servicio de nube es falso, y estaba horneada en el Dockerfile:
+    cualquier despliegue de esa imagen dejaba el legajo abierto para quien supiera la
+    dirección.
+    """
+
+    def test_la_imagen_no_trae_la_puerta_abierta(self):
+        docker = (RAIZ / "Dockerfile").read_text(encoding="utf-8")
+        activa = [l for l in docker.splitlines()
+                  if "UFIL_ACCESO" in l and not l.lstrip().startswith("#")]
+        self.assertEqual(activa, [],
+                         "el Dockerfile fija UFIL_ACCESO: la imagen viaja con la puerta "
+                         "abierta a donde sea que la desplieguen")
+
+    def test_compose_la_abre_donde_corresponde_y_lo_dice(self):
+        compose = (RAIZ / "docker-compose.yml").read_text(encoding="utf-8")
+        self.assertIn("UFIL_ACCESO: abierto", compose)
+        self.assertIn("127.0.0.1:8713:8713", compose,
+                      "compose abre la puerta pero ya no publica sólo en esta máquina")
+
+    def test_el_despliegue_de_nube_pide_clave(self):
+        render = (RAIZ / "render.yaml").read_text(encoding="utf-8")
+        self.assertIn("value: clave", render,
+                      "el despliegue público no está pidiendo clave")
+        self.assertNotIn("value: abierto", render)
+
+    def test_el_despliegue_de_nube_tiene_disco(self):
+        """
+        Sin disco persistente, un `git push` borra las revisiones hechas a mano — lo
+        único del sistema que no se puede volver a generar a partir de los originales.
+        """
+        render = (RAIZ / "render.yaml").read_text(encoding="utf-8")
+        self.assertIn("mountPath: /app/datos", render)
+
+    def test_el_puerto_no_esta_clavado(self):
+        """Render inyecta PORT. Con el puerto fijo el balanceador no lo encuentra."""
+        docker = (RAIZ / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("${PORT:-", docker)
+
+    def test_una_clave_corta_no_arranca(self):
+        import os
+        from ufil import acceso
+        previa = os.environ.get("UFIL_CLAVE")
+        os.environ["UFIL_CLAVE"] = "1234"
+        try:
+            with self.assertRaises(SystemExit):
+                acceso.clave_del_arranque()
+        finally:
+            if previa is None:
+                os.environ.pop("UFIL_CLAVE", None)
+            else:
+                os.environ["UFIL_CLAVE"] = previa
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

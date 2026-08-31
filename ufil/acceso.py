@@ -33,6 +33,10 @@ import time
 # O contra 0, ni I contra 1 contra l.
 ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 LARGO = 6
+# Largo mínimo cuando la clave la pone una variable de entorno. Es más alto que el
+# generado porque una clave puesta a mano tiende a ser corta y memorable, y esto se
+# publica en internet.
+LARGO_MINIMO_PUESTA = 12
 
 # Tras varios intentos fallidos desde la misma dirección, cada intento nuevo espera.
 # No es una cárcel: es hacer que probar un millón de combinaciones deje de ser gratis.
@@ -93,12 +97,40 @@ def direccion_en_la_red() -> str | None:
         s.close()
 
 
+def clave_del_arranque() -> str:
+    """
+    La clave de esta corrida.
+
+    Por omisión se genera al azar y se muestra en el arranque: es lo que corresponde en
+    la fiscalía, donde alguien prende el sistema, lee la clave en pantalla y se la dicta
+    a quien va a entrar desde el celular. Cambiarla en cada arranque es una ventaja ahí:
+    la de ayer no sirve hoy.
+
+    `UFIL_CLAVE` existe para el otro caso: un servicio que se reinicia solo —una nube,
+    un `systemd` con restart— donde nadie está mirando la consola. Ahí una clave nueva
+    en cada arranque es una clave que nadie llega a leer, y el sistema queda inaccesible
+    hasta que alguien vaya a buscarla al log.
+
+    Se exige un mínimo de largo: una clave de cuatro letras en algo publicado a internet
+    se adivina sola, y fallar al arrancar es mejor que quedar abierto.
+    """
+    puesta = os.environ.get("UFIL_CLAVE", "").strip()
+    if not puesta:
+        return "".join(secrets.choice(ALFABETO) for _ in range(LARGO))
+    if len(puesta) < LARGO_MINIMO_PUESTA:
+        raise SystemExit(
+            f"UFIL_CLAVE tiene {len(puesta)} caracteres y el mínimo es "
+            f"{LARGO_MINIMO_PUESTA}. Una clave corta en un servicio que sale a internet "
+            f"se adivina sola; preferimos no arrancar antes que quedar abiertos.")
+    return puesta.upper()
+
+
 class Porteria:
     """Guarda la clave del arranque y las sesiones que ya la escribieron."""
 
     def __init__(self, exigir: bool):
         self.exigir = exigir
-        self.clave = "".join(secrets.choice(ALFABETO) for _ in range(LARGO)) if exigir else None
+        self.clave = clave_del_arranque() if exigir else None
         self.sesiones: set[str] = set()
         self.fallos: dict[str, int] = {}
 

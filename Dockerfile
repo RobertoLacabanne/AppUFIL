@@ -30,19 +30,34 @@ USER ufil
 
 VOLUME ["/corpus", "/app/datos"]
 
-# UFIL_ACCESO=abierto: adentro de un contenedor el proceso está OBLIGADO a escuchar en
-# 0.0.0.0 —si escuchara en 127.0.0.1 no lo alcanzaría ni el propio Docker—, pero quién
-# llega de verdad no lo decide el proceso: lo decide la publicación del puerto, que en
-# docker-compose.yml es `127.0.0.1:8713:8713`, o sea sólo esa máquina. Sin esta variable
-# el sistema pediría clave a alguien que ya está sentado adelante de la computadora.
+# OJO CON `UFIL_ACCESO`. Esta imagen NO la trae, y es a propósito.
 #
-# Si alguna vez se cambia esa publicación a `0.0.0.0:8713:8713`, HAY QUE SACAR esta
-# variable: si no, el legajo queda abierto para toda la red sin ninguna puerta.
-ENV UFIL_DATOS=/app/datos PYTHONUNBUFFERED=1 UFIL_ACCESO=abierto
+# Adentro de un contenedor el proceso está obligado a escuchar en 0.0.0.0 —si escuchara
+# en 127.0.0.1 no lo alcanzaría ni el propio Docker—, así que la regla normal («escucha
+# hacia afuera, entonces pide clave») no puede decidir sola. Quién llega de verdad lo
+# decide la PUBLICACIÓN DEL PUERTO, que es cosa de quien corre la imagen y no de la
+# imagen.
+#
+# `UFIL_ACCESO=abierto` significa «quién puede llegar a este puerto ya está restringido
+# afuera de este proceso». Eso es cierto en docker-compose.yml, que publica en
+# `127.0.0.1:8713:8713` —sólo esa máquina— y por eso la variable está ahí, tres líneas
+# abajo de la publicación que la justifica.
+#
+# NO es cierto en un servicio de nube: ahí el puerto sale a internet. Con la variable
+# horneada acá, cualquier despliegue de esta imagen en Render, Fly, una VM o un
+# `docker run -p 0.0.0.0:8713:8713` dejaba el legajo abierto para cualquiera que supiera
+# la dirección, sin ninguna puerta. Por omisión la imagen pide clave, que es lo que
+# corresponde cuando no se sabe quién puede llegar.
+ENV UFIL_DATOS=/app/datos PYTHONUNBUFFERED=1
 EXPOSE 8713
+
+# El puerto sale de PORT si está —Render, Fly y compañía lo inyectan y esperan que el
+# proceso escuche ahí—, y si no del 8713 de siempre. Con el puerto clavado, el servicio
+# arranca bien y el balanceador no lo encuentra nunca.
+ENV UFIL_PUERTO=8713
 
 # Chequeo de arranque: si las invariantes no se cumplen, se ve en el log.
 HEALTHCHECK --interval=60s --timeout=10s --start-period=15s \
-  CMD python3 -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8713/api/panel')"
+  CMD python3 -c "import os,urllib.request;urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT',os.environ.get('UFIL_PUERTO','8713'))+'/api/panel')"
 
-CMD ["python3", "-m", "ufil.cli", "servir", "--host", "0.0.0.0", "--puerto", "8713"]
+CMD ["sh", "-c", "exec python3 -m ufil.cli servir --host 0.0.0.0 --puerto ${PORT:-$UFIL_PUERTO}"]
