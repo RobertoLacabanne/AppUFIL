@@ -42,26 +42,11 @@
   </div>
 </header>
 
-<nav>
-  <a href="#/panel">Panel</a>
-  <a href="#/ingesta">Cargar escaneos</a>
-  <i class="sep" aria-hidden="true"></i>
-  <a href="#/buscar">Buscar</a>
-  <a href="#/contratos">Contratos</a>
-  <a href="#/comprobantes">Facturas</a>
-  <a href="#/personas">Personas</a>
-  <a href="#/superposiciones">Superposiciones</a>
-  <a href="#/cruce">Facturado vs. contratado</a>
-  <i class="sep" aria-hidden="true"></i>
-  <a href="#/cola">Cola de revisión<span class="cuenta" id="n-cola" hidden></span></a>
-  <a href="#/identidad">Identidad<span class="cuenta" id="n-fus" hidden></span></a>
-  <a href="#/afuera">Quedaron afuera<span class="cuenta" id="n-afuera" hidden></span></a>
-  <i class="sep" aria-hidden="true"></i>
-  <a href="#/interpretacion">Interpretación</a>
-  <a href="#/consultas">Consultas</a>
-  <a href="#/como-funciona">Cómo funciona</a>
-  <a href="#/salud">Estado del sistema</a>
-</nav>
+<!-- La navegación se arma sola desde SECCIONES en app.js: dos barras, la de
+     secciones y la de lo que hay adentro de la que está abierta. Escrita a mano acá
+     eran dieciséis enlaces en una fila que en un teléfono ocupaba cinco renglones. -->
+<nav class="principal" id="nav-secciones"></nav>
+<nav class="secundaria" id="nav-items" hidden></nav>
 </div>
 
 <main id="vista"><div class="esqueleto"><i></i><i></i><i></i></div></main>

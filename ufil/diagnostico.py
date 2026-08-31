@@ -25,6 +25,7 @@ import sys
 from pathlib import Path
 
 from . import config
+from .castellano import miles, plural
 
 # Debajo de esto un lote mediano no entra: los derivados (PNG de página) pesan más que
 # los PDF originales. Medido: alrededor de 1,2 MB de derivados por página a 200 DPI.
@@ -144,7 +145,7 @@ def _cpu():
     # 1,7 s por página con un núcleo; el paralelismo escala casi lineal hasta la
     # cantidad de núcleos. Traducirlo a horas es lo que le sirve a quien planifica.
     pag_hora = int(3600 / (1.7 / max(1, min(n, 8))))
-    txt = (f"{n} núcleo(s) · lee unas {pag_hora:,} páginas por hora"
+    txt = (f"{plural(n, 'núcleo', 'núcleos')} · lee unas {miles(pag_hora)} páginas por hora"
            .replace(",", "."))
     if n == 1:
         return _r("Procesador", "aviso", txt + " — un lote de mil páginas tarda media jornada")
@@ -242,9 +243,11 @@ def informe_texto(salidas: list[dict]) -> str:
     L.append("")
     L.append("-" * 84)
     if r["puede_trabajar"]:
-        extra = f" ({r['avisos']} aviso(s) que conviene mirar)" if r["avisos"] else ""
+        extra = (f" ({plural(r['avisos'], 'aviso que conviene mirar', 'avisos que conviene mirar')})"
+                 if r["avisos"] else "")
         L.append("LISTO PARA TRABAJAR" + extra)
     else:
-        L.append(f"NO SE PUEDE TRABAJAR TODAVÍA: {r['fallas']} cosa(s) que faltan, "
+        L.append(f"NO SE PUEDE TRABAJAR TODAVÍA: "
+                 f"{plural(r['fallas'], 'cosa que falta', 'cosas que faltan')}, "
                  "listadas arriba con su arreglo")
     return "\n".join(L)

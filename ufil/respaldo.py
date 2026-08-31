@@ -25,6 +25,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import config
+from .castellano import miles, plural
 
 
 def nombre_sugerido(ahora: datetime | None = None) -> str:
@@ -84,7 +85,7 @@ def texto(destino: Path, r: dict) -> str:
     L.append(f"    · {r['revisiones']} campos revisados a mano")
     L.append(f"    · {r['fusiones']} decisiones de identidad confirmadas")
     if r["quienes"]:
-        L.append(f"    · trabajo de {r['quienes']} persona(s)")
+        L.append(f"    · trabajo de {plural(r['quienes'], 'persona', 'personas')}")
     L.append("")
     L.append("  Eso es lo único que no se puede volver a generar. Los PDF originales")
     L.append("  siguen en su carpeta y las imágenes de página se rehacen procesando")

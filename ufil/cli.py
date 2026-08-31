@@ -14,6 +14,7 @@ from . import capa2_extraccion as c2
 from . import capa3_identidad as c3
 from . import capa4_analisis as c4
 from . import evaluacion as ev
+from .castellano import miles, plural
 
 
 def _cx(a):
@@ -136,7 +137,8 @@ def cmd_extraer(a):
     # Que de un PDF salgan varios contratos es lo NORMAL con material real: un
     # expediente trae la carátula, tres o cuatro contratos, el decreto y las facturas.
     # El mensaje decía «¡contratos de más!», que se leía como un error y no lo era.
-    print(f"\r  {len(shas)} archivo(s) -> {tot['documentos']} contrato(s) · "
+    print(f"\r  {plural(len(shas), 'archivo', 'archivos')} -> "
+          f"{plural(tot['documentos'], 'documento', 'documentos')} · "
           f"campos {tot['campos']} · conflictos {tot['conflictos']} · "
           f"a revisar {tot['a_revisar']} · sin perfil {tot['sin_perfil']}")
     return 0
@@ -148,7 +150,8 @@ def cmd_identidad(a):
     print("  " + json.dumps(c3.proponer_fusiones(cx), ensure_ascii=False))
     rep = c3.detectar_contratos_repetidos(cx)
     if rep:
-        print(f"  ¡ojo! {rep} contrato(s) aparecen más de una vez: "
+        print(f"  ¡ojo! {plural(rep, 'contrato aparece', 'contratos aparecen')} "
+              f"más de una vez: "
               f"ver la consulta 08_contratos_repetidos")
     return 0
 
@@ -243,7 +246,8 @@ def cmd_manuscrita(a):
         print("  No hay campos manuscritos esperando propuesta.")
         return 0
 
-    print(f"  {len(pendientes)} campo(s) manuscritos. Modelo: {lm.MODELO}")
+    print(f"  {plural(len(pendientes), 'campo manuscrito', 'campos manuscritos')}. "
+          f"Modelo: {lm.MODELO}")
     leidos = ilegibles = fallados = 0
     for i, f in enumerate(pendientes, 1):
         try:
@@ -266,7 +270,7 @@ def cmd_manuscrita(a):
                        (f"campo {f['id']}: {type(e).__name__}: {e}", db.ahora()))
             cx.commit()
         print(f"\r  {i}/{len(pendientes)}", end="", flush=True)
-    print(f"\r  {len(pendientes)} campo(s): {leidos} con propuesta, "
+    print(f"\r  {plural(len(pendientes), 'campo', 'campos')}: {leidos} con propuesta, "
           f"{ilegibles} que el modelo declaró ilegibles, {fallados} con error.")
     print("  Ninguno se guardó como dato: están en la cola, al lado del recorte,")
     print("  esperando que una persona los confirme.")
@@ -369,7 +373,8 @@ def cmd_demo(a):
             n = cx.execute("SELECT COUNT(*) FROM archivo").fetchone()[0]
             cx.close()
             if n and not marcada:
-                print(f"  No se borra: {base} tiene {n} archivo(s) y NO está marcada")
+                print(f"  No se borra: {base} tiene "
+                      f"{plural(n, 'archivo', 'archivos')} y NO está marcada")
                 print("  como demostración. Si de verdad querés borrarla, hacelo a mano.")
                 return 1
         for suf in ("", "-wal", "-shm"):

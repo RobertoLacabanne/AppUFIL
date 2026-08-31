@@ -108,14 +108,27 @@ button{font:inherit; color:inherit}
 /* La barra baja de renglón en vez de desplazarse de costado. Con desplazamiento
    horizontal, en una notebook de 1024 las dos últimas pestañas quedaban fuera de
    pantalla y sin ninguna señal de que estaban ahí: inalcanzables en la práctica. */
-nav{display:flex; flex-wrap:wrap; gap:0; border-bottom:1px solid var(--filete);
-    padding:0 24px; background:var(--papel)}
-nav a{padding:9px 15px; text-decoration:none; color:var(--tinta-2); font-size:12px;
-      border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap}
-nav a:hover{color:var(--tinta); background:var(--papel-2)}
-nav a.activo{color:var(--tinta); border-bottom-color:var(--sello); font-weight:600}
+nav{display:flex; flex-wrap:wrap; gap:0; padding:0 24px; background:var(--papel)}
+nav a{text-decoration:none; white-space:nowrap; display:inline-flex; align-items:center}
 nav .cuenta{font-family:var(--mono); font-size:10px; color:var(--papel);
             background:var(--lapiz); padding:0 4px; margin-left:6px; border-radius:2px}
+
+/* Las secciones: seis, con el peso de una barra de navegación de verdad. */
+nav.principal{border-bottom:1px solid var(--filete)}
+nav.principal a{padding:9px 15px; color:var(--tinta-2); font-size:12.5px;
+  border-bottom:2px solid transparent; margin-bottom:-1px}
+nav.principal a:hover{color:var(--tinta); background:var(--papel-2)}
+nav.principal a.activo{color:var(--tinta); border-bottom-color:var(--sello); font-weight:600}
+
+/* Lo que hay adentro de la sección abierta. Se distingue de la de arriba por el fondo
+   y por el tamaño: son dos niveles y tienen que leerse como dos niveles, no como dos
+   filas de lo mismo. */
+nav.secundaria{background:var(--papel-2); border-bottom:1px solid var(--filete);
+  padding:0 24px}
+nav.secundaria a{padding:7px 13px; color:var(--tinta-2); font-size:12px;
+  border-bottom:2px solid transparent; margin-bottom:-1px}
+nav.secundaria a:hover{color:var(--tinta)}
+nav.secundaria a.activo{color:var(--tinta); border-bottom-color:var(--tinta); font-weight:600}
 
 main{padding:0 24px 80px}
 .bloque{display:grid; grid-template-columns:var(--canaleta) 1fr;
@@ -631,6 +644,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 @media (max-width:720px){
   #techo{position:static}
   nav{padding:0 16px}
+  nav.secundaria{padding:0 16px}
   main{padding:0 16px 60px}
   .barra{padding:12px 16px 10px}
   #aviso-demo{position:static}
@@ -753,6 +767,25 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 /* Qué tipo de documento es, arriba de la ficha. Un contrato y una factura se leen
    distinto y se usan para cosas distintas: la pantalla lo dice antes que nada. */
 .tipo-doc{margin:-6px 0 12px}
+
+/* ── Lo primero del panel: qué hacer ahora ────────────────────────────────
+   El panel abría con lo que encontró, que es lo interesante pero no es lo accionable.
+   Quien entra a la mañana necesita saber en un renglón si hay trabajo suyo esperando. */
+.siguiente-paso{display:flex; gap:16px; align-items:center; justify-content:space-between;
+  flex-wrap:wrap; border:1px solid var(--filete); background:var(--papel-2);
+  padding:13px 16px; margin-bottom:18px}
+.siguiente-paso b{display:block; font-size:14.5px; margin-bottom:2px}
+.siguiente-paso span{font-family:var(--serif); font-size:13.5px; color:var(--tinta-2);
+  display:block; max-width:70ch; line-height:1.5}
+.siguiente-paso .boton{flex:none}
+/* Con trabajo pendiente cambia el filete, no el fondo: un bloque de color arriba de
+   todo compite con el aviso de datos de demostración, que sí es una alarma. */
+.siguiente-paso.hay-trabajo{border-left:3px solid var(--lapiz)}
+
+.detalle-cobertura{margin-top:12px}
+.detalle-cobertura summary{cursor:pointer; font-size:12.5px; color:var(--tinta-2);
+  padding:6px 0}
+.detalle-cobertura summary:hover{color:var(--tinta)}
 
 /* En un teléfono esto no puede ser una tabla. Elegir legajo es comparar cuánto
    material tiene cada uno y cuánto falta revisar, y esas tres columnas quedaban

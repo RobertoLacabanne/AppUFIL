@@ -858,7 +858,12 @@ class LoQueFaltaSeDiceEnLaPlanilla(unittest.TestCase):
         from ufil import capa7_export as c7
         destino = Path(self.tmp.name) / "a.rtf"
         texto = Path(c7.a_rtf(self.cx, destino)).read_text(encoding="utf-8")
-        self.assertIn("archivo(s) cargados no produjeron", texto)
+        # Concordando: «1 archivo cargado no produjo», no «1 archivo(s) cargados
+        # no produjeron». Ver ufil/castellano.py.
+        # El .rtf escapa los acentos (\u241? por «ñ»), así que se compara el tramo sin
+        # ninguno. Lo que importa es que concuerde: «1 archivo cargado no produjo».
+        self.assertIn("1 archivo cargado no produjo", texto)
+        self.assertNotIn("(s)", texto)
 
     def test_si_no_falta_nada_no_se_asusta_a_nadie(self):
         """Sin archivos afuera, la advertencia no aparece."""

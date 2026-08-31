@@ -190,6 +190,76 @@ function interpHTML(i) {
   </div>`;
 }
 
+/* ── La navegación, en dos niveles ─────────────────────────────────────────
+   Dieciséis enlaces en una barra plana: en 1024 se partía en dos renglones y en un
+   teléfono en cinco, y encontrar algo era leerlos todos. Ahora hay seis secciones
+   arriba y, debajo, lo que hay adentro de la que está abierta.
+
+   Dos barras y no un menú desplegable, a propósito. Un desplegable esconde: hay que
+   saber qué hay adentro para ir a buscarlo, no anda con el dedo igual que con el
+   mouse, y el que no lo encuentra concluye que el sistema no lo tiene. Acá lo de la
+   sección abierta está siempre a la vista.
+
+   Las cuentas de trabajo pendiente suben a la sección: si «Revisión» esconde 88 campos
+   esperando, la barra tiene que decir 88 sin que haya que entrar. */
+const SECCIONES = [
+  {id: 'panel',    rotulo: 'Panel',           hash: '#/panel'},
+  {id: 'ingesta',  rotulo: 'Cargar escaneos', hash: '#/ingesta'},
+  {id: 'documentos', rotulo: 'Documentos', items: [
+    {hash: '#/contratos',     rotulo: 'Contratos'},
+    {hash: '#/comprobantes',  rotulo: 'Facturas y recibos'},
+    {hash: '#/personas',      rotulo: 'Personas'},
+    {hash: '#/buscar',        rotulo: 'Buscar'},
+  ], tambien: ['#/documento', '#/persona']},
+  {id: 'hallazgos', rotulo: 'Hallazgos', items: [
+    {hash: '#/superposiciones', rotulo: 'Superposiciones'},
+    {hash: '#/cruce',           rotulo: 'Facturado vs. contratado'},
+    {hash: '#/interpretacion',  rotulo: 'Interpretación'},
+    {hash: '#/consultas',       rotulo: 'Consultas'},
+  ]},
+  {id: 'revision', rotulo: 'Revisión', items: [
+    {hash: '#/cola',      rotulo: 'Cola de revisión', cuenta: 'a_revisar'},
+    {hash: '#/identidad', rotulo: 'Identidad',        cuenta: 'fusiones'},
+    {hash: '#/afuera',    rotulo: 'Quedaron afuera',  cuenta: 'afuera'},
+  ]},
+  {id: 'sistema', rotulo: 'Sistema', items: [
+    {hash: '#/legajos',       rotulo: 'Legajos'},
+    {hash: '#/como-funciona', rotulo: 'Cómo funciona'},
+    {hash: '#/salud',         rotulo: 'Estado del sistema'},
+  ]},
+];
+
+/* Las últimas cuentas que devolvió el panel, para pintar los números de la barra. */
+let cuentas = {};
+
+const seccionDe = hash => {
+  const base = '#/' + String(hash || '').split('/')[1];
+  return SECCIONES.find(s => s.hash === base
+      || (s.items || []).some(i => i.hash === base)
+      || (s.tambien || []).includes(base));
+};
+
+function pintarNav(hash) {
+  const activa = seccionDe(hash) || SECCIONES[0];
+  const num = clave => Number(cuentas[clave] || 0);
+  const chip = n => n ? ` <span class="cuenta">${fmtNum.format(n)}</span>` : '';
+
+  $('#nav-secciones').innerHTML = SECCIONES.map(s => {
+    // La sección lleva la suma de lo que hay pendiente adentro.
+    const n = (s.items || []).reduce((t, i) => t + (i.cuenta ? num(i.cuenta) : 0), 0);
+    const destino = s.hash || s.items[0].hash;
+    return `<a href="${destino}" class="${s === activa ? 'activo' : ''}"
+              >${esc(s.rotulo)}${chip(n)}</a>`;
+  }).join('');
+
+  const sub = $('#nav-items');
+  sub.hidden = !(activa.items || []).length;
+  sub.innerHTML = (activa.items || []).map(i =>
+    `<a href="${i.hash}" class="${hash.startsWith(i.hash) ? 'activo' : ''}"
+       >${esc(i.rotulo)}${chip(i.cuenta ? num(i.cuenta) : 0)}</a>`).join('');
+  medirTecho();
+}
+
 /* ── vistas ────────────────────────────────────────────────────────────── */
 /* ── legajos ───────────────────────────────────────────────────────────────
    La portada. Se entra por acá y recién después se ve nada más.
@@ -319,36 +389,68 @@ async function vPanel() {
       <span class="fol">${esc(d.archivo_a)} · ${esc(d.archivo_b)}</span>
     </a>`).join('');
 
+  // LO PRIMERO DE TODO: qué hacer ahora. El panel abría con un resumen de lo que
+  // encontró, que es lo interesante pero no es lo accionable; quien entra a las nueve
+  // de la mañana necesita saber en un renglón si hay trabajo suyo esperando y dónde.
+  const pendiente = p.a_revisar + p.fusiones;
+  const paso = pendiente ? `
+    <div class="siguiente-paso hay-trabajo">
+      <div>
+        <b>${plural(pendiente, 'cosa esperando que la mires', 'cosas esperando que las mires')}</b>
+        <span>${[p.a_revisar ? plural(p.a_revisar, 'campo dudoso', 'campos dudosos') : '',
+                 p.fusiones ? plural(p.fusiones, 'identidad por confirmar', 'identidades por confirmar') : '']
+                .filter(Boolean).join(' · ')}. Nada de eso entra en los totales de abajo
+          hasta que alguien lo decida.</span>
+      </div>
+      <a class="boton" href="${p.a_revisar ? '#/cola' : '#/identidad'}">Ir a revisar</a>
+    </div>` : `
+    <div class="siguiente-paso">
+      <div>
+        <b>No queda nada esperando revisión</b>
+        <span>Todo lo que el sistema no pudo sostener solo ya lo miró una persona.
+          Los totales de abajo son los que se pueden llevar a un informe.</span>
+      </div>
+    </div>`;
+
   vista.innerHTML =
-    bloque('f. 0001', 'Resumen', `
+    bloque('f. 0001', 'Resumen', paso + `
       <h2>Qué encontró el sistema</h2>
       <p class="prosa resumen">
         Sobre <strong>${plural(p.contratos, 'contrato leído', 'contratos leídos')}</strong>${
           p.comprobantes ? ` y <strong>${plural(p.comprobantes, 'comprobante', 'comprobantes')}</strong>` : ''}
-        del lote «${esc(p.lote)}»: <strong>${n(p.personas_ambas_camaras)} personas</strong> figuran en
-        las dos cámaras y <strong>${n(p.superposiciones)} pares</strong> de contratos se pisan
-        en el tiempo${p.fechas_imposibles ? `, y <strong>${n(p.fechas_imposibles)}</strong>
-        tiene${p.fechas_imposibles === 1 ? '' : 'n'} fechas imposibles` : ''}.
-        De los <strong>${n(p.campos_criticos_total)} campos críticos</strong> del legajo,
-        <strong>${n(p.campos_criticos_firmes)}</strong> están firmes
-        (${fmtPct(p.cobertura_pct)}) y <strong>${n(p.a_revisar)}</strong> esperan
-        revisión${p.excluidos ? `, y <strong>${n(p.excluidos)} contratos quedan afuera
-          del cruce</strong> por faltarles algún dato firme` : ''}.
+        del lote «${esc(p.lote)}»:
+        <strong>${plural(p.personas_ambas_camaras, 'persona figura', 'personas figuran')}</strong>
+        en las dos cámaras y
+        <strong>${plural(p.superposiciones, 'par de contratos se pisa', 'pares de contratos se pisan')}</strong>
+        en el tiempo${p.fechas_imposibles ? `, y <strong>${
+          plural(p.fechas_imposibles, 'contrato tiene', 'contratos tienen')}</strong>
+        fechas imposibles` : ''}.
+        De los <strong>${plural(p.campos_criticos_total, 'campo crítico', 'campos críticos')}</strong>
+        de los contratos, <strong>${n(p.campos_criticos_firmes)}</strong>
+        ${p.campos_criticos_firmes === 1 ? 'está firme' : 'están firmes'}
+        (${fmtPct(p.cobertura_pct)}) y <strong>${n(p.a_revisar)}</strong>
+        ${p.a_revisar === 1 ? 'espera' : 'esperan'} revisión${p.excluidos ? `, y
+        <strong>${plural(p.excluidos, 'contrato queda afuera', 'contratos quedan afuera')}
+          del cruce</strong> por faltarle${p.excluidos === 1 ? '' : 's'} algún dato firme` : ''}.
       </p>
       ${(p.contratos_repetidos || p.archivos_con_varios) ? `
         <div class="aviso" style="margin-top:14px">
           <span class="sello alerta" style="flex:none">Revisar</span>
-          <span>${p.archivos_con_varios ? `<strong>${n(p.archivos_con_varios)} archivo(s)
-            traen varios contratos adentro</strong> y se separaron solos. ` : ''}
-            ${p.contratos_repetidos ? `<strong>${n(p.contratos_repetidos)} contrato(s)
-            aparecen más de una vez</strong> y estarían contándose doble en los acumulados:
+          <span>${p.archivos_con_varios ? `<strong>${plural(p.archivos_con_varios,
+              'archivo trae varios documentos adentro', 'archivos traen varios documentos adentro')
+            }</strong> y se separaron solos. ` : ''}
+            ${p.contratos_repetidos ? `<strong>${plural(p.contratos_repetidos,
+              'contrato aparece más de una vez', 'contratos aparecen más de una vez')
+            }</strong> y ${p.contratos_repetidos === 1 ? 'estaría' : 'estarían'} contándose
+            doble en los acumulados:
             <a href="#/consultas/08_contratos_repetidos">ver cuáles</a>.` : ''}</span>
         </div>` : ''}
       ${p.afuera ? `
         <div class="aviso" style="margin-top:14px">
           <span class="sello alerta" style="flex:none">Afuera</span>
-          <span><strong>${n(p.afuera)} archivo(s) no produjeron ningún contrato</strong> y
-            por lo tanto no entran en ninguno de estos números:
+          <span><strong>${plural(p.afuera, 'archivo no produjo ningún documento',
+              'archivos no produjeron ningún documento')}</strong> y
+            por lo tanto no ${p.afuera === 1 ? 'entra' : 'entran'} en ninguno de estos números:
             <a href="#/afuera">ver cuáles y por qué</a>.</span>
         </div>` : ''}
       ${p.destacados.length ? `
@@ -447,22 +549,35 @@ async function vPanel() {
       ${tabla([
         {t:'Documento', r:f => esc(FAMILIA_DOC[f.familia] || 'Sin clasificar')},
         {t:'Campo', r:f => esc(rotularCampo(f.campo, f.familia))},
-        {t:'Total en el legajo', k:'total', c:'num'},
+        {t:'Total', k:'total', c:'num'},
         {t:'Firmes', c:'num', r:f => `<b>${fmtNum.format(f.firmes)}</b>`},
-        {t:'· automáticos', k:'automaticos_firmes', c:'num'},
-        {t:'· verificados por una persona', k:'verificados_por_persona', c:'num'},
-        {t:'Pendientes', c:'num',
-         r:f => f.pendientes_baja_confianza ? `<span class="marca">${f.pendientes_baja_confianza}</span>` : '0'},
-        {t:'En conflicto', c:'num',
-         r:f => f.conflictos ? `<span class="marca">${f.conflictos}</span>` : '0'},
-        {t:'Sin revisar', k:'sin_revisar', c:'num'},
-        {t:'Ilegible o ausente confirmado', c:'num',
+        {t:'Esperando', c:'num', r:f => {
+          const n = f.pendientes_baja_confianza + f.conflictos + f.sin_revisar;
+          return n ? `<span class="marca">${fmtNum.format(n)}</span>` : '0';
+        }},
+        {t:'Cerrados sin valor', c:'num',
          r:f => fmtNum.format(f.ilegibles_confirmados + f.ausentes_confirmados)},
-        {t:'% firme sobre el total', c:'num', r:f => fmtPct(f.pct_firme_sobre_total)},
+        {t:'% firme', c:'num', r:f => fmtPct(f.pct_firme_sobre_total)},
       ], cob)}
+      <details class="detalle-cobertura">
+        <summary>Abrir el detalle: cuántos resolvió el sistema y cuántos una persona</summary>
+        ${tabla([
+          {t:'Documento', r:f => esc(FAMILIA_DOC[f.familia] || 'Sin clasificar')},
+          {t:'Campo', r:f => esc(rotularCampo(f.campo, f.familia))},
+          {t:'Automáticos firmes', k:'automaticos_firmes', c:'num'},
+          {t:'Verificados por una persona', k:'verificados_por_persona', c:'num'},
+          {t:'Pendientes por baja confianza', k:'pendientes_baja_confianza', c:'num'},
+          {t:'En conflicto', k:'conflictos', c:'num'},
+          {t:'Sin revisar', k:'sin_revisar', c:'num'},
+          {t:'Ilegibles confirmados', k:'ilegibles_confirmados', c:'num'},
+          {t:'Ausentes confirmados', k:'ausentes_confirmados', c:'num'},
+        ], cob)}
+      </details>
       ${p.excluidos ? `<p class="prosa" style="font-size:13px;margin-top:12px">
-        <strong>${n(p.excluidos)} contratos quedaron fuera del cruce</strong> por faltarles
-        algún dato firme: <a href="#/consultas/06_excluidos_del_cruce">ver cuáles y por qué</a>.</p>` : ''}`) +
+        <strong>${plural(p.excluidos, 'contrato quedó fuera del cruce',
+                          'contratos quedaron fuera del cruce')}</strong> por faltarle${
+          p.excluidos === 1 ? '' : 's'} algún dato firme:
+        <a href="#/consultas/06_excluidos_del_cruce">ver cuáles y por qué</a>.</p>` : ''}`) +
 
     bloque('f. 0004', 'Salida', `
       <h2>Llevárselo</h2>
@@ -1511,7 +1626,7 @@ function pintarTrabajo(t) {
       ${t.estado === 'error' ? `<div class="aviso" style="margin-top:10px">
          <span class="sello alerta">Error</span><span>${esc(t.mensaje)}</span></div>` : ''}
       ${(t.errores || []).length ? `<details style="margin-top:10px"><summary class="rotulo">
-         ${t.errores.length} documento(s) con problemas</summary>
+         ${plural(t.errores.length, 'documento con problemas', 'documentos con problemas')}</summary>
          <ul style="margin-top:8px">${t.errores.slice(0,20).map(e =>
            `<li>${esc(e.etapa)}: ${esc(e.detalle)}</li>`).join('')}</ul></details>` : ''}
     </div>`;
@@ -1834,10 +1949,8 @@ async function refrescarCuentas() {
     const av = document.getElementById('aviso-demo');
     if (av) av.hidden = !p.demostracion;
     document.body.classList.toggle('con-demo', !!p.demostracion);
-    const c = $('#n-cola'), f = $('#n-fus'), af = $('#n-afuera');
-    c.textContent = p.a_revisar; c.hidden = !p.a_revisar;
-    f.textContent = p.fusiones;  f.hidden = !p.fusiones;
-    if (af) { af.textContent = p.afuera; af.hidden = !p.afuera; }
+    cuentas = {a_revisar: p.a_revisar, fusiones: p.fusiones, afuera: p.afuera};
+    pintarNav(location.hash || '#/panel');
     // El lote sólo cuando hay uno. «lote —» es una etiqueta sin dato: ocupa el mismo
     // lugar que algo útil y no dice nada.
     $('#f-lote').textContent = p.lote ? 'lote ' + p.lote : '';
@@ -1878,8 +1991,7 @@ const rutas = [
 
 async function rutear() {
   const h = location.hash || '#/panel';
-  document.querySelectorAll('nav a').forEach(a =>
-    a.classList.toggle('activo', h.startsWith(a.getAttribute('href'))));
+  pintarNav(h);
   const base = '#/' + h.split('/')[1];
   document.title = (TITULOS[base] || 'Análisis documental') + ' · UFIL Paraná';
   vista.innerHTML = '<div class="esqueleto"><i></i><i></i><i></i></div>';

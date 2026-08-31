@@ -30,6 +30,7 @@ from pathlib import Path
 
 from . import config
 from .capa2_campos import normalizar_cotejo
+from .castellano import miles, plural
 
 # Umbrales propuestos en docs/00-fase-0.md §6. Asimétricos a propósito.
 UMBRAL_EXACTITUD = {"nombre": 0.95, "documento": 0.98,
@@ -181,7 +182,8 @@ def informe_texto(res: dict) -> str:
                  f"ofrecidas: {resc} ({100*resc/conf:.0f}%) — se resuelven eligiendo, sin tipear")
     if res.get("archivos_con_varios_contratos"):
         n = len(res["archivos_con_varios_contratos"])
-        L.append(f"fuera de la medición: {n} archivo(s) traen varios contratos adentro y la "
+        L.append(f"fuera de la medición: {plural(n, 'archivo trae', 'archivos traen')} "
+                 f"varios contratos adentro y la "
                  f"referencia tiene una sola fila por archivo")
     L.append("")
     L.append("VEREDICTO: " + ("cumple los umbrales propuestos"
