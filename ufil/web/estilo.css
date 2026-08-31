@@ -850,12 +850,18 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
   grid-template-rows:auto auto minmax(0,1fr) auto; gap:8px;
   border-left:1px solid var(--filete); background:var(--papel-2); padding:14px 20px 16px;
 }
-/* La foja entra entera, escalada: sin esto el panel de la derecha se hacía largo y
-   aparecía la segunda barra de desplazamiento que esto vino a sacar. */
-.taller-cuerpo .lienzo{min-height:0; overflow:hidden; display:flex;
-  align-items:flex-start; justify-content:center; background:#fff}
-.taller-cuerpo .lienzo img{max-height:100%; width:auto; max-width:100%;
-  object-fit:contain; display:block}
+/* La foja entra entera, escalada al alto que quede: sin esto el panel de la derecha
+   se hacía largo y aparecía la segunda barra de desplazamiento que esto vino a sacar.
+
+   El recuadro que marca el campo se posiciona en PORCENTAJES de `.lienzo` (ver
+   `encuadrar` en app.js), así que `.lienzo` tiene que medir exactamente lo que mide
+   la imagen. Centrarla adentro de una caja más ancha deja el recuadro apuntando al
+   lugar equivocado —señalando un renglón que no es el del campo, que es peor que no
+   señalar nada—. Por eso `justify-self:center`: en una grilla eso achica el elemento
+   hasta su contenido en vez de estirarlo. */
+.taller-cuerpo .lienzo{min-height:0; height:100%; width:auto; overflow:hidden;
+  background:#fff; justify-self:center; align-self:stretch}
+.taller-cuerpo .lienzo img{height:100%; width:auto; max-width:100%; display:block}
 
 .taller-pie{
   display:flex; align-items:center; gap:16px; flex-wrap:wrap; min-height:38px;

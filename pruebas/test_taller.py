@@ -90,8 +90,21 @@ class UnaSolaBarraDeDesplazamiento(unittest.TestCase):
         se hace largo y aparece la segunda barra que todo esto vino a sacar.
         """
         c = cuerpo(".taller-cuerpo .lienzo img")
-        self.assertIn("max-height:100%", c)
-        self.assertIn("object-fit:contain", c)
+        self.assertIn("height:100%", c)
+        self.assertIn("width:auto", c)
+
+    def test_el_lienzo_mide_lo_que_mide_la_foja(self):
+        """
+        El recuadro que marca el campo se posiciona en PORCENTAJES de `.lienzo` (ver
+        `encuadrar` en app.js). Si `.lienzo` es más ancho que la imagen —porque se la
+        centró adentro de una caja estirada— el recuadro apunta a un renglón que no es
+        el del campo. Señalar mal es peor que no señalar: quien mira el recuadro decide
+        sobre el renglón equivocado y firma el error.
+        """
+        c = cuerpo(".taller-cuerpo .lienzo")
+        self.assertIn("justify-self:center", c,
+                      "el lienzo se estira y el recuadro deja de coincidir con la foja")
+        self.assertIn("width:auto", c)
 
     def test_las_tres_fajas_quietas_estan_declaradas(self):
         c = cuerpo(".taller")
