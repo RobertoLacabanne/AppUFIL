@@ -37,6 +37,16 @@ igual:
 
 ## Arrancar
 
+**Para instalarlo en una máquina nueva**, sin saber nada del proyecto:
+[`EMPEZAR.md`](EMPEZAR.md). Son tres pasos y el instalador chequea todo solo.
+
+```bash
+./scripts/instalar.sh             # una sola vez
+./scripts/arrancar.sh             # todos los días
+```
+
+Por dentro, o para adaptarlo:
+
 ```bash
 ./scripts/descargar-fuentes.sh    # una vez, con internet
 python3 -m ufil.cli diagnostico   # ¿está todo lo que hace falta en esta máquina?
@@ -163,7 +173,9 @@ por accidente.
 | [`docs/07-desde-el-celular.md`](docs/07-desde-el-celular.md) | Entrar desde un teléfono: cómo se hace, qué protege la clave y qué no. |
 | [`docs/08-hasta-donde-aguanta-el-escaneo.md`](docs/08-hasta-donde-aguanta-el-escaneo.md) | **¿A cuántos DPI hay que escanear?** El punto de quiebre, medido. |
 | [`docs/identidad/guia-visual.html`](docs/identidad/guia-visual.html) | La guía visual, se abre con doble clic |
-| [`INSTALAR.md`](INSTALAR.md) | Instalación en dos etapas y operación diaria |
+| [`EMPEZAR.md`](EMPEZAR.md) | **Cómo hacerlo andar en una máquina nueva.** Tres pasos, para alguien que no participó del desarrollo. |
+| [`INSTALAR.md`](INSTALAR.md) | Instalación en dos etapas (sin internet), operación diaria y respaldo |
+| [`docs/09-lo-escrito-a-mano.md`](docs/09-lo-escrito-a-mano.md) | Por qué el OCR no lee la manuscrita, con el número, y qué hace el sistema en cambio. |
 
 ---
 
