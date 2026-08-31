@@ -104,13 +104,13 @@ PARES = [
     # aparece como par de texto en esta tabla: se usa como filete de adorno al lado
     # de algo que ya está dicho con palabras. La regla se verifica más abajo, en
     # ElDoradoNoLlevaInformacion.
-    ("verde-oper", "papel",   4.5, "botón principal en texto, y sellos de firme"),
-    ("verde-oper", "papel-2", 4.5, "botón principal sobre gris"),
-    ("papel",      "verde-oper", 4.5, "texto del botón principal"),
-    ("turquesa",   "papel",   3.0, "trazos de avance y borde del carril de interpretación"),
-    ("turquesa",   "papel-2", 3.0, "trazos de avance sobre gris"),
+    ("tribunal-txt", "papel",   4.5, "botón principal en texto, y sellos de firme"),
+    ("tribunal-txt", "papel-2", 4.5, "botón principal sobre gris"),
+    ("papel",      "tribunal-txt", 4.5, "texto del botón principal"),
+    ("rio",   "papel",   3.0, "trazos de avance y borde del carril de interpretación"),
+    ("rio",   "papel-2", 3.0, "trazos de avance sobre gris"),
     ("interp-filete", "interp", 3.0, "el borde que marca el carril de interpretación"),
-    ("verde-oper",     "interp", 4.5, "el rótulo de clase dentro del carril"),
+    ("tribunal-txt",     "interp", 4.5, "el rótulo de clase dentro del carril"),
     ("ambar",      "ambar-suave", 4.5, "aviso de atención"),
     ("tinta",      "ambar-suave", 4.5, "texto del aviso de atención"),
 ]

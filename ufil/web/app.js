@@ -204,9 +204,13 @@ function celdaValor(c) {
 /* Estado vacío: en vez de una grilla de ceros, qué es esto y qué hacer ahora. */
 /* Una vista entera en estado vacío, con la misma retícula que las demás. */
 function vistaVacia(folio, rotulo, titulo, cabeza, texto) {
+  // El paso siguiente depende de dónde está parada la persona: sin legajo, cargar
+  // escaneos no es el paso siguiente sino el error que se está tratando de evitar.
+  const accion = sinLegajo()
+    ? {href:'#/legajos', texto:'Elegir o crear un legajo'}
+    : {href:'#/ingesta', texto:'Cargar escaneos'};
   vista.innerHTML = bloque(folio, rotulo,
-    `<h2>${esc(titulo)}</h2>` + vacio(cabeza, esc(texto),
-      {href:'#/ingesta', texto:'Cargar escaneos'}));
+    `<h2>${esc(titulo)}</h2>` + vacio(cabeza, esc(texto), accion));
 }
 
 function vacio(titulo, texto, accion) {
@@ -328,14 +332,22 @@ function pintarNav(hash) {
     if (acá) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
 
+  // Sin legajo abierto, las secciones que necesitan una base detrás se marcan como
+  // lo que son: todavía no disponibles. No se esconden —esconder la mitad de la barra
+  // deja a la persona sin saber qué hace el sistema—, se apagan y dicen por qué.
+  const apagada = s => sinLegajo() &&
+    !SIN_LEGAJO_IGUAL_ANDAN.has(s.hash || (s.items && s.items[0] && s.items[0].hash));
+
   $('#nav-secciones').innerHTML = SECCIONES.map(s => {
     const abierta = s === activa;
+    const gris = apagada(s) ? ' apagado' : '';
+    const porque = apagada(s) ? ' title="Necesita un legajo abierto"' : '';
     // La sección lleva la suma de lo que hay pendiente adentro. Cerrada, es la única
     // manera de enterarse de que adentro quedó trabajo sin hacer.
     const n = (s.items || []).reduce((t, i) => t + (i.cuenta ? num(i.cuenta) : 0), 0);
     const destino = s.hash || s.items[0].hash;
-    const cabeza = `<a href="${destino}" class="cabeza ${abierta ? 'activo' : ''}"
-        ${abierta ? 'aria-current="true"' : ''}>${iconoSeccion(s.id)}
+    const cabeza = `<a href="${destino}" class="cabeza ${abierta ? 'activo' : ''}${gris}"
+        ${abierta ? 'aria-current="true"' : ''}${porque}>${iconoSeccion(s.id)}
         <span class="txt">${esc(s.rotulo)}</span>${chip(n, 'cosa')}</a>`;
     if (!abierta || !(s.items || []).length) return `<div class="grupo">${cabeza}</div>`;
     const items = s.items.map(i =>
@@ -851,7 +863,7 @@ async function vPanel() {
         <div class="cifra"><b>${n(p.paginas)}</b><span>páginas leídas</span></div>
         <div class="cifra ok"><b>${n(p.campos_criticos_firmes)}</b>
           <span>campos firmes de ${n(p.campos_criticos_total)}</span></div>
-        <div class="cifra ${p.a_revisar ? 'alerta' : 'ok'}"><b>${n(p.a_revisar)}</b><span>esperan revisión</span></div>
+        <div class="cifra ${p.a_revisar ? 'atencion' : 'ok'}"><b>${n(p.a_revisar)}</b><span>esperan revisión</span></div>
         <div class="cifra ${p.conflictos ? 'alerta' : 'ok'}"><b>${n(p.conflictos)}</b><span>en conflicto</span></div>
         <div class="cifra"><b>${n(p.verificados)}</b><span>verificados por una persona</span></div>
         <div class="cifra"><b>${n(p.personas)}</b><span>personas identificadas</span></div>
@@ -2086,6 +2098,12 @@ async function vPersona(id) {
 let subiendo = false;
 
 async function vIngesta() {
+  // El control de arriba ya corta la ruta, pero la carga es la única pantalla que
+  // ESCRIBE en disco: se chequea de nuevo acá, contra el servidor y no contra lo que
+  // esta pestaña se acuerde. Una pestaña abierta desde ayer cree cualquier cosa.
+  const c = await api('/api/cuentas');
+  if (!c.legajo && !c.documentos) return vistaSinLegajo('Cargar escaneos');
+
   const t = await api('/api/trabajo');
   const lote = localStorage.getItem('ufil.lote') || '';
   vista.innerHTML = bloque('f. 0000', 'Ingesta', `
@@ -2148,7 +2166,9 @@ async function vIngesta() {
     <div class="campos-lote">
       <label>Lote <input type="text" id="i-lote" value="${esc(lote)}"
         placeholder="contratos-camara-A-2024"></label>
-      <label>Legajo <input type="text" id="i-legajo" placeholder="opcional"></label>
+      <label>Referencia <input type="text" id="i-legajo"
+        placeholder="opcional — expediente, actuación"
+        title="Sólo queda anotado en la procedencia del archivo. No cambia de legajo."></label>
       <label>Quién carga <input type="text" id="i-operador"
         value="${esc(localStorage.getItem('ufil.revisor') || '')}" placeholder="apellido.nombre"></label>
     </div>
@@ -2188,10 +2208,17 @@ async function vIngesta() {
   zona.addEventListener('drop', e => subir([...e.dataTransfer.files]));
 
   $('#b-procesar').onclick = async () => {
-    const r = await api('/api/procesar', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({})});
-    if (!r.ok) return alert(r.motivo || 'No se pudo arrancar');
-    seguirTrabajo();
+    try {
+      const r = await api('/api/procesar', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({})});
+      if (!r.ok) return alert(r.motivo || 'No se pudo arrancar');
+      seguirTrabajo();
+    } catch (e) {
+      // 409 sin legajo: el servidor tiene razón y la pantalla está vieja. Se la manda
+      // a elegir uno en vez de mostrarle el texto del error.
+      if (e.estado === 409) return vistaSinLegajo('Cargar escaneos');
+      alert(e.message);
+    }
   };
   if (t.estado === 'corriendo') seguirTrabajo(); else pintarTrabajo(t);
 }
@@ -2656,7 +2683,10 @@ function avisarSiHayVersionNueva(version) {
    cuando redirigió, para que quien la llame no siga pintando datos que no van. */
 function pintarLegajo(p) {
   const l = p.legajo;
+  HAY_LEGAJO = !!l;
+  BASE_SUELTA_CON_MATERIAL = !l && !!p.documentos;
   document.body.classList.toggle('con-legajo', !!l);
+  document.body.classList.toggle('sin-legajo', sinLegajo());
   $('#l-numero').textContent = l ? l.numero : '—';
   $('#l-caratula').textContent = l ? l.caratula : 'Ninguno abierto';
   $('#t-legajo').title = l
@@ -2682,6 +2712,28 @@ function pintarLegajo(p) {
    la pestaña estaba abierta. Quien deja el sistema abierto todo el día seguiría usando
    la anterior sin enterarse. */
 let VERSION_CARGADA = null;
+
+/* ¿Hay legajo abierto? Lo sabe `refrescarCuentas()` y lo consultan las vistas antes
+   de ofrecer cargar nada. `null` significa «todavía no se preguntó»: la diferencia
+   importa, porque «no sé» y «no hay» llevan a pantallas distintas. */
+let HAY_LEGAJO = null;
+/* La instalación anterior a los legajos: tiene material en la base suelta y sigue
+   trabajando ahí. A esa no se le corta la carga. */
+let BASE_SUELTA_CON_MATERIAL = false;
+
+const sinLegajo = () => HAY_LEGAJO === false && !BASE_SUELTA_CON_MATERIAL;
+
+/* La pantalla que reemplaza a cualquier vista de datos cuando no hay legajo abierto.
+   No es un error: es el paso que falta, dicho con el nombre del paso. */
+function vistaSinLegajo(titulo) {
+  vista.innerHTML = bloque('f. 0000', 'Sin legajo', `
+    <h2>${esc(titulo)}</h2>
+    ${vacio('Primero hay que abrir un legajo',
+      'Cada legajo es una causa y tiene su propia base de datos: sus documentos, sus ' +
+      'personas y sus totales viven en un archivo aparte. Hasta que no haya uno abierto ' +
+      'no hay dónde leer ni dónde guardar.',
+      {href:'#/legajos', texto:'Elegir o crear un legajo'})}`);
+}
 
 async function refrescarCuentas() {
   try {
@@ -2755,6 +2807,11 @@ async function vigilarTrabajo() {
   } catch (e) { TRABAJO = null; }
 }
 
+/* Las que tienen sentido sin legajo abierto: elegir uno, y todo lo que explica o
+   diagnostica el sistema. El resto necesita una base detrás. */
+const SIN_LEGAJO_IGUAL_ANDAN = new Set(
+  ['#/legajos', '#/acerca', '#/salud', '#/como-funciona', '#/consultas']);
+
 const rutas = [
   [/^#\/legajos$/,               vLegajos],
   [/^#\/panel$/,                 vPanel],
@@ -2787,6 +2844,12 @@ async function rutear() {
   // página. Al salir de ahí hay que devolverlo, o el resto del sistema queda con el
   // pie cortado y sin manera de bajar.
   document.body.classList.remove('taller-abierto');
+  // Sin legajo abierto, las pantallas de datos no se dibujan vacías ni piden material
+  // que no existe: dicen cuál es el paso que falta. Las de sistema siguen andando,
+  // porque son justamente las que hay que poder mirar antes de abrir nada.
+  if (sinLegajo() && !SIN_LEGAJO_IGUAL_ANDAN.has(base)) {
+    return vistaSinLegajo(TITULOS[base] || 'Análisis documental');
+  }
   vista.innerHTML = '<div class="esqueleto"><i></i><i></i><i></i></div>';
   for (const [re, fn] of rutas) {
     const m = h.match(re);
@@ -2900,9 +2963,12 @@ async function pintarIdentidad() {
 }
 let IDENTIDAD = null;
 
+/* El orden importa. Antes se pintaba la pantalla y DESPUÉS se preguntaba qué legajo
+   había: sobre una instalación recién puesta eso mostraba el panel entero en cero y
+   recién ahí saltaba a elegir legajo. El parpadeo se ve como si algo hubiera fallado.
+   Ahora se pregunta primero y se pinta una sola vez, la pantalla que corresponde. */
 medirTecho();
 addEventListener('hashchange', rutear);
 pintarIdentidad();
-rutear();
-refrescarCuentas();
+refrescarCuentas().then(rutear);
 vigilarTrabajo();

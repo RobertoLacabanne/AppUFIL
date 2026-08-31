@@ -109,6 +109,34 @@ def _cx() -> sqlite3.Connection:
     return db.conectar(ruta)
 
 
+def _falta_abrir_legajo() -> str:
+    """
+    ¿Se está por escribir material sin legajo abierto?
+
+    Sin este control la carga andaba igual: `/api/subir` contestaba 200 y el escaneo
+    caía en la base suelta, fuera de todo legajo, mientras el techo de la pantalla
+    decía «Ninguno abierto». Después no hay a dónde ir a buscarlo: no figura en ningún
+    legajo de la lista y los totales de la causa no lo cuentan.
+
+    La excepción es la instalación anterior a los legajos, que tiene material en la
+    base suelta y sigue trabajando ahí. A ésa no se le corta nada: se la reconoce
+    porque la base suelta ya tiene documentos.
+
+    Devuelve el motivo, o cadena vacía si se puede escribir.
+    """
+    if config.legajo_activo():
+        return ""
+    cx = _cx()
+    try:
+        if cx.execute("SELECT COUNT(*) FROM documento").fetchone()[0]:
+            return ""            # instalación vieja, con material en la base suelta
+    finally:
+        cx.close()
+    return ("No hay ningún legajo abierto. Cada legajo es una base separada: "
+            "si esto se cargara ahora quedaría fuera de toda causa. "
+            "Abrí o creá el legajo y volvé a intentar.")
+
+
 def _procesador() -> Procesador:
     """El trabajador del legajo activo. Se crea la primera vez que se lo pide."""
     slug = config.legajo_activo()
@@ -1098,6 +1126,11 @@ class Manejador(BaseHTTPRequestHandler):
         # La subida manda el PDF crudo en el cuerpo, con los metadatos en la URL. Es a
         # propósito: evita parsear multipart (que salió de la biblioteca estándar) y da
         # progreso archivo por archivo sin esfuerzo.
+        if u.path in ("/api/subir", "/api/procesar"):
+            falta = _falta_abrir_legajo()
+            if falta:
+                return self._json({"ok": False, "sin_legajo": True, "error": falta}, 409)
+
         if u.path == "/api/subir":
             q = parse_qs(u.query)
             datos = self.rfile.read(largo) if largo else b""
