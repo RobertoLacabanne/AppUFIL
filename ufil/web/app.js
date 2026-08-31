@@ -10,6 +10,53 @@ const fmtNum = new Intl.NumberFormat('es-AR');
 const fmtPesos = c => c == null ? null
   : '$' + new Intl.NumberFormat('es-AR', {minimumFractionDigits: 2}).format(c / 100);
 
+/* Fechas en formato argentino. La base guarda ISO —2016-07-01— porque es lo que
+   ordena bien y no depende de dónde corra; la pantalla muestra 01/07/2016, que es lo
+   que se escribe en un expediente. Se convierte acá, en un solo lugar. */
+const fmtFecha = v => {
+  if (!v) return '';
+  const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(v);
+  return `${m[3]}/${m[2]}/${m[1]}`;
+};
+/* Con hora, para sellos de tiempo: 30/08/2026 21:14 */
+const fmtFechaHora = v => {
+  if (!v) return '';
+  const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : fmtFecha(v);
+};
+/* Plural sin paréntesis: «1 archivo», «3 archivos», y no «1 archivo(s)». */
+const fmtPct = v => fmtNum.format(Math.round(v * 10) / 10) + '%';
+const plural = (n, uno, muchos) => `${fmtNum.format(n)} ${n === 1 ? uno : muchos}`;
+
+/* Nombres legibles de los campos. En la interfaz operativa nunca se muestra el nombre
+   técnico: quien revisa lee «Fecha de inicio», no `fecha_inicio`. */
+const NOMBRE_CAMPO = {
+  nombre: 'Contratado', documento: 'Documento', cargo: 'Cargo',
+  fecha_inicio: 'Fecha de inicio', fecha_fin: 'Fecha de finalización',
+  fecha_contrato: 'Fecha del contrato', monto: 'Monto mensual',
+  monto_total: 'Monto total', monto_total_letras: 'Monto total en letras',
+  plazo_meses: 'Plazo en meses', comprobante: 'Número de comprobante',
+};
+const rotularCampo = c => NOMBRE_CAMPO[c] || String(c || '').replace(/_/g, ' ');
+
+/* Estados de confianza: etiqueta y explicación. Es el mismo modelo que está en
+   ufil/confianza.py; si se agrega uno allá, se agrega acá. */
+const ESTADO = {
+  automatico_alta:     ['Automático',          'ok'],
+  pendiente_baja:      ['Pendiente',           'aviso'],
+  conflicto:           ['Conflicto',           'alerta'],
+  verificado:          ['Verificado',          'ok'],
+  corregido:           ['Corregido',           'ok'],
+  ilegible_confirmado: ['Ilegible confirmado', 'neutro'],
+  ausente_confirmado:  ['Ausente confirmado',  'neutro'],
+  no_revisado:         ['Sin revisar',         'aviso'],
+};
+const badgeEstado = e => {
+  const [txt, tono] = ESTADO[e] || [e || '—', 'neutro'];
+  return `<span class="sello estado-${tono}">${esc(txt)}</span>`;
+};
+
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -128,6 +175,7 @@ async function vPanel() {
   }
 
   const n = x => fmtNum.format(x);
+  const t = p.totales || {};
   const destacados = p.destacados.map(d => `
     <a class="destacado-fila" href="#/persona/${d.persona_id}">
       <span class="dias mono">${d.dias}</span>
@@ -145,8 +193,9 @@ async function vPanel() {
         las dos cámaras y <strong>${n(p.superposiciones)} pares</strong> de contratos se pisan
         en el tiempo${p.fechas_imposibles ? `, y <strong>${n(p.fechas_imposibles)}</strong>
         tiene${p.fechas_imposibles === 1 ? '' : 'n'} fechas imposibles` : ''}.
-        El sistema resolvió solo el <strong>${p.cobertura_pct}%</strong> de los campos
-        críticos; quedan <strong>${n(p.a_revisar)}</strong> esperando revisión
+        De los <strong>${n(p.campos_criticos_total)} campos críticos</strong> del legajo,
+        <strong>${n(p.campos_criticos_firmes)}</strong> están firmes
+        (${fmtPct(p.cobertura_pct)}) y <strong>${n(p.a_revisar)}</strong> esperan revisión
         ${p.excluidos ? `y <strong>${n(p.excluidos)} contratos afuera del cruce</strong>
           por faltarles algún dato firme` : ''}.
       </p>
@@ -184,18 +233,39 @@ async function vPanel() {
       <div class="cifras">
         <div class="cifra"><b>${n(p.documentos)}</b><span>documentos</span></div>
         <div class="cifra"><b>${n(p.paginas)}</b><span>páginas leídas</span></div>
-        <div class="cifra ok"><b>${p.cobertura_pct}%</b><span>resuelto solo</span></div>
-        <div class="cifra ${p.a_revisar ? 'alerta' : 'ok'}"><b>${n(p.a_revisar)}</b><span>a revisar</span></div>
-        <div class="cifra ${p.conflictos ? 'alerta' : 'ok'}"><b>${n(p.conflictos)}</b><span>conflictos</span></div>
-        <div class="cifra"><b>${n(p.verificados)}</b><span>verificados a mano</span></div>
-        <div class="cifra"><b>${n(p.personas)}</b><span>personas</span></div>
+        <div class="cifra ok"><b>${n(p.campos_criticos_firmes)}</b>
+          <span>campos firmes de ${n(p.campos_criticos_total)}</span></div>
+        <div class="cifra ${p.a_revisar ? 'alerta' : 'ok'}"><b>${n(p.a_revisar)}</b><span>esperan revisión</span></div>
+        <div class="cifra ${p.conflictos ? 'alerta' : 'ok'}"><b>${n(p.conflictos)}</b><span>en conflicto</span></div>
+        <div class="cifra"><b>${n(p.verificados)}</b><span>verificados por una persona</span></div>
+        <div class="cifra"><b>${n(p.personas)}</b><span>personas identificadas</span></div>
         ${p.paginas_enderezadas ? `<div class="cifra"><b>${n(p.paginas_enderezadas)}</b>
           <span>fojas enderezadas</span></div>` : ''}
-        <div class="cifra ancha"><b>${esc(fmtPesos(p.acumulado_centavos))}</b><span>monto leído en total</span></div>
+      </div>
+
+      <h3 style="margin-top:22px">Los montos</h3>
+      <div class="cifras totales">
+        <div class="cifra ancha firme">
+          <b>${esc(fmtPesos(t.total_firme_centavos))}</b>
+          <span>total firme · ${n(t.contratos_con_monto_firme)} contratos</span></div>
+        <div class="cifra ancha provisional">
+          <b>${esc(fmtPesos(t.total_provisional_centavos))}</b>
+          <span>provisional · ${n(t.contratos_con_monto_provisional)} contratos sin revisar</span></div>
+      </div>
+      <div class="cifras">
+        <div class="cifra ${t.montos_pendientes_sin_valor ? 'alerta' : ''}">
+          <b>${n(t.montos_pendientes_sin_valor)}</b><span>montos sin número leído</span></div>
+        <div class="cifra ${t.contratos_sin_monto_firme ? 'alerta' : ''}">
+          <b>${n(t.contratos_sin_monto_firme)}</b><span>contratos sin monto firme</span></div>
       </div>
       <p class="prosa" style="font-size:12.5px;margin-top:10px">
-        El total en pesos suma <strong>sólo los montos que se leyeron con seguridad</strong>.
-        Es un piso, no el total del lote.${p.paginas_enderezadas ? `
+        <strong>El total firme</strong> suma únicamente los montos que el sistema leyó con
+        confianza alta o que una persona verificó contra el documento. <strong>El
+        provisional</strong> son montos leídos que todavía están esperando revisión: se
+        muestran para que se vea que existen, y <strong>no entran en ningún cruce ni en
+        ningún acumulado</strong> hasta que alguien los mire.
+        ${t.ultima_revision ? `Última revisión: <span class="mono">${esc(fmtFecha(t.ultima_revision))}</span>.` : ''}
+        ${p.paginas_enderezadas ? `
         ${p.paginas_enderezadas === 1 ? 'Una foja llegó' : n(p.paginas_enderezadas) + ' fojas llegaron'}
         girada en el escaneo y se enderezó la copia de trabajo para poder leerla.` : ''}</p>
       ${(p.perfiles || []).length > 1 ? `
@@ -205,18 +275,25 @@ async function vPanel() {
 
     bloque('f. 0003', 'Cobertura', `
       <h2>Qué se pudo leer</h2>
-      <p class="prosa">El denominador honesto, campo por campo. Una cola larga no es una
-        falla: es el sistema prefiriendo dudar antes que equivocarse callado.</p>
+      <p class="prosa">El denominador honesto, campo por campo. <strong>Firme</strong> es lo
+        que puede sumarse y cruzarse: lo leyó el sistema con confianza alta, o lo verificó
+        una persona contra el documento. Todo lo demás existe y se ve, pero no entra en
+        ningún total. Una cola larga no es una falla: es el sistema prefiriendo dudar antes
+        que equivocarse callado.</p>
       ${tabla([
-        {t:'Campo', k:'campo'},
-        {t:'Total', k:'total', c:'num'},
-        {t:'Resueltos solos', k:'resueltos_solos', c:'num'},
-        {t:'Con valor, a revisar', k:'con_valor_a_revisar', c:'num'},
-        {t:'Verificados', k:'verificados_a_mano', c:'num'},
-        {t:'Conflictos', c:'num', r:f => f.conflictos ? `<span class="marca">${f.conflictos}</span>` : '0'},
-        {t:'Ilegibles', k:'ilegibles', c:'num'},
-        {t:'Ausentes', k:'ausentes', c:'num'},
-        {t:'Sin intervención', c:'num', r:f => f.pct_sin_intervencion + '%'},
+        {t:'Campo', r:f => esc(rotularCampo(f.campo))},
+        {t:'Total en el legajo', k:'total', c:'num'},
+        {t:'Firmes', c:'num', r:f => `<b>${fmtNum.format(f.firmes)}</b>`},
+        {t:'· automáticos', k:'automaticos_firmes', c:'num'},
+        {t:'· verificados por una persona', k:'verificados_por_persona', c:'num'},
+        {t:'Pendientes', c:'num',
+         r:f => f.pendientes_baja_confianza ? `<span class="marca">${f.pendientes_baja_confianza}</span>` : '0'},
+        {t:'En conflicto', c:'num',
+         r:f => f.conflictos ? `<span class="marca">${f.conflictos}</span>` : '0'},
+        {t:'Sin revisar', k:'sin_revisar', c:'num'},
+        {t:'Ilegible o ausente confirmado', c:'num',
+         r:f => fmtNum.format(f.ilegibles_confirmados + f.ausentes_confirmados)},
+        {t:'% firme sobre el total', c:'num', r:f => fmtPct(f.pct_firme_sobre_total)},
       ], cob)}
       ${p.excluidos ? `<p class="prosa" style="font-size:13px;margin-top:12px">
         <strong>${n(p.excluidos)} contratos quedaron fuera del cruce</strong> por faltarles

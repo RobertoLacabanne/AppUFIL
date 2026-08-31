@@ -658,3 +658,23 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .propuesta .nota{font-family:var(--serif); font-style:italic; color:var(--tinta-2);
   font-size:12.5px}
 .propuesta.ilegible b{color:var(--tinta-2); font-weight:500}
+
+/* ── Firme contra provisional ──────────────────────────────────────────────
+   La distinción más importante del sistema tiene que verse sin leer la etiqueta.
+   El total firme va en tinta plena sobre papel; el provisional, sobre el fondo de
+   interpretación y con el filete al costado, que es el mismo lenguaje que ya usa el
+   carril de conjeturas. Nunca se muestran uno al lado del otro con el mismo peso. */
+.cifras.totales{grid-template-columns:1fr 1fr; gap:12px}
+.cifra.firme{border-left:3px solid var(--verde)}
+.cifra.firme b{color:var(--tinta)}
+.cifra.provisional{background:var(--interp); border-left:3px solid var(--interp-filete)}
+.cifra.provisional b{color:var(--tinta-2); font-weight:500}
+.cifra.provisional span{color:var(--tinta-3)}
+@media (max-width:720px){.cifras.totales{grid-template-columns:1fr}}
+
+/* Sellos de estado. El color acompaña, no manda: el texto dice el estado completo,
+   porque un estado que sólo se distingue por color no existe para quien no lo ve. */
+.sello.estado-ok{color:var(--verde)}
+.sello.estado-aviso{color:var(--ambar)}
+.sello.estado-alerta{color:var(--lapiz)}
+.sello.estado-neutro{color:var(--tinta-3)}

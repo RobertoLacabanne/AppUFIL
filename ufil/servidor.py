@@ -23,6 +23,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import acceso, config, db
+from . import confianza as cf
 from . import capa3_identidad as c3
 from . import capa4_analisis as c4
 from . import capa5_interpretacion as c5
@@ -71,23 +72,31 @@ def api_panel(cx) -> dict:
 
     cobertura = c4.correr(cx, "05_cobertura")["filas"]
     criticos = [c for c in cobertura if c["campo"] in config.CAMPOS_CRITICOS]
-    tot = sum(c["total"] for c in criticos) or 1
-    solos = sum(c["resueltos_solos"] for c in criticos)
+    # El denominador se dice explícito: firmes sobre el total de campos críticos del
+    # legajo. «50 % resuelto solo» sin decir sobre qué no significa nada.
+    campos_criticos_total = sum(c["total"] for c in criticos)
+    campos_criticos_firmes = sum(c["firmes"] for c in criticos)
+    totales = c4.correr(cx, "10_totales")["filas"][0]
     return {
+        # ── Totales, SEPARADOS. Ver ufil/confianza.py y consultas/10_totales.sql ──
+        "totales": dict(totales),
         "archivos": uno("SELECT COUNT(*) FROM archivo"),
         "duplicados": uno("SELECT COUNT(*) FROM duplicado"),
         "paginas": uno("SELECT COUNT(*) FROM pagina"),
         "documentos": uno("SELECT COUNT(*) FROM documento"),
         "campos": uno("SELECT COUNT(*) FROM campo"),
-        "a_revisar": uno("SELECT COUNT(*) FROM campo WHERE estado='a_revisar'"),
+        "a_revisar": uno(f"SELECT COUNT(*) FROM campo WHERE estado IN ({cf.SQL_PENDIENTES})"),
         "conflictos": uno("SELECT COUNT(*) FROM conflicto WHERE estado='abierto'"),
-        "verificados": uno("SELECT COUNT(*) FROM campo WHERE estado IN ('verificado','corregido')"),
+        "verificados": uno(f"SELECT COUNT(*) FROM campo WHERE estado IN ({cf.SQL_HUMANOS})"),
         "fusiones": uno("SELECT COUNT(*) FROM fusion_propuesta WHERE estado='pendiente'"),
         "excepciones": uno("SELECT COUNT(*) FROM excepcion WHERE estado='abierta'"),
         "personas": uno("SELECT COUNT(*) FROM persona"),
         "interpretaciones": uno("SELECT COUNT(*) FROM interpretacion"),
         "cobertura": cobertura,
-        "cobertura_pct": round(100.0 * solos / tot, 1),
+        "campos_criticos_total": campos_criticos_total,
+        "campos_criticos_firmes": campos_criticos_firmes,
+        "cobertura_pct": round(100.0 * campos_criticos_firmes / campos_criticos_total, 1)
+                         if campos_criticos_total else 0.0,
         "superposiciones": c4.correr(cx, "01_superposicion")["n"],
         "ambas_camaras": c4.correr(cx, "03_ambas_camaras")["n"],
         "fechas_imposibles": c4.correr(cx, "04_fechas_imposibles")["n"],
@@ -111,7 +120,10 @@ def api_panel(cx) -> dict:
                AND b.inicio IS NOT NULL AND b.fin IS NOT NULL
                AND a.inicio<=b.fin AND b.inicio<=a.fin
              ORDER BY dias DESC LIMIT 3""")],
-        "acumulado_centavos": uno("""SELECT COALESCE(SUM(monto_centavos),0) FROM v_contrato"""),
+        # El acumulado firme sale de la consulta de totales, que aplica la doble
+        # barrera. Antes salía de una suma sobre la vista y arrastraba montos que en
+        # ese momento estaban en la cola esperando revisión.
+        "acumulado_centavos": totales["total_firme_centavos"],
         "personas_ambas_camaras": c4.correr(cx, "03_ambas_camaras")["n"],
         "contratos_repetidos": c4.correr(cx, "08_contratos_repetidos")["n"],
         "paginas_enderezadas": uno("SELECT COUNT(*) FROM pagina WHERE rotacion<>0"),

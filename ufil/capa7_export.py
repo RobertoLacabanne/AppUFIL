@@ -11,6 +11,15 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import date
+
+# Nombres legibles de los campos. Un informe que va a un legajo no dice `fecha_inicio`.
+ROTULO_CAMPO = {
+    "nombre": "contratado", "documento": "documento", "cargo": "cargo",
+    "fecha_inicio": "fecha de inicio", "fecha_fin": "fecha de finalización",
+    "fecha_contrato": "fecha del contrato", "monto": "monto mensual",
+    "monto_total": "monto total", "monto_total_letras": "monto total en letras",
+    "plazo_meses": "plazo en meses", "comprobante": "número de comprobante",
+}
 from pathlib import Path
 
 from openpyxl import Workbook
@@ -130,10 +139,13 @@ def a_rtf(cx: sqlite3.Connection, destino: Path) -> Path:
     p.append(H + _rtf("1. Alcance y cobertura de la lectura") + r"\b0\par")
     for c in cob:
         p.append(P + _rtf(
-            f"Campo «{c['campo']}»: {c['resueltos_solos']} de {c['total']} resueltos sin "
-            f"intervención ({c['pct_sin_intervencion']}%); {c['con_valor_a_revisar']} con valor "
-            f"pendiente de revisión; {c['conflictos']} en conflicto entre rutas de lectura; "
-            f"{c['ilegibles']} ilegibles y {c['ausentes']} ausentes en el formulario.") + r"\par")
+            f"Campo «{ROTULO_CAMPO.get(c['campo'], c['campo'])}»: {c['firmes']} de "
+            f"{c['total']} en estado firme ({c['pct_firme_sobre_total']}%), de los cuales "
+            f"{c['verificados_por_persona']} fueron verificados por una persona; "
+            f"{c['pendientes_baja_confianza']} pendientes por confianza baja; "
+            f"{c['conflictos']} en conflicto entre rutas de lectura; "
+            f"{c['sin_revisar']} sin lectura. Sólo los firmes entran en las cifras de "
+            f"este informe.") + r"\par")
     p.append(P + r"\i " + _rtf(
         f"Quedaron fuera del cruce de superposición {len(exc)} contratos por faltarles algún "
         f"dato firme. Se detallan en la planilla adjunta: el total de hallazgos no debe leerse "

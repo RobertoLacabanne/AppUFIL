@@ -120,8 +120,8 @@ class VistaDeContratos(BaseTemporal):
 
     def _campo(self, nombre, valor, tipo, norm):
         cid = self.cx.execute("""INSERT INTO campo (documento_id,nombre,valor_literal,
-                                     pagina_nro,x0,y0,x1,y1,confianza)
-                                 VALUES (?,?,?,1,0,0,1,1,0.99)""",
+                                     pagina_nro,x0,y0,x1,y1,confianza,estado)
+                                 VALUES (?,?,?,1,0,0,1,1,0.99,'automatico_alta')""",
                               (self.doc, nombre, valor)).lastrowid
         self.cx.execute("INSERT INTO normalizacion (campo_id,tipo,valor_norm) VALUES (?,?,?)",
                         (cid, tipo, norm))
@@ -153,8 +153,8 @@ class Identidad(BaseTemporal):
             if valor is None:
                 continue
             cid = self.cx.execute("""INSERT INTO campo (documento_id,nombre,valor_literal,
-                                         pagina_nro,x0,y0,x1,y1,confianza)
-                                     VALUES (?,?,?,1,0,0,1,1,0.99)""",
+                                         pagina_nro,x0,y0,x1,y1,confianza,estado)
+                                     VALUES (?,?,?,1,0,0,1,1,0.99,'automatico_alta')""",
                                   (d, campo, valor)).lastrowid
             self.cx.execute("INSERT INTO normalizacion (campo_id,tipo,valor_norm) VALUES (?,?,?)",
                             (cid, tipo, norm))
@@ -336,7 +336,8 @@ class DeshacerUnaRevision(BaseTemporal):
         c = self.cx.execute("SELECT * FROM campo WHERE id=?", (cid,)).fetchone()
         self.assertEqual(c["valor_literal"], "$ 100,00", "tiene que volver lo automático")
         self.assertIsNone(c["revisado_por"])
-        self.assertEqual(c["estado"], "a_revisar", "y volver a la cola, porque era dudoso")
+        self.assertEqual(c["estado"], "pendiente_baja",
+                         "y volver a la cola, porque era dudoso")
 
     def test_deshacer_un_nulo_marcado_a_mano(self):
         from ufil.aplicar_revision import aplicar
@@ -384,8 +385,8 @@ class ContratosRepetidos(BaseTemporal):
             ("monto", str(monto), "monto", str(monto)),
         ):
             cid = self.cx.execute("""INSERT INTO campo (documento_id,nombre,valor_literal,
-                                         pagina_nro,x0,y0,x1,y1,confianza)
-                                     VALUES (?,?,?,1,0,0,1,1,0.95)""",
+                                         pagina_nro,x0,y0,x1,y1,confianza,estado)
+                                     VALUES (?,?,?,1,0,0,1,1,0.95,'automatico_alta')""",
                                   (d, campo, valor)).lastrowid
             self.cx.execute("""INSERT INTO normalizacion (campo_id,tipo,valor_norm)
                                VALUES (?,?,?)""", (cid, tipo, norm))

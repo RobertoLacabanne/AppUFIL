@@ -40,6 +40,7 @@ from .capa1_texto import Palabra, palabras_de
 from .capa2_campos import PARSERS, normalizar_cotejo
 from .clasificacion import clasificar_documento, tramos_por_tipo
 from .manuscrito import MOTIVO as MOTIVO_MANUSCRITO, es_manuscrito
+from . import confianza as cf
 from .db import ahora
 
 MARGEN_IZQ = 8.0        # puntos que se toleran a la izquierda del rótulo
@@ -497,10 +498,10 @@ def _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina) -> dict:
             ref = next((h for h in por.values() if h.caja or h.region), None)
             cx.execute("""INSERT INTO campo (documento_id,nombre,nulo_motivo,pagina_nro,
                                              x0,y0,x1,y1,estado)
-                          VALUES (?,?,?,?,?,?,?,?,'a_revisar')""",
+                          VALUES (?,?,?,?,?,?,?,?,?)""",
                        (doc_id, campo, MOTIVO_MANUSCRITO, ref.pagina if ref else None,
                         *((ref.caja or ref.region) if ref and (ref.caja or ref.region)
-                          else (None,) * 4)))
+                          else (None,) * 4), cf.NO_REVISADO))
             n_campos += 1; n_rev += 1
             continue
 
@@ -539,9 +540,9 @@ def _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina) -> dict:
             ref = max(con_valor.values(), key=lambda h: h.conf)
             cx.execute("""INSERT INTO campo (documento_id,nombre,nulo_motivo,pagina_nro,
                                              x0,y0,x1,y1,estado)
-                          VALUES (?,?,?,?,?,?,?,?,'a_revisar')""",
+                          VALUES (?,?,?,?,?,?,?,?,?)""",
                        (doc_id, campo, "conflicto", ref.pagina,
-                        *(ref.caja if ref.caja else (None,) * 4)))
+                        *(ref.caja if ref.caja else (None,) * 4), cf.CONFLICTO))
             k = cx.execute("INSERT INTO conflicto (documento_id,campo_nombre) VALUES (?,?)",
                            (doc_id, campo)).lastrowid
             for ruta, h in sorted(con_valor.items()):
@@ -558,9 +559,9 @@ def _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina) -> dict:
             ref = next((h for h in por.values() if h.caja), None)
             cx.execute("""INSERT INTO campo (documento_id,nombre,nulo_motivo,pagina_nro,
                                              x0,y0,x1,y1,estado)
-                          VALUES (?,?,?,?,?,?,?,?,'a_revisar')""",
+                          VALUES (?,?,?,?,?,?,?,?,?)""",
                        (doc_id, campo, motivo, ref.pagina if ref else None,
-                        *(ref.caja if ref and ref.caja else (None,) * 4)))
+                        *(ref.caja if ref and ref.caja else (None,) * 4), cf.NO_REVISADO))
             n_campos += 1; n_rev += 1
             continue
 
@@ -570,8 +571,10 @@ def _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina) -> dict:
         conf = mejor.conf * (PENALIZA_UNICA if unica else 1.0)
         if foco_discrepa:
             conf *= PENALIZA_DISCREPANCIA
+        # Un campo crítico leído por UNA sola ruta, o cuyo desempate discrepó, queda
+        # pendiente aunque su confianza sea alta: una sola opinión no es un cotejo.
         revisar = (conf < config.UMBRAL_CONFIANZA or (unica and critico) or foco_discrepa)
-        estado = "a_revisar" if revisar else "automatico"
+        estado = cf.PENDIENTE_BAJA if revisar else cf.AUTOMATICO_ALTA
         ruta_mejor = next(r for r, h in con_valor.items() if h is mejor)
 
         cid = cx.execute(

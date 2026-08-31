@@ -21,17 +21,32 @@ from __future__ import annotations
 import sqlite3
 from difflib import SequenceMatcher
 
+from . import confianza as cf
 from .capa2_campos import normalizar_cotejo, clave_de_persona
 from .db import ahora
 
 UMBRAL_PROPUESTA = 0.86
 
 
-def _valor(cx, doc_id: int, campo: str):
+def _valor(cx, doc_id: int, campo: str, *, solo_firme: bool = True):
+    """
+    El valor de un campo, y por omisión SÓLO si está firme.
+
+    Es la corrección de un defecto que se veía en la pantalla de personas: entraban
+    como personas consolidadas nombres de OCR con confianza 0,31 —«SOSA, Rosa lI»,
+    «LEDESMA, Héctor-D»— porque acá alcanzaba con que hubiera un valor. Una persona
+    consolidada es una afirmación sobre alguien: no puede salir de un valor que el
+    propio sistema tiene marcado como dudoso y sin revisar.
+
+    `solo_firme=False` sirve para mostrar lo provisional donde corresponda mostrarlo,
+    nunca para consolidar.
+    """
+    filtro = f"AND c.estado IN ({cf.SQL_FIRMES})" if solo_firme else ""
     r = cx.execute(
-        """SELECT c.valor_literal, n.valor_norm
+        f"""SELECT c.valor_literal, n.valor_norm
              FROM campo c LEFT JOIN normalizacion n ON n.campo_id=c.id
-            WHERE c.documento_id=? AND c.nombre=? AND c.valor_literal IS NOT NULL""",
+            WHERE c.documento_id=? AND c.nombre=? AND c.valor_literal IS NOT NULL
+                  {filtro}""",
         (doc_id, campo)).fetchone()
     return (r["valor_literal"], r["valor_norm"]) if r else (None, None)
 

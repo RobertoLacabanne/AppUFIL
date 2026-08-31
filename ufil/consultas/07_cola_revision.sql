@@ -11,7 +11,8 @@ SELECT
   c.pagina_nro,
   c.x0, c.y0, c.x1, c.y1,
   c.ruta,
-  CASE WHEN k.id IS NOT NULL THEN 'conflicto'
+  c.estado        AS estado,
+  CASE WHEN c.estado='conflicto' THEN 'conflicto'
        WHEN c.nulo_motivo IS NOT NULL THEN 'nulo'
        ELSE 'baja confianza' END AS clase
 FROM campo c
@@ -19,7 +20,8 @@ JOIN documento d ON d.id = c.documento_id
 JOIN archivo a   ON a.sha256 = d.sha256
 LEFT JOIN conflicto k ON k.documento_id = c.documento_id
                      AND k.campo_nombre = c.nombre AND k.estado='abierto'
-WHERE c.estado = 'a_revisar'
+-- Todo lo que espera trabajo humano: dudoso, en conflicto, o sin leer.
+WHERE c.estado IN ('pendiente_baja','conflicto','no_revisado')
 ORDER BY
   CASE c.nombre WHEN 'monto' THEN 1 WHEN 'fecha_inicio' THEN 2 WHEN 'fecha_fin' THEN 3
                 WHEN 'documento' THEN 4 WHEN 'nombre' THEN 5 ELSE 9 END,

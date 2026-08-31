@@ -10,7 +10,7 @@ from . import config
 # Se sube cuando cambia `esquema.sql`. Sirve para no reejecutar el script en cada
 # conexión: con el servidor multihilo y el trabajador de fondo, dos conexiones que
 # corrían el esquema a la vez chocaban al recrear la vista `v_contrato`.
-ESQUEMA_VERSION = 10
+ESQUEMA_VERSION = 13
 
 _candado = threading.Lock()
 
@@ -44,6 +44,7 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
     with _candado:
         if _agregar_columnas_faltantes(cx):
             cx.commit()
+        _migrar_estados(cx)
     if not forzar and cx.execute("PRAGMA user_version").fetchone()[0] == ESQUEMA_VERSION:
         return False
     with _candado:
@@ -68,6 +69,38 @@ COLUMNAS_AGREGADAS = (
     ("campo", "conf_auto", "REAL"),
     ("campo", "ruta_auto", "TEXT"),
 )
+
+
+# Los estados de `campo` cambiaron por los ocho de ufil/confianza.py. Una base que ya
+# tenía datos hay que traducirla, no dejarla con los viejos: media base con
+# 'automatico' y media con 'automatico_alta' es peor que cualquiera de las dos, porque
+# las consultas filtran por una lista y la mitad de las filas se cae en silencio.
+TRADUCCION_ESTADOS = (
+    # (viejo, condición extra, nuevo)
+    ("automatico", "nulo_motivo IS NULL AND confianza >= 0.85", "automatico_alta"),
+    ("automatico", "nulo_motivo IS NULL", "pendiente_baja"),
+    ("automatico", "nulo_motivo = 'conflicto'", "conflicto"),
+    ("automatico", "1=1", "no_revisado"),
+    ("a_revisar",  "nulo_motivo = 'conflicto'", "conflicto"),
+    ("a_revisar",  "valor_literal IS NOT NULL", "pendiente_baja"),
+    ("a_revisar",  "1=1", "no_revisado"),
+)
+
+
+def _migrar_estados(cx: sqlite3.Connection) -> int:
+    """Traduce los estados viejos de `campo` a los ocho de ufil/confianza.py."""
+    try:
+        quedan = cx.execute(
+            "SELECT COUNT(*) FROM campo WHERE estado IN ('automatico','a_revisar')"
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        return 0                      # la tabla todavía no existe
+    if not quedan:
+        return 0
+    for viejo, cond, nuevo in TRADUCCION_ESTADOS:
+        cx.execute(f"UPDATE campo SET estado=? WHERE estado=? AND {cond}", (nuevo, viejo))
+    cx.commit()
+    return quedan
 
 
 def _agregar_columnas_faltantes(cx: sqlite3.Connection) -> list[str]:

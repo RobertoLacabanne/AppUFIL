@@ -143,7 +143,10 @@ CREATE TABLE IF NOT EXISTS campo (
   ruta          TEXT,
   confianza     REAL,
   lectura_id    INTEGER REFERENCES lectura(id),
-  estado        TEXT NOT NULL DEFAULT 'automatico',  -- automatico|verificado|corregido
+  -- Ver ufil/confianza.py: los ocho estados y cuáles son FIRMES. La regla que
+  -- sostiene todo el sistema es que sólo un estado firme alimenta personas
+  -- consolidadas, acumulados, superposiciones, interpretaciones y totales.
+  estado        TEXT NOT NULL DEFAULT 'no_revisado',
   revisado_por  TEXT,
   revisado_en   TEXT,
   -- Lo que había leído la máquina antes de que una persona lo tocara. Se guarda para
@@ -193,6 +196,36 @@ CREATE TABLE IF NOT EXISTS propuesta (
   modelo    TEXT NOT NULL,
   creado_en TEXT NOT NULL
 );
+
+-- Historial de decisiones humanas. NO se pisa nunca: una fila por decisión.
+--
+-- `revision_humana` guarda la ÚLTIMA decisión de cada campo, porque su clave primaria
+-- es (sha256, orden, campo) y sirve para reaplicar revisiones tras un reproceso. Esto
+-- es otra cosa: el rastro completo, para que un auditor pueda reconstruir quién cambió
+-- qué, cuándo, desde qué valor y por qué. Sin esto, corregir dos veces borra la
+-- primera corrección y con ella la explicación de por qué se hizo.
+CREATE TABLE IF NOT EXISTS auditoria (
+  id              INTEGER PRIMARY KEY,
+  campo_id        INTEGER REFERENCES campo(id) ON DELETE SET NULL,
+  -- Se guardan también los identificadores estables del documento: si el campo se
+  -- borra en un reproceso, el rastro tiene que sobrevivir igual.
+  sha256          TEXT NOT NULL,
+  orden           INTEGER NOT NULL DEFAULT 1,
+  campo_nombre    TEXT NOT NULL,
+  accion          TEXT NOT NULL,          -- verificar | corregir | ilegible | ausente | ...
+  valor_anterior  TEXT,
+  valor_nuevo     TEXT,
+  motivo_anterior TEXT,
+  motivo_nuevo    TEXT,
+  estado_anterior TEXT,
+  estado_nuevo    TEXT,
+  observacion     TEXT,                   -- lo que la persona quiso dejar dicho
+  quien           TEXT NOT NULL,
+  cuando          TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_auditoria_campo ON auditoria(campo_id);
+CREATE INDEX IF NOT EXISTS ix_auditoria_doc   ON auditoria(sha256, orden, campo_nombre);
+CREATE INDEX IF NOT EXISTS ix_auditoria_fecha ON auditoria(cuando);
 
 CREATE TABLE IF NOT EXISTS excepcion (
   id           INTEGER PRIMARY KEY,
@@ -315,6 +348,22 @@ CREATE INDEX IF NOT EXISTS ix_interp_fuente ON interpretacion_fuente(interpretac
 -- El contrato "consolidado". Un campo entra SOLO si tiene valor y no tiene
 -- conflicto abierto. Todo lo demás sale NULL: ninguna consulta río abajo puede
 -- tropezarse con un valor dudoso sin enterarse.
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Las dos vistas de contrato, y por qué son dos
+--
+-- `v_contrato` trae SOLAMENTE campos en estado firme (ver ufil/confianza.py). Es la
+-- que alimenta personas consolidadas, acumulados, superposiciones, interpretaciones y
+-- totales. Se llama así —el nombre corto, el obvio— a propósito: un SELECT futuro que
+-- se olvide de filtrar tiene que salir seguro, no peligroso.
+--
+-- `v_contrato_todo` trae todo lo que se leyó, firme o no, con el estado de cada campo
+-- al lado. Es para las pantallas donde hay que MOSTRAR lo provisional como provisional:
+-- la ficha del documento, la cola, los listados con su badge.
+--
+-- Antes de esta separación pasaba lo que este sistema existe para que no pase: nombres
+-- de OCR con confianza 0,31 entraban como personas consolidadas, y el acumulado sumaba
+-- $761.900 de montos que en ese momento estaban en la cola esperando revisión.
+-- ═══════════════════════════════════════════════════════════════════════════
 DROP VIEW IF EXISTS v_contrato;
 CREATE VIEW v_contrato AS
 SELECT
@@ -339,16 +388,68 @@ SELECT
   d.pagina_desde  AS pagina_desde,
   d.pagina_hasta  AS pagina_hasta,
   MIN(CASE WHEN c.nombre IN ('nombre','documento','fecha_inicio','fecha_fin','monto')
-           THEN c.confianza END)                                   AS confianza_min
+           THEN c.confianza END)                                   AS confianza_min,
+  SUM(CASE WHEN c.estado IN ('verificado','corregido') THEN 1 ELSE 0 END) AS campos_humanos
 FROM documento d
 JOIN archivo a ON a.sha256 = d.sha256
 LEFT JOIN documento_persona dp ON dp.documento_id = d.id
 LEFT JOIN campo c
        ON c.documento_id = d.id
       AND c.valor_literal IS NOT NULL
+      -- LA LÍNEA: sólo estados firmes. Sin esto, un valor que está en la cola
+      -- esperando que alguien lo mire termina sumado en un total que se presenta
+      -- como leído con seguridad.
+      AND c.estado IN ('automatico_alta','verificado','corregido')
+      -- Y ADEMÁS, ningún conflicto abierto. Es a propósito que sean dos condiciones y
+      -- no una: el estado y la tabla de conflictos los escriben caminos distintos, y
+      -- si alguno quedara mal esta es la última barrera antes de que un valor que
+      -- nadie resolvió termine adentro de un total que se presenta como firme. En la
+      -- regla que sostiene todo el sistema, la redundancia se paga sola.
       AND NOT EXISTS (SELECT 1 FROM conflicto k
-                      WHERE k.documento_id = c.documento_id
-                        AND k.campo_nombre = c.nombre
-                        AND k.estado = 'abierto')
+                       WHERE k.documento_id = c.documento_id
+                         AND k.campo_nombre = c.nombre
+                         AND k.estado = 'abierto')
+LEFT JOIN normalizacion n ON n.campo_id = c.id
+GROUP BY d.id;
+
+DROP VIEW IF EXISTS v_contrato_todo;
+CREATE VIEW v_contrato_todo AS
+SELECT
+  d.id            AS documento_id,
+  d.sha256        AS sha256,
+  dp.persona_id   AS persona_id,
+  d.camara        AS camara,
+  d.tipo          AS tipo,
+  a.nombre        AS archivo,
+  MAX(CASE WHEN c.nombre='nombre'        THEN c.valor_literal END) AS nombre_literal,
+  MAX(CASE WHEN c.nombre='nombre'        THEN c.estado        END) AS nombre_estado,
+  MAX(CASE WHEN c.nombre='documento'     THEN c.valor_literal END) AS documento_literal,
+  MAX(CASE WHEN c.nombre='documento'     THEN c.estado        END) AS documento_estado,
+  MAX(CASE WHEN c.nombre='fecha_inicio'  THEN n.valor_norm    END) AS inicio,
+  MAX(CASE WHEN c.nombre='fecha_inicio'  THEN c.estado        END) AS inicio_estado,
+  MAX(CASE WHEN c.nombre='fecha_fin'     THEN n.valor_norm    END) AS fin,
+  MAX(CASE WHEN c.nombre='fecha_fin'     THEN c.estado        END) AS fin_estado,
+  CAST(MAX(CASE WHEN c.nombre='monto'    THEN n.valor_norm    END) AS INTEGER) AS monto_centavos,
+  MAX(CASE WHEN c.nombre='monto'         THEN c.estado        END) AS monto_estado,
+  CAST(MAX(CASE WHEN c.nombre='monto_total' THEN n.valor_norm  END) AS INTEGER) AS monto_total_centavos,
+  MAX(CASE WHEN c.nombre='cargo'         THEN c.valor_literal END) AS cargo,
+  d.orden         AS orden,
+  d.pagina_desde  AS pagina_desde,
+  d.pagina_hasta  AS pagina_hasta,
+  -- Cuántos de los campos críticos están firmes, provisionales o esperando a alguien.
+  -- Con esto una fila puede decir de sí misma qué tan confiable es, sin que la
+  -- pantalla tenga que ir a buscarlo campo por campo.
+  SUM(CASE WHEN c.nombre IN ('nombre','documento','fecha_inicio','fecha_fin','monto')
+            AND c.estado IN ('automatico_alta','verificado','corregido')
+           THEN 1 ELSE 0 END)                                      AS criticos_firmes,
+  SUM(CASE WHEN c.nombre IN ('nombre','documento','fecha_inicio','fecha_fin','monto')
+            AND c.estado IN ('pendiente_baja','conflicto','no_revisado')
+           THEN 1 ELSE 0 END)                                      AS criticos_pendientes,
+  MIN(CASE WHEN c.nombre IN ('nombre','documento','fecha_inicio','fecha_fin','monto')
+           THEN c.confianza END)                                   AS confianza_min
+FROM documento d
+JOIN archivo a ON a.sha256 = d.sha256
+LEFT JOIN documento_persona dp ON dp.documento_id = d.id
+LEFT JOIN campo c ON c.documento_id = d.id
 LEFT JOIN normalizacion n ON n.campo_id = c.id
 GROUP BY d.id;
