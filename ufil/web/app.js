@@ -660,9 +660,10 @@ function papeleraHTML(p) {
   ];
   return bloque('f. 0000', 'Papelera', `
     <h2>Legajos eliminados</h2>
-    <p class="prosa">Están completos y se pueden restaurar. Siguen ocupando disco
-      —<strong>${esc(pesoLegible(total))}</strong> en total—, así que si hace falta
-      lugar, acá se libera. <strong>Borrarlos del disco no tiene vuelta atrás.</strong></p>
+    <p class="prosa">Están completos y se pueden restaurar${total
+      ? `, y siguen ocupando <strong>${esc(pesoLegible(total))}</strong> de disco: si
+         hace falta lugar, acá se libera` : ''}.
+      <strong>Borrarlos del disco no tiene vuelta atrás.</strong></p>
     <div class="tabla-legajos">${tabla(cols, p)}</div>`);
 }
 
