@@ -920,18 +920,27 @@ let colaEstado = {filas: [], foco: 0};
    hace cada decisión: filtrar por «montos de contratos», decidir uno y que se te
    borre el filtro es peor que no tener filtros. */
 let filtroCola = {familia: '', campo: '', clase: ''};
+/* Cuántas filas se traen por vez. Es el mismo número que usa el servidor; acá se
+   declara para pedirlo explícito y que la pantalla sepa cuántas más quedan. */
+const POR_PAGINA = 200;
 
 async function vCola(campoId) {
-  const todas = await api('/api/cola');
-  const filas = todas.filter(f =>
-    (!filtroCola.familia || f.familia === filtroCola.familia) &&
-    (!filtroCola.campo   || f.campo === filtroCola.campo) &&
-    (!filtroCola.clase   || f.clase === filtroCola.clase));
+  // El filtrado y el corte los hace el SERVIDOR. Antes llegaban 400 filas cortadas sin
+  // decirlo y la pantalla filtraba sobre esas: con 3.892 campos esperando, la cola
+  // mostraba «1 de 400» y filtrar por «facturas» filtraba sobre las 400 que habían
+  // llegado, no sobre la cola.
+  const p = new URLSearchParams({limite: String(POR_PAGINA)});
+  for (const k of ['familia', 'campo', 'clase']) if (filtroCola[k]) p.set(k, filtroCola[k]);
+  const r = await api('/api/cola?' + p);
+  const filas = r.filas;
+  const todas = {length: r.total_sin_filtro};
   // Se puede enlazar un campo puntual: #/cola/123 abre la cola parada en ese campo.
   // Sirve para decirle a un compañero "mirá este" sin explicarle dónde está.
   const pedido = campoId ? filas.findIndex(f => String(f.campo_id) === String(campoId)) : -1;
-  colaEstado = {filas, foco: pedido >= 0 ? pedido : 0, total: todas.length};
-  if (!todas.length) {
+  colaEstado = {filas, foco: pedido >= 0 ? pedido : 0,
+                total: r.total, total_sin_filtro: r.total_sin_filtro,
+                opciones: r.opciones, cargando: false};
+  if (!r.total_sin_filtro) {
     vista.innerHTML = bloque('f. 0006', 'Cola', `<h2>Cola de revisión</h2>
       ${vacio('No queda nada por revisar',
         'Todos los campos están resueltos o verificados. Cuando entre un lote nuevo, ' +
@@ -940,20 +949,18 @@ async function vCola(campoId) {
     return;
   }
   const porDoc = new Set(filas.map(f => f.documento_id)).size;
-  // Los filtros salen de lo que HAY en la cola, no de una lista fija: ofrecer «facturas»
-  // en un legajo sin facturas es prometer un filtro que no filtra nada.
-  const opciones = (clave, rotular) => {
-    const cuenta = new Map();
-    todas.forEach(f => cuenta.set(f[clave], (cuenta.get(f[clave]) || 0) + 1));
-    return [...cuenta.entries()].sort((a, b) => b[1] - a[1])
-      .map(([v, n]) => `<option value="${esc(v ?? '')}">${esc(rotular(v))} (${n})</option>`).join('');
-  };
+  // Las opciones las cuenta el servidor sobre la cola ENTERA. Contadas acá salían de la
+  // página que llegó: ofrecer «facturas» porque justo hay una en las doscientas que
+  // vinieron —o no ofrecerlas porque no las hay— es un filtro que miente.
+  const opciones = (clave, rotular) => (colaEstado.opciones[clave] || [])
+    .map(o => `<option value="${esc(o.valor ?? '')}">${esc(rotular(o.valor))} (${
+      fmtNum.format(o.n)})</option>`).join('');
 
   vista.innerHTML = bloque('f. 0006', 'Cola', `
     <h2>Cola de revisión</h2>
-    <p class="prosa">${plural(filas.length, 'campo', 'campos')} en
-      ${plural(porDoc, 'documento', 'documentos')}, ordenados por lo que más daño hace si
-      queda mal. <strong>El folio está a la vista</strong>: no hace falta salir de acá.<span
+    <p class="prosa">${plural(r.total_sin_filtro, 'campo espera', 'campos esperan')}
+      revisión, ordenados por lo que más daño hace si queda mal.
+      <strong>El folio está a la vista</strong>: no hace falta salir de acá.<span
       class="solo-teclado"> <kbd>J</kbd>/<kbd>K</kbd> para moverse, las teclas de cada
       fila para decidir.</span> <strong>Ninguna acción es «aceptar todo».</strong></p>
 
@@ -976,7 +983,10 @@ async function vCola(campoId) {
         ', pero ninguno cumple lo que pediste.') : ''}
     <div class="deshacer-barra" id="deshacer-barra" hidden></div>
     <div class="cola-partida">
-      <div class="cola" id="cola">${filas.map(filaCola).join('')}</div>
+      <div class="cola" id="cola">${filas.map(filaCola).join('')}
+        ${filas.length < r.total ? `<button class="mas-cola" id="mas-cola">Traer
+          ${plural(Math.min(POR_PAGINA, r.total - filas.length), 'campo más', 'campos más')}
+          <span>quedan ${fmtNum.format(r.total - filas.length)}</span></button>` : ''}</div>
       <aside class="folio-lado" id="folio-lado">
         <div class="lupa" id="lupa"><img id="lupa-img" alt=""></div>
         <div class="pie-lamina"><span id="lupa-campo"></span><span id="lupa-xy"></span></div>
@@ -988,14 +998,7 @@ async function vCola(campoId) {
       </aside>
     </div>`);
 
-  vista.querySelectorAll('[data-accion]').forEach(b => b.onclick = () => {
-    colaEstado.foco = +b.closest('.fila').dataset.i;
-    decidir(+b.dataset.campo, b.dataset.accion, b.dataset.valor);
-  });
-  vista.querySelectorAll('.fila').forEach(f => f.onclick = e => {
-    if (e.target.closest('[data-accion]')) return;
-    colaEstado.foco = +f.dataset.i; pintarFoco();
-  });
+  engancharFilasCola();
   [['f-familia','familia'], ['f-campo','campo'], ['f-clase','clase']].forEach(([id, clave]) => {
     const sel = $('#' + id);
     sel.value = filtroCola[clave];
@@ -1004,7 +1007,52 @@ async function vCola(campoId) {
   if ($('#f-limpiar')) $('#f-limpiar').onclick = () => {
     filtroCola = {familia: '', campo: '', clase: ''}; vCola();
   };
+  if ($('#mas-cola')) $('#mas-cola').onclick = () => traerMasCola();
   pintarFoco();
+}
+
+/* Trae la página siguiente y la agrega abajo, sin repintar lo que ya está. Repintar
+   perdería el lugar donde estabas, que es lo único que la cola tiene que respetar. */
+async function traerMasCola() {
+  if (colaEstado.cargando || colaEstado.filas.length >= colaEstado.total) return;
+  colaEstado.cargando = true;
+  const boton = $('#mas-cola');
+  if (boton) boton.textContent = 'buscando…';
+  try {
+    const p = new URLSearchParams({desde: String(colaEstado.filas.length),
+                                   limite: String(POR_PAGINA)});
+    for (const k of ['familia', 'campo', 'clase']) if (filtroCola[k]) p.set(k, filtroCola[k]);
+    const r = await api('/api/cola?' + p);
+    const desde = colaEstado.filas.length;
+    colaEstado.filas = colaEstado.filas.concat(r.filas);
+    colaEstado.total = r.total;
+    const cola = $('#cola');
+    const nuevas = r.filas.map((f, i) => filaCola(f, desde + i)).join('');
+    if (boton) boton.remove();
+    cola.insertAdjacentHTML('beforeend', nuevas);
+    if (colaEstado.filas.length < r.total) {
+      cola.insertAdjacentHTML('beforeend', `<button class="mas-cola" id="mas-cola">Traer
+        ${plural(Math.min(POR_PAGINA, r.total - colaEstado.filas.length), 'campo más', 'campos más')}
+        <span>quedan ${fmtNum.format(r.total - colaEstado.filas.length)}</span></button>`);
+      $('#mas-cola').onclick = () => traerMasCola();
+    }
+    engancharFilasCola();
+    pintarFoco();
+  } finally { colaEstado.cargando = false; }
+}
+
+/* Los manejadores de las filas. Se llama al pintar y cada vez que llegan más: las filas
+   nuevas nacen sin eventos, y una fila de la cola que no responde al clic es una fila
+   que parece rota. */
+function engancharFilasCola() {
+  vista.querySelectorAll('[data-accion]').forEach(b => b.onclick = () => {
+    colaEstado.foco = +b.closest('.fila').dataset.i;
+    decidir(+b.dataset.campo, b.dataset.accion, b.dataset.valor);
+  });
+  vista.querySelectorAll('.fila').forEach(f => f.onclick = e => {
+    if (e.target.closest('[data-accion]')) return;
+    colaEstado.foco = +f.dataset.i; pintarFoco();
+  });
 }
 
 function filaCola(f, i) {
@@ -1140,15 +1188,21 @@ function pintarFoco() {
   }
   // Dónde estás. «Cola de revisión» sin número no dice si faltan tres o trescientos, y
   // sin saber eso nadie puede decidir si lo termina hoy.
+  // Dónde estás sobre el TOTAL, no sobre lo que llegó. «1 de 400» con 3.892 campos
+  // esperando no es una imprecisión: es esconder tres mil cuatrocientos noventa y dos
+  // campos de trabajo, y quien termine los 400 va a creer que el legajo está listo.
   const pos = $('#posicion');
   if (pos) {
-    const n = colaEstado.filas.length;
-    const filtrado = n !== colaEstado.total;
-    pos.innerHTML = n
-      ? `<b>${colaEstado.foco + 1}</b> de ${fmtNum.format(n)}` +
-        (filtrado ? ` <span class="de-todo">(${fmtNum.format(colaEstado.total)} en total)</span>` : '')
+    const filtrado = colaEstado.total !== colaEstado.total_sin_filtro;
+    pos.innerHTML = colaEstado.total
+      ? `<b>${fmtNum.format(colaEstado.foco + 1)}</b> de ${fmtNum.format(colaEstado.total)}` +
+        (filtrado ? ` <span class="de-todo">(${fmtNum.format(colaEstado.total_sin_filtro)}
+           en la cola entera)</span>` : '')
       : '';
   }
+  // Al acercarse al final de lo cargado, se trae la página siguiente. Que bajar con J
+  // se termine en la fila 200 de 3.892 sería el mismo tope de antes con otra cara.
+  if (colaEstado.foco >= colaEstado.filas.length - 5) traerMasCola();
 }
 
 /* La última decisión, para poder deshacerla. Una sola: deshacer en cadena obligaría a
@@ -1207,10 +1261,13 @@ async function decidir(campoId, accion, valor) {
       body: JSON.stringify({campo_id: campoId, accion, valor, quien,
                             estado_esperado: fila ? fila.estado : null})});
     ultimaDecision = fila ? {campo_id: campoId, quien, antes: fila} : null;
-    await vCola();
-    // Quedarse donde estaba: al sacar una fila, la que sigue ocupa su lugar. Volver
-    // al principio en cada decisión obligaba a bajar de nuevo cada vez.
-    colaEstado.foco = posicion;
+    // Se saca ESA fila y nada más. Antes se volvía a pedir la cola entera en cada
+    // decisión: con doscientas filas eso ya costaba un parpadeo, y ahora que la cola
+    // pagina significaría perder todas las páginas que habías traído y volver arriba.
+    // El campo salió de la cola porque alguien lo decidió; eso lo sabemos acá sin
+    // preguntarle de nuevo al servidor.
+    sacarDeLaCola(campoId);
+    colaEstado.foco = Math.min(posicion, Math.max(0, colaEstado.filas.length - 1));
     pintarFoco();
     mostrarDeshacer();
     refrescarCuentas();
@@ -1224,6 +1281,21 @@ async function decidir(campoId, accion, valor) {
     }
     alert('No se pudo guardar: ' + e.message);
   }
+}
+
+/* Saca una fila de la cola, en la pantalla y en la cuenta. Renumera las que quedan:
+   `data-i` es la posición, y si no se renumeran, la fila de abajo responde por el
+   índice de la que se fue y se decide sobre el campo equivocado. */
+function sacarDeLaCola(campoId) {
+  const i = colaEstado.filas.findIndex(f => String(f.campo_id) === String(campoId));
+  if (i < 0) return;
+  colaEstado.filas.splice(i, 1);
+  colaEstado.total = Math.max(0, colaEstado.total - 1);
+  colaEstado.total_sin_filtro = Math.max(0, colaEstado.total_sin_filtro - 1);
+  const filas = [...vista.querySelectorAll('.fila')];
+  if (filas[i]) filas[i].remove();
+  vista.querySelectorAll('.fila').forEach((f, n) => f.dataset.i = n);
+  if (!colaEstado.filas.length) vCola();      // se vació: mostrar el estado vacío
 }
 
 /* Deshacer lo último. Vuelve el campo a como estaba y QUEDA REGISTRADO: la auditoría

@@ -829,6 +829,14 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   font-size:12.5px}
 .deshacer-barra .fol{font-family:var(--mono); font-size:11.5px; color:var(--tinta-2)}
 
+/* Traer más de la cola. Es un botón y no un scroll infinito a propósito: con carga
+   automática, el final de la lista se corre solo y nunca se llega a «terminé». */
+.mas-cola{display:block; width:100%; background:var(--papel-2); border:none;
+  border-top:1px solid var(--filete); padding:13px; cursor:pointer; font:inherit;
+  font-size:12.5px; color:var(--tinta-2); text-align:center}
+.mas-cola:hover{background:var(--papel-3); color:var(--tinta)}
+.mas-cola span{display:block; font-size:11px; color:var(--tinta-3); margin-top:2px}
+
 @media (max-width:720px){
   .filtros-cola{gap:9px}
   .filtros-cola label{flex:1 1 45%}

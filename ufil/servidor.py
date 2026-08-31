@@ -13,6 +13,7 @@ Escucha en 127.0.0.1 por defecto: no se expone a la red ni por accidente.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import mimetypes
 import os
@@ -49,6 +50,23 @@ _PROCESADORES: dict[str | None, Procesador] = {}
 _BASES_LISTAS: set[str] = set()
 _CANDADO = threading.Lock()
 _SLUGS_CONOCIDOS: set[str] = set()
+
+
+# Huella del contenido de un archivo, para la etiqueta de versión. Se guarda en memoria
+# contra (fecha, tamaño): mientras el archivo no cambie no se vuelve a leer, y cuando
+# cambia se recalcula solo. En desarrollo eso significa que editar el CSS y recargar
+# alcanza, sin reiniciar nada.
+_HUELLAS: dict[str, tuple[float, int, str]] = {}
+
+
+def huella(ruta: Path) -> str:
+    st = ruta.stat()
+    previa = _HUELLAS.get(str(ruta))
+    if previa and previa[0] == st.st_mtime and previa[1] == st.st_size:
+        return previa[2]
+    h = hashlib.sha256(ruta.read_bytes()).hexdigest()[:12]
+    _HUELLAS[str(ruta)] = (st.st_mtime, st.st_size, h)
+    return h
 
 
 def _cx() -> sqlite3.Connection:
@@ -446,15 +464,60 @@ def api_persona(cx, persona_id: int) -> dict:
     }
 
 
-def api_cola(cx, limite=400) -> list[dict]:
+# Cuántos campos de la cola se mandan por vez. La cola entera de un legajo grande son
+# miles de filas: pintarlas todas cuesta segundos y nadie las mira de una sentada.
+POR_PAGINA = 200
+
+
+def api_cola(cx, filtros=None, desde=0, limite=POR_PAGINA) -> dict:
     """
     La cola, con todo lo necesario para revisar SIN salir de la pantalla.
 
     Trae el anclaje y las medidas de la foja además del valor: la interfaz muestra el
     folio al lado y una lupa sobre el campo, así revisar deja de costar dos navegaciones
     y volver a buscar dónde se había quedado.
+
+    DEVUELVE UNA PÁGINA Y EL TOTAL DE VERDAD, y eso es lo importante. Antes devolvía una
+    lista cortada en 400 sin decirlo: en un legajo con 3.892 campos esperando, la
+    pantalla mostraba «1 de 400», alguien los revisaba todos y concluía que el legajo
+    estaba terminado. Tres mil cuatrocientos noventa y dos campos que nadie iba a ver
+    nunca. Un sistema que existe para que no se pierda trabajo no puede esconder
+    trabajo.
+
+    Los filtros van en SQL por el mismo motivo: filtrados en la pantalla, filtraban
+    sobre las 400 que habían llegado y no sobre la cola.
     """
-    filas = c4.correr(cx, "07_cola_revision")["filas"][:limite]
+    filtros = filtros or {}
+    # La consulta versionada arma las columnas y el orden; acá se la envuelve para
+    # filtrar y paginar sin duplicarla. Se le saca el punto y coma final para poder
+    # meterla como subconsulta.
+    base = c4._resolver(
+        (config.CONSULTAS / "07_cola_revision.sql").read_text(encoding="utf-8")).strip()
+    base = base.rstrip(";")
+
+    condiciones, valores = [], []
+    for columna, clave in (("familia", "familia"), ("campo", "campo"), ("clase", "clase")):
+        valor = (filtros.get(clave) or "").strip()
+        if valor:
+            condiciones.append(f"q.{columna} = ?")
+            valores.append(valor)
+    donde = (" WHERE " + " AND ".join(condiciones)) if condiciones else ""
+
+    total = cx.execute(f"SELECT COUNT(*) FROM ({base}) q{donde}", valores).fetchone()[0]
+    total_sin_filtro = cx.execute(f"SELECT COUNT(*) FROM ({base}) q").fetchone()[0]
+
+    # El orden se repite afuera: adentro de una subconsulta, SQLite no garantiza
+    # conservarlo. Es el mismo criterio de 07_cola_revision.sql —lo que más daño hace
+    # si queda mal, primero— y si allá cambia, acá hay que cambiarlo.
+    cur = cx.execute(f"""SELECT * FROM ({base}) q{donde}
+                          ORDER BY CASE q.campo
+                                     WHEN 'monto' THEN 1 WHEN 'fecha_inicio' THEN 2
+                                     WHEN 'fecha_fin' THEN 3 WHEN 'documento' THEN 4
+                                     WHEN 'nombre' THEN 5 ELSE 9 END,
+                                   COALESCE(q.confianza, 0) ASC, q.campo_id
+                          LIMIT ? OFFSET ?""", (*valores, max(1, limite), max(0, desde)))
+    columnas = [d[0] for d in cur.description]
+    filas = [dict(zip(columnas, f)) for f in cur.fetchall()]
     medidas = {}
     for f in filas:
         clave = (f["documento_id"], f["pagina_nro"])
@@ -499,7 +562,19 @@ def api_cola(cx, limite=400) -> list[dict]:
             f["variantes"] = [dict(v) for v in cx.execute(
                 "SELECT ruta, valor, confianza FROM conflicto_variante WHERE conflicto_id=? ORDER BY ruta",
                 (k["id"],))] if k else []
-    return filas
+
+    # Qué hay para elegir en cada filtro, y cuántos de cada uno. Sale de la cola ENTERA,
+    # no de esta página: ofrecer «facturas» porque justo hay una en las doscientas que
+    # llegaron, o no ofrecerlas porque no las hay, es un filtro que miente.
+    opciones = {}
+    for columna in ("familia", "campo", "clase"):
+        opciones[columna] = [
+            {"valor": r[0], "n": r[1]} for r in cx.execute(
+                f"SELECT q.{columna}, COUNT(*) FROM ({base}) q "
+                f"GROUP BY q.{columna} ORDER BY COUNT(*) DESC")]
+
+    return {"filas": filas, "total": total, "total_sin_filtro": total_sin_filtro,
+            "desde": desde, "limite": limite, "opciones": opciones}
 
 
 def api_decidir_campo(cx, campo_id: int, accion: str, valor, quien: str,
@@ -580,19 +655,27 @@ class Manejador(BaseHTTPRequestHandler):
         Sirve un archivo del disco.
 
         `cache=True` es para lo que NO cambia entre versiones: tipografías, renders de
-        página, el escudo. La hoja de estilos y el JavaScript nunca llevan caché larga:
-        con un día de vencimiento, después de actualizar la app la gente seguía viendo
-        la interfaz vieja —o peor, el JavaScript nuevo con el CSS viejo— y la única
-        salida era enseñarle a cada uno a recargar sin caché. Van con etiqueta de
-        versión: el navegador pregunta, y en una máquina local preguntar no cuesta nada.
+        página, el escudo.
+
+        La hoja de estilos y el JavaScript van con etiqueta de versión SACADA DEL
+        CONTENIDO. Antes salía de la fecha y el tamaño del archivo, y eso puede mentir:
+        dos versiones que coinciden en las dos cosas comparten etiqueta, el navegador
+        recibe un 304 y se queda con la vieja para siempre. Con el contenido no hay
+        forma: misma etiqueta significa mismos bytes.
+
+        Además la página pide esos dos archivos con `?v=` (ver `_index`), así que una
+        versión nueva es una URL nueva y no hay caché —del navegador, de un proxy de la
+        oficina, de un CDN— que pueda servir la anterior. Es lo que evita el peor caso:
+        el JavaScript nuevo corriendo con el CSS viejo.
         """
         if not ruta.exists() or not ruta.is_file():
             return self._json({"error": "no encontrado"}, 404)
-        st = ruta.stat()
-        etag = f'"{int(st.st_mtime)}-{st.st_size}"'
+        etag = f'"{huella(ruta)}"'
         if self.headers.get("If-None-Match") == etag:
             self.send_response(304)
             self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "max-age=31536000, immutable"
+                             if cache else "no-cache")
             self.end_headers()
             return
         datos = ruta.read_bytes()
@@ -600,7 +683,12 @@ class Manejador(BaseHTTPRequestHandler):
         self.send_header("Content-Type", mimetypes.guess_type(ruta.name)[0] or "application/octet-stream")
         self.send_header("Content-Length", str(len(datos)))
         self.send_header("ETag", etag)
-        self.send_header("Cache-Control", "max-age=86400" if cache else "no-cache")
+        # Con `?v=` en la URL, el contenido de esa URL no cambia nunca: se puede guardar
+        # un año. Sin `?v=`, se revalida siempre.
+        self.send_header("Cache-Control",
+                         "max-age=31536000, immutable"
+                         if (cache or "v=" in (urlparse(self.path).query or ""))
+                         else "no-cache")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(datos)
@@ -608,6 +696,32 @@ class Manejador(BaseHTTPRequestHandler):
     def do_HEAD(self):
         """Igual que GET pero sin cuerpo. Sin esto el servidor contesta 501."""
         return self.do_GET()
+
+    def _index(self):
+        """
+        La portada, con la versión de cada archivo puesta en su enlace.
+
+        `app.js` y `estilo.css` se piden como `?v=<huella del contenido>`. Una versión
+        nueva es una dirección nueva, así que ninguna caché puede servir la anterior —ni
+        el navegador, ni un proxy de la oficina, ni el CDN que hay adelante cuando esto
+        está publicado—. Es la diferencia entre «actualizamos» y «actualizamos y todos
+        lo ven».
+
+        La portada misma va con `no-store`: es cuatro kilobytes y es la que trae los
+        números de versión. Si se guardara, seguiría pidiendo los archivos viejos.
+        """
+        html = (config.WEB / "index.html").read_text(encoding="utf-8")
+        for archivo in ("app.js", "estilo.css"):
+            html = html.replace(f"/estatico/{archivo}",
+                                f"/estatico/{archivo}?v={huella(config.WEB / archivo)}")
+        cuerpo = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(cuerpo)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(cuerpo)
 
     def _seguro(self, raiz: Path, nombre: str) -> Path | None:
         """Impide salir del directorio permitido (../../etc/passwd y compañía)."""
@@ -690,7 +804,7 @@ class Manejador(BaseHTTPRequestHandler):
         self._activar_legajo()
         try:
             if ruta in ("/", "/index.html"):
-                return self._archivo(config.WEB / "index.html")
+                return self._index()
             if ruta.startswith("/estatico/"):
                 p = self._seguro(config.WEB, ruta[len("/estatico/"):])
                 return self._archivo(p) if p else self._json({"error": "ruta"}, 400)
@@ -794,7 +908,12 @@ class Manejador(BaseHTTPRequestHandler):
                     if ruta == "/api/documento":
                         return self._json(api_documento(cx, int(q["id"][0])))
                     if ruta == "/api/cola":
-                        return self._json(api_cola(cx))
+                        return self._json(api_cola(
+                            cx,
+                            filtros={k: q.get(k, [""])[0]
+                                     for k in ("familia", "campo", "clase")},
+                            desde=int(q.get("desde", ["0"])[0] or 0),
+                            limite=int(q.get("limite", [str(POR_PAGINA)])[0] or POR_PAGINA)))
                     if ruta == "/api/fusiones":
                         return self._json([dict(r) for r in cx.execute("""
                             SELECT f.*, 

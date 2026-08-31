@@ -169,6 +169,99 @@ class ElRastroSeSeparaPorDocumento(UnCampoEnLaCola):
         self.assertEqual([x["valor_nuevo"] for x in dos], ["$ 2.000.000"])
 
 
+class LaColaNoEscondeTrabajo(UnCampoEnLaCola):
+    """
+    El defecto medido: en un legajo con **3.892 campos esperando revisión**, la cola
+    devolvía 400 y no lo decía. La pantalla mostraba «1 de 400»; alguien los revisaba
+    todos y concluía que el legajo estaba terminado. **3.492 campos que nadie iba a ver
+    nunca.**
+
+    Un sistema que existe para que no se pierda trabajo no puede esconder trabajo.
+    """
+
+    def _muchos(self, n):
+        """n campos esperando revisión, repartidos entre contratos y facturas."""
+        from ufil.db import ahora
+        for i in range(n):
+            sha = f"{i:064x}"
+            tipo = "contrato_obra" if i % 3 else "factura"
+            self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,
+                                                    paginas,ingerido_en)
+                               VALUES (?,?,?,1,1,?)""",
+                            (sha, f"/x/{sha}", f"{i:05d}.pdf", ahora()))
+            self.cx.execute("""INSERT INTO pagina (sha256,nro,ancho_pt,alto_pt)
+                               VALUES (?,1,595,842)""", (sha,))
+            d = self.cx.execute(
+                """INSERT INTO documento (sha256,orden,pagina_desde,pagina_hasta,tipo,
+                                          perfil) VALUES (?,1,1,1,?,'p')""",
+                (sha, tipo)).lastrowid
+            self.cx.execute(
+                """INSERT INTO campo (documento_id,nombre,valor_literal,pagina_nro,
+                                      x0,y0,x1,y1,confianza,estado)
+                   VALUES (?,'monto','$ 1.000',1,10,10,90,30,0.4,?)""",
+                (d, cf.PENDIENTE_BAJA))
+        self.cx.commit()
+
+    def test_dice_cuantos_hay_de_verdad_aunque_mande_una_pagina(self):
+        from ufil.servidor import api_cola
+        self._muchos(950)                       # más el que trae setUp: 951
+
+        r = api_cola(self.cx, limite=200)
+
+        self.assertEqual(len(r["filas"]), 200, "la página tiene que ser una página")
+        self.assertEqual(r["total"], 951,
+                         "el total tiene que ser el de la cola, no el de la página: "
+                         "si dice 200, quien revise 200 va a creer que terminó")
+        self.assertEqual(r["total_sin_filtro"], 951)
+
+    def test_se_puede_llegar_hasta_el_final(self):
+        """Paginar sirve si se puede seguir. Un tope disfrazado sigue siendo un tope."""
+        from ufil.servidor import api_cola
+        self._muchos(450)
+        vistos, desde = set(), 0
+        while True:
+            r = api_cola(self.cx, desde=desde, limite=200)
+            if not r["filas"]:
+                break
+            vistos.update(f["campo_id"] for f in r["filas"])
+            desde += len(r["filas"])
+        self.assertEqual(len(vistos), 451,
+                         "no se llega a ver la cola entera paginando")
+
+    def test_el_filtro_filtra_la_cola_entera_y_no_la_pagina(self):
+        """
+        Filtrado en la pantalla, el filtro corría sobre las 400 filas que habían
+        llegado. Con 2.377 comprobantes esperando y un tope de 400, filtrar por
+        «facturas» mostraba las que hubiera entre las primeras 400 — un número que no
+        significa nada.
+        """
+        from ufil.servidor import api_cola
+        self._muchos(950)
+
+        entero = api_cola(self.cx, limite=200)
+        facturas = api_cola(self.cx, filtros={"familia": "comprobante"}, limite=200)
+
+        # Las facturas son una de cada tres, así que hay bastantes más de 200.
+        self.assertGreater(facturas["total"], 200)
+        self.assertLess(facturas["total"], entero["total"])
+        self.assertEqual(facturas["total_sin_filtro"], entero["total"],
+                         "el filtro tiene que decir también sobre cuánto filtró")
+        self.assertTrue(all(f["familia"] == "comprobante" for f in facturas["filas"]))
+
+    def test_las_opciones_del_filtro_cuentan_la_cola_entera(self):
+        """
+        Contadas sobre la página, ofrecer «facturas» dependía de que hubiera alguna
+        entre las 200 que llegaron. Un filtro que aparece y desaparece según la página
+        es un filtro que miente.
+        """
+        from ufil.servidor import api_cola
+        self._muchos(950)
+        r = api_cola(self.cx, limite=200)
+        por_familia = {o["valor"]: o["n"] for o in r["opciones"]["familia"]}
+        self.assertEqual(sum(por_familia.values()), r["total_sin_filtro"])
+        self.assertGreater(por_familia["comprobante"], 200)
+
+
 class LaColaSePuedeFiltrar(UnCampoEnLaCola):
     """Revisar montos de contratos y montos de facturas son dos tareas distintas."""
 
