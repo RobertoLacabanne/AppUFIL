@@ -172,6 +172,7 @@ por accidente.
 | [`docs/06-lo-que-el-papel-trae.md`](docs/06-lo-que-el-papel-trae.md) | Hojas al revés, carátulas, formularios distintos: qué se rompía y cómo quedó. |
 | [`docs/07-desde-el-celular.md`](docs/07-desde-el-celular.md) | Entrar desde un teléfono: cómo se hace, qué protege la clave y qué no. |
 | [`docs/08-hasta-donde-aguanta-el-escaneo.md`](docs/08-hasta-donde-aguanta-el-escaneo.md) | **¿A cuántos DPI hay que escanear?** El punto de quiebre, medido. |
+| [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) | **El sistema visual**: tipografía como etiqueta de procedencia, paleta, contrastes medidos contra WCAG 2.1 AA, y cómo agregar una pantalla sin desarmar el conjunto. |
 | [`docs/identidad/guia-visual.html`](docs/identidad/guia-visual.html) | La guía visual, se abre con doble clic |
 | [`EMPEZAR.md`](EMPEZAR.md) | **Cómo hacerlo andar en una máquina nueva.** Tres pasos, para alguien que no participó del desarrollo. |
 | [`INSTALAR.md`](INSTALAR.md) | Instalación en dos etapas (sin internet), operación diaria y respaldo |

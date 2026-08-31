@@ -23,6 +23,19 @@
   --tinta:#1B1D21; --tinta-2:#5A5D64; --tinta-3:#84868C;
   --papel:#FCFBF9; --papel-2:#F1EFEA; --papel-3:#E7E4DD;
   --filete:#CFCBC2; --filete-2:#E3E0D9;
+  /* El borde de un control NO es lo mismo que un filete decorativo. Un campo de
+     formulario cuyo límite no se ve es un campo que alguien no encuentra, y WCAG 2.1
+     lo pide explícito (1.4.11): 3:1 contra el fondo. `--filete` da 1,57:1 — está bien
+     para una raya que separa, y está mal para el borde de algo que se toca. Medido en
+     pruebas/test_accesibilidad.py: 3,35:1 contra el papel y 3,01:1 contra el gris. */
+  --borde-control:#8C8A80;
+  /* La cronología. Un solo tono para los contratos; el rojo marca ÚNICAMENTE la
+     superposición, que es lo que el gráfico existe para mostrar. La cámara va como
+     texto en el rótulo: la identidad no depende del color.
+     Vivían en un `:root` suelto, doscientas líneas más abajo, y por eso ninguna prueba
+     de contraste los miraba: una barra que dice que dos contratos se pisan es
+     información, no adorno, y le corresponde 3:1 (WCAG 1.4.11). */
+  --marca:#31629E; --marca-solape:#A8402A;
   --sello:#23477A; --sello-suave:#DCE4F0;
   --interp:#E9EDF3; --interp-filete:#7F97B8;
   --verde:#2C5946; --ambar:#8A6714; --lapiz:#96301F; --lapiz-suave:#F4E2DE;
@@ -35,6 +48,8 @@
   --tinta:#E6E3DC; --tinta-2:#9B9A95; --tinta-3:#75767A;
   --papel:#16181B; --papel-2:#1E2126; --papel-3:#272B31;
   --filete:#33373D; --filete-2:#25292E;
+  --borde-control:#6D6B64;
+  --marca:#5A8CCF; --marca-solape:#CC6A52;
   --sello:#7EA3D6; --sello-suave:#1C2836;
   --interp:#1B2028; --interp-filete:#4A5E7A;
   --verde:#79B79B; --ambar:#D0A63F; --lapiz:#E08472; --lapiz-suave:#31201D;
@@ -43,6 +58,8 @@
   --tinta:#E6E3DC; --tinta-2:#9B9A95; --tinta-3:#75767A;
   --papel:#16181B; --papel-2:#1E2126; --papel-3:#272B31;
   --filete:#33373D; --filete-2:#25292E;
+  --borde-control:#6D6B64;
+  --marca:#5A8CCF; --marca-solape:#CC6A52;
   --sello:#7EA3D6; --sello-suave:#1C2836;
   --interp:#1B2028; --interp-filete:#4A5E7A;
   --verde:#79B79B; --ambar:#D0A63F; --lapiz:#E08472; --lapiz-suave:#31201D;
@@ -186,7 +203,7 @@ tbody tr.clic{cursor:pointer}
 .barra-conf.media i.on{background:var(--ambar)}
 .barra-conf.baja i.on{background:var(--lapiz)}
 
-.ancla{font-family:var(--mono); font-size:10px; border:1px solid var(--filete);
+.ancla{font-family:var(--mono); font-size:10px; border:1px solid var(--borde-control);
        border-radius:2px; background:var(--papel-2); color:var(--sello);
        padding:1px 5px; margin-left:7px; cursor:pointer; white-space:nowrap}
 .ancla:hover{background:var(--sello-suave); border-color:var(--sello)}
@@ -244,16 +261,19 @@ tbody tr.clic{cursor:pointer}
 .tecla{display:inline-flex; align-items:center; gap:8px; font-size:11px; color:var(--tinta-2);
        background:none; border:none; padding:1px 0; cursor:pointer; text-align:left}
 .tecla:hover{color:var(--tinta)}
-kbd{font-family:var(--mono); font-size:10px; border:1px solid var(--filete);
+/* La tecla dibujada. `.tecla` no tiene borde propio —es un botón de texto— así que
+   este recuadro es el límite visible de lo que se aprieta, y le corresponde el
+   contraste de un control. */
+kbd{font-family:var(--mono); font-size:10px; border:1px solid var(--borde-control);
     border-bottom-width:2px; padding:0 5px; background:var(--papel); color:var(--tinta);
     min-width:19px; display:inline-block; text-align:center}
 
 input[type=text]{font-family:var(--mono); font-size:12.5px; padding:4px 7px;
-  border:1px solid var(--filete); background:var(--papel); color:var(--tinta); border-radius:0}
+  border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta); border-radius:0}
 .boton{border:1px solid var(--sello); background:transparent; color:var(--sello);
        padding:4px 11px; font-size:11px; cursor:pointer; letter-spacing:.03em}
 .boton:hover{background:var(--sello); color:var(--papel)}
-.boton.gris{border-color:var(--filete); color:var(--tinta-2)}
+.boton.gris{border-color:var(--borde-control); color:var(--tinta-2)}
 .boton.gris:hover{background:var(--papel-2); color:var(--tinta)}
 
 pre.sql{font-family:var(--mono); font-size:11.5px; margin:0; padding:12px 14px;
@@ -318,14 +338,6 @@ button:disabled{opacity:.45; cursor:not-allowed}
 mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weight:600}
 
 /* ── Cronología de tramos ─────────────────────────────────────────────── */
-/* Un solo tono para los contratos; el rojo marca únicamente la superposición, que es
-   lo que el gráfico existe para mostrar. La cámara va como texto en el rótulo: la
-   identidad no depende del color. Tonos validados para daltonismo y contraste en los
-   dos modos (ver docs/01-identidad-visual.md). */
-:root{ --marca:#31629E; --marca-solape:#A8402A; }
-@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]){
-  --marca:#5A8CCF; --marca-solape:#CC6A52; }}
-:root[data-tema="oscuro"]{ --marca:#5A8CCF; --marca-solape:#CC6A52; }
 
 .cronologia{border:1px solid var(--filete); padding:12px 14px 14px; margin-top:10px;
   background:var(--papel)}
@@ -392,7 +404,13 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
   text-transform:uppercase; color:var(--tinta-3)}
 #cinta-legajo b{font-size:12.5px}
 #cinta-legajo .fiscal{color:var(--tinta-2)}
-#cinta-legajo .cambiar{margin-left:auto; font-size:11.5px; white-space:nowrap}
+/* El color va explícito: la regla de enlaces está acotada a `main` —para que la
+   navegación no se subraye entera— y este enlace vive afuera. Sin esto tomaba el azul
+   por omisión del navegador, que sobre el fondo oscuro es casi invisible. Se ve
+   prendiendo el tema oscuro, no leyendo el CSS. */
+#cinta-legajo .cambiar{margin-left:auto; font-size:11.5px; white-space:nowrap;
+  color:var(--sello); text-decoration:underline; text-underline-offset:2px}
+#cinta-legajo .cambiar:hover{color:var(--tinta)}
 
 /* ── Navegación agrupada ──────────────────────────────────────────────── */
 nav .sep{width:1px; height:14px; background:var(--filete); margin:0 9px;
@@ -524,7 +542,7 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 /* ── Selector de foja en el visor ─────────────────────────────────────── */
 .fojas{display:flex; gap:5px; flex-wrap:wrap}
 .foja{font-family:var(--mono); font-size:11px; padding:3px 9px; cursor:pointer;
-  border:1px solid var(--filete); background:var(--papel); color:var(--tinta-2)}
+  border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta-2)}
 .foja:hover{border-color:var(--sello); color:var(--tinta)}
 .foja[aria-current="true"]{background:var(--sello); border-color:var(--sello); color:var(--papel)}
 
@@ -585,7 +603,7 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 
 /* Deshacer una revisión: discreto, pero siempre a mano. Equivocarse revisando es
    normal, y sin vuelta atrás habría que reprocesar el lote para arreglar un clic. */
-.deshacer{font-size:10px; border:1px solid var(--filete); background:transparent;
+.deshacer{font-size:10px; border:1px solid var(--borde-control); background:transparent;
   color:var(--tinta-3); padding:1px 6px; cursor:pointer; margin-left:4px}
 .deshacer:hover{border-color:var(--lapiz); color:var(--lapiz)}
 
@@ -753,7 +771,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .form-legajo{display:grid; gap:12px; max-width:520px; margin:14px 0 10px}
 .form-legajo label{display:grid; gap:4px; font-size:12px; color:var(--tinta-2)}
 .form-legajo .opt{color:var(--tinta-3); font-weight:400}
-.form-legajo input{font:inherit; padding:8px 10px; border:1px solid var(--filete);
+.form-legajo input{font:inherit; padding:8px 10px; border:1px solid var(--borde-control);
   background:var(--papel); color:var(--tinta); min-height:38px}
 .form-legajo input:focus{border-color:var(--sello)}
 .form-legajo button{justify-self:start; margin-top:2px}
@@ -795,7 +813,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .filtros-cola label{display:grid; gap:3px; font-size:10.5px; font-weight:600;
   letter-spacing:.1em; text-transform:uppercase; color:var(--tinta-3)}
 .filtros-cola select{font:inherit; font-size:12.5px; padding:5px 8px;
-  border:1px solid var(--filete); background:var(--papel); color:var(--tinta);
+  border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta);
   min-height:32px; max-width:220px}
 .filtros-cola .boton{padding:5px 11px; font-size:11.5px; min-height:32px}
 .filtros-cola .posicion{margin-left:auto; font-family:var(--mono); font-size:12.5px;
@@ -852,7 +870,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 /* ── El rastro de un campo ────────────────────────────────────────────────
    Quién puso esto, cuándo y qué decía antes. La auditoría es append-only: deshacer no
    borra la decisión anterior, agrega una línea que dice que se revirtió. */
-.historial{background:none; border:1px solid var(--filete); color:var(--tinta-3);
+.historial{background:none; border:1px solid var(--borde-control); color:var(--tinta-3);
   font-size:10px; letter-spacing:.08em; text-transform:uppercase; padding:2px 6px;
   cursor:pointer; margin-left:6px; vertical-align:1px}
 .historial:hover{color:var(--tinta); border-color:var(--tinta-3)}
