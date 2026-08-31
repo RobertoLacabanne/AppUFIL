@@ -861,11 +861,16 @@ async function vPanel() {
       <div class="cifras">
         <div class="cifra"><b>${n(p.documentos)}</b><span>documentos</span></div>
         <div class="cifra"><b>${n(p.paginas)}</b><span>páginas leídas</span></div>
-        <div class="cifra ok"><b>${n(p.campos_criticos_firmes)}</b>
-          <span>campos firmes de ${n(p.campos_criticos_total)}</span></div>
+        <!-- El denominador va con el número y no en el rótulo. Decía «campos firmes
+             de 250» y ese «de 250» caía solo al segundo renglón, partiendo una frase
+             al medio y dejando esta celda más alta que las de al lado. Con «213 / 250»
+             la proporción se lee de un vistazo, que es para lo que está la cifra. -->
+        <div class="cifra ok"><b>${n(p.campos_criticos_firmes)}<i
+          class="de">/ ${n(p.campos_criticos_total)}</i></b>
+          <span>campos firmes</span></div>
         <div class="cifra ${p.a_revisar ? 'atencion' : 'ok'}"><b>${n(p.a_revisar)}</b><span>esperan revisión</span></div>
         <div class="cifra ${p.conflictos ? 'alerta' : 'ok'}"><b>${n(p.conflictos)}</b><span>en conflicto</span></div>
-        <div class="cifra"><b>${n(p.verificados)}</b><span>verificados por una persona</span></div>
+        <div class="cifra"><b>${n(p.verificados)}</b><span>verificados a mano</span></div>
         <div class="cifra"><b>${n(p.personas)}</b><span>personas identificadas</span></div>
         ${p.paginas_enderezadas ? `<div class="cifra"><b>${n(p.paginas_enderezadas)}</b>
           <span>fojas enderezadas</span></div>` : ''}
@@ -2596,6 +2601,57 @@ function vComoFunciona() {
         <li>Cada decisión humana queda registrada con quién y cuándo, y no se pierde si
           después se vuelve a procesar el lote.</li>
       </ul>
+`) +
+
+    /* Esta sección existe porque la pantalla de carga ahora remite acá. Antes el
+       detalle estaba delante del cuadro para soltar los archivos —sesenta líneas de
+       prosa antes de lo que la persona vino a hacer— y se sacó de ahí con razón. Pero
+       sacarlo y dejar el enlace apuntando a una pantalla que no lo tiene es peor que
+       la prosa: es prometer algo y no darlo. */
+    bloque('f. 0104', 'El escaneo', `
+      <h2>Con qué calidad hay que escanear</h2>
+      <p class="prosa">Es el techo de todo lo demás. El sistema no puede leer mejor de lo
+        que el escáner dejó en el papel, y una decisión de dos minutos en la oficina que
+        escanea vale más que cualquier ajuste posterior.</p>
+
+      <h3>300 DPI, en escala de grises</h3>
+      <p class="prosa">Sobre papel de mala calidad —fotocopia de fotocopia, hoja torcida,
+        contraste caído, que es como llega un expediente viejo— la resolución mueve la
+        exactitud de manera decisiva: <strong>a 100 DPI el sistema deja de servir</strong>.
+        De 300 para arriba no se gana nada medible y el archivo pesa el doble.</p>
+
+      <h3>Nunca el «modo texto»</h3>
+      <div class="aviso"><span class="sello alerta" style="flex:none">Importante</span>
+        <span>El blanco y negro puro que muchos escáneres traen puesto es la única
+          configuración de todo lo que se probó que llegó a <strong>guardar un dato falso
+          dándolo por bueno</strong>. Y eso pasa aunque el número de exactitud
+          <em>mejore</em>.</span></div>
+      <p class="prosa">El mismo contrato, el mismo campo. En grises, las dos rutas de
+        lectura discreparon: conflicto, campo vacío, a la cola —el sistema hizo lo que
+        tiene que hacer—. En blanco y negro las dos leyeron
+        <span class="mono">ALMADA, Rosa 1</span> —la inicial <span class="mono">I.</span>
+        convertida en un <span class="mono">1</span>— y lo aceptó solo, con
+        <span class="mono">0,92</span> de confianza. El umbral limpió la mancha del punto,
+        las dos rutas coincidieron <span class="marca">en el error</span>, y el sistema se
+        quedó sin la señal que usa para saber que no sabe.</p>
+
+      <h3>Un PDF por contrato, si se puede</h3>
+      <p class="prosa">Separar los contratos que vienen juntos en un mismo PDF no le cuesta
+        nada al sistema y tarda casi lo mismo. La diferencia aparece al <strong>volver a
+        escanear parte de una pila</strong>: con un PDF por contrato reconoce por huella
+        los que ya tenía y no los cuenta dos veces; con todo en un PDF grande alcanza una
+        hoja de diferencia para que sea un archivo nuevo, y los repetidos entran otra vez
+        e inflan los acumulados.</p>
+      <p class="prosa">Medido con doce contratos subidos en dos tandas que se pisan en
+        tres: sueltos → 12 contratos, 0 repetidos; todo junto → 15 contratos,
+        <span class="marca">3 repetidos</span>. Si conviene escanear de corrido —y muchas
+        veces conviene, porque es más rápido en el escáner— hacelo igual: el sistema los
+        separa y avisa cuáles quedaron repetidos, sólo que después hay que resolverlos a
+        mano.</p>
+
+      <p class="prosa">Todo esto conviene pedirlo <strong>por escrito y antes de que
+        empiecen</strong>. Reescanear dos mil fojas porque salieron a 100 DPI es una
+        semana perdida.</p>
       <p class="prosa"><a href="#/cola">Ver la cola de revisión</a> ·
          <a href="#/panel">volver al panel</a></p>`);
 }

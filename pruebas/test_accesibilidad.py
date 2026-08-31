@@ -216,6 +216,50 @@ class NingunColorEscritoAManoSobreUnFondoDelTema(unittest.TestCase):
                            "la prueba dejó de encontrar reglas: se le movió el terreno")
 
 
+class LoApagadoTodaviaSeLee(unittest.TestCase):
+    """
+    `opacity` sobre un texto no cambia el color declarado: cambia lo que llega al ojo.
+    La tabla de PARES mira los tokens tal como están escritos, así que un `opacity`
+    puede tirar un par perfectamente medido por debajo del mínimo sin que nada falle.
+
+    Pasó: las secciones de la barra lateral que necesitan un legajo abierto se apagan
+    con `opacity`, y estaban en `.45`. El par --barra-txt sobre --barra da 11,40:1 y
+    la prueba lo daba por bueno; lo que se veía en la pantalla eran **3,61:1**.
+
+    Apagado tiene que seguir queriendo decir «esto existe y todavía no», no «esto es
+    ilegible». Quien no puede leerlo no se entera de que la sección existe, que es
+    justamente lo que apagar en vez de esconder venía a evitar.
+    """
+
+    @staticmethod
+    def _mezclar(frente: str, fondo: str, alfa: float) -> str:
+        """Lo que ve el ojo: el texto mezclado con el fondo, según la opacidad."""
+        f, b = _rgb(frente), _rgb(fondo)
+        return "#%02X%02X%02X" % tuple(
+            round(alfa * f[i] + (1 - alfa) * b[i]) for i in range(3))
+
+    def test_los_items_apagados_de_la_barra_alcanzan_AA(self):
+        flojos = []
+        for regla in re.finditer(r"(\.nav-lateral[^{}]*)\{([^{}]*)\}", CSS):
+            selector, cuerpo = regla.group(1).strip(), regla.group(2)
+            m = re.search(r"opacity:\s*([\d.]+)", cuerpo)
+            if not m:
+                continue
+            alfa = float(m.group(1))
+            for nombre, tema in (("claro", CLARO), ("oscuro", OSCURO)):
+                visto = self._mezclar(tema["barra-txt"], tema["barra"], alfa)
+                r = relacion(visto, tema["barra"])
+                if r < 4.5:
+                    flojos.append(f"{nombre}: «{selector}» con opacity {alfa} deja el "
+                                  f"texto en {r:.2f}:1 y pide 4,5:1")
+        self.assertEqual(flojos, [], "\n" + "\n".join(flojos))
+
+    def test_la_prueba_encuentra_el_apagado(self):
+        """Si el apagado cambia de mecanismo, esto deja de mirar nada y pasa siempre."""
+        self.assertRegex(CSS, r"\.nav-lateral[^{}]*apagado[^{}]*\{[^{}]*opacity:",
+                         "ya no hay un `opacity` que mirar en la barra lateral")
+
+
 class ElOscuroEsUnaPaletaYNoDosSueltas(unittest.TestCase):
     """
     El tema oscuro se declara dos veces: una para quien lo tiene puesto en el sistema

@@ -94,10 +94,18 @@
 
 /* El oscuro es una paleta pensada, no la clara dada vuelta: los azules suben de
    luminosidad para no apagarse contra el fondo, y el fondo tira a azul muy oscuro
+
+   La barra lateral tiene que separarse del cuerpo, y daba 1,08:1 contra el papel: no
+   se veía dónde terminaba una y empezaba el otro. Se resolvió subiendo la barra a
+   #1E2C40 (1,34:1) y NO bajando el papel. Bajarlo también llegaba a 1,38:1 —cuatro
+   centésimas más, que a ojo no existen— pero dejaba el fondo en #080D14, por debajo
+   del piso donde el texto claro sobre negro empieza a florecer: los bordes de las
+   letras se desparraman y cansan. Quien usa esto mira columnas de números ocho horas
+   seguidas; cuatro centésimas de separación no valen eso.
    —no a gris— para que siga siendo la misma casa. Los dos bloques que siguen son
    idénticos a propósito: uno atiende la preferencia del sistema y el otro la
    elección explícita. Una prueba verifica que no se separen. */
-@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]){  --papel:#080D14; --papel-2:#0F1723; --papel-3:#16202E;
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]){  --papel:#0B1119; --papel-2:#111A25; --papel-3:#18232F;
   --tinta:#F2F5F8; --tinta-2:#AEB9C6; --tinta-3:#8A96A5;
   --filete:#2C3B4D; --filete-2:#1E2938;
   --borde-control:#5C6D80;
@@ -112,7 +120,7 @@
   --sombra:0 1px 2px rgba(0,0,0,.40), 0 1px 8px rgba(0,0,0,.30);
   --sombra-alta:0 2px 4px rgba(0,0,0,.45), 0 8px 24px rgba(0,0,0,.40);
 }}
-:root[data-tema="oscuro"]{  --papel:#080D14; --papel-2:#0F1723; --papel-3:#16202E;
+:root[data-tema="oscuro"]{  --papel:#0B1119; --papel-2:#111A25; --papel-3:#18232F;
   --tinta:#F2F5F8; --tinta-2:#AEB9C6; --tinta-3:#8A96A5;
   --filete:#2C3B4D; --filete-2:#1E2938;
   --borde-control:#5C6D80;
@@ -401,7 +409,11 @@ h3{margin:0 0 8px; font-size:13.5px; font-weight:600}
 .cifra b{display:block; font-family:var(--mono); font-size:23px; font-weight:500;
          font-variant-numeric:tabular-nums; letter-spacing:-.02em; line-height:1.1}
 .cifra span{display:block; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
-            color:var(--tinta-3); margin-top:5px}
+            color:var(--tinta-2); margin-top:5px; text-wrap:balance}
+/* El denominador, atado al número y en un cuerpo menor: «213 / 250» se lee como una
+   proporción, no como dos cifras sueltas. */
+.cifra b .de{font-style:normal; font-size:14px; font-weight:400; color:var(--tinta-3);
+             margin-left:4px; letter-spacing:0}
 /* Trabajo pendiente y conflicto no son lo mismo, y por eso no comparten color.
    El punzó grita una sola cosa —las dos lecturas no coinciden, no confíes todavía—;
    un rojo que además significa «te quedan campos por mirar» es un rojo que ya no
