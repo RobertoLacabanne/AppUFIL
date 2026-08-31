@@ -23,23 +23,31 @@
    El color acá no decora: nombra. Cuatro familias, y cada una tiene un oficio
    del que no se sale.
 
-     verde institucional  #23594C   quién sos y dónde estás parado: la barra
+     azul tribunal        #1C3557   quién sos y dónde estás parado: la barra
                                     lateral, la marca, los enlaces, el botón que
-                                    hace la acción principal.
-     turquesa Paraná      #4D927F   información y avance: barras de progreso,
+                                    hace la acción principal. Es cromo: no informa
+                                    nada sobre un dato.
+     río                  #4E88B5   información y avance: barras de progreso,
                                     el carril de interpretación, los trazos de la
-                                    cronología. Da 3,54:1 sobre el papel — alcanza
+                                    cronología. Da 3,68:1 sobre el papel — alcanza
                                     para un trazo o un borde (WCAG 1.4.11 pide 3:1)
                                     y NO alcanza para texto corriente, así que
-                                    donde el turquesa tiene que hablar habla el
-                                    verde operativo #2F7463 (5,34:1).
+                                    donde el río tiene que hablar habla
+                                    --tribunal-txt #2A5480 (7,58:1).
      dorado justicia      #D7B46A   detalle institucional, y nada más: 1,91:1
                                     sobre el papel. Sobre el papel es adorno y no
-                                    puede llevar información; sobre el verde de la
-                                    barra da 4,08:1 y ahí sí marca el ítem activo.
-     rojo                 #B71C1C   error, conflicto y destrucción. Sólo eso. Un
+                                    puede llevar información; sobre el azul de la
+                                    barra da 6,26:1 y ahí sí marca el ítem activo.
+     punzó                #A81F26   error, conflicto y destrucción. Sólo eso. Un
                                     rojo que también sirve para «importante» es un
                                     rojo que ya no alarma a nadie.
+
+   Y el verde #2C6A4B queda para UNA sola cosa: el estado «firme». Esta paleta fue
+   verde y se cambió por eso: el token del cromo y el del estado firme eran el mismo
+   hex, así que el color que decía «el sistema afirma que este dato es firme» era el
+   mismo que decía «esto es un botón». La distinción firme/provisional es la que
+   decide qué se puede sumar y llevar a un informe: no puede compartir color con
+   nada.
 
    Todo par que existe de verdad en la pantalla está medido contra WCAG 2.1 AA en
    pruebas/test_accesibilidad.py, en los dos temas. Y ningún estado se comunica
@@ -84,8 +92,8 @@
   --paso:140ms; --curva:cubic-bezier(.2,.6,.3,1);
 }
 
-/* El oscuro es una paleta pensada, no la clara dada vuelta: los verdes suben de
-   luminosidad para no apagarse contra el fondo, y el fondo tira a verde muy oscuro
+/* El oscuro es una paleta pensada, no la clara dada vuelta: los azules suben de
+   luminosidad para no apagarse contra el fondo, y el fondo tira a azul muy oscuro
    —no a gris— para que siga siendo la misma casa. Los dos bloques que siguen son
    idénticos a propósito: uno atiende la preferencia del sistema y el otro la
    elección explícita. Una prueba verifica que no se separen. */
@@ -151,9 +159,17 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
      min-height:100vh; min-height:100dvh}
 #cuerpo{min-width:0; display:flex; flex-direction:column}
 
-.saltar{position:absolute; left:8px; top:-60px; z-index:60; background:var(--tribunal);
-        color:#FFF; padding:9px 14px; border-radius:var(--radio); font-weight:600;
-        text-decoration:none; transition:top var(--paso) var(--curva)}
+/* El par es el de la barra lateral —`--barra` con `--barra-txt`— y no `--tribunal`
+   con un blanco escrito a mano. El blanco fijo funcionaba de casualidad: en el tema
+   claro `--tribunal` es azul oscuro y daba 12,38:1, pero en el oscuro es azul claro
+   y el mismo blanco daba 2,46:1, la mitad de lo que pide AA. Y no lo agarraba
+   ninguna prueba, porque un color escrito a mano no es un token y la tabla de pares
+   sólo mira tokens. Este atajo lo usa quien navega con el teclado, que es
+   justamente quien menos puede permitirse no leerlo. */
+.saltar{position:absolute; left:8px; top:-60px; z-index:60; background:var(--barra);
+        color:var(--barra-txt); padding:9px 14px; border-radius:var(--radio);
+        font-weight:600; text-decoration:none;
+        transition:top var(--paso) var(--curva)}
 .saltar:focus{top:8px}
 .oculto{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);
         white-space:nowrap}
@@ -217,7 +233,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
                              background:var(--barra-2)}
 .nav-lateral .items a .txt{flex:1; min-width:0}
 /* El número de pendientes: lo mismo que el sello rojo del resto del sistema, pero
-   acá el fondo es verde y el rojo del papel no se lee. Va en claro sobre el verde
+   acá el fondo es azul y el rojo del papel no se lee. Va en claro sobre el azul
    oscuro del ítem abierto, con la cifra en negrita. */
 .nav-lateral .cuenta{
   font-family:var(--mono); font-size:10.5px; font-variant-numeric:tabular-nums;
@@ -396,8 +412,14 @@ h3{margin:0 0 8px; font-size:13.5px; font-weight:600}
 /* ── Tablas ───────────────────────────────────────────────────────────── */
 .tabla-env{overflow-x:auto; border:1px solid var(--filete); background:var(--papel)}
 table{border-collapse:collapse; width:100%; font-size:12.5px}
+/* El encabezado de columna va en `--tinta-2` y no en `--tinta-3`. `--tinta-3` está
+   pensado para marginalia —el folio al costado, la fecha chica— y se le exige 3:1
+   porque no es esencial. Un encabezado de columna sí lo es: es lo único que dice qué
+   significa el número de abajo, y «42» sin «REVISIONES PENDIENTES» no es un dato. En
+   9,5 px y versalitas, además, es de lo más chico que hay en la pantalla. Daba
+   4,22:1 y pide 4,5. */
 thead th{text-align:left; font-size:9.5px; font-weight:600; letter-spacing:.11em;
-         text-transform:uppercase; color:var(--tinta-3); padding:8px 11px;
+         text-transform:uppercase; color:var(--tinta-2); padding:8px 11px;
          border-bottom:1px solid var(--tinta); white-space:nowrap;
          position:sticky; top:0; background:var(--papel)}
 tbody td{padding:7px 11px; border-bottom:1px solid var(--filete-2); vertical-align:baseline}
@@ -408,10 +430,20 @@ tbody tr.clic{cursor:pointer}
 .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
 .fol{font-family:var(--mono); font-size:10.5px; color:var(--tinta-3); white-space:nowrap}
 .marca{color:var(--lapiz); font-weight:600}   /* resaltado en tablas. OJO: no usar como nombre de bloque. */
+/* Trabajo por hacer adentro de una tabla. Es lo mismo que `.marca` pero en ámbar, y
+   existe porque no son lo mismo: `.marca` grita «acá hay algo mal» —un cruce
+   intercámara, un error de carga— y esto dice «acá falta que alguien mire». Un rojo
+   que sirve para las dos cosas deja de servir para la primera. */
+.pendiente{color:var(--ambar); font-weight:600}
 
 /* ── Estados del dato ─────────────────────────────────────────────────── */
+/* `Ø ilegible`, `Ø ausente`, `Ø a mano`. No es marginalia: es el motivo por el que
+   un campo está vacío, y todo el sistema se apoya en que un vacío diga por qué. Un
+   nulo que no se lee vuelve a ser una celda en blanco, que es exactamente lo que la
+   regla «nada se inventa en un campo de datos» existe para impedir. Estaba en
+   `--tinta-3` y daba 3,83:1 sobre su propio fondo gris. */
 .nulo{font-size:10px; font-weight:600; letter-spacing:.11em; text-transform:uppercase;
-      color:var(--tinta-3); background:var(--papel-2); border:1px solid var(--filete-2);
+      color:var(--tinta-2); background:var(--papel-2); border:1px solid var(--filete-2);
       padding:1px 6px; white-space:nowrap}
 .nulo.conf{color:var(--lapiz); border-color:var(--lapiz); background:var(--lapiz-suave)}
 .dudoso{background-image:repeating-linear-gradient(-45deg,transparent 0 5px,

@@ -97,7 +97,7 @@ PARES = [
     ("barra-txt",    "barra-2", 4.5, "el ítem abierto de la barra lateral"),
     ("barra-txt-2",  "barra-2", 4.5, "prosa del ítem abierto"),
     ("barra-txt",    "barra-3", 4.5, "el ítem bajo el puntero"),
-    ("oro",          "barra",   3.0, "la marca del ítem activo, sobre el verde"),
+    ("oro",          "barra",   3.0, "la marca del ítem activo, sobre el azul"),
     ("barra-filete", "barra",   1.2, "separadores de la barra: adorno, no información"),
 
     # El dorado sobre el papel da 1,91:1. No puede llevar información y por eso no
@@ -145,6 +145,77 @@ class ElContrasteAlcanzaAA(unittest.TestCase):
                          "los dos temas tienen que definir exactamente los mismos tokens")
 
 
+def _sin_comentarios(css: str) -> str:
+    """El CSS sin comentarios. Un `{` adentro de un comentario le corre el selector a
+    cualquier lectura del archivo por expresiones regulares."""
+    return re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+
+def _resolver(valor: str, tema: dict) -> str | None:
+    """Un color de CSS a `#rrggbb`, si se puede. `None` para lo que no se puede medir
+    en frío: `currentColor`, `transparent`, `inherit`, `rgba()` con transparencia."""
+    v = valor.strip().replace("!important", "").strip()
+    m = re.fullmatch(r"var\(--([\w-]+)\)", v)
+    if m:
+        return tema.get(m.group(1))
+    if re.fullmatch(r"#[0-9A-Fa-f]{6}", v):
+        return v
+    if re.fullmatch(r"#[0-9A-Fa-f]{3}", v):
+        return "#" + "".join(c * 2 for c in v[1:])
+    return None
+
+
+class NingunColorEscritoAManoSobreUnFondoDelTema(unittest.TestCase):
+    """
+    La tabla de PARES mira TOKENS. Un color escrito a mano se le escapa entero, y ahí
+    es donde se esconden los peores.
+
+    Pasó de verdad: el atajo «Saltar al contenido» tenía `color:#FFF` sobre
+    `background:var(--tribunal)`. En el tema claro `--tribunal` es azul oscuro y el
+    blanco daba 12,38:1; en el oscuro el mismo token es azul claro y el mismo blanco
+    daba **2,46:1**, la mitad de lo que pide AA. Un token cambia con el tema; un
+    `#FFF` escrito a mano, no. Y ese atajo lo usa quien navega con el teclado, que es
+    justamente quien menos puede permitirse no leerlo.
+
+    Esta prueba recorre TODA regla que declare color y fondo juntos, resuelva de
+    tokens o de literales, y los mide en los dos temas. Es el guardia de la clase
+    entera, no del caso que ya apareció.
+    """
+
+    LIMPIO = _sin_comentarios(CSS)
+
+    def test_cada_regla_que_declara_color_y_fondo_alcanza_AA(self):
+        flojos = []
+        for regla in re.finditer(r"([^{}]+)\{([^{}]*)\}", self.LIMPIO):
+            selector, cuerpo = regla.group(1).strip(), regla.group(2)
+            c = re.search(r"(?<![-\w])color:\s*([^;]+)", cuerpo)
+            f = re.search(r"(?<![-\w])background(?:-color)?:\s*([^;]+)", cuerpo)
+            if not (c and f):
+                continue
+            for nombre, tema in (("claro", CLARO), ("oscuro", OSCURO)):
+                texto = _resolver(c.group(1), tema)
+                fondo = _resolver(f.group(1).split()[0], tema)
+                if not (texto and fondo):
+                    continue
+                r = relacion(texto, fondo)
+                if r < 4.5:
+                    flojos.append(f"{nombre}: «{selector}» da {r:.2f}:1 "
+                                  f"({c.group(1).strip()} sobre {f.group(1).strip()})")
+        self.assertEqual(flojos, [], "\n" + "\n".join(flojos))
+
+    def test_la_prueba_esta_mirando_algo(self):
+        """
+        Una prueba que recorre reglas con una expresión regular deja de encontrarlas
+        en silencio si el archivo cambia de forma, y entonces pasa siempre. Que falle
+        cuando se queda sin terreno.
+        """
+        pares = [r for r in re.finditer(r"([^{}]+)\{([^{}]*)\}", self.LIMPIO)
+                 if re.search(r"(?<![-\w])color:", r.group(2))
+                 and re.search(r"(?<![-\w])background(?:-color)?:", r.group(2))]
+        self.assertGreater(len(pares), 15,
+                           "la prueba dejó de encontrar reglas: se le movió el terreno")
+
+
 class ElOscuroEsUnaPaletaYNoDosSueltas(unittest.TestCase):
     """
     El tema oscuro se declara dos veces: una para quien lo tiene puesto en el sistema
@@ -170,7 +241,7 @@ class ElDoradoNoLlevaInformacion(unittest.TestCase):
     palabras, y no sirve para decir nada por su cuenta. La tentación de escribir un
     número en dorado sobre el papel aparece sola, así que queda escrita la regla:
     `--oro` como `color:` sólo puede aparecer dentro de la barra lateral, que es
-    verde macizo y ahí da 4,08:1.
+    azul macizo y ahí da 6,26:1.
     """
 
     def test_el_oro_como_texto_vive_solo_en_la_barra(self):

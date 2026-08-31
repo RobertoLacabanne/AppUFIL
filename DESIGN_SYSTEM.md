@@ -32,76 +32,76 @@ CDN también le cuenta a alguien que este equipo está mirando este legajo.
 
 ## 2. Color
 
-### La paleta institucional
+### La paleta
 
-Los colores son los del Ministerio Público Fiscal de Entre Ríos. No decoran: nombran.
 Cuatro familias, y cada una tiene un oficio del que no se sale.
 
 | | Token | Claro | Oscuro |
 |---|---|---|---|
-| **verde institucional** | `--verde-inst` | `#23594C` | `#72B5A2` |
-| **verde operativo** | `--verde-oper` | `#2F7463` | `#72B5A2` |
-| **turquesa Paraná** | `--turquesa` | `#4D927F` | `#5FA894` |
+| **azul tribunal** | `--tribunal` | `#1C3557` | `#7FA9D6` |
+| **azul de texto** | `--tribunal-txt` | `#2A5480` | `#7FA9D6` |
+| **río** | `--rio` | `#4E88B5` | `#6B9FCB` |
 | **dorado justicia** | `--oro` | `#D7B46A` | `#E5C57C` |
-| **rojo** | `--lapiz` | `#B71C1C` | `#F08B8B` |
-| papel cálido | `--papel` | `#FCFBF8` | `#0B1213` |
-| fondo secundario | `--papel-2` | `#F2F0E9` | `#111C1B` |
-| superficie elevada | `--papel-3` | `#E8E5DB` | `#172522` |
-| azul tinta | `--tinta` | `#0F172A` | `#F2F5F2` |
-| texto secundario | `--tinta-2` | `#5D6B66` | `#AEBBB7` |
-| marginalia | `--tinta-3` | `#78857F` | `#8A9A95` |
-| filete decorativo | `--filete` | `#DCD9CF` | `#2C413C` |
-| borde de control | `--borde-control` | `#70827C` | `#5A7A74` |
-| barra lateral | `--barra` | `#23594C` | `#111C1B` |
-| ítem abierto | `--barra-2` | `#1B4A3E` | `#1B2E2A` |
-| ítem bajo el puntero | `--barra-3` | `#2F7463` | `#24413B` |
-| texto de la barra | `--barra-txt` | `#F4F8F6` | `#F2F5F2` |
-| rótulos de la barra | `--barra-txt-2` | `#B9D2C8` | `#AEBBB7` |
-| enlaces y sellos | `--sello` | `#23594C` | `#72B5A2` |
-| carril de interpretación | `--interp` | `#EDF3F0` | `#14201F` |
-| su borde | `--interp-filete` | `#43836F` | `#5A857A` |
-| atención | `--ambar` | `#8A6714` | `#E5C57C` |
-| cronología | `--marca` | `#2F7463` | `#5FA894` |
-| superposición | `--marca-solape` | `#B71C1C` | `#F08B8B` |
+| **punzó** | `--lapiz` | `#A81F26` | `#F08B8B` |
+| verde de «firme» | `--verde` | `#2C6A4B` | `#74BC97` |
+| ámbar de atención | `--ambar` | `#8A6714` | `#E5C57C` |
+| papel | `--papel` | `#FCFBF8` | `#0B1119` |
+| fondo secundario | `--papel-2` | `#F2F0E9` | `#111A25` |
+| superficie elevada | `--papel-3` | `#E8E5DB` | `#18232F` |
+| tinta | `--tinta` | `#0F172A` | `#F2F5F8` |
+| texto secundario | `--tinta-2` | `#545F70` | `#AEB9C6` |
+| marginalia | `--tinta-3` | `#6E7A8A` | `#8A96A5` |
+| filete decorativo | `--filete` | `#DCD9CF` | `#2C3B4D` |
+| borde de control | `--borde-control` | `#737E8C` | `#5C6D80` |
+| barra lateral | `--barra` | `#1C3557` | `#111A25` |
+| ítem abierto | `--barra-2` | `#142944` | `#1B2836` |
+| bajo el puntero | `--barra-3` | `#26456B` | `#24354A` |
+| texto de la barra | `--barra-txt` | `#F2F6FA` | `#F2F5F8` |
+| rótulos de la barra | `--barra-txt-2` | `#B6C7DC` | `#AEB9C6` |
+| enlaces y sellos | `--sello` | `#24466E` | `#7FA9D6` |
+| carril de interpretación | `--interp` | `#EBF1F7` | `#131E2A` |
+| su borde | `--interp-filete` | `#4A79A8` | `#5A82AC` |
+| cronología | `--marca` | `#2A5480` | `#6B9FCB` |
+| superposición | `--marca-solape` | `#A81F26` | `#F08B8B` |
 
 ### Qué puede decir cada color
 
-* **Verde institucional** — quién sos y dónde estás parado: la barra lateral, la marca,
-  los enlaces, el botón que hace la acción principal.
-* **Turquesa Paraná** — información y avance: barras de progreso, el carril de
-  interpretación, los trazos de la cronología. Da **3,54:1** sobre el papel: alcanza
-  para un trazo o un borde (WCAG 1.4.11 pide 3:1) y **no alcanza para texto corriente**.
-  Donde el turquesa tiene que hablar, habla el verde operativo (5,34:1).
-* **Dorado justicia** — detalle institucional, y nada más. Da **1,91:1** sobre el papel:
-  sobre el papel es adorno y no puede llevar información. Sobre el verde de la barra da
-  4,08:1 y ahí sí marca el ítem activo. Hay una prueba
-  (`ElDoradoNoLlevaInformacion`) que verifica que `color:var(--oro)` no aparezca fuera
-  de la barra lateral.
-* **Rojo** — error, conflicto y destrucción. Sólo eso. Un rojo que también sirve para
-  «importante» es un rojo que ya no alarma a nadie. En los botones vive únicamente en
-  `.boton.peligro` y `.mini.peligro`, que son los que borran algo.
-* **`--interp`** — el carril de interpretación. Fondo propio, para que una hipótesis
-  nunca se lea como un dato.
+* **Azul tribunal** — quién sos y dónde estás parado: la barra lateral, la marca, los
+  enlaces, el botón que hace la acción principal. Es cromo: no informa nada sobre un
+  dato.
+* **Río** — información y avance: barras de progreso, el carril de interpretación, los
+  trazos de la cronología. Da **3,68:1** sobre el papel: alcanza para un trazo o un
+  borde (WCAG 1.4.11 pide 3:1) y **no alcanza para texto corriente**. Donde el río
+  tiene que hablar, habla `--tribunal-txt` (7,58:1).
+* **Dorado justicia** — detalle institucional, y nada más. Da **1,91:1** sobre el
+  papel: ahí es adorno y no puede llevar información. Sobre el azul de la barra da
+  6,26:1 y ahí sí marca el ítem activo. `ElDoradoNoLlevaInformacion` verifica que
+  `color:var(--oro)` no aparezca fuera de la barra lateral.
+* **Verde** — **firme**, y solamente firme. Ver abajo por qué esto merece un apartado.
+* **Ámbar** — atención: hay trabajo por hacer, se puede trabajar igual.
+* **Punzó** — error, conflicto y destrucción. Sólo eso. En los botones vive únicamente
+  en `.boton.peligro` y `.mini.peligro`, que son los que borran algo.
 * **`--marca` / `--marca-solape`** — la cronología. Un solo tono para los contratos; el
-  rojo marca **únicamente** la superposición, que es lo que el gráfico existe para
+  punzó marca **únicamente** la superposición, que es lo que el gráfico existe para
   mostrar. La cámara va como texto en el rótulo: la identidad no depende del color.
 
-**Todos los colores viven en los tres bloques de paleta.** `--marca` y `--marca-solape`
-estuvieron en un `:root` suelto doscientas líneas más abajo, y por eso ninguna prueba de
-contraste los miraba. Un color fuera de la paleta es un color que nadie mide.
+### Por qué el cromo no puede ser verde
 
-### El oscuro es una paleta pensada, no la clara dada vuelta
+Este sistema tuvo una paleta verde, tomada de los círculos del escudo del organismo.
+Se cambió, y el motivo vale escribirlo porque es un error fácil de repetir.
 
-Los verdes suben de luminosidad para no apagarse contra el fondo, y el fondo tira a
-verde muy oscuro —no a gris— para que siga siendo la misma casa. Se declara **dos
-veces**: una para `prefers-color-scheme: dark` y otra para `[data-tema="oscuro"]`, que
-es la elección explícita. Son idénticas a propósito, y por eso mismo se separan solas:
-se toca una, se olvida la otra, y el que eligió el oscuro a mano ve una pantalla
-distinta que el que lo tiene por preferencia del sistema.
-`ElOscuroEsUnaPaletaYNoDosSueltas` verifica que no se separen.
+La distinción más importante del sistema es **firme contra provisional**: es la que
+decide qué se puede sumar, cruzar y llevar a un informe. En la paleta verde, el token
+del cromo (`--verde-oper`: botón principal, enlaces, sello «trabajando») y el token del
+estado firme (`--verde`) eran **el mismo hex, `#2F7463`**. El color que decía «el
+sistema afirma que este dato es firme» era el mismo que decía «esto es un botón».
 
-El botón dice **«Activar modo oscuro»** / **«Activar modo claro»**: qué va a pasar si lo
-tocás. Decía «Tema», que no es ni una pregunta ni una respuesta.
+Un color que significa dos cosas no significa ninguna. Con el azul de cromo, el verde
+queda reservado para un solo significado en toda la pantalla, y ese significado es el
+que más caro sale confundir.
+
+El azul tampoco es ajeno a la casa: sale del celeste del escudo, igual que el verde
+salía de los círculos.
 
 ### Movimiento
 
@@ -113,6 +113,19 @@ decirlo con algo colgado.
 
 `prefers-reduced-motion: reduce` lo apaga **todo**, sin excepciones: hay gente a la que
 el movimiento le da náuseas o le dispara una migraña.
+
+### El oscuro es una paleta pensada, no la clara dada vuelta
+
+Los azules suben de luminosidad para no apagarse contra el fondo, y el fondo tira a
+azul muy oscuro —no a gris— para que siga siendo la misma casa. Se declara **dos
+veces**: una para `prefers-color-scheme: dark` y otra para `[data-tema="oscuro"]`, que
+es la elección explícita. Son idénticas a propósito, y por eso mismo se separan solas:
+se toca una, se olvida la otra, y el que eligió el oscuro a mano ve una pantalla
+distinta que el que lo tiene por preferencia del sistema.
+`ElOscuroEsUnaPaletaYNoDosSueltas` verifica que no se separen.
+
+El botón dice **«Activar modo oscuro»** / **«Activar modo claro»**: qué va a pasar si lo
+tocás. Decía «Tema», que no es ni una pregunta ni una respuesta.
 
 ### `--filete` no es `--borde-control`
 
@@ -137,26 +150,42 @@ baja del mínimo.
 
 | Par | Dónde | Claro | Oscuro | Pide |
 |---|---|---|---|---|
-| `--tinta` sobre `--papel` | texto normal | 16.32:1 | 13.88:1 | 4.5:1 |
-| `--tinta` sobre `--papel-2` | texto sobre bloque gris | 14.69:1 | 12.60:1 | 4.5:1 |
-| `--tinta-2` sobre `--papel` | prosa secundaria | 6.38:1 | 6.31:1 | 4.5:1 |
-| `--tinta-2` sobre `--papel-2` | prosa secundaria sobre gris | 5.74:1 | 5.73:1 | 4.5:1 |
-| `--tinta-3` sobre `--papel` | rótulos y marginalia | 3.52:1 | 3.92:1 | 3.0:1 |
-| `--sello` sobre `--papel` | enlaces y sellos | 9.01:1 | 6.86:1 | 4.5:1 |
-| `--sello` sobre `--papel-2` | enlaces sobre gris | 8.11:1 | 6.22:1 | 4.5:1 |
-| `--verde` sobre `--papel` | sello «al día» | 7.74:1 | 7.67:1 | 4.5:1 |
-| `--ambar` sobre `--papel` | sello de atención | 5.04:1 | 7.80:1 | 4.5:1 |
-| `--lapiz` sobre `--papel` | sello de alerta | 7.41:1 | 6.53:1 | 4.5:1 |
-| `--lapiz` sobre `--lapiz-suave` | aviso de datos de demostración | 6.13:1 | 5.69:1 | 4.5:1 |
-| `--tinta` sobre `--lapiz-suave` | texto del aviso de demostración | 13.49:1 | 12.09:1 | 4.5:1 |
-| `--papel` sobre `--lapiz` | número sobre el chip rojo de la barra | 7.41:1 | 6.53:1 | 4.5:1 |
-| `--tinta` sobre `--interp` | carril de interpretación | 14.36:1 | 12.76:1 | 4.5:1 |
-| `--tinta-2` sobre `--interp` | prosa del carril de interpretación | 5.61:1 | 5.80:1 | 4.5:1 |
-| `--sello` sobre `--sello-suave` | aviso de foja enderezada | 7.28:1 | 5.76:1 | 4.5:1 |
-| `--borde-control` sobre `--papel` | borde de campos y botones | 3.35:1 | 3.34:1 | 3.0:1 |
-| `--borde-control` sobre `--papel-2` | borde de controles sobre gris | 3.01:1 | 3.03:1 | 3.0:1 |
-| `--marca` sobre `--papel` | barra de contrato en la cronología | 6.02:1 | 5.16:1 | 3.0:1 |
-| `--marca-solape` sobre `--papel` | barra de superposición | 5.92:1 | 4.87:1 | 3.0:1 |
+| `--tinta` sobre `--papel` | texto normal | 17.25:1 | 17.31:1 | 4.5:1 |
+| `--tinta` sobre `--papel-2` | texto sobre bloque gris | 15.66:1 | 16.02:1 | 4.5:1 |
+| `--tinta-2` sobre `--papel` | prosa secundaria | 6.25:1 | 9.52:1 | 4.5:1 |
+| `--tinta-2` sobre `--papel-2` | prosa secundaria sobre gris | 5.67:1 | 8.81:1 | 4.5:1 |
+| `--tinta-3` sobre `--papel` | rótulos y marginalia | 4.22:1 | 6.30:1 | 3.0:1 |
+| `--sello` sobre `--papel` | enlaces y sellos | 9.33:1 | 7.71:1 | 4.5:1 |
+| `--sello` sobre `--papel-2` | enlaces sobre gris | 8.46:1 | 7.13:1 | 4.5:1 |
+| `--verde` sobre `--papel` | sello «al día» | 6.21:1 | 8.46:1 | 4.5:1 |
+| `--ambar` sobre `--papel` | sello de atención | 5.03:1 | 11.38:1 | 4.5:1 |
+| `--lapiz` sobre `--papel` | sello de alerta | 7.02:1 | 7.91:1 | 4.5:1 |
+| `--lapiz` sobre `--lapiz-suave` | aviso de datos de demostración | 6.17:1 | 6.94:1 | 4.5:1 |
+| `--tinta` sobre `--lapiz-suave` | texto del aviso de demostración | 15.15:1 | 15.20:1 | 4.5:1 |
+| `--papel` sobre `--lapiz` | número sobre el chip rojo de la barra | 7.02:1 | 7.91:1 | 4.5:1 |
+| `--tinta` sobre `--interp` | carril de interpretación | 15.69:1 | 15.39:1 | 4.5:1 |
+| `--tinta-2` sobre `--interp` | prosa del carril de interpretación | 5.68:1 | 8.47:1 | 4.5:1 |
+| `--sello` sobre `--sello-suave` | aviso de foja enderezada | 8.27:1 | 6.69:1 | 4.5:1 |
+| `--borde-control` sobre `--papel` | borde de campos, selectores y botones | 3.99:1 | 3.57:1 | 3.0:1 |
+| `--borde-control` sobre `--papel-2` | borde de controles sobre gris | 3.62:1 | 3.30:1 | 3.0:1 |
+| `--marca` sobre `--papel` | barra de contrato en la cronología | 7.58:1 | 6.72:1 | 3.0:1 |
+| `--marca-solape` sobre `--papel` | barra de superposición en la cronología | 7.02:1 | 7.91:1 | 3.0:1 |
+| `--barra-txt` sobre `--barra` | ítems de la barra lateral | 11.40:1 | 16.02:1 | 4.5:1 |
+| `--barra-txt-2` sobre `--barra` | rótulos de grupo en la barra lateral | 7.19:1 | 8.81:1 | 4.5:1 |
+| `--barra-txt` sobre `--barra-2` | el ítem abierto de la barra lateral | 13.52:1 | 13.68:1 | 4.5:1 |
+| `--barra-txt-2` sobre `--barra-2` | prosa del ítem abierto | 8.52:1 | 7.52:1 | 4.5:1 |
+| `--barra-txt` sobre `--barra-3` | el ítem bajo el puntero | 9.01:1 | 11.40:1 | 4.5:1 |
+| `--oro` sobre `--barra` | la marca del ítem activo, sobre el azul | 6.26:1 | 10.52:1 | 3.0:1 |
+| `--barra-filete` sobre `--barra` | separadores de la barra: adorno, no información | 1.41:1 | 1.54:1 | 1.2:1 |
+| `--tribunal-txt` sobre `--papel` | botón principal en texto, y sellos de firme | 7.58:1 | 7.71:1 | 4.5:1 |
+| `--tribunal-txt` sobre `--papel-2` | botón principal sobre gris | 6.88:1 | 7.13:1 | 4.5:1 |
+| `--papel` sobre `--tribunal-txt` | texto del botón principal | 7.58:1 | 7.71:1 | 4.5:1 |
+| `--rio` sobre `--papel` | trazos de avance y borde del carril de interpretación | 3.68:1 | 6.72:1 | 3.0:1 |
+| `--rio` sobre `--papel-2` | trazos de avance sobre gris | 3.34:1 | 6.21:1 | 3.0:1 |
+| `--interp-filete` sobre `--interp` | el borde que marca el carril de interpretación | 4.02:1 | 4.19:1 | 3.0:1 |
+| `--tribunal-txt` sobre `--interp` | el rótulo de clase dentro del carril | 6.89:1 | 6.86:1 | 4.5:1 |
+| `--ambar` sobre `--ambar-suave` | aviso de atención | 4.60:1 | 10.16:1 | 4.5:1 |
+| `--tinta` sobre `--ambar-suave` | texto del aviso de atención | 15.76:1 | 15.46:1 | 4.5:1 |
 
 ### Nada se dice sólo con color
 
@@ -165,9 +194,9 @@ color, ni en una impresión en blanco y negro — **y esto se imprime**. Cada es
 además una palabra:
 
 ```
-[ AL DÍA ]        verde   + la palabra
-[ 2 A REVISAR ]   rojo    + el número y la palabra
-[ CONFLICTO ]     rojo    + la palabra
+[ ✓ AL DÍA ]      verde   + ícono y palabra
+[ ⚠ 2 A REVISAR ] ámbar   + ícono, número y palabra
+[ ⊗ CONFLICTO ]   punzó   + ícono y palabra
 ```
 
 La primera columna de «Estado del sistema» es un sello con texto, no un punto de color,
@@ -209,7 +238,7 @@ En pantallas de menos de 720 px la canaleta desaparece y el rótulo pasa arriba.
 ### El armazón
 
 La pantalla se parte en dos y no cambia nunca: a la izquierda **dónde estás parado**
-(la barra lateral, verde institucional macizo), a la derecha **en qué estás trabajando**.
+(la barra lateral, azul tribunal macizo), a la derecha **en qué estás trabajando**.
 Arriba de la derecha, una barra de un renglón con el legajo abierto, el lote, qué está
 haciendo el sistema y la búsqueda.
 
@@ -309,10 +338,10 @@ número obliga a mirar *cuál* es el legajo que se está por sacar. Y un botón 
 después rechaza es un botón que enseña a apretar sin leer.
 
 ### Botones
-`.boton` al contorno en verde operativo; `.boton.lleno` para la acción principal de una
+`.boton` al contorno en azul; `.boton.lleno` para la acción principal de una
 pantalla —en una hoja con ocho botones al contorno, el que hay que apretar tiene que
 distinguirse sin leerlos todos—; `.boton.gris` para lo secundario; `.boton.peligro` y
-`.mini.peligro` en rojo, **sólo** para lo que destruye algo.
+`.mini.peligro` en punzó, **sólo** para lo que destruye algo.
 
 ### Cifra — `.cifra`
 Un número grande con su rótulo abajo. En grilla auto-ajustable de mínimo 132 px.

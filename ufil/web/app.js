@@ -881,9 +881,9 @@ async function vPanel() {
           <span>provisional · ${plural(t.contratos_con_monto_provisional, 'contrato sin revisar', 'contratos sin revisar')}</span></div>
       </div>
       <div class="cifras">
-        <div class="cifra ${t.montos_pendientes_sin_valor ? 'alerta' : ''}">
+        <div class="cifra ${t.montos_pendientes_sin_valor ? 'atencion' : ''}">
           <b>${n(t.montos_pendientes_sin_valor)}</b><span>montos sin número leído</span></div>
-        <div class="cifra ${t.contratos_sin_monto_firme ? 'alerta' : ''}">
+        <div class="cifra ${t.contratos_sin_monto_firme ? 'atencion' : ''}">
           <b>${n(t.contratos_sin_monto_firme)}</b><span>contratos sin monto firme</span></div>
       </div>
       ${t.comprobantes ? `
@@ -941,9 +941,12 @@ async function vPanel() {
         {t:'Campo', r:f => esc(rotularCampo(f.campo, f.familia))},
         {t:'Total', k:'total', c:'num'},
         {t:'Firmes', c:'num', r:f => `<b>${fmtNum.format(f.firmes)}</b>`},
+        // Ámbar y no punzó: son campos por mirar, no errores. El punzó de esta
+        // pantalla queda para «en conflicto», que es la columna que de verdad dice
+        // que dos lecturas no coinciden.
         {t:'Esperando', c:'num', r:f => {
           const n = f.pendientes_baja_confianza + f.conflictos + f.sin_revisar;
-          return n ? `<span class="marca">${fmtNum.format(n)}</span>` : '0';
+          return n ? `<span class="pendiente">${fmtNum.format(n)}</span>` : '0';
         }},
         {t:'Cerrados sin valor', c:'num',
          r:f => fmtNum.format(f.ilegibles_confirmados + f.ausentes_confirmados)},
@@ -1920,7 +1923,8 @@ async function vPersonas() {
        r:f => f.documento ? esc(f.documento) : '<span class="nulo">Ø sin dato</span>'},
       {t:'Contratos', k:'contratos', c:'num'},
       {t:'Sin monto', c:'num', b:f => f.contratos_sin_monto,
-       r:f => f.contratos_sin_monto ? `<span class="marca">${f.contratos_sin_monto}</span>` : '0'},
+       r:f => f.contratos_sin_monto
+         ? `<span class="pendiente">${f.contratos_sin_monto}</span>` : '0'},
       {t:'Acumulado', c:'num', b:f => f.acumulado_centavos,
        r:f => esc(fmtPesos(f.acumulado_centavos))},
       // Vienen como «A,B» de un GROUP_CONCAT. Se traducen y se separan legible.
@@ -2679,8 +2683,14 @@ function avisarSiHayVersionNueva(version) {
   medirTecho();
 }
 
-/* Pinta la cinta de legajo y decide si hay que mandar a elegir uno. Devuelve true
-   cuando redirigió, para que quien la llame no siga pintando datos que no van. */
+/* Pinta el legajo abierto en la barra de arriba.
+   
+   Antes también redirigía a `#/legajos` cuando no había ninguno. Se sacó: el salto
+   era silencioso —pedías Contratos y te aparecía otra pantalla, sin una palabra— y
+   encima sólo pasaba en la primera carga, así que la mitad de las pantallas saltaba
+   y la otra mitad no. Ahora todas hacen lo mismo y lo dicen: `vistaSinLegajo` explica
+   cuál es el paso que falta y ofrece el botón para darlo. Devuelve siempre false; se
+   conserva la firma porque quien la llama todavía mira el valor. */
 function pintarLegajo(p) {
   const l = p.legajo;
   HAY_LEGAJO = !!l;
@@ -2694,16 +2704,6 @@ function pintarLegajo(p) {
       + '\nTocá para cambiar de legajo'
     : 'Elegir un legajo';
   medirTecho();          // aparecer o irse el aviso corre todo lo de abajo
-  // Sin legajo abierto, a elegir uno. Vale tanto para la instalación recién puesta
-  // —donde lo primero que hay que hacer es abrir la causa, no cargar escaneos en una
-  // base suelta— como para el que acaba de cerrar la que tenía.
-  //
-  // La excepción es la instalación anterior a los legajos, que tiene material en la
-  // base suelta y sigue trabajando ahí: a esa no se la manda a ningún lado.
-  if (!l && !p.documentos && !location.hash.startsWith('#/legajos')) {
-    location.hash = '#/legajos';
-    return true;
-  }
   return false;
 }
 
