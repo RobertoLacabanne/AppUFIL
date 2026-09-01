@@ -1031,6 +1031,13 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   main{padding:0 16px 60px}
   #aviso-demo{padding:8px 16px}
 
+  /* El aviso se apila. En una fila, el sello lleva `white-space:nowrap` y se queda
+     con dos tercios del ancho; al texto le sobra una tira de cuarenta píxeles y cada
+     palabra cae en un renglón. Visto en un teléfono de verdad: un cartel de cinco
+     líneas ocupando la pantalla entera en vertical. */
+  .aviso{flex-direction:column; align-items:flex-start; gap:7px}
+  .aviso .estado, .aviso .sello{flex:none; white-space:normal}
+
   /* Botones y campos que se puedan tocar sin errar. */
   .boton, .tecla, .chip{min-height:44px; display:inline-flex; align-items:center}
   input, select, textarea{min-height:44px; font-size:16px}   /* 16px: iOS no hace zoom */

@@ -860,15 +860,22 @@ class Manejador(BaseHTTPRequestHandler):
 
         Un legajo que no está en el registro se trata como ninguno, no como el que
         venía: la cookie la escribe el navegador y no es una fuente confiable.
+
+        Y la omisión del proceso —`UFIL_LEGAJO`, o `ufil --legajo X servir`— se valida
+        igual que la cookie. No es simetría por prolijidad: si ese valor apunta a un
+        legajo que se eliminó, `db.abrir()` le CREA la carpeta y la base vacías al
+        pedido siguiente. Aparece de la nada un legajo que no está en el registro, con
+        el número de uno que alguien borró a propósito. Pasó: quedó `UFIL_LEGAJO`
+        apuntando a la demostración después de eliminarla.
         """
         pedido = (self._cookie("ufil_legajo") or "").strip()
         if pedido and _slug_valido(pedido):
             config.activar_legajo(pedido)
         else:
-            # Sin cookie válida se vuelve a la omisión del proceso —lo que haya fijado
-            # `ufil --legajo X servir`, o nada—, NO a lo que este hilo tenía del pedido
-            # anterior.
-            config.activar_legajo(config.LEGAJO_POR_OMISION)
+            # Sin cookie válida se vuelve a la omisión del proceso, NO a lo que este
+            # hilo tenía del pedido anterior.
+            omision = (config.LEGAJO_POR_OMISION or "").strip()
+            config.activar_legajo(omision if omision and _slug_valido(omision) else None)
 
     def _sin_permiso(self, ruta: str) -> bool:
         """

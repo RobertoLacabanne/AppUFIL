@@ -275,6 +275,39 @@ class LosEndpointsDelBorrado(unittest.TestCase):
                                {"slug": "inventado", "confirmacion": "inventado"})
         self.assertEqual(estado, 404, r)
 
+    def test_un_legajo_por_omision_que_ya_no_existe_no_resucita(self):
+        """
+        `UFIL_LEGAJO` fija el legajo con el que arranca el proceso. Si apunta a uno que
+        se eliminó, `db.abrir()` le crea la carpeta y la base vacías en el pedido
+        siguiente: aparece de la nada un legajo que no está en el registro, con el
+        número de uno que alguien borró a propósito.
+
+        Pasó de verdad en el servidor: quedó `UFIL_LEGAJO=demostracion` después de
+        eliminar la demostración, y la API seguía informándola como legajo activo.
+        """
+        from ufil import config as cfg
+        estado, nuevo = self._post("/api/legajos",
+                                   {"numero": "70.001", "caratula": "Se va a borrar"})
+        self.assertEqual(estado, 200, nuevo)
+        slug = nuevo["slug"]
+        self._post("/api/legajo/eliminar", {"slug": slug, "confirmacion": "70.001"})
+
+        anterior = cfg.LEGAJO_POR_OMISION
+        cfg.LEGAJO_POR_OMISION = slug          # como lo dejaría UFIL_LEGAJO
+        try:
+            estado, r = self._get("/api/legajos")
+            self.assertEqual(estado, 200)
+            self.assertIsNone(r["activo"],
+                              "informa como activo un legajo que ya no existe")
+            # Sobre el legajo borrado y no sobre la lista entera: esta clase levanta
+            # UN servidor para todas sus pruebas, así que quedan legajos de las otras.
+            self.assertNotIn("70.001", [l["numero"] for l in r["legajos"]],
+                             "el legajo eliminado volvió a aparecer en el registro")
+            self.assertFalse((Path(self.tmp.name) / "legajos" / slug).exists(),
+                             "se recreó en disco la carpeta de un legajo eliminado")
+        finally:
+            cfg.LEGAJO_POR_OMISION = anterior
+
     def test_la_identidad_sale_del_modulo_y_no_de_la_interfaz(self):
         estado, d = self._get("/api/identidad")
         self.assertEqual(estado, 200)

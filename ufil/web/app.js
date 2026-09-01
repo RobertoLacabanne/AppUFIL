@@ -518,37 +518,29 @@ async function vLegajos() {
                title="Eliminar el legajo ${esc(f.numero)}">Eliminar</button>`},
   ];
 
+  // Una instalación recién puesta no tiene nada, y eso NO es un estado vacío que haya
+  // que explicar con un cartel: es el principio normal del trabajo. Sin legajos, la
+  // pantalla directamente es el alta —el formulario primero, sin tabla vacía delante—.
+  const primeraVez = !activos.length && !archivados.length;
   const listado = activos.length
-    ? `<div class="tabla-legajos">${tabla(cols, activos, {alClic: true})}</div>`
-    : vacio('Todavía no hay ningún legajo',
-        'Un legajo es una causa: sus documentos, sus personas y sus totales viven en un ' +
-        'archivo aparte y no se cruzan con los de ninguna otra. Creá el primero acá abajo.');
+    ? `<div class="tabla-legajos">${tabla(cols, activos, {alClic: true})}</div>` : '';
 
-  // Que la carpeta de datos no sobreviva a un reinicio es la única falla del sistema
-  // que no se ve venir: todo anda, y en el próximo despliegue no queda nada. Se avisa
-  // acá, que es donde alguien está por invertir dos días de revisión, y arriba de todo.
-  // «aviso» acá NO es un detalle menor: significa que el sistema todavía no puede
-  // afirmar que lo que se guarde vaya a estar mañana. Sobre una instalación de nube
-  // eso es exactamente el estado en el que alguien pierde un legajo, así que se
-  // muestra con el mismo peso que una falla.
-  const perm = r.permanencia || {};
-  const grave = perm.estado === 'falla' || perm.estado === 'aviso';
-  const avisoDisco = grave ? `
-    <div class="aviso ${perm.estado === 'falla' ? 'alerta' : 'atento'}"
-         style="margin-bottom:16px">
-      ${sello(perm.estado === 'falla' ? 'alerta' : 'atencion',
-              perm.estado === 'falla'
-                ? 'El trabajo no se está guardando en un lugar seguro'
-                : 'Todavía no se sabe si el trabajo va a estar mañana')}
-      <span>${esc(perm.detalle)}${perm.arreglo
-        ? ` <strong>${esc(perm.arreglo)}</strong>` : ''}</span></div>` : '';
+  /* El estado de permanencia de los datos NO se muestra acá.
 
+     Estuvo un rato: un cartel arriba de esta pantalla avisando que todavía no se podía
+     confirmar que lo guardado sobreviviera a un reinicio. Es información importante y
+     está mal puesta ahí. Esta es la pantalla por la que se pasa todos los días para
+     empezar a trabajar, y un cartel de alarma en el camino de todos los días deja de
+     leerse a la semana. Vive en Sistema → Estado del sistema, que es donde se va a
+     buscar cómo está la instalación. */
   vista.innerHTML =
-    bloque('f. 0000', 'Índice de legajos', avisoDisco + `
-      <h2>¿Sobre qué legajo vas a trabajar?</h2>
-      <p class="prosa">Cada legajo tiene su propia base de datos. Mientras trabajás en uno,
-        el sistema <strong>no puede ver ni sumar</strong> nada de los demás: no es un filtro
-        que se pueda olvidar, están en archivos distintos.</p>
+    bloque('f. 0000', 'Índice de legajos', `
+      <h2>${primeraVez ? 'Empezá abriendo un legajo'
+                        : '¿Sobre qué legajo vas a trabajar?'}</h2>
+      <p class="prosa">Un legajo es una causa. Tiene su propia base de datos: sus
+        documentos, sus personas y sus totales viven en un archivo aparte, y mientras
+        trabajás en uno el sistema <strong>no puede ver ni sumar</strong> nada de los
+        demás. No es un filtro que se pueda olvidar, están en archivos distintos.</p>
       ${!r.activo && activos.length ? `<p class="prosa">Al cerrar el navegador el sistema
         se olvida de cuál tenías abierto —en una máquina compartida una causa no puede
         quedar abierta hasta mañana—, pero <strong>no se pierde nada</strong>: acá está
@@ -560,7 +552,7 @@ async function vLegajos() {
         <div class="tabla-legajos">${tabla(cols, archivados, {alClic: true})}</div>
       </details>` : '')) +
     bloque('f. 0000', 'Alta', `
-      <h2>Abrir un legajo nuevo</h2>
+      <h2>${primeraVez ? 'Datos del legajo' : 'Abrir un legajo nuevo'}</h2>
       <form id="f-legajo" class="form-legajo">
         <label>Número de legajo
           <input name="numero" required placeholder="87.933" autocomplete="off"></label>
