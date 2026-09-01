@@ -176,13 +176,83 @@ async function api(ruta, opciones) {
 }
 
 /* Quién revisa: queda registrado en cada decisión humana. */
-function revisor() {
-  let q = localStorage.getItem('ufil.revisor');
-  if (!q) {
-    q = (prompt('¿Quién está revisando? (queda registrado en cada decisión)') || '').trim();
-    if (q) localStorage.setItem('ufil.revisor', q);
-  }
-  return q;
+/* ── Quién está trabajando ─────────────────────────────────────────────────
+   Esto lo usan varias personas de la fiscalía sobre la misma causa, y cada decisión
+   queda registrada con quién la tomó: es lo que permite, al firmar un informe, decir
+   quién verificó cada campo contra el folio.
+
+   Antes se preguntaba con el `prompt()` del navegador, que aparecía de golpe encima
+   de la primera decisión, no explicaba para qué era, y después no había manera de
+   corregirlo si alguien tipeaba mal el apellido. Ahora se pide una vez en un diálogo
+   propio, se ve siempre en la barra lateral, y se cambia desde ahí. */
+let REVISOR = null;
+try { REVISOR = localStorage.getItem('ufil.revisor') || null; } catch (e) {}
+
+function revisor() { return REVISOR; }
+
+function fijarRevisor(nombre) {
+  REVISOR = (nombre || '').trim() || null;
+  try {
+    if (REVISOR) localStorage.setItem('ufil.revisor', REVISOR);
+    else localStorage.removeItem('ufil.revisor');
+  } catch (e) {}
+  pintarRevisor();
+}
+
+function pintarRevisor() {
+  const b = document.querySelector('#b-revisor');
+  if (!b) return;
+  b.querySelector('.quien').textContent = REVISOR || 'Sin identificar';
+  b.classList.toggle('sin-nombre', !REVISOR);
+  b.title = REVISOR
+    ? `Cada decisión que tomes queda registrada como «${REVISOR}». Tocá para cambiarlo.`
+    : 'Todavía no dijiste quién sos. Tocá para identificarte.';
+}
+
+/* Pide el nombre y devuelve una promesa con él, o con null si la persona cerró el
+   diálogo. Se resuelve ANTES de tocar nada: una decisión sin nombre no se guarda, y
+   el servidor la rechaza igual, así que preguntar después sería perder el trabajo. */
+function pedirRevisor() {
+  return new Promise(resolver => {
+    const d = dialogo(`
+      <form method="dialog" id="f-revisor">
+        <h3>¿Quién está trabajando?</h3>
+        <p class="prosa">Cada campo que verifiques, corrijas o cierres queda registrado
+          con tu nombre y la fecha. Es lo que permite, al firmar un informe, decir quién
+          revisó cada dato contra el folio.</p>
+        <p class="prosa">En esta causa trabajan varias personas sobre la misma base: sin
+          esto, el trabajo de todos aparece junto y sin autor.</p>
+        <label for="n-revisor">Apellido y nombre, o usuario</label>
+        <input id="n-revisor" autocomplete="off" spellcheck="false"
+               placeholder="lacabanne.r" value="${esc(REVISOR || '')}">
+        <div class="botonera">
+          <button class="boton gris" value="no" type="submit">Ahora no</button>
+          <button class="boton lleno" id="b-soy" type="button">Listo</button>
+        </div>
+      </form>`);
+    const campo = $('#n-revisor', d), ok = $('#b-soy', d);
+    let elegido = null;
+    const confirmar = () => {
+      const v = campo.value.trim();
+      if (!v) { campo.focus(); return; }
+      elegido = v;
+      d.close();
+    };
+    ok.onclick = confirmar;
+    campo.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); confirmar(); } };
+    d.addEventListener('close', () => {
+      if (elegido) fijarRevisor(elegido);
+      resolver(elegido);
+    });
+    campo.focus();
+    campo.select();
+  });
+}
+
+/* Se llama antes de cualquier acción que quede registrada. Devuelve el nombre, o null
+   si la persona decidió no identificarse —y en ese caso no se hace nada—. */
+async function conRevisor() {
+  return REVISOR || await pedirRevisor();
 }
 
 /* ── piezas visuales ───────────────────────────────────────────────────── */
@@ -281,6 +351,7 @@ const SECCIONES = [
     {hash: '#/cola',      rotulo: 'Cola de revisión', cuenta: 'a_revisar'},
     {hash: '#/identidad', rotulo: 'Identidad',        cuenta: 'fusiones'},
     {hash: '#/afuera',    rotulo: 'Quedaron afuera',  cuenta: 'afuera'},
+    {hash: '#/equipo',    rotulo: 'Trabajo del equipo'},
   ]},
   {id: 'sistema', rotulo: 'Sistema', items: [
     {hash: '#/legajos',       rotulo: 'Legajos'},
@@ -587,7 +658,7 @@ async function vLegajos() {
     try {
       const nuevo = await api('/api/legajos', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({...d, quien: revisor()})});
+        body: JSON.stringify({...d, quien: await conRevisor()})});
       abrirLegajo(nuevo.slug);
     } catch (e) {
       err.textContent = e.message;
@@ -1270,7 +1341,7 @@ async function vDocumento(id) {
       </div>` : ''}`);
 
   vista.querySelectorAll('.deshacer').forEach(b => b.onclick = async () => {
-    const quien = revisor(); if (!quien) return;
+    const quien = await conRevisor(); if (!quien) return;
     if (!confirm('¿Deshacer esta revisión? El campo vuelve a lo que había leído el sistema.')) return;
     try {
       await api('/api/campo', {method:'POST', headers:{'Content-Type':'application/json'},
@@ -1400,6 +1471,8 @@ async function vCola(campoId) {
         </div>
         <div class="posicion" id="posicion"></div>
       </header>
+
+      <div class="otros-revisaron" id="otros-revisaron" hidden></div>
 
       <div class="taller-filtros">
         <label>Documento
@@ -1689,7 +1762,9 @@ async function verRastro(campoId) {
 }
 
 async function decidir(campoId, accion, valor) {
-  const quien = revisor();
+  // Se pide el nombre ANTES de tocar nada. Preguntarlo después sería perder la
+  // decisión que la persona acaba de tomar, y el servidor la rechaza igual sin él.
+  const quien = await conRevisor();
   if (!quien) return;
   if (accion === 'pedir') {
     valor = (prompt('Valor tal como figura en el documento:') || '').trim();
@@ -1815,7 +1890,7 @@ async function vIdentidad() {
         </div>
       </div>`).join('') : '<div class="vacio">No hay fusiones pendientes.</div>'}</div>`);
   vista.querySelectorAll('[data-fus]').forEach(b => b.onclick = async () => {
-    const quien = revisor(); if (!quien) return;
+    const quien = await conRevisor(); if (!quien) return;
     try {
       await api('/api/fusion', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({id:+b.dataset.fus, aceptar: b.dataset.ok === '1', quien})});
@@ -2326,6 +2401,72 @@ async function seguirTrabajo() {
 }
 
 
+/* ── Trabajo del equipo ────────────────────────────────────────────────────
+   Sobre una misma causa trabajan varias personas. Sin esta pantalla, cada una ve un
+   contador que baja y no sabe si bajó porque alguien más está revisando o porque algo
+   se rompió. Y a la hora de firmar, «lo revisó una persona» no alcanza: hay que poder
+   decir quién revisó qué, y cuándo.
+
+   Sale de `revision_humana`, que ya se escribe con cada decisión. No hay tabla nueva
+   ni nada duplicado: es la misma verdad, mirada por autor. */
+const ACCION_EQUIPO = {
+  verificar: ['ok', 'lo dio por correcto'],
+  corregir: ['ok', 'lo corrigió a mano'],
+  ilegible: ['neutro', 'lo cerró como ilegible'],
+  ausente: ['neutro', 'lo cerró como ausente'],
+  ambiguo: ['neutro', 'lo cerró como ambiguo'],
+  revertir: ['atencion', 'deshizo una revisión'],
+};
+
+async function vEquipo() {
+  const a = await api('/api/actividad');
+
+  if (!a.total) {
+    return vista.innerHTML = bloque('f. 0105', 'Equipo', `
+      <h2>Trabajo del equipo</h2>
+      ${vacio('Todavía nadie revisó nada',
+        'Acá va a aparecer quién revisó cada campo y cuándo. Cada decisión que alguien ' +
+        'toma en la cola queda registrada con su nombre, y esto lo muestra junto.',
+        {href: '#/cola', texto: 'Ir a la cola de revisión'})}`);
+  }
+
+  const cuando = v => v ? `${fmtFecha(v)} ${String(v).slice(11, 16)}` : '—';
+  const yo = revisor();
+
+  vista.innerHTML =
+    bloque('f. 0105', 'Equipo', `
+      <h2>Trabajo del equipo</h2>
+      <p class="prosa">Todos trabajan sobre la misma base: lo que revisa una persona lo
+        ve el resto enseguida. <strong>${plural(a.total, 'decisión tomada a mano',
+        'decisiones tomadas a mano')}</strong> en este legajo.</p>
+      ${tabla([
+        {t:'Quién', r:f => `<b>${esc(f.quien)}</b>` +
+          (f.quien === yo ? ' <span class="apagado">— sos vos</span>' : '')},
+        {t:'Campos revisados', c:'num', r:f => fmtNum.format(f.decisiones)},
+        {t:'Empezó', c:'mono', r:f => esc(cuando(f.primera))},
+        {t:'Última vez', c:'mono', r:f => esc(cuando(f.ultima))},
+      ], a.quienes)}`) +
+
+    bloque('f. 0106', 'Últimas', `
+      <h2>Lo último que se decidió</h2>
+      <p class="prosa">De lo más reciente a lo más viejo. Cada renglón lleva al
+        documento, para poder mirar el folio.</p>
+      ${tabla([
+        {t:'Cuándo', c:'mono', r:f => esc(cuando(f.cuando))},
+        {t:'Quién', r:f => esc(f.quien)},
+        {t:'Campo', r:f => esc(rotularCampo(f.campo))},
+        {t:'Qué hizo', r:f => {
+          const [tono, texto] = ACCION_EQUIPO[f.accion] || ['neutro', f.accion];
+          return sello(tono, texto);
+        }},
+        {t:'Valor que quedó', c:'mono', r:f => f.valor
+          ? esc(f.valor) : '<span class="apagado">—</span>'},
+        {t:'Documento', r:f => f.documento_id
+          ? `<a href="#/documento/${f.documento_id}">${esc(f.archivo)}</a>`
+          : esc(f.archivo)},
+      ], a.ultimas)}`);
+}
+
 /* ── Acerca del sistema ────────────────────────────────────────────────────
    Quién firma esto y qué versión se está usando. Es la pantalla que se abre cuando
    alguien pregunta «¿esto de dónde salió?» —en una audiencia, en una reunión— y hay
@@ -2674,6 +2815,7 @@ function vComoFunciona() {
 /* ── ruteo ─────────────────────────────────────────────────────────────── */
 const TITULOS = {
   '#/acerca': 'Acerca del sistema',
+  '#/equipo': 'Trabajo del equipo',
   '#/panel':'Panel', '#/ingesta':'Cargar escaneos', '#/buscar':'Buscar',
   '#/contratos':'Contratos', '#/personas':'Personas',
   '#/superposiciones':'Superposiciones', '#/cola':'Cola de revisión',
@@ -2795,6 +2937,7 @@ async function refrescarCuentas() {
 
     ULTIMO_PANEL = p;
     pintarEstadoTecho();
+    mirarSiTrabajoElOtro(p);
   } catch (e) { /* base todavía vacía */ }
 }
 
@@ -2853,6 +2996,56 @@ let PRIMERA_PANTALLA = true;
 const SIN_LEGAJO_IGUAL_ANDAN = new Set(
   ['#/legajos', '#/acerca', '#/salud', '#/como-funciona', '#/consultas']);
 
+/* ── El trabajo de los demás ───────────────────────────────────────────────
+   Sobre una misma causa trabajan varias personas al mismo tiempo, todas contra la
+   misma base. El que tiene la cola abierta no se entera de lo que revisó el de al
+   lado hasta que recarga, y mientras tanto ve filas que ya no existen.
+
+   Lo que NO se hace: refrescar la lista sola. Arrancarle las filas de abajo del
+   cursor a alguien que está a mitad de una decisión es peor que la desactualización
+   —el campo que iba a marcar se corre un renglón y marca otro—. Se avisa, y actualiza
+   cuando quiere.
+
+   La cuenta es exacta y no hace falta llevar registro de nada: la cola sabe cuántos
+   campos le quedan (`total_sin_filtro`, que baja con cada decisión propia) y el
+   servidor dice cuántos quedan de verdad. La diferencia es trabajo ajeno. */
+function mirarSiTrabajoElOtro(p) {
+  const caja = $('#otros-revisaron');
+  if (!caja || !colaEstado.filas.length) return;
+  const ajenos = colaEstado.total_sin_filtro - Number(p.a_revisar || 0);
+  if (ajenos > 0) {
+    caja.innerHTML = `${sello('neutro',
+      plural(ajenos, 'campo revisado por otra persona', 'campos revisados por otras personas'))}
+      <button class="boton gris" id="b-actualizar-cola">Actualizar la lista</button>`;
+    caja.hidden = false;
+    $('#b-actualizar-cola').onclick = () => vCola();
+  } else if (ajenos < 0) {
+    // Entró material nuevo: alguien cargó y procesó un lote mientras esto estaba abierto.
+    caja.innerHTML = `${sello('atencion',
+      plural(-ajenos, 'campo nuevo para revisar', 'campos nuevos para revisar'))}
+      <button class="boton gris" id="b-actualizar-cola">Actualizar la lista</button>`;
+    caja.hidden = false;
+    $('#b-actualizar-cola').onclick = () => vCola();
+  } else {
+    caja.hidden = true;
+  }
+}
+
+/* Latido: mientras la pestaña está a la vista, se vuelve a preguntar cada quince
+   segundos. Escondida no se pregunta nada —una pestaña olvidada toda la tarde no
+   tiene por qué golpear el servidor— y al volver a ella se pregunta enseguida, que es
+   justo cuando la persona quiere ver el estado de verdad. */
+let LATIDO = null;
+function latir() {
+  clearTimeout(LATIDO);
+  if (document.visibilityState !== 'visible') return;
+  LATIDO = setTimeout(() => { refrescarCuentas().finally(latir); }, 15000);
+}
+addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') { refrescarCuentas(); latir(); }
+  else clearTimeout(LATIDO);
+});
+
 const rutas = [
   [/^#\/legajos$/,               vLegajos],
   [/^#\/panel$/,                 vPanel],
@@ -2871,6 +3064,7 @@ const rutas = [
   [/^#\/consultas\/?(.*)$/,      vConsultas],
   [/^#\/como-funciona$/,         vComoFunciona],
   [/^#\/acerca$/,                vAcerca],
+  [/^#\/equipo$/,                vEquipo],
   [/^#\/afuera$/,                vAfuera],
   [/^#\/salud$/,                 vSalud],
 ];
@@ -2979,6 +3173,8 @@ function cajon(abrir) {
   if (abrir) lateral.querySelector('a, button')?.focus();
 }
 bMenu.onclick = () => cajon(!lateral.classList.contains('abierta'));
+$('#b-revisor').onclick = pedirRevisor;
+pintarRevisor();
 velo.onclick = () => cajon(false);
 lateral.addEventListener('click', e => { if (e.target.closest('a')) cajon(false); });
 addEventListener('keydown', e => {
@@ -3030,3 +3226,4 @@ addEventListener('hashchange', rutear);
 pintarIdentidad();
 refrescarCuentas().then(rutear);
 vigilarTrabajo();
+latir();

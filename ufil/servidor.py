@@ -701,6 +701,53 @@ def api_decidir_campo(cx, campo_id: int, accion: str, valor, quien: str,
                    estado_esperado=estado_esperado, observacion=observacion)
 
 
+def api_actividad(cx, limite: int = 60) -> dict:
+    """
+    Quién hizo qué en este legajo, y cuánto lleva hecho cada uno.
+
+    En la fiscalía esto lo trabajan varias personas sobre la misma causa. Sin una
+    pantalla que lo muestre, cada una ve un contador que baja y no sabe si bajó porque
+    alguien más está revisando o porque se rompió algo. Y a la hora de firmar un
+    informe, «lo revisó una persona» no alcanza: hay que poder decir quién.
+
+    Sale de `revision_humana`, que es el registro que ya se escribe con cada decisión.
+    No se agrega ninguna tabla ni se duplica nada.
+    """
+    # Cuántos campos sostiene hoy cada persona. De `revision_humana`, que guarda la
+    # decisión vigente: si alguien deshizo lo suyo, deja de contarlo, que es lo
+    # correcto — el número dice cuánto hay decidido, no cuántas veces se tocó.
+    quienes = [dict(r) for r in cx.execute("""
+        SELECT quien,
+               COUNT(*)  AS decisiones,
+               MIN(cuando) AS primera,
+               MAX(cuando) AS ultima
+          FROM revision_humana
+         GROUP BY quien
+         ORDER BY decisiones DESC, quien""")]
+
+    # «Lo último» sale de `auditoria` y no de `revision_humana`, por dos razones que
+    # las pruebas encontraron:
+    #
+    #  · `revision_humana` guarda la decisión VIGENTE de cada campo, y deshacer la
+    #    borra. Leyendo de ahí, «fulano deshizo lo que había hecho mengano» no aparece
+    #    nunca — justo el movimiento que más importa ver cuando trabajan varios.
+    #  · `cuando` tiene resolución de segundos, así que ocho decisiones del mismo
+    #    segundo salían en orden arbitrario. `auditoria.id` es autoincremental: ordena
+    #    exacto, siempre.
+    ultimas = [dict(r) for r in cx.execute("""
+        SELECT u.id, u.quien, u.accion, u.campo_nombre AS campo, u.valor_nuevo AS valor,
+               u.cuando, u.sha256, u.orden,
+               a.nombre AS archivo, d.id AS documento_id
+          FROM auditoria u
+          JOIN archivo a  ON a.sha256 = u.sha256
+          LEFT JOIN documento d ON d.sha256 = u.sha256 AND d.orden = u.orden
+         ORDER BY u.id DESC
+         LIMIT ?""", (limite,))]
+
+    return {"quienes": quienes, "ultimas": ultimas,
+            "total": sum(q["decisiones"] for q in quienes)}
+
+
 def api_auditoria(cx, campo_id: int) -> list[dict]:
     """
     Todo lo que le pasó a un campo, en orden. Append-only: nada se edita ni se borra.
@@ -1075,6 +1122,8 @@ class Manejador(BaseHTTPRequestHandler):
                                  FROM procedencia p JOIN archivo a ON a.sha256=p.sha256
                                 GROUP BY p.lote ORDER BY ultimo DESC""")]
                         return self._json(est)
+                    if ruta == "/api/actividad":
+                        return self._json(api_actividad(cx))
                     if ruta == "/api/afuera":
                         return self._json(api_afuera(cx))
                     if ruta == "/api/salud":

@@ -366,7 +366,51 @@ y cuándo. Conviene bajarla al terminar cada jornada de revisión y dejarla en o
 
 ---
 
-## 9. Riesgos que quedan, y son institucionales
+## 9. Trabajar en equipo
+
+Varias personas de la fiscalía sobre la misma causa, al mismo tiempo.
+
+**No hace falta sincronizar nada, y ese es el punto.** Hay un solo servidor y una sola
+base por legajo: lo que revisa una persona queda escrito ahí y el resto lo lee de ahí
+mismo. No hay copias locales que puedan quedar desfasadas.
+
+### Que no se pisen
+
+* **Escrituras simultáneas.** SQLite en modo WAL con 30 s de espera: varios pueden leer
+  mientras uno escribe, y dos que escriben a la vez hacen cola en vez de fallar. Medido
+  con tres personas tomando 120 decisiones en paralelo: **0 fallos**.
+* **Decidir un campo que otro ya decidió.** La pantalla manda el estado en el que vio el
+  campo; si cambió, el servidor rechaza con 409 y el mensaje **dice quién lo tomó** y a
+  qué estado pasó. Nadie pisa el trabajo de otro en silencio.
+
+### Que se vea el trabajo del otro
+
+Mientras la pestaña está a la vista, se vuelve a preguntar cada 15 segundos —escondida
+no pregunta nada, que una pestaña olvidada toda la tarde no tiene por qué golpear el
+servidor—. En la cola aparece una faja: **«3 campos revisados por otras personas ·
+Actualizar la lista»**.
+
+**La lista no se refresca sola, a propósito.** Arrancarle las filas de abajo del cursor
+a alguien que está a mitad de una decisión es peor que la desactualización: el campo que
+iba a marcar se corre un renglón y marca otro. Se avisa; actualiza cuando quiere.
+
+### Quién hizo qué
+
+Cada decisión se guarda con nombre y fecha en `revision_humana`. **Revisión → Trabajo
+del equipo** lo muestra: cuánto lleva revisado cada persona, desde cuándo, y las últimas
+decisiones con enlace al documento para poder mirar el folio.
+
+El nombre se pide una vez, en un diálogo que explica para qué es, y queda a la vista en
+la barra lateral («Trabajando como…»), donde se puede cambiar. Antes era el `prompt()`
+del navegador: aparecía de golpe encima de la primera decisión, no explicaba nada, y si
+alguien tipeaba mal el apellido no había manera de corregirlo.
+
+Es lo que permite, al firmar un informe, decir **quién** verificó cada dato contra el
+folio — no sólo que «lo revisó una persona».
+
+---
+
+## 10. Riesgos que quedan, y son institucionales
 
 Estos **no son defectos del software**. Son decisiones que le corresponden a la fiscalía
 y que el sistema no puede tomar por nadie.

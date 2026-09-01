@@ -108,8 +108,8 @@ class UnaSolaBarraDeDesplazamiento(unittest.TestCase):
 
     def test_las_tres_fajas_quietas_estan_declaradas(self):
         c = cuerpo(".taller")
-        self.assertIn("grid-template-rows:auto auto minmax(0,1fr) auto", c,
-                      "el taller dejó de ser cabeza + filtros + paneles + pie")
+        self.assertIn("grid-template-rows:auto auto auto minmax(0,1fr) auto", c,
+                      "el taller dejó de ser cabeza + filtros + aviso + paneles + pie")
 
     def test_al_salir_de_la_cola_se_devuelve_el_desplazamiento(self):
         """
