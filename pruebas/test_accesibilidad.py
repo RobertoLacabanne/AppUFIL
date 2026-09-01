@@ -113,6 +113,34 @@ PARES = [
     ("tribunal-txt",     "interp", 4.5, "el rótulo de clase dentro del carril"),
     ("ambar",      "ambar-suave", 4.5, "aviso de atención"),
     ("tinta",      "ambar-suave", 4.5, "texto del aviso de atención"),
+
+    # Los dos planos nuevos: la mesa (`--fondo`) y el folio apoyado encima
+    # (`--folio`), más el realce que tiñe lo que la vista tiene que agarrar sin leer.
+    # Casi todo el texto de la aplicación vive ahora sobre el folio, así que estos
+    # pares son los MÁS usados de la tabla, no un agregado al margen. Y en el tema
+    # oscuro la relación se da vuelta —el folio es más claro que la mesa, no más
+    # oscuro—, que es exactamente el caso donde un par sin medir se rompe.
+    ("tinta",         "folio",  4.5, "texto sobre el folio"),
+    ("tinta-2",       "folio",  4.5, "prosa sobre el folio"),
+    ("tinta-3",       "folio",  3.0, "marginalia y folios al margen"),
+    ("sello",         "folio",  4.5, "enlaces sobre el folio"),
+    ("tribunal-txt",  "folio",  4.5, "botones y sellos de firme sobre el folio"),
+    ("verde",         "folio",  4.5, "cifra firme"),
+    ("ambar",         "folio",  4.5, "cifra que espera revisión"),
+    ("lapiz",         "folio",  4.5, "cifra en conflicto"),
+    ("borde-control", "folio",  3.0, "borde de campos adentro del folio"),
+    ("rio",           "folio",  3.0, "trazos de avance sobre el folio"),
+
+    ("tinta",         "fondo",  4.5, "lo poco que queda escrito sobre la mesa"),
+    ("tinta-2",       "fondo",  4.5, "prosa sobre la mesa"),
+    ("borde-control", "fondo",  3.0, "borde de un control sobre la mesa"),
+
+    ("tinta",         "realce", 4.5, "el número de una cifra en su baldosa"),
+    ("tinta-2",       "realce", 4.5, "encabezado de tabla y rótulo de la cifra"),
+    ("verde",         "realce", 4.5, "cifra firme en su baldosa"),
+    ("ambar",         "realce", 4.5, "cifra en ámbar en su baldosa"),
+    ("lapiz",         "realce", 4.5, "cifra en conflicto en su baldosa"),
+    ("sello",         "realce", 4.5, "enlace sobre una fila resaltada"),
 ]
 
 

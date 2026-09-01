@@ -638,12 +638,12 @@ async function vLegajos() {
       <form id="f-legajo" class="form-legajo">
         <label>Número de legajo
           <input name="numero" required placeholder="87.933" autocomplete="off"></label>
-        <label>Carátula
-          <input name="caratula" required placeholder="Contratos Legislatura"
-                 autocomplete="off"></label>
         <label>Fiscal responsable <span class="opt">(opcional)</span>
           <input name="fiscal" autocomplete="off"></label>
-        <button class="boton" type="submit">Crear el legajo</button>
+        <label class="ancho">Carátula
+          <input name="caratula" required placeholder="Contratos Legislatura"
+                 autocomplete="off"></label>
+        <button class="boton lleno" type="submit">Crear el legajo</button>
       </form>
       <p id="err-legajo" class="aviso" hidden></p>
       <p class="prosa" style="font-size:13px">El número queda como nombre de la carpeta

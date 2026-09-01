@@ -79,6 +79,21 @@
      texto en el rótulo: la identidad no depende del color. */
   --marca:#2A5480; --marca-solape:#A81F26;
 
+  /* La mesa y el folio. Antes todo era un solo plano: el mismo papel del fondo
+     detrás del texto, y bloques separados nada más que por un filete de 1 px. Con
+     una pantalla de contenido eso se lee como una hoja larga de texto corrido, y con
+     una pantalla casi vacía —el índice de legajos, la cola sin nada— se lee como un
+     error, porque no hay NADA que dé el borde de dónde termina lo que el sistema
+     tiene para decir. De ahí la queja: «lo veo medio tétrico».
+     Ahora hay dos planos. `--fondo` es la mesa, y cada bloque es un folio apoyado
+     encima: el mismo expediente de siempre, pero con un objeto que mirar. */
+  --fondo:#F0EFE7;
+  --folio:#FFFDF8;
+  /* Un azul apenas, para lo que la vista tiene que agarrar sin leer: el encabezado
+     de una tabla, la fila bajo el puntero, la baldosa de una cifra. Es fondo y nunca
+     texto: no informa nada por sí solo. */
+  --realce:#E9F0F8;
+
   --sans:'Archivo','Helvetica Neue',Arial,sans-serif;
   --serif:'Source Serif 4',Georgia,'Times New Roman',serif;
   --mono:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;
@@ -112,11 +127,21 @@
   --tribunal:#7FA9D6; --tribunal-txt:#7FA9D6; --rio:#6B9FCB; --oro:#E5C57C;
   --barra:#1E2C40; --barra-2:#293A52; --barra-3:#344863;
   --barra-txt:#F2F5F8; --barra-txt-2:#AEB9C6; --barra-filete:#3E5372;
-  --sello:#7FA9D6; --sello-suave:#15202E;
-  --interp:#131E2A; --interp-filete:#5A82AC;
+  /* Los dos tintes suben respecto del folio, no del fondo. Con el folio en #141E2B,
+     el interp viejo (#131E2A) quedaba a 1,003:1 del folio: el total firme y el
+     provisional pasaban a tener el mismo fondo y la distinción que decide qué se
+     puede sumar desaparecía de la pantalla. Ahora dan 1,25:1 y 1,19:1, más que el
+     1,12:1 que ya tenía el tema claro. */
+  --sello:#7FA9D6; --sello-suave:#1A2C42;
+  --interp:#1B2F4C; --interp-filete:#5A82AC;
   --verde:#74BC97; --ambar:#E5C57C; --lapiz:#F08B8B; --lapiz-suave:#2A1A1C;
   --ambar-suave:#221C10;
   --marca:#6B9FCB; --marca-solape:#F08B8B;
+  /* En el oscuro la relación se da vuelta: la mesa queda en el fondo de siempre y el
+     folio SUBE de luminosidad. Bajar la mesa por debajo de #0B1119 para separarla
+     metía el fondo en la zona donde el texto claro florece —los bordes de las letras
+     se desparraman— y eso lo mira alguien ocho horas seguidas. */
+  --fondo:#0B1119; --folio:#141E2B; --realce:#1E2B3C;
   --sombra:0 1px 2px rgba(0,0,0,.40), 0 1px 8px rgba(0,0,0,.30);
   --sombra-alta:0 2px 4px rgba(0,0,0,.45), 0 8px 24px rgba(0,0,0,.40);
 }}
@@ -127,19 +152,30 @@
   --tribunal:#7FA9D6; --tribunal-txt:#7FA9D6; --rio:#6B9FCB; --oro:#E5C57C;
   --barra:#1E2C40; --barra-2:#293A52; --barra-3:#344863;
   --barra-txt:#F2F5F8; --barra-txt-2:#AEB9C6; --barra-filete:#3E5372;
-  --sello:#7FA9D6; --sello-suave:#15202E;
-  --interp:#131E2A; --interp-filete:#5A82AC;
+  /* Los dos tintes suben respecto del folio, no del fondo. Con el folio en #141E2B,
+     el interp viejo (#131E2A) quedaba a 1,003:1 del folio: el total firme y el
+     provisional pasaban a tener el mismo fondo y la distinción que decide qué se
+     puede sumar desaparecía de la pantalla. Ahora dan 1,25:1 y 1,19:1, más que el
+     1,12:1 que ya tenía el tema claro. */
+  --sello:#7FA9D6; --sello-suave:#1A2C42;
+  --interp:#1B2F4C; --interp-filete:#5A82AC;
   --verde:#74BC97; --ambar:#E5C57C; --lapiz:#F08B8B; --lapiz-suave:#2A1A1C;
   --ambar-suave:#221C10;
   --marca:#6B9FCB; --marca-solape:#F08B8B;
+  /* En el oscuro la relación se da vuelta: la mesa queda en el fondo de siempre y el
+     folio SUBE de luminosidad. Bajar la mesa por debajo de #0B1119 para separarla
+     metía el fondo en la zona donde el texto claro florece —los bordes de las letras
+     se desparraman— y eso lo mira alguien ocho horas seguidas. */
+  --fondo:#0B1119; --folio:#141E2B; --realce:#1E2B3C;
   --sombra:0 1px 2px rgba(0,0,0,.40), 0 1px 8px rgba(0,0,0,.30);
   --sombra-alta:0 2px 4px rgba(0,0,0,.45), 0 8px 24px rgba(0,0,0,.40);
 }
 
 *{box-sizing:border-box}
 html,body{margin:0}
-body{background:var(--papel); color:var(--tinta); font-family:var(--sans);
-     font-size:13px; line-height:1.5; -webkit-font-smoothing:antialiased}
+body{background:var(--fondo); color:var(--tinta); font-family:var(--sans);
+     font-size:13.5px; line-height:1.55; -webkit-font-smoothing:antialiased;
+     text-rendering:optimizeLegibility}
 :focus-visible{outline:2px solid var(--sello); outline-offset:2px}
 button{font:inherit; color:inherit}
 
@@ -189,6 +225,23 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
   display:flex; flex-direction:column; z-index:40;
   border-right:1px solid var(--barra-filete);
 }
+/* Un azul macizo de 232 px de ancho por toda la altura de la pantalla pesa, y de ahí
+   parte de lo «tétrico»: es la superficie más grande de la aplicación y no tiene un
+   solo matiz. Un degradado apenas —el mismo azul, dos pasos— le da profundidad sin
+   agregar un color nuevo.
+   Va en `background-image` a propósito y NO en el atajo `background`: la prueba de
+   contraste mide el par «color de texto sobre fondo» de cada regla, y un
+   `linear-gradient(...)` en el atajo no se puede resolver a un color, así que la
+   regla se saltearía entera y la barra lateral dejaría de estar medida. Con el
+   sólido en `background` y el degradado encima, la prueba sigue midiendo `--barra`,
+   que es el peor de los dos extremos. */
+#lateral{background-image:linear-gradient(178deg,
+  rgba(255,255,255,.035) 0%, rgba(255,255,255,0) 34%, rgba(0,0,0,.16) 100%)}
+/* Un hilo dorado contra el cuerpo. Es el único dorado que toca el borde de la barra
+   y no lleva información: al lado ya está el filete que separa de verdad. */
+#lateral::after{content:''; position:absolute; top:0; right:-1px; bottom:0; width:1px;
+  background:linear-gradient(180deg, var(--oro) 0%, transparent 22%); opacity:.5;
+  pointer-events:none}
 #lateral a{color:inherit; text-decoration:none}
 
 /* Se llama `.identidad` y no `.marca` porque `.marca` ya estaba tomada: es el
@@ -276,8 +329,8 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
 
 /* ── La barra de arriba ────────────────────────────────────────────────── */
 #techo{
-  position:sticky; top:0; z-index:30; background:var(--papel);
-  border-bottom:1px solid var(--filete);
+  position:sticky; top:0; z-index:30; background:var(--folio);
+  border-bottom:1px solid var(--filete-2); box-shadow:var(--sombra);
   display:flex; align-items:center; gap:14px; padding:0 20px; min-height:56px;
 }
 .techo-menu{display:none; flex:none; background:transparent; border:1px solid var(--borde-control);
@@ -287,11 +340,11 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
   color:var(--tinta); padding:5px 9px; margin-left:-9px; border-radius:var(--radio);
   transition:background var(--paso) var(--curva);
 }
-.techo-legajo:hover{background:var(--papel-2)}
+.techo-legajo:hover{background:var(--realce)}
 .techo-legajo .etq{font-size:9.5px; font-weight:600; letter-spacing:.13em;
                    text-transform:uppercase; color:var(--tinta-3); flex:none}
-.techo-legajo b{font-size:14px; font-weight:600; font-variant-numeric:tabular-nums;
-                flex:none}
+.techo-legajo b{font-size:15.5px; font-weight:650; font-variant-numeric:tabular-nums;
+                letter-spacing:-.01em; flex:none}
 .techo-legajo .caratula{font-size:12px; color:var(--tinta-2); overflow:hidden;
                         text-overflow:ellipsis; white-space:nowrap}
 .techo-medio{display:flex; align-items:center; gap:10px; margin-left:auto; flex:none}
@@ -396,20 +449,42 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
 .sello.alerta{color:var(--lapiz)} .sello.ok{color:var(--verde)}
 .sello.atencion{color:var(--ambar)}
 
-main{padding:0 24px 80px}
-.bloque{display:grid; grid-template-columns:var(--canaleta) 1fr;
-        border-top:1px solid var(--filete); padding-top:16px; margin-top:26px}
-.bloque:first-child{border-top:none; margin-top:18px}
+main{padding:18px 26px 90px; flex:1}
+
+/* ── El folio ──────────────────────────────────────────────────────────────
+   Cada bloque es una hoja apoyada sobre la mesa: fondo propio, un filete finito y
+   una sombra que apenas se nota. La sombra no es decoración: es lo que dice que el
+   folio está ADELANTE del fondo, y es lo que hace que una pantalla con dos cosas
+   cargadas no se lea como una pantalla rota.
+
+   El radio sigue siendo chico —esto es un expediente, no una aplicación de música—,
+   pero 14 px en una hoja grande es lo mismo que 5 px en un botón: la proporción es
+   lo que se ve, no el número. */
+.bloque{display:grid; grid-template-columns:var(--canaleta) minmax(0,1fr);
+        background:var(--folio); border:1px solid var(--filete-2);
+        border-radius:14px; box-shadow:var(--sombra);
+        padding:20px 26px 24px; margin-top:16px}
+.bloque:first-child{margin-top:0}
 .marginalia{border-right:1px solid var(--filete-2); padding-right:16px; text-align:right;
             font-family:var(--mono); font-size:10.5px; color:var(--tinta-3);
             display:flex; flex-direction:column; gap:4px}
-.cuerpo{padding-left:24px; min-width:0}
-h2{margin:0 0 10px; font-size:21px; font-weight:600; letter-spacing:-.015em; text-wrap:balance}
-h3{margin:0 0 8px; font-size:13.5px; font-weight:600}
-.rotulo{font-size:9.5px; font-weight:600; letter-spacing:.13em; text-transform:uppercase;
+/* Adentro del folio la canaleta arranca a la altura del título y no del borde de la
+   hoja: si no, el número de foja queda flotando más arriba que todo lo demás. */
+.bloque > .marginalia{padding-top:5px; padding-bottom:2px}
+.cuerpo{padding-left:26px; min-width:0}
+
+/* ── Escala tipográfica ───────────────────────────────────────────────────
+   Estaba todo en el mismo susurro: 21 px el título de una sección, 14,5 la prosa,
+   13 el cuerpo. Con tan poca distancia entre un nivel y el siguiente, la página no
+   tiene jerarquía y hay que LEERLA entera para saber qué es cada cosa. Un título
+   que se ve como título deja mirar de reojo y encontrar. */
+h2{margin:0 0 12px; font-size:26px; font-weight:650; letter-spacing:-.024em;
+   line-height:1.18; text-wrap:balance}
+h3{margin:0 0 9px; font-size:14.5px; font-weight:650; letter-spacing:-.005em}
+.rotulo{font-size:10px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
         color:var(--tinta-3)}
-.prosa{font-family:var(--serif); font-size:14.5px; line-height:1.6; color:var(--tinta-2);
-       max-width:68ch; margin:0 0 12px}
+.prosa{font-family:var(--serif); font-size:15.5px; line-height:1.68; color:var(--tinta-2);
+       max-width:66ch; margin:0 0 14px}
 .prosa strong{color:var(--tinta)}
 
 /* ── Cifras del panel ─────────────────────────────────────────────────── */
@@ -417,13 +492,21 @@ h3{margin:0 0 8px; font-size:13.5px; font-weight:600}
    chico: la jerarquía la hace el tamaño, no una grilla dibujada. */
 /* Siete cifras no entran en un renglón con la barra lateral puesta, así que el corte
    va a pasar: que se vea como una grilla y no como una que se cayó. */
-.cifras{display:grid; grid-template-columns:repeat(auto-fit,minmax(138px,1fr));
-        gap:16px 26px; background:transparent}
-.cifra{padding:10px 0 12px}
-.cifra b{display:block; font-family:var(--mono); font-size:26px; font-weight:400;
-         font-variant-numeric:tabular-nums; letter-spacing:-.025em; line-height:1.05}
-.cifra span{display:block; font-size:11px; letter-spacing:0; color:var(--tinta-2);
-            margin-top:6px; text-wrap:balance; line-height:1.35}
+/* Una baldosa por cifra. Sueltas sobre el folio eran siete números iguales flotando
+   en una fila, y con el legajo recién abierto —siete ceros— la pantalla se leía como
+   un error. La baldosa le da borde a cada uno: el cero deja de ser una ausencia y
+   pasa a ser una medición que dio cero, que es lo que en realidad es. */
+.cifras{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+        gap:10px; background:transparent}
+/* Dos grupos de cifras seguidos son dos preguntas distintas —el total, y qué quedó
+   afuera del total— y pegados uno al otro se leen como una grilla sola que se cayó.
+   Ese aire de más es lo único que dice que se cambió de tema. */
+.cifras + .cifras{margin-top:12px}
+.cifra{padding:13px 15px 15px; background:var(--realce); border-radius:10px}
+.cifra b{display:block; font-family:var(--mono); font-size:29px; font-weight:400;
+         font-variant-numeric:tabular-nums; letter-spacing:-.03em; line-height:1.05}
+.cifra span{display:block; font-size:11.5px; letter-spacing:0; color:var(--tinta-2);
+            margin-top:7px; text-wrap:balance; line-height:1.35}
 /* El denominador, atado al número y en un cuerpo menor: «213 / 250» se lee como una
    proporción, no como dos cifras sueltas. */
 .cifra b .de{font-style:normal; font-size:14px; font-weight:400; color:var(--tinta-3);
@@ -451,13 +534,15 @@ table{border-collapse:collapse; width:100%; font-size:12.5px}
 /* El encabezado sin versalitas ni interletrado: en un texto de 9,5 px eso obliga a
    descifrar cada palabra letra por letra. En redonda y con el mismo cuerpo se lee de
    corrido, y sigue distinguiéndose del dato por el color y por el filete de abajo. */
-thead th{text-align:left; font-size:11px; font-weight:600; letter-spacing:0;
-         color:var(--tinta-2); padding:7px 10px 8px; white-space:nowrap;
+thead th{text-align:left; font-size:11.5px; font-weight:600; letter-spacing:0;
+         color:var(--tinta-2); padding:9px 11px 10px; white-space:nowrap;
          border-bottom:1px solid var(--filete); position:sticky; top:0;
-         background:var(--papel)}
-tbody td{padding:9px 10px; border-bottom:1px solid var(--filete-2); vertical-align:baseline}
+         background:var(--realce)}
+thead th:first-child{border-radius:8px 0 0 0}
+thead th:last-child{border-radius:0 8px 0 0}
+tbody td{padding:11px 11px; border-bottom:1px solid var(--filete-2); vertical-align:baseline}
 tbody tr:last-child td{border-bottom:none}
-tbody tr:hover{background:var(--papel-2)}
+tbody tr:hover{background:var(--realce)}
 tbody tr.clic{cursor:pointer}
 .num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
 .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
@@ -543,11 +628,12 @@ tbody tr.clic{cursor:pointer}
        text-transform:uppercase; color:var(--tinta-3); width:66px; flex:none}
 
 /* ── Cola de revisión ─────────────────────────────────────────────────── */
-.cola{border:1px solid var(--filete); background:var(--papel)}
+.cola{border:1px solid var(--filete-2); border-radius:10px; overflow:hidden;
+      background:var(--folio)}
 .fila{display:grid; grid-template-columns:var(--canaleta) minmax(0,1fr) 210px;
       border-bottom:1px solid var(--filete-2)}
 .fila:last-child{border-bottom:none}
-.fila.foco{background:var(--papel-2); box-shadow:inset 3px 0 0 var(--sello)}
+.fila.foco{background:var(--realce); box-shadow:inset 3px 0 0 var(--sello)}
 .fila .marginalia{padding:11px 14px 11px 0}
 .fila .med{padding:11px 18px; min-width:0}
 .fila .acc{padding:11px 14px; border-left:1px solid var(--filete-2);
@@ -562,7 +648,7 @@ tbody tr.clic{cursor:pointer}
        padding:5px 8px; cursor:pointer; text-align:left; width:100%;
        transition:background var(--paso) var(--curva), color var(--paso) var(--curva),
                   border-color var(--paso) var(--curva)}
-.tecla:hover{color:var(--tinta); background:var(--papel-2); border-color:var(--filete)}
+.tecla:hover{color:var(--tinta); background:var(--realce); border-color:var(--rio)}
 .tecla .cuerpo{display:flex; flex-direction:column; min-width:0; line-height:1.3}
 .tecla .valor{font-size:13.5px; color:var(--tinta); font-weight:500}
 .tecla .de{font-size:9.5px; color:var(--tinta-3); letter-spacing:.04em}
@@ -580,9 +666,13 @@ kbd{font-family:var(--mono); font-size:10px; border:1px solid var(--borde-contro
 
 input[type=text]{font-family:var(--mono); font-size:12.5px; padding:4px 7px;
   border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta); border-radius:0}
+/* Un botón de 11,5 px con el texto subrayado adentro —porque a veces es un `<a>` y
+   heredaba el subrayado de los enlaces— no se lee como un botón: se lee como un
+   enlace roto adentro de un recuadro. Cuerpo, peso y aire; y el subrayado afuera. */
 .boton{border:1px solid var(--tribunal-txt); background:transparent; color:var(--tribunal-txt);
-       padding:5px 12px; font-size:11.5px; cursor:pointer; letter-spacing:.02em;
-       border-radius:var(--radio); font-weight:500;
+       padding:7px 15px; font-size:12.5px; cursor:pointer; letter-spacing:.01em;
+       text-decoration:none; display:inline-block;
+       border-radius:var(--radio); font-weight:600;
        transition:background var(--paso) var(--curva), color var(--paso) var(--curva),
                   border-color var(--paso) var(--curva)}
 .boton:hover{background:var(--tribunal-txt); color:var(--papel)}
@@ -618,7 +708,7 @@ td.acciones .mini + .mini{margin-left:5px}
    Escape para cerrar, y el resto de la página marcado como inerte para quien navega
    con lector de pantalla. Escribir eso a mano sale mal casi siempre. */
 .dialogo{border:1px solid var(--filete); border-radius:8px; padding:20px 22px;
-  max-width:min(480px,92vw); background:var(--papel); color:var(--tinta);
+  max-width:min(480px,92vw); background:var(--folio); color:var(--tinta);
   box-shadow:var(--sombra-alta); font-family:var(--sans); font-size:13px}
 .dialogo::backdrop{background:rgba(11,18,19,.5)}
 .dialogo h3{margin:0 0 4px; font-size:16px}
@@ -635,16 +725,16 @@ td.acciones .mini + .mini{margin-left:5px}
 pre.sql{font-family:var(--mono); font-size:11.5px; margin:0; padding:12px 14px;
   background:var(--papel-2); border-left:3px solid var(--sello); color:var(--tinta);
   overflow-x:auto; white-space:pre; line-height:1.45}
-.aviso{display:flex; gap:12px; align-items:baseline; border-left:3px solid var(--ambar);
-       background:var(--ambar-suave); padding:10px 13px; font-size:12px;
-       margin-bottom:14px; border-radius:0 var(--radio) var(--radio) 0}
+.aviso{display:flex; gap:12px; align-items:baseline; border-left:4px solid var(--ambar);
+       background:var(--ambar-suave); padding:12px 15px; font-size:12.5px;
+       line-height:1.5; margin-bottom:15px; border-radius:0 10px 10px 0}
 /* Un aviso de que TODO ESTÁ BIEN no puede pintarse con los colores de alarma: de un
    vistazo se lee como un problema, que es exactamente lo contrario de lo que dice. */
-.aviso.bien{border-left-color:var(--verde); background:var(--papel-2)}
+.aviso.bien{border-left-color:var(--verde); background:var(--realce)}
 .aviso.atento{border-left-color:var(--ambar); background:var(--ambar-suave)}
 .aviso.alerta{border-left-color:var(--lapiz); background:var(--lapiz-suave)}
-.vacio{padding:26px; text-align:center; color:var(--tinta-3); font-family:var(--serif);
-       font-style:italic; font-size:14px}
+.vacio{padding:34px 26px; text-align:center; color:var(--tinta-3); font-family:var(--serif);
+       font-style:italic; font-size:15px}
 .cargando{padding:26px; color:var(--tinta-3); font-size:12px}
 
 @media (max-width:1000px){ .visor{grid-template-columns:1fr}
@@ -691,14 +781,14 @@ button:disabled{opacity:.45; cursor:not-allowed}
 .hallazgo{display:grid; grid-template-columns:190px 1fr; gap:14px; padding:9px 13px;
   border-bottom:1px solid var(--filete-2); text-decoration:none; color:inherit; align-items:baseline}
 .hallazgo:last-child{border-bottom:none}
-.hallazgo:hover{background:var(--papel-2)}
+.hallazgo:hover{background:var(--realce)}
 .hallazgo .frag{font-family:var(--serif); font-size:13.5px; color:var(--tinta-2); line-height:1.5}
 mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weight:600}
 
 /* ── Cronología de tramos ─────────────────────────────────────────────── */
 
-.cronologia{border:1px solid var(--filete); padding:12px 14px 14px; margin-top:10px;
-  background:var(--papel)}
+.cronologia{border:1px solid var(--filete-2); border-radius:10px;
+  padding:12px 14px 14px; margin-top:10px; background:var(--realce)}
 .tramo-fila{display:grid; grid-template-columns:150px 1fr 190px; gap:12px;
   align-items:center; padding:3px 0}
 .tramo-fila.eje{padding-bottom:8px; margin-bottom:4px; border-bottom:1px solid var(--filete-2)}
@@ -783,7 +873,7 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
   gap:14px; padding:8px 13px; border-bottom:1px solid var(--filete-2);
   text-decoration:none; color:inherit; align-items:baseline; font-size:12.5px}
 .destacado-fila:last-child{border-bottom:none}
-a.destacado-fila:hover{background:var(--papel-2)}
+a.destacado-fila:hover{background:var(--realce)}
 .destacado-fila.cab{font-size:9.5px; font-weight:600; letter-spacing:.11em;
   text-transform:uppercase; color:var(--tinta-3); border-bottom:1px solid var(--tinta)}
 .destacado-fila .dias{text-align:right; font-variant-numeric:tabular-nums; font-weight:500}
@@ -848,11 +938,12 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 /* La demostración visual de la regla: el dato a la izquierda sobre papel y en
    monoespaciada; la conjetura a la derecha, sobre otro fondo y en serif bastardilla.
    Se distingue de una ojeada, que es todo el punto. */
-.carriles{display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--filete);
+.carriles{display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--filete-2);
+          border-radius:10px; overflow:hidden;
   margin:14px 0}
 @media (max-width:860px){.carriles{grid-template-columns:1fr}}
 .carril{padding:16px 18px 18px; min-width:0}
-.carril--dato{background:var(--papel); border-right:1px solid var(--filete)}
+.carril--dato{background:var(--folio); border-right:1px solid var(--filete)}
 .carril--interp{background:var(--interp); border-left:3px solid var(--interp-filete)}
 @media (max-width:860px){
   .carril--dato{border-right:none; border-bottom:1px solid var(--filete)}
@@ -912,27 +1003,32 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 body.taller-abierto #cuerpo{height:100vh; height:100dvh; overflow:hidden}
 body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 
-.taller{height:100%; display:grid;
+/* El taller no es un folio apoyado sobre la mesa: ocupa la pantalla entera y ES la
+   mesa de trabajo. Pero necesita igual el plano de adelante —el mismo `--folio` de
+   todo lo demás—, porque si no, el fondo de la mesa se ve por debajo del listado y la
+   pantalla donde se pasan las horas queda siendo la única sin superficie. */
+.taller{height:100%; display:grid; background:var(--folio);
         grid-template-rows:auto auto auto minmax(0,1fr) auto; min-height:0}
 .taller-cabeza{
   display:flex; align-items:flex-start; gap:24px; justify-content:space-between;
   padding:16px 24px 10px; border-bottom:1px solid var(--filete-2);
 }
 .taller-cabeza h2{margin:0 0 3px}
-.taller-sub{margin:0; font-family:var(--serif); font-size:13.5px; line-height:1.5;
+.taller-sub{margin:0; font-family:var(--serif); font-size:14.5px; line-height:1.55;
             color:var(--tinta-2); max-width:64ch}
 .taller-sub strong{color:var(--tinta)}
 /* El «1 de 42», que es lo único de esta pantalla que se mira de reojo cada treinta
    segundos. Grande, alineado a la derecha y siempre en el mismo lugar. */
 .taller-cabeza .posicion{flex:none; text-align:right; font-family:var(--mono);
   font-size:12px; color:var(--tinta-2); line-height:1.35; padding-top:2px}
-.taller-cabeza .posicion b{font-size:21px; font-weight:500; color:var(--tinta);
+.taller-cabeza .posicion b{font-size:25px; font-weight:600; color:var(--tinta);
   font-variant-numeric:tabular-nums; letter-spacing:-.02em}
 .taller-cabeza .de-todo{display:block; font-family:var(--sans); font-size:10.5px;
   color:var(--tinta-3)}
 
 .taller-filtros{display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;
-  padding:10px 24px; background:var(--papel-2); border-bottom:1px solid var(--filete)}
+  padding:11px 24px; background:var(--realce);
+  border-bottom:1px solid var(--filete-2)}
 
 /* Lo que revisaron los demás mientras esta pantalla estaba abierta. Es una faja más
    del taller y ocupa alto sólo cuando tiene algo que decir: `hidden` la saca de la
@@ -947,11 +1043,11 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
   gap:0; min-height:0; overflow:hidden}
 /* La única cosa que se desplaza en toda la pantalla. */
 .taller-cuerpo .cola{overflow-y:auto; min-height:0; padding:0 4px 24px 24px;
-  scrollbar-gutter:stable}
+  border:none; border-radius:0; background:transparent; scrollbar-gutter:stable}
 .taller-cuerpo .folio-lado{
   min-height:0; overflow:hidden; display:grid;
   grid-template-rows:auto auto minmax(0,1fr) auto; gap:8px;
-  border-left:1px solid var(--filete); background:var(--papel-2); padding:14px 20px 16px;
+  border-left:1px solid var(--filete-2); background:var(--realce); padding:14px 20px 16px;
 }
 /* La foja entra entera, escalada al alto que quede: sin esto el panel de la derecha
    se hacía largo y aparecía la segunda barra de desplazamiento que esto vino a sacar.
@@ -968,8 +1064,8 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 
 .taller-pie{
   display:flex; align-items:center; gap:16px; flex-wrap:wrap; min-height:38px;
-  padding:8px 24px; border-top:1px solid var(--filete); background:var(--papel-2);
-  font-size:11.5px; color:var(--tinta-2);
+  padding:9px 24px; border-top:1px solid var(--filete-2); background:var(--realce);
+  font-size:12px; color:var(--tinta-2);
 }
 .taller-pie .deshacer-barra{margin:0}
 
@@ -1166,8 +1262,15 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
    El total firme va en tinta plena sobre papel; el provisional, sobre el fondo de
    interpretación y con el filete al costado, que es el mismo lenguaje que ya usa el
    carril de conjeturas. Nunca se muestran uno al lado del otro con el mismo peso. */
+/* La baldosa de `--realce` que llevan las demás cifras NO puede llegar hasta acá.
+   `--realce` y `--interp` son los dos un azul apenas, casi el mismo: puesta la
+   baldosa, el total firme y el provisional quedaron con el mismo fondo, y la
+   distinción que decide qué se puede sumar y llevar a un informe se borró de la
+   pantalla sin que fallara nada. Lo firme vuelve a ir sobre el folio, plano y
+   limpio; lo provisional, teñido. Plano contra teñido se lee de lejos. */
 .cifras.totales{grid-template-columns:1fr 1fr; gap:12px}
-.cifra.firme{border-left:3px solid var(--verde)}
+.cifra.firme{background:var(--folio); border:1px solid var(--filete-2);
+             border-left:3px solid var(--verde)}
 .cifra.firme b{color:var(--tinta)}
 .cifra.provisional{background:var(--interp); border-left:3px solid var(--interp-filete)}
 .cifra.provisional b{color:var(--tinta-2); font-weight:500}
@@ -1175,7 +1278,8 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 /* Lo facturado. Filete distinto del de lo contratado y no sólo por decoración: son dos
    platas que no se suman, y si los dos bloques se ven iguales el ojo los lee como
    partes de un mismo total. */
-.cifra.facturado{border-left:3px solid var(--sello)}
+.cifra.facturado{background:var(--folio); border:1px solid var(--filete-2);
+                 border-left:3px solid var(--sello)}
 .cifra.facturado b{color:var(--tinta)}
 @media (max-width:720px){.cifras.totales{grid-template-columns:1fr}}
 
@@ -1189,13 +1293,27 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 /* ── Pantalla de legajos ──────────────────────────────────────────────────
    Es la portada: acá se elige la causa antes de ver nada más. Tabla compacta, sin
    tarjetas: son datos de expediente y se leen como una foja, comparando renglones. */
-.form-legajo{display:grid; gap:12px; max-width:520px; margin:14px 0 10px}
-.form-legajo label{display:grid; gap:4px; font-size:12px; color:var(--tinta-2)}
+/* Tres campos apilados en una columna de 520 px adentro de un folio de 950 dejaban
+   media hoja vacía a la derecha, y una pantalla medio vacía se lee como una pantalla
+   sin terminar. En dos columnas el alta ocupa lo que tiene que ocupar: el número y el
+   fiscal comparten renglón —son cortos— y la carátula se lleva el ancho entero. */
+/* `align-items:end` y no `start`: el rótulo «Fiscal responsable (opcional)» cae en
+   dos renglones cuando la columna es angosta, y con las celdas alineadas arriba eso
+   empuja su campo más abajo que el de al lado. Alineados abajo, los dos campos
+   quedan sobre la misma línea diga lo que diga el rótulo. */
+.form-legajo{display:grid; grid-template-columns:1fr 1fr; gap:14px 18px;
+  align-items:end; max-width:660px; margin:16px 0 12px}
+.form-legajo label{display:grid; gap:5px; font-size:12.5px; color:var(--tinta-2)}
+.form-legajo label.ancho{grid-column:1 / -1}
 .form-legajo .opt{color:var(--tinta-3); font-weight:400}
-.form-legajo input{font:inherit; padding:8px 10px; border:1px solid var(--borde-control);
-  background:var(--papel); color:var(--tinta); min-height:38px}
-.form-legajo input:focus{border-color:var(--sello)}
-.form-legajo button{justify-self:start; margin-top:2px}
+.form-legajo input{font:inherit; font-size:14px; padding:9px 11px;
+  border:1px solid var(--borde-control); border-radius:var(--radio);
+  background:var(--papel); color:var(--tinta); min-height:40px;
+  transition:border-color var(--paso) var(--curva), box-shadow var(--paso) var(--curva)}
+.form-legajo input:focus{border-color:var(--sello); outline:none;
+  box-shadow:0 0 0 3px var(--realce)}
+.form-legajo button{justify-self:start; grid-column:1 / -1; margin-top:2px}
+@media (max-width:720px){.form-legajo{grid-template-columns:1fr}}
 .archivados{margin-top:20px; border-top:1px solid var(--filete); padding-top:10px}
 .archivados summary{cursor:pointer; font-size:12px; color:var(--tinta-2); padding:4px 0}
 .archivados summary:hover{color:var(--tinta)}
@@ -1211,11 +1329,12 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
    El panel abría con lo que encontró, que es lo interesante pero no es lo accionable.
    Quien entra a la mañana necesita saber en un renglón si hay trabajo suyo esperando. */
 .siguiente-paso{display:flex; gap:16px; align-items:center; justify-content:space-between;
-  flex-wrap:wrap; border:1px solid var(--filete); background:var(--papel-2);
-  padding:13px 16px; margin-bottom:18px}
-.siguiente-paso b{display:block; font-size:14.5px; margin-bottom:2px}
-.siguiente-paso span{font-family:var(--serif); font-size:13.5px; color:var(--tinta-2);
-  display:block; max-width:70ch; line-height:1.5}
+  flex-wrap:wrap; border:1px solid var(--filete-2); border-radius:10px;
+  background:var(--realce); padding:15px 18px; margin-bottom:20px}
+.siguiente-paso b{display:block; font-size:15.5px; margin-bottom:3px;
+  letter-spacing:-.01em}
+.siguiente-paso span{font-family:var(--serif); font-size:14.5px; color:var(--tinta-2);
+  display:block; max-width:70ch; line-height:1.55}
 .siguiente-paso .boton{flex:none}
 /* Con trabajo pendiente cambia el filete, no el fondo: un bloque de color arriba de
    todo compite con el aviso de datos de demostración, que sí es una alarma.
@@ -1274,8 +1393,8 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   .tabla-legajos table, .tabla-legajos tbody, .tabla-legajos tr{display:block}
   .tabla-legajos thead{display:none}
   .tabla-legajos .tabla-env{overflow-x:visible}
-  .tabla-legajos tr{border:1px solid var(--filete); padding:12px 13px;
-    margin-bottom:10px; background:var(--papel)}
+  .tabla-legajos tr{border:1px solid var(--filete-2); border-radius:10px;
+    padding:13px 14px; margin-bottom:10px; background:var(--realce)}
   .tabla-legajos td{display:block; padding:0; border:none; text-align:left !important;
     width:auto !important; white-space:normal}
   .tabla-legajos td:nth-child(1){font-size:15px; margin-bottom:2px}
