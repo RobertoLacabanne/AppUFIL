@@ -3454,6 +3454,17 @@ async function pintarIdentidad() {
     $('#m-organismo').textContent = d.linea_organismo;
     const oficial = $('#identidad-oficial');
     if (oficial) oficial.alt = d.linea_organismo;
+    // Los fiscales, abajo del organismo y en cuerpo menor: es una firma institucional,
+    // no un dato de la pantalla, y nunca compite con lo que se está mirando.
+    const f = $('#m-fiscales'), nombres = d.fiscales || [];
+    if (f) {
+      f.hidden = !nombres.length;
+      f.innerHTML = nombres.length
+        ? `<span class="rotulo-fiscales">${esc(nombres.length > 1
+              ? (d.rotulo_fiscales || 'Fiscales') : 'Fiscal')}</span>`
+          + nombres.map(n => `<span class="nombre-fiscal">${esc(n)}</span>`).join('')
+        : '';
+    }
     document.title = document.title.replace(/· .*$/, '· ' + d.unidad);
   } catch (e) { /* la barra ya trae los valores de la casa escritos en el HTML */ }
 }

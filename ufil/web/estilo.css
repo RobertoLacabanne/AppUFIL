@@ -89,6 +89,20 @@
      encima: el mismo expediente de siempre, pero con un objeto que mirar. */
   --fondo:#F0EFE7;
   --folio:#FFFDF8;
+  /* El rojo de la franja de Artigas. NO es un quinto color de la paleta y no
+     significa nada sobre ningún dato: es la bandera de la provincia, y vive
+     exclusivamente adentro del bloque de identidad de la barra lateral.
+
+     Hay que decir por qué existe, porque a primera vista contradice la regla de que
+     el punzó es el único rojo. Contra el punzó da 1,45:1, o sea que como COLOR no se
+     distingue —dos rojos son dos rojos—. Lo que los separa no es el tono: es el lugar
+     y la forma. El punzó aparece sobre un dato, relleno, en un sello o un filete que
+     dice «acá hay un conflicto». Éste aparece una sola vez en toda la aplicación,
+     como una diagonal de 3 px cruzando dos líneas, arriba de todo, al lado del nombre
+     del organismo, donde no hay ningún dato que pudiera estar en conflicto.
+     Esa separación no la sostiene la vista de nadie: la sostiene una prueba
+     (test_entre_rios.py). Si alguna vez este token aparece en otra regla, falla. */
+  --federal:#D52B1E;
   /* Un azul apenas, para lo que la vista tiene que agarrar sin leer: el encabezado
      de una tabla, la fila bajo el puntero, la baldosa de una cifra. Es fondo y nunca
      texto: no informa nada por sí solo. */
@@ -100,8 +114,20 @@
   --canaleta:112px;
   --lateral:232px;              /* ancho de la barra lateral */
   --radio:5px;                  /* uno solo, chico: esto es un expediente */
-  --sombra:0 1px 2px rgba(15,23,42,.06), 0 1px 8px rgba(15,23,42,.05);
-  --sombra-alta:0 2px 4px rgba(15,23,42,.08), 0 8px 24px rgba(15,23,42,.10);
+  /* Sombras en tres capas, no en una.
+     Una sola sombra difusa es una mancha gris: el ojo la lee como suciedad y no como
+     altura. Apiladas —cada capa duplicando el desenfoque y bajando la opacidad a la
+     mitad— dan la caída progresiva que tiene una sombra real. Es el mismo esquema de
+     tres niveles que usa Material, y tres alcanzan: de ahí para arriba la diferencia
+     ya no se ve y sólo cuesta pintado.
+     Y no son negras: van tiradas al marrón. Una sombra negra sobre un papel cálido
+     ensucia; teñida hacia el tono del fondo, oscurece. */
+  --sombra:0 1px 1px rgba(74,60,42,.055),
+           0 2px 4px rgba(74,60,42,.045),
+           0 6px 14px rgba(74,60,42,.035);
+  --sombra-alta:0 1px 2px rgba(74,60,42,.07),
+                0 4px 10px rgba(74,60,42,.06),
+                0 14px 34px rgba(74,60,42,.085);
   /* Un solo tiempo para todo lo que se mueve, y se apaga entero más abajo si la
      persona pidió menos movimiento. */
   --paso:140ms; --curva:cubic-bezier(.2,.6,.3,1);
@@ -142,8 +168,16 @@
      metía el fondo en la zona donde el texto claro florece —los bordes de las letras
      se desparraman— y eso lo mira alguien ocho horas seguidas. */
   --fondo:#0B1119; --folio:#141E2B; --realce:#1E2B3C;
-  --sombra:0 1px 2px rgba(0,0,0,.40), 0 1px 8px rgba(0,0,0,.30);
-  --sombra-alta:0 2px 4px rgba(0,0,0,.45), 0 8px 24px rgba(0,0,0,.40);
+  --federal:#E8564A;
+  /* En el oscuro la altura la da la superficie, que sube de luminosidad, y no la
+     sombra: sobre un fondo casi negro una sombra negra no se ve. Quedan igual, en tres
+     capas, para el borde superior del objeto. */
+  --sombra:0 1px 1px rgba(0,0,0,.34),
+           0 2px 5px rgba(0,0,0,.28),
+           0 6px 16px rgba(0,0,0,.22);
+  --sombra-alta:0 1px 2px rgba(0,0,0,.40),
+                0 4px 12px rgba(0,0,0,.34),
+                0 16px 38px rgba(0,0,0,.30);
 }}
 :root[data-tema="oscuro"]{  --papel:#0B1119; --papel-2:#111A25; --papel-3:#18232F;
   --tinta:#F2F5F8; --tinta-2:#AEB9C6; --tinta-3:#8A96A5;
@@ -167,8 +201,16 @@
      metía el fondo en la zona donde el texto claro florece —los bordes de las letras
      se desparraman— y eso lo mira alguien ocho horas seguidas. */
   --fondo:#0B1119; --folio:#141E2B; --realce:#1E2B3C;
-  --sombra:0 1px 2px rgba(0,0,0,.40), 0 1px 8px rgba(0,0,0,.30);
-  --sombra-alta:0 2px 4px rgba(0,0,0,.45), 0 8px 24px rgba(0,0,0,.40);
+  --federal:#E8564A;
+  /* En el oscuro la altura la da la superficie, que sube de luminosidad, y no la
+     sombra: sobre un fondo casi negro una sombra negra no se ve. Quedan igual, en tres
+     capas, para el borde superior del objeto. */
+  --sombra:0 1px 1px rgba(0,0,0,.34),
+           0 2px 5px rgba(0,0,0,.28),
+           0 6px 16px rgba(0,0,0,.22);
+  --sombra-alta:0 1px 2px rgba(0,0,0,.40),
+                0 4px 12px rgba(0,0,0,.34),
+                0 16px 38px rgba(0,0,0,.30);
 }
 
 *{box-sizing:border-box}
@@ -176,7 +218,22 @@ html,body{margin:0}
 body{background:var(--fondo); color:var(--tinta); font-family:var(--sans);
      font-size:13.5px; line-height:1.55; -webkit-font-smoothing:antialiased;
      text-rendering:optimizeLegibility}
-:focus-visible{outline:2px solid var(--sello); outline-offset:2px}
+/* ── Dónde estoy parado con el teclado ─────────────────────────────────────
+   Esto estaba mal medido y nadie lo había mirado: el anillo iba en `--sello` SIEMPRE,
+   y sobre la barra lateral —que es azul macizo— el par daba **1,28:1** en el tema
+   claro. WCAG 1.4.11 pide 3:1 para algo que no es texto pero informa, y esto informa
+   lo más básico: en qué ítem estás. O sea que quien navega con teclado, que es
+   justamente quien más lo necesita, no veía dónde estaba en el menú entero.
+
+   Sobre el papel el sello sigue estando bien (9,49:1). Lo que cambia es la barra: ahí
+   el anillo va en dorado, que da 6,26:1 en claro y 8,47:1 en oscuro. Es la misma
+   excepción que ya tenía el dorado —sobre el azul sí puede marcar— y por eso el
+   token estaba elegido.
+
+   El `outline-offset` deja un hueco entre el elemento y el anillo: contra un fondo
+   parejo eso hace de segundo tono y el anillo se despega igual sobre claro y oscuro. */
+:focus-visible{outline:2.5px solid var(--sello); outline-offset:2px; border-radius:3px}
+#lateral :focus-visible{outline-color:var(--oro)}
 button{font:inherit; color:inherit}
 
 /* ── El armazón: barra lateral y barra de arriba ──────────────────────────
@@ -258,10 +315,43 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
 .identidad-area{font-size:10.5px; letter-spacing:.06em; color:var(--barra-txt-2);
             margin-top:2px}
 /* El dorado no dice nada acá: subraya lo que ya dice la palabra de al lado. */
-.identidad-organismo{margin:11px 0 0; padding-top:10px; font-size:10.5px; line-height:1.4;
-                 color:var(--barra-txt-2); border-top:2px solid var(--oro);
-                 max-width:26ch}
+/* ── Entre Ríos ────────────────────────────────────────────────────────────
+   Dos líneas y una diagonal, y nada más. La tentación acá es poner el escudo
+   provincial entero —óvalo, laureles, manos entrelazadas, estrella—, y a 200 px de
+   ancho un escudo se convierte en una mancha: se pierde el dibujo y se gana ruido
+   arriba de todo, que es el peor lugar para tenerlo.
+   Con la geometría alcanza. Las dos líneas son los dos ríos que le dan el nombre a la
+   provincia y van en `--rio`. La diagonal es la franja de Artigas, en el rojo del
+   federalismo, y va de arriba a la izquierda a abajo a la derecha como en la bandera.
+   Es el único lugar de la aplicación donde vive ese rojo. */
+.marca-provincia{position:relative; height:13px; margin:13px 0 0; overflow:hidden;
+  border-radius:1px;
+  background:
+    linear-gradient(var(--rio),var(--rio)) 0 4px  / 100% 1.5px no-repeat,
+    linear-gradient(var(--rio),var(--rio)) 0 8.5px / 100% 1.5px no-repeat;
+  opacity:.85}
+/* La franja. Un rectángulo vertical girado en contra de las agujas del reloj deja el
+   extremo de arriba a la izquierda y el de abajo a la derecha, que es la inclinación
+   del pabellón. */
+.marca-provincia i{position:absolute; left:13px; top:-5px; width:3.5px; height:24px;
+  background:var(--federal); transform:rotate(-34deg); transform-origin:center}
+
+/* Sin el filete dorado que tenía arriba. Ese filete separaba la unidad del organismo,
+   y ahora ese trabajo lo hace la marca provincial, que separa igual y además dice algo.
+   Dos rayas horizontales seguidas es la clase de ruido que este sistema evita en todas
+   las otras pantallas: son dos objetos compitiendo para hacer un solo trabajo. */
+.identidad-organismo{margin:9px 0 0; font-size:10.5px; line-height:1.4;
+                 color:var(--barra-txt-2); max-width:26ch}
 .identidad-oficial{display:block; max-width:150px; max-height:44px; margin:12px 0 0}
+
+/* Quién firma. Va abajo del organismo, en cuerpo menor y con el rótulo en versalitas:
+   es un membrete, no un dato de la pantalla. Los nombres NO se cortan con puntos
+   suspensivos —un apellido a medias en un membrete institucional es peor que un
+   renglón de más—, así que bajan de línea. */
+.identidad-fiscales{margin:9px 0 0; display:flex; flex-direction:column; gap:1px}
+.rotulo-fiscales{font-size:8.5px; font-weight:600; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--barra-txt-2); margin-bottom:2px}
+.nombre-fiscal{font-size:11px; line-height:1.35; color:var(--barra-txt-2)}
 
 .nav-lateral{flex:1; overflow-y:auto; padding:10px 8px 16px; display:flex;
              flex-direction:column; gap:1px}
@@ -483,8 +573,12 @@ h2{margin:0 0 12px; font-size:26px; font-weight:650; letter-spacing:-.024em;
 h3{margin:0 0 9px; font-size:14.5px; font-weight:650; letter-spacing:-.005em}
 .rotulo{font-size:10px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
         color:var(--tinta-3)}
+/* `pretty` en vez de nada: el navegador mira los últimos renglones y evita dejar una
+   palabra sola colgando al final del párrafo. En textos explicativos como éstos, que
+   son casi todos los de la aplicación, una huérfana por bloque es lo que hace que una
+   página se vea descuidada sin que se pueda señalar por qué. */
 .prosa{font-family:var(--serif); font-size:15.5px; line-height:1.68; color:var(--tinta-2);
-       max-width:66ch; margin:0 0 14px}
+       max-width:66ch; margin:0 0 14px; text-wrap:pretty}
 .prosa strong{color:var(--tinta)}
 
 /* ── Cifras del panel ─────────────────────────────────────────────────── */
@@ -1022,6 +1116,7 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 }
 .taller-cabeza h2{margin:0 0 3px}
 .taller-sub{margin:0; font-family:var(--serif); font-size:14.5px; line-height:1.55;
+            text-wrap:pretty;
             color:var(--tinta-2); max-width:64ch}
 .taller-sub strong{color:var(--tinta)}
 /* El «1 de 42», que es lo único de esta pantalla que se mira de reojo cada treinta

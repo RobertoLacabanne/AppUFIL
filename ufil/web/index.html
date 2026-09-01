@@ -42,7 +42,20 @@
     <!-- El archivo oficial del organismo, si está puesto (ver assets/marca/LEEME.md).
          Mientras no esté, manda el monograma y la línea de texto de abajo. -->
     <img id="identidad-oficial" class="identidad-oficial" src="/marca" alt="" hidden>
+    <!-- Entre Ríos, dicho con la geometría de sus dos símbolos.
+         Las dos líneas son los dos ríos que le dan el nombre a la provincia —el Paraná
+         y el Uruguay—, y van en `--rio`, que es el token que en esta paleta ya se
+         llamaba así. La diagonal que las cruza es la franja de la bandera que diseñó
+         Artigas en 1814: va de arriba a la izquierda a abajo a la derecha, como en el
+         pabellón, y su rojo es el del federalismo de la Liga de los Pueblos Libres.
+         Es adorno declarado: no informa nada, así que va marcado como decorativo para
+         quien usa lector de pantalla —el nombre de la provincia está escrito abajo, en
+         palabras, que es donde tiene que estar—. -->
+    <div class="marca-provincia" aria-hidden="true"><i></i></div>
     <p class="identidad-organismo" id="m-organismo"></p>
+    <!-- Quién firma. Viene de ufil/identidad.py y no escrito acá: cambiar de fiscal no
+         puede obligar a tocar seis archivos. -->
+    <p class="identidad-fiscales" id="m-fiscales" hidden></p>
   </div>
 
   <nav class="nav-lateral" id="nav-secciones" aria-label="Secciones"></nav>
