@@ -341,9 +341,39 @@ def cmd_demo(a):
     toque otra: si le pasan un legajo real, se planta.
     """
     import subprocess
+    from . import permanencia
     from . import capa5_interpretacion as c5
     from . import busqueda
     from . import capa0_ingesta as c0
+
+    # ── La demostración no se levanta en un servidor de verdad ──────────────
+    #
+    # `demo` genera contratos inventados y los carga. Está pensada para mostrarle el
+    # sistema a alguien en una notebook, y no tiene nada que hacer en una instalación
+    # donde se trabaja una causa.
+    #
+    # Pasó, y varias veces: quedó puesta como comando de arranque de un servicio de
+    # nube. Cada despliegue la volvía a cargar, aparecía «DEMOSTRACIÓN» con cincuenta
+    # contratos inventados encima del trabajo de verdad, y nadie entendía de dónde
+    # salía. Peor: quien ve la app un lunes a la mañana no distingue de un vistazo si
+    # esos cincuenta contratos son de la causa o del generador.
+    #
+    # Así que en un contenedor no arranca la demostración: arranca el servidor, que es
+    # lo que corresponde, y lo dice. No se planta con un error, porque un servicio que
+    # no levanta deja a la fiscalía sin herramienta; hace lo correcto y avisa.
+    if permanencia.en_contenedor() and not getattr(a, "igual_en_la_nube", False):
+        print("  Esto corre en un contenedor, así que NO se carga la demostración.")
+        print("  Los contratos inventados no tienen nada que hacer en una instalación")
+        print("  donde se trabaja una causa: aparecen mezclados con el material real y")
+        print("  no hay manera de distinguirlos de un vistazo.")
+        print()
+        print("  Se levanta el servidor normal. Si de verdad querés la demostración acá,")
+        print("  agregá --igual-en-la-nube.")
+        print()
+        from . import servidor
+        servidor.servir(None, a.puerto,
+                        "0.0.0.0" if getattr(a, "red", False) else a.host)
+        return 0
 
     activo = config.legajo_activo()
     if activo and activo != LEGAJO_DEMO:
@@ -554,6 +584,11 @@ def main(argv=None) -> int:
     s.add_argument("--red", action="store_true",
                    help="dejarlo visible para otros equipos de la red (celulares)")
     s.add_argument("--limpiar", action="store_true", help="borrar la base y empezar de cero")
+    s.add_argument("--igual-en-la-nube", action="store_true",
+                   dest="igual_en_la_nube",
+                   help="cargar la demostración aunque esto corra en un contenedor. "
+                        "No usarlo en una instalación donde se trabaja una causa: los "
+                        "contratos inventados quedan mezclados con el material real")
     s.set_defaults(func=cmd_demo)
 
     s = sub.add_parser("piloto", help="corre todo de punta a punta")

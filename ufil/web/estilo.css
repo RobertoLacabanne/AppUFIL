@@ -328,7 +328,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
      con 452 px de columna central, «DOS LECTURAS DISTINTAS» entra en un renglón y
      los importes dejan de partirse a la mitad. */
   .taller-cuerpo{grid-template-columns:minmax(0,1fr) minmax(292px,34%)}
-  .taller-cuerpo .fila{grid-template-columns:96px minmax(0,1fr) 148px}
+  .taller-cuerpo .fila{grid-template-columns:88px minmax(0,1fr) minmax(184px,30%)}
   .taller-cuerpo .fila .marginalia{padding-right:8px}
   .taller-cuerpo .fila .med{padding:9px 10px}
   .taller-cuerpo .cola{padding-left:16px}
@@ -413,14 +413,17 @@ h3{margin:0 0 8px; font-size:13.5px; font-weight:600}
 .prosa strong{color:var(--tinta)}
 
 /* ── Cifras del panel ─────────────────────────────────────────────────── */
-.cifras{display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr));
-        border:1px solid var(--filete); background:var(--papel)}
-.cifra{padding:12px 14px 13px; border-right:1px solid var(--filete-2)}
-.cifra:last-child{border-right:none}
-.cifra b{display:block; font-family:var(--mono); font-size:23px; font-weight:500;
-         font-variant-numeric:tabular-nums; letter-spacing:-.02em; line-height:1.1}
-.cifra span{display:block; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
-            color:var(--tinta-2); margin-top:5px; text-wrap:balance}
+/* Las cifras tampoco van en una caja con tabiques. El número es grande y el rótulo
+   chico: la jerarquía la hace el tamaño, no una grilla dibujada. */
+/* Siete cifras no entran en un renglón con la barra lateral puesta, así que el corte
+   va a pasar: que se vea como una grilla y no como una que se cayó. */
+.cifras{display:grid; grid-template-columns:repeat(auto-fit,minmax(138px,1fr));
+        gap:16px 26px; background:transparent}
+.cifra{padding:10px 0 12px}
+.cifra b{display:block; font-family:var(--mono); font-size:26px; font-weight:400;
+         font-variant-numeric:tabular-nums; letter-spacing:-.025em; line-height:1.05}
+.cifra span{display:block; font-size:11px; letter-spacing:0; color:var(--tinta-2);
+            margin-top:6px; text-wrap:balance; line-height:1.35}
 /* El denominador, atado al número y en un cuerpo menor: «213 / 250» se lee como una
    proporción, no como dos cifras sueltas. */
 .cifra b .de{font-style:normal; font-size:14px; font-weight:400; color:var(--tinta-3);
@@ -433,7 +436,11 @@ h3{margin:0 0 8px; font-size:13.5px; font-weight:600}
 .cifra.alerta b{color:var(--lapiz)} .cifra.ok b{color:var(--verde)}
 
 /* ── Tablas ───────────────────────────────────────────────────────────── */
-.tabla-env{overflow-x:auto; border:1px solid var(--filete); background:var(--papel)}
+/* Sin caja alrededor. Un recuadro de 1 px encerrando cada cosa es lo que hace que una
+   pantalla se vea genérica: son doce rectángulos compitiendo por atención, ninguno de
+   los cuales dice nada. Lo que separa una tabla de lo de al lado es el aire, y lo que
+   separa un renglón del siguiente es un filete finito. Nada más hace falta. */
+.tabla-env{overflow-x:auto; background:transparent; margin:0 -4px}
 table{border-collapse:collapse; width:100%; font-size:12.5px}
 /* El encabezado de columna va en `--tinta-2` y no en `--tinta-3`. `--tinta-3` está
    pensado para marginalia —el folio al costado, la fecha chica— y se le exige 3:1
@@ -441,11 +448,14 @@ table{border-collapse:collapse; width:100%; font-size:12.5px}
    significa el número de abajo, y «42» sin «REVISIONES PENDIENTES» no es un dato. En
    9,5 px y versalitas, además, es de lo más chico que hay en la pantalla. Daba
    4,22:1 y pide 4,5. */
-thead th{text-align:left; font-size:9.5px; font-weight:600; letter-spacing:.11em;
-         text-transform:uppercase; color:var(--tinta-2); padding:8px 11px;
-         border-bottom:1px solid var(--tinta); white-space:nowrap;
-         position:sticky; top:0; background:var(--papel)}
-tbody td{padding:7px 11px; border-bottom:1px solid var(--filete-2); vertical-align:baseline}
+/* El encabezado sin versalitas ni interletrado: en un texto de 9,5 px eso obliga a
+   descifrar cada palabra letra por letra. En redonda y con el mismo cuerpo se lee de
+   corrido, y sigue distinguiéndose del dato por el color y por el filete de abajo. */
+thead th{text-align:left; font-size:11px; font-weight:600; letter-spacing:0;
+         color:var(--tinta-2); padding:7px 10px 8px; white-space:nowrap;
+         border-bottom:1px solid var(--filete); position:sticky; top:0;
+         background:var(--papel)}
+tbody td{padding:9px 10px; border-bottom:1px solid var(--filete-2); vertical-align:baseline}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:var(--papel-2)}
 tbody tr.clic{cursor:pointer}
@@ -517,6 +527,16 @@ tbody tr.clic{cursor:pointer}
 .campo:last-child{border-bottom:none}
 .campo dt{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--tinta-3)}
 .campo dd{margin:0; font-family:var(--mono); font-size:12.5px; word-break:break-word}
+/* El valor del campo: lo único que hay que juzgar contra la foja, así que se lee
+   como el dato que es y no como una línea más de la fila. */
+.valor-campo{font-family:var(--mono); font-size:15px; color:var(--tinta);
+             display:flex; align-items:center; gap:9px; flex-wrap:wrap}
+.cabeza-campo{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
+              margin-bottom:8px}
+/* Por qué está en la cola. Era una versalita con el mismo peso que el nombre del
+   campo, y competían: el nombre del campo es lo que ubica, el motivo es contexto. */
+.cabeza-campo .porque{font-size:11px; color:var(--tinta-3)}
+
 .conflicto{border-left:3px solid var(--lapiz); padding-left:11px}
 .conflicto .ruta{display:flex; gap:9px; align-items:baseline; font-family:var(--mono); font-size:12px}
 .conflicto .ruta span:first-child{font-family:var(--sans); font-size:9px; letter-spacing:.09em;
@@ -532,9 +552,25 @@ tbody tr.clic{cursor:pointer}
 .fila .med{padding:11px 18px; min-width:0}
 .fila .acc{padding:11px 14px; border-left:1px solid var(--filete-2);
            display:flex; flex-direction:column; gap:5px}
-.tecla{display:inline-flex; align-items:center; gap:8px; font-size:11px; color:var(--tinta-2);
-       background:none; border:none; padding:1px 0; cursor:pointer; text-align:left}
-.tecla:hover{color:var(--tinta)}
+/* ── Las opciones de la cola ───────────────────────────────────────────────
+   Cada opción es una cosa que se puede apretar, así que se ve como una cosa que se
+   puede apretar: superficie propia, no un renglón de texto suelto con una letra al
+   lado. Y cuando la opción ES un valor, el valor manda y la procedencia va debajo,
+   chica — se decide cuál dice el papel, no de qué ruta salió. */
+.tecla{display:flex; align-items:center; gap:9px; font-size:11.5px; color:var(--tinta-2);
+       background:none; border:1px solid transparent; border-radius:var(--radio);
+       padding:5px 8px; cursor:pointer; text-align:left; width:100%;
+       transition:background var(--paso) var(--curva), color var(--paso) var(--curva),
+                  border-color var(--paso) var(--curva)}
+.tecla:hover{color:var(--tinta); background:var(--papel-2); border-color:var(--filete)}
+.tecla .cuerpo{display:flex; flex-direction:column; min-width:0; line-height:1.3}
+.tecla .valor{font-size:13.5px; color:var(--tinta); font-weight:500}
+.tecla .de{font-size:9.5px; color:var(--tinta-3); letter-spacing:.04em}
+.tecla.opcion{border-color:var(--filete)}
+.tecla.opcion:hover{border-color:var(--verde); background:var(--sello-suave)}
+.tecla.principal .cuerpo{color:var(--verde); font-weight:600}
+.tecla.secundaria{color:var(--tinta-3)}
+.tecla.secundaria:hover{color:var(--tinta-2)}
 /* La tecla dibujada. `.tecla` no tiene borde propio —es un botón de texto— así que
    este recuadro es el límite visible de lo que se aprieta, y le corresponde el
    contraste de un control. */
@@ -981,7 +1017,12 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 /* En la cola partida las filas son más compactas: la acción está a la derecha. */
 /* 124 px es lo que entra un nombre de archivo típico en una sola línea. Los más largos
    bajan de renglón (ver `.marginalia` abajo) en vez de cortarse. */
-.taller-cuerpo .fila{grid-template-columns:124px minmax(0,1fr) 170px; cursor:pointer}
+/* La columna de las opciones ahora lleva los valores, no rótulos de tres palabras:
+   un importe partido en tres renglones es exactamente lo que esto vino a arreglar.
+   Se le da el ancho que un monto necesita y se le saca al nombre del archivo, que es
+   lo que menos se lee de la fila. */
+.taller-cuerpo .fila{grid-template-columns:104px minmax(0,1fr) minmax(212px,25%);
+                     cursor:pointer}
 /* El nombre del archivo se corta por la izquierda si no entra, y con nombres reales
    —que son más largos que «contrato_A_0020»— eso deja ilegible justo lo que ubica el
    campo. Que baje de renglón antes de perderse. */
@@ -989,7 +1030,8 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
   overflow-wrap:anywhere; line-height:1.35}
 .taller-cuerpo .fila .med{padding:9px 12px}
 .taller-cuerpo .fila .acc{padding:9px 10px; gap:3px}
-.taller-cuerpo .tecla{font-size:10.5px}
+.taller-cuerpo .tecla{font-size:11px}
+.taller-cuerpo .acc{gap:4px}
 
 /* Deshacer una revisión: discreto, pero siempre a mano. Equivocarse revisando es
    normal, y sin vuelta atrás habría que reprocesar el lote para arreglar un clic. */

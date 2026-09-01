@@ -135,6 +135,17 @@ const FAMILIA_DOC = {contrato:'Contrato', comprobante:'Comprobante de pago',
 const CLASE_COLA = {conflicto:'Dos lecturas distintas', nulo:'No se pudo leer',
                     'baja confianza':'Leído con poca seguridad'};
 /* Por qué el campo quedó vacío. La base guarda la clave; la pantalla dice la frase. */
+/* Cerrar un campo sin valor es una decisión, y el botón tiene que decir qué decisión
+   es. Decía «Ø ausente, firme»: la Ø es notación interna del sistema y «firme» es
+   vocabulario del modelo de confianza. Nada de eso le dice a alguien qué está por
+   afirmar. */
+const TEXTO_CIERRE = {
+  ausente: 'no está en el documento',
+  ilegible: 'está impreso pero no se lee',
+  ambiguo: 'no se puede saber cuál es',
+  manuscrito: 'está escrito a mano y no se lee',
+};
+
 const MOTIVO_NULO = {
   ilegible:'no se puede leer', ausente:'no está en el documento',
   ambiguo:'dice dos cosas distintas', conflicto:'dos lecturas no coinciden',
@@ -1573,68 +1584,88 @@ function engancharFilasCola() {
 }
 
 function filaCola(f, i) {
+  /* Las opciones SON los valores.
+
+     Decía «tomar ocr_a», «tomar ocr_b»: el nombre del mecanismo, no el dato. Para
+     decidir había que mirar la lista de la izquierda, encontrar cuál de los valores
+     era el de la ruta A, y recién entonces volver al botón correcto. Dos lecturas y
+     un salto de ida y vuelta, cuarenta veces por hora. Y el error que provoca es el
+     peor: elegir el botón de al lado.
+
+     Ahora el botón muestra el valor y la ruta va abajo, chica: la ruta es
+     procedencia —de dónde salió el dato, que es obligatorio— pero no es lo que se
+     decide. Se decide cuál dice el papel. */
   const acciones = [];
   if (f.clase === 'conflicto' && f.variantes) {
-    f.variantes.forEach((v, n) => acciones.push(
-      [String(n + 1), `tomar ${v.ruta}`, 'corregir', v.valor]));
-    acciones.push(['N', 'ninguna, Ø ambiguo', 'ambiguo', '']);
+    f.variantes.forEach((v, n) => acciones.push({
+      tecla: String(n + 1), valor: v.valor, de: v.ruta,
+      accion: 'corregir', dato: v.valor}));
+    acciones.push({tecla: 'N', texto: 'ninguna de las dos', accion: 'ambiguo',
+                   dato: '', clase: 'secundaria'});
   } else if (f.motivo === 'manuscrito') {
     // Confirmar la propuesta es UNA tecla, y queda registrado como corrección humana:
     // el dato entra porque una persona lo miró contra el recorte, no porque lo dijo
-    // un modelo. Sin propuesta, se tipea, que es lo que había antes.
+    // un modelo.
     if (f.propuesta && !f.propuesta.ilegible && f.propuesta.valor) {
-      acciones.push(['1', `confirmar ${f.propuesta.valor}`, 'corregir', f.propuesta.valor]);
+      acciones.push({tecla: '1', valor: f.propuesta.valor,
+                     de: 'propuesta · ' + (f.propuesta.modelo || ''),
+                     accion: 'corregir', dato: f.propuesta.valor});
     }
-    acciones.push(['C', 'cargar a mano', 'pedir', '']);
-    acciones.push(['X', 'Ø no se lee, firme', 'verificar', '']);
+    acciones.push({tecla: 'C', texto: 'escribirlo a mano', accion: 'pedir', dato: ''});
+    acciones.push({tecla: 'X', texto: 'está escrito a mano y no se lee',
+                   accion: 'verificar', dato: '', clase: 'secundaria'});
   } else if (f.motivo) {
-    acciones.push(['C', 'cargar a mano', 'pedir', '']);
-    acciones.push(['X', `Ø ${f.motivo}, firme`, 'verificar', '']);
+    acciones.push({tecla: 'C', texto: 'escribirlo a mano', accion: 'pedir', dato: ''});
+    acciones.push({tecla: 'X', texto: TEXTO_CIERRE[f.motivo] || `${f.motivo}, y queda así`,
+                   accion: 'verificar', dato: '', clase: 'secundaria'});
   } else {
-    acciones.push(['V', 'es correcto', 'verificar', '']);
-    acciones.push(['C', 'corregir', 'pedir', '']);
-    acciones.push(['X', 'Ø ilegible', 'ilegible', '']);
+    acciones.push({tecla: 'V', texto: 'es correcto', accion: 'verificar', dato: '',
+                   clase: 'principal'});
+    acciones.push({tecla: 'C', texto: 'corregir', accion: 'pedir', dato: ''});
+    acciones.push({tecla: 'X', texto: 'no se lee en el papel', accion: 'ilegible',
+                   dato: '', clase: 'secundaria'});
   }
-  // La propuesta del lector de manuscrita. Va SEPARADA del valor y dice de dónde
-  // salió: quien revisa tiene que poder distinguir de un vistazo entre «esto lo leyó
-  // el sistema del papel» y «esto lo propuso un modelo y lo estás confirmando vos».
-  const propuesta = f.propuesta ? (f.propuesta.ilegible
+
+  /* En un conflicto los valores ya están en los botones: repetirlos arriba es hacer
+     leer lo mismo dos veces. Lo que queda arriba es el valor cuando hay UNO solo, que
+     es lo que hay que juzgar contra la foja. */
+  const cuerpo = (f.clase === 'conflicto' && f.variantes) ? ''
+    : `<div class="valor-campo">${f.valor
+        ? `<span class="mono">${esc(f.valor)}</span>`
+        : `<span class="nulo">${esc(MOTIVO_NULO[f.motivo] || f.motivo)}</span>`
+      } ${barraConf(f.confianza)}</div>`;
+
+  const propuesta = (f.propuesta && f.propuesta.ilegible)
     ? `<div class="propuesta ilegible">
          <span class="de-donde">propuesta · ${esc(f.propuesta.modelo)}</span>
          <b>no se lee</b>
          ${f.propuesta.nota ? `<span class="nota">${esc(f.propuesta.nota)}</span>` : ''}
-       </div>`
-    : `<div class="propuesta">
-         <span class="de-donde">propuesta · ${esc(f.propuesta.modelo)}</span>
-         <b class="mono">${esc(f.propuesta.valor)}</b>
-         ${f.propuesta.nota ? `<span class="nota">${esc(f.propuesta.nota)}</span>` : ''}
-       </div>`) : '';
+       </div>` : '';
 
-  const cuerpo = (f.clase === 'conflicto' && f.variantes)
-    ? `<div class="conflicto">${f.variantes.map(v =>
-        `<div class="ruta"><span>${esc(v.ruta)}</span><span>${esc(v.valor)}</span></div>`).join('')}</div>`
-    : `<div class="mono" style="font-size:13px">${f.valor
-        ? esc(f.valor)
-        : `<span class="nulo">Ø ${esc(MOTIVO_NULO[f.motivo] || f.motivo)}</span>`
-      } ${barraConf(f.confianza)}</div>`;
+  const boton = o => `<button class="tecla ${o.clase || ''} ${o.valor ? 'opcion' : ''}"
+      data-campo="${f.campo_id}" data-accion="${o.accion}" data-valor="${esc(o.dato)}">
+      <kbd>${o.tecla}</kbd>
+      ${o.valor
+        ? `<span class="cuerpo"><span class="valor mono">${esc(o.valor)}</span>
+             <span class="de">${esc(o.de)}</span></span>`
+        : `<span class="cuerpo">${esc(o.texto)}</span>`}
+    </button>`;
 
   return `<div class="fila" data-i="${i}">
     <div class="marginalia"><span>${esc(f.archivo.replace('.pdf', ''))}</span>
       <span>f. ${f.pagina_nro ?? '—'}</span></div>
     <div class="med">
-      <div style="display:flex;gap:9px;align-items:baseline;margin-bottom:7px;flex-wrap:wrap">
-        <span class="rotulo">${esc(CLASE_COLA[f.clase] || f.clase)}</span>
+      <div class="cabeza-campo">
         <span class="etiqueta-campo ${f.clase === 'conflicto' ? 'alerta' : ''}"
           >${esc(rotularCampo(f.campo, f.familia))}</span>
+        <span class="porque">${esc(CLASE_COLA[f.clase] || f.clase)}</span>
         ${f.familia && f.familia !== 'contrato'
-          ? `<span class="rotulo">${esc(FAMILIA_DOC[f.familia])}</span>` : ''}
+          ? `<span class="porque">${esc(FAMILIA_DOC[f.familia])}</span>` : ''}
       </div>
       ${cuerpo}
       ${propuesta}
     </div>
-    <div class="acc">${acciones.map(([k, t, a, v]) =>
-      `<button class="tecla" data-campo="${f.campo_id}" data-accion="${a}" data-valor="${esc(v)}">
-         <kbd>${k}</kbd> ${esc(t)}</button>`).join('')}</div>
+    <div class="acc">${acciones.map(boton).join('')}</div>
   </div>`;
 }
 
