@@ -770,6 +770,12 @@ pre.sql{font-family:var(--mono); font-size:11.5px; margin:0; padding:12px 14px;
 .progreso{border:1px solid var(--filete); padding:14px 16px; margin-top:14px}
 .progreso .cab{display:flex; justify-content:space-between; gap:12px; margin-bottom:9px;
   align-items:baseline; font-size:11px}
+/* El renglón que no está en verde, marcado también por fuera del recuadro: el color
+   del sello solo no alcanza para quien no distingue el rojo del verde, y acá la fila
+   entera es lo que hay que encontrar. */
+tr.chequeo-mal td{background:var(--ambar-suave)}
+tr.chequeo-mal td:first-child{box-shadow:inset 3px 0 0 var(--ambar)}
+
 .riel{height:8px; background:var(--realce); border:1px solid var(--filete-2);
       border-radius:99px; overflow:hidden}
 .riel i{display:block; height:100%; background:var(--rio); transition:width .4s ease}

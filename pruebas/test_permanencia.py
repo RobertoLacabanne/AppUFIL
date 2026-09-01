@@ -133,6 +133,39 @@ class LaPermanenciaSeMideNoSeDeduce(unittest.TestCase):
                         nombres.index("Espacio en disco"),
                         "el espacio libre se muestra antes que si los datos sobreviven")
 
+    def test_lo_que_anda_mal_se_muestra_arriba(self):
+        """
+        Diecisiete renglones con el mismo recuadro al costado y la única diferencia en
+        la palabra de adentro. Quien abre «Estado del sistema» ve diecisiete verdes y
+        no encuentra el único que no lo es —y el que importa, si lo que se guarda
+        sobrevive a un reinicio, es el número doce—.
+
+        El orden lo hace la pantalla, así que se mira ahí. Y se mira que el orden
+        DENTRO de cada grupo no se toque: `sort` de JavaScript es estable y hay que
+        seguir usándolo así, porque una lista que se reacomoda entera cada vez que algo
+        cambia de estado obliga a releerla entera.
+        """
+        js = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
+        css = (RAIZ / "ufil/web/estilo.css").read_text(encoding="utf-8")
+        # `assertIn` sobre un archivo de tres mil líneas imprime el archivo entero
+        # cuando falla, y entonces el mensaje no se puede leer. Se busca a mano y se
+        # afirma un booleano, que falla con la frase y nada más.
+        def hay(aguja, donde, queja):
+            self.assertTrue(aguja in donde, queja + f"\n  (falta: {aguja!r})")
+
+        hay("const PESO = {falla: 0, aviso: 1, ok: 2};", js,
+            "se perdió el orden por gravedad de la lista de chequeos")
+        hay("const ordenados = [...s.chequeos].sort(", js,
+            "el orden tiene que hacerse sobre una COPIA: ordenar la lista del "
+            "servidor en el lugar deja el arreglo pegado al objeto que se vuelve a "
+            "pintar")
+        hay("ordenados.map(c =>", js,
+            "la tabla se sigue pintando desde la lista sin ordenar")
+        # La fila que no está en verde se marca también por fuera del sello: el color
+        # solo no alcanza para quien no distingue el rojo del verde.
+        hay("tr.chequeo-mal td{", css,
+            "la fila con problema no se distingue del resto")
+
     def test_el_servidor_registra_el_arranque(self):
         """
         La medición depende de que alguien deje la marca. Si el servidor deja de

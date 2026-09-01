@@ -2773,8 +2773,22 @@ async function vSalud() {
          <span>Todavía no se puede trabajar: faltan ${s.fallas} cosa${s.fallas > 1 ? 's' : ''}.
          Abajo está cada una con lo que hay que instalar.</span></div>`;
 
-  const filas = s.chequeos.map(c => `
-    <tr>
+  /* Lo que anda mal, arriba.
+
+     Diecisiete renglones con el mismo recuadro al costado y la única diferencia en la
+     palabra de adentro: quien abre esta pantalla ve diecisiete verdes y no encuentra
+     el único que no lo es. Y el que importa —si lo que se guarda sobrevive a un
+     reinicio— es el número doce.
+
+     El orden dentro de cada grupo NO se toca: `sort` de JavaScript es estable, así que
+     lo que está en verde queda como venía y sólo suben las fallas y los avisos. Un
+     orden que se reacomoda entero cada vez que algo cambia de estado obliga a
+     releerlo entero. */
+  const PESO = {falla: 0, aviso: 1, ok: 2};
+  const ordenados = [...s.chequeos].sort(
+    (a, b) => (PESO[a.estado] ?? 2) - (PESO[b.estado] ?? 2));
+  const filas = ordenados.map(c => `
+    <tr class="${c.estado !== 'ok' ? 'chequeo-mal' : ''}">
       <td><span class="sello ${clase[c.estado]}">${simbolos[c.estado]}</span></td>
       <td><b>${esc(c.nombre)}</b></td>
       <td>${esc(c.detalle)}${c.arreglo && c.estado !== 'ok'
