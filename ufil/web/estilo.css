@@ -878,6 +878,15 @@ details summary{cursor:pointer}
 button:disabled{opacity:.45; cursor:not-allowed}
 
 /* ── Búsqueda ─────────────────────────────────────────────────────────── */
+/* Sobre cuánto se buscó. No es un aviso de alarma —no pasó nada malo— así que no
+   lleva los colores de alarma: es el denominador de la respuesta, y va pegado a
+   ella. Cuando algo quedó afuera se marca con el filete de atención al costado,
+   que es «prestá atención», no «esto está mal». */
+.cobertura{font-family:var(--serif); font-size:14.5px; line-height:1.6;
+  color:var(--tinta-2); margin:0 0 16px; max-width:70ch; text-wrap:pretty}
+.cobertura strong{color:var(--tinta)}
+.cobertura.falta{border-left:3px solid var(--ambar); background:var(--ambar-suave);
+  padding:11px 14px; border-radius:0 10px 10px 0}
 .hallazgos{border:1px solid var(--filete)}
 .hallazgo{display:grid; grid-template-columns:190px 1fr; gap:14px; padding:9px 13px;
   border-bottom:1px solid var(--filete-2); text-decoration:none; color:inherit; align-items:baseline}

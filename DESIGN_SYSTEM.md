@@ -235,6 +235,46 @@ marginalia de un expediente: dice dónde estás sin ocupar el lugar del contenid
 
 En pantallas de menos de 720 px la canaleta desaparece y el rótulo pasa arriba.
 
+### Dos planos: la mesa y el folio
+
+**Decidido: hay superficies, hay radio y hay sombra.** Se deja escrito porque
+`docs/01-identidad-visual.md` —que es histórico— pide lo contrario («cero tarjetas,
+cero sombras, radio 0») y las dos estéticas son defendibles. Tener las dos a la vez es
+lo que no lo es.
+
+Gana ésta, y el motivo es medible. Con un solo plano —el mismo papel de fondo detrás
+del texto y bloques separados por un filete de 1 px— una pantalla con dos cosas
+cargadas no tiene ningún borde que diga dónde termina lo que el sistema tiene para
+decir, y **se lee como un error**. Pasó de verdad: el índice de legajos recién
+instalado y la cola sin nada se veían como pantallas rotas, y así lo reportó quien
+las usa.
+
+| | |
+|---|---|
+| `--fondo` | la mesa. En claro, un crema apagado; en oscuro, el fondo de siempre |
+| `--folio` | la hoja apoyada encima. En claro sube a casi blanco; en oscuro **sube** de luminosidad |
+| `--realce` | un azul apenas, para lo que la vista agarra sin leer: encabezado de tabla, fila bajo el puntero, baldosa de una cifra. Es fondo y nunca texto |
+
+En el tema oscuro la relación se da vuelta a propósito: la altura la da la superficie
+—que se aclara— y no la sombra, porque sobre un fondo casi negro una sombra negra no
+se ve. Es el mismo criterio de Carbon y es el correcto.
+
+**El radio es 5 px en un control y 14 px en un folio.** No son dos sistemas: es la
+misma proporción. 14 px en una hoja de 950 px se ve igual de contenido que 5 px en un
+botón de 90; un radio fijo para todo se ve enorme en lo chico o inexistente en lo
+grande.
+
+**Las sombras van en tres capas, no en una.** Una sola sombra difusa es una mancha
+gris que el ojo lee como suciedad y no como altura; apiladas, cada una duplicando el
+desenfoque y bajando la opacidad a la mitad, dan la caída progresiva de una sombra
+real. Tres alcanzan: de ahí para arriba la diferencia no se ve y sólo cuesta pintado.
+Y no son negras sino tiradas al marrón — una sombra negra sobre papel cálido ensucia;
+teñida hacia el tono del fondo, oscurece.
+
+Lo que **no** cambia y sigue valiendo del documento histórico: nada de esto puede
+llevar información. Una sombra no dice que algo esté firme, un radio no dice que algo
+esté en conflicto. Eso lo dicen el color, el ícono y la palabra, los tres juntos.
+
 ### El armazón
 
 La pantalla se parte en dos y no cambia nunca: a la izquierda **dónde estás parado**

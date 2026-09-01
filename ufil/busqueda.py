@@ -117,15 +117,73 @@ def en_paginas(cx: sqlite3.Connection, consulta: str, limite: int = 60) -> list[
     return [dict(f) for f in filas]
 
 
+def cobertura(cx: sqlite3.Connection) -> dict:
+    """
+    Sobre cuántas fojas se buscó, y cuántas quedaron afuera.
+
+    Esto existe porque la búsqueda era el ÚNICO lugar del sistema que afirmaba una
+    ausencia sin haberla verificado.
+
+    Dos fojas no entran al índice y las dos desaparecían sin dejar rastro:
+    la que se procesó y cuya lectura quedó vacía —`reindexar` no inserta la fila si el
+    texto está en blanco— y la que nunca se procesó, que ni siquiera aparece en la
+    consulta que arma el índice. Para quien mira la pantalla, «esta palabra no está en
+    el legajo» y «esta palabra puede estar en una de las diecinueve fojas que el
+    sistema no pudo leer» se veían exactamente igual.
+
+    En una herramienta que se usa para decidir si algo se imputa o se archiva, eso es
+    de otra categoría que un tamaño de letra mal elegido. Y contradice al resto del
+    sistema, que está construido sobre lo contrario: `Ø motivo` en lugar de celda
+    vacía, el nulo que se escribe con su causa, la interfaz que no resuelve un
+    conflicto sola.
+
+    Se calcula al momento de buscar y no se guarda. Un contador guardado se queda
+    viejo —basta con procesar un lote y no reindexar— y un número viejo acá vuelve a
+    ser una afirmación que nadie verificó.
+
+    La palabra que se usa afuera es «quedaron fuera de esta búsqueda», nunca
+    «ilegibles». Es lo único que se puede sostener siempre: si el índice está
+    atrasado, esas fojas igual no se miraron. El número nunca afirma más de lo que
+    sabe.
+    """
+    def uno(sql):
+        try:
+            return cx.execute(sql).fetchone()[0] or 0
+        except sqlite3.OperationalError:
+            return 0
+
+    fojas = uno("SELECT COUNT(*) FROM pagina")
+    indexadas = uno("SELECT COUNT(*) FROM pagina_texto")
+    # Nunca se procesaron: no tienen ni una lectura. Se arregla corriendo el proceso.
+    sin_procesar = uno("""SELECT COUNT(*) FROM pagina p
+                           WHERE NOT EXISTS (SELECT 1 FROM lectura l
+                                              WHERE l.pagina_id = p.id)""")
+    fuera = max(0, fojas - indexadas)
+    return {
+        "fojas": fojas,
+        "indexadas": indexadas,
+        "fuera": fuera,
+        "sin_procesar": min(sin_procesar, fuera),
+        # Se procesaron y no dieron texto utilizable. Ésas están en «Quedaron afuera»
+        # y hay que mirarlas contra el papel.
+        "sin_texto": max(0, fuera - min(sin_procesar, fuera)),
+    }
+
+
 def buscar(cx: sqlite3.Connection, consulta: str) -> dict:
     consulta = (consulta or "").strip()
+    cob = cobertura(cx)
     if len(consulta) < 2:
         return {"consulta": consulta, "campos": [], "paginas": [],
+                "cobertura": cob, "paginas_indexadas": cob["indexadas"],
                 "aviso": "Escribí al menos dos caracteres."}
     campos = en_campos(cx, consulta)
     paginas = en_paginas(cx, consulta)
-    indexado = cx.execute("SELECT COUNT(*) FROM pagina_texto").fetchone()[0]
     return {"consulta": consulta, "campos": campos, "paginas": paginas,
-            "paginas_indexadas": indexado,
+            # La cobertura va SIEMPRE, haya resultados o no. Mostrarla sólo cuando no
+            # hay es el mismo error con otra ropa: cuatro coincidencias sobre 241 fojas
+            # leídas de 260 tampoco es lo mismo que cuatro sobre 260.
+            "cobertura": cob,
+            "paginas_indexadas": cob["indexadas"],
             "aviso": ("El índice de texto está vacío: correr «Reindexar» "
-                      "o procesar un lote.") if not indexado else None}
+                      "o procesar un lote.") if not cob["indexadas"] else None}

@@ -2197,12 +2197,51 @@ async function vBuscar(q) {
   if (!q) $('#q').focus();
 }
 
+/* ── Sobre cuánto se buscó ─────────────────────────────────────────────────
+   Ésta era la única pantalla del sistema que afirmaba una ausencia sin haberla
+   verificado. «Sin coincidencias» se leía como «esta palabra no está en el legajo»,
+   cuando lo único cierto era «no está en las fojas que el sistema pudo leer».
+
+   Va SIEMPRE, haya resultados o no. Mostrarla sólo en el caso vacío es el mismo
+   error con otra ropa: cuatro coincidencias sobre 241 fojas leídas de 260 tampoco es
+   lo mismo que cuatro sobre 260. */
+function coberturaHTML(c, hallazgos) {
+  if (!c || !c.fojas) return '';
+  const sobre = `<strong>${fmtNum.format(c.indexadas)}</strong> `
+    + (c.indexadas === 1 ? 'foja con lectura utilizable' : 'fojas con lectura utilizable');
+  if (!c.fuera) {
+    return `<p class="cobertura">${hallazgos} sobre ${sobre}: el sistema pudo leer
+      todo lo que hay cargado.</p>`;
+  }
+  // Dos motivos distintos y dos remedios distintos: la que nunca se procesó se
+  // arregla corriendo el proceso; la que se procesó y no dio texto hay que mirarla
+  // contra el papel. Decir «ilegibles» de las dos sería inventar sobre las primeras.
+  // Concuerdan en número. «1 que se procesaron» se nota, y este es un sistema que
+  // tiene un módulo entero de castellano para no escribir así.
+  const detalle = [];
+  if (c.sin_texto) detalle.push(`${fmtNum.format(c.sin_texto)} que se
+    ${c.sin_texto === 1 ? 'procesó' : 'procesaron'} sin sacar texto utilizable`);
+  if (c.sin_procesar) detalle.push(`${fmtNum.format(c.sin_procesar)} que todavía no se
+    ${c.sin_procesar === 1 ? 'procesó' : 'procesaron'}`);
+  return `<p class="cobertura falta">${hallazgos} sobre ${sobre}.
+    <strong>${plural(c.fuera, 'foja quedó', 'fojas quedaron')} fuera de esta
+    búsqueda</strong>${detalle.length ? ` — ${detalle.join(' y ')}` : ''}.
+    <a href="#/afuera">Ver cuáles</a>.</p>`;
+}
+
 function resultadosHTML(r) {
   if (r.aviso) return `<div class="aviso"><span class="sello alerta">Atención</span>
     <span>${esc(r.aviso)}</span></div>`;
+  const total = r.campos.length + r.paginas.length;
+  const hallazgos = total
+    ? `<strong>${plural(total, 'coincidencia', 'coincidencias')}</strong>`
+    : `<strong>No aparece</strong>`;
+  const cob = coberturaHTML(r.cobertura, hallazgos);
   const nada = !r.campos.length && !r.paginas.length;
-  if (nada) return `<div class="vacio">Sin coincidencias para «${esc(r.consulta)}».</div>`;
-  return `
+  // Nunca «Sin coincidencias» a secas. Lo que se puede afirmar es dónde se buscó.
+  if (nada) return cob || `<div class="vacio">Sin coincidencias para
+    «${esc(r.consulta)}».</div>`;
+  return `${cob}
     ${r.campos.length ? `
       <h3 style="margin-top:22px">En los datos extraídos <span class="rotulo">(${r.campos.length})</span></h3>
       <p class="prosa" style="font-size:13px">Esto son <strong>contratos</strong>: el dato ya

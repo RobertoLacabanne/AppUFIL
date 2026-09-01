@@ -1,6 +1,30 @@
 # Identidad visual — "Retícula de expediente"
 
-Especificación. La demostración corriendo está en `docs/identidad/guia-visual.html`.
+> **DOCUMENTO HISTÓRICO. No es la especificación vigente.**
+>
+> Es el estado del sistema visual de una etapa anterior del proyecto y quedó escrito
+> en presente y en tono de pliego, que es lo que lo vuelve peligroso: cualquiera —o
+> cualquier agente— que lo lea va a concluir que el código se desvió de la
+> especificación y va a «arreglarlo» hacia atrás.
+>
+> **La especificación vigente es [`DESIGN_SYSTEM.md`](../DESIGN_SYSTEM.md).**
+>
+> Lo que este documento dice y el código ya NO hace:
+>
+> | Acá dice | El código hace | Por qué |
+> |---|---|---|
+> | `--sello:#23477A`, punzó `#96301F`, tinta `#1B1D21` | `#24466E`, `#A81F26`, `#0F172A` | ajuste de contraste medido, DESIGN_SYSTEM.md §3 |
+> | «radio 0» | `--radio:5px` | ver §4, decidido y escrito |
+> | «cero sombras» | sombras en tres capas | los folios se apoyan sobre la mesa; ver §4 |
+> | «cero tarjetas» | cada bloque es un folio | una pantalla sin superficies se lee como una pantalla rota |
+> | «no hay animación de entrada» | 24 transiciones, todas de 140 ms | se apagan enteras con `prefers-reduced-motion` |
+>
+> Lo que SIGUE siendo verdad y se mudó a `DESIGN_SYSTEM.md`: la tabla de las tres
+> voces tipográficas, la retícula con la canaleta de foliatura, los estados que nunca
+> se dicen sólo con color, y la ficha de anclaje.
+
+Escrito en una etapa anterior. La demostración de aquel momento está en
+`docs/identidad/guia-visual.html`.
 
 ---
 
