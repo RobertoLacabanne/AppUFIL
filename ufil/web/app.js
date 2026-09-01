@@ -524,12 +524,26 @@ async function vLegajos() {
         'Un legajo es una causa: sus documentos, sus personas y sus totales viven en un ' +
         'archivo aparte y no se cruzan con los de ninguna otra. Creá el primero acá abajo.');
 
+  // Que la carpeta de datos no sobreviva a un reinicio es la única falla del sistema
+  // que no se ve venir: todo anda, y en el próximo despliegue no queda nada. Se avisa
+  // acá, que es donde alguien está por invertir dos días de revisión, y arriba de todo.
+  const perm = r.permanencia || {};
+  const avisoDisco = perm.estado === 'falla' ? `
+    <div class="aviso alerta" style="margin-bottom:16px">
+      ${sello('alerta', 'El trabajo no se está guardando en un lugar seguro')}
+      <span>${esc(perm.detalle)}${perm.arreglo
+        ? ` <strong>${esc(perm.arreglo)}</strong>` : ''}</span></div>` : '';
+
   vista.innerHTML =
-    bloque('f. 0000', 'Índice de legajos', `
+    bloque('f. 0000', 'Índice de legajos', avisoDisco + `
       <h2>¿Sobre qué legajo vas a trabajar?</h2>
       <p class="prosa">Cada legajo tiene su propia base de datos. Mientras trabajás en uno,
         el sistema <strong>no puede ver ni sumar</strong> nada de los demás: no es un filtro
         que se pueda olvidar, están en archivos distintos.</p>
+      ${!r.activo && activos.length ? `<p class="prosa">Al cerrar el navegador el sistema
+        se olvida de cuál tenías abierto —en una máquina compartida una causa no puede
+        quedar abierta hasta mañana—, pero <strong>no se pierde nada</strong>: acá está
+        todo, con el trabajo que le hiciste a cada uno.</p>` : ''}
       ${listado}` +
       (archivados.length ? `
       <details class="archivados">
@@ -2830,6 +2844,11 @@ async function vigilarTrabajo() {
 
 /* Las que tienen sentido sin legajo abierto: elegir uno, y todo lo que explica o
    diagnostica el sistema. El resto necesita una base detrás. */
+/* ¿Es la primera pantalla que se pinta desde que se abrió la aplicación? Sirve para
+   distinguir «entré y todavía no elegí legajo» —que es lo normal— de «estoy adentro y
+   fui a una pantalla que necesita uno», que sí hay que explicar. */
+let PRIMERA_PANTALLA = true;
+
 const SIN_LEGAJO_IGUAL_ANDAN = new Set(
   ['#/legajos', '#/acerca', '#/salud', '#/como-funciona', '#/consultas']);
 
@@ -2865,12 +2884,29 @@ async function rutear() {
   // página. Al salir de ahí hay que devolverlo, o el resto del sistema queda con el
   // pie cortado y sin manera de bajar.
   document.body.classList.remove('taller-abierto');
-  // Sin legajo abierto, las pantallas de datos no se dibujan vacías ni piden material
-  // que no existe: dicen cuál es el paso que falta. Las de sistema siguen andando,
-  // porque son justamente las que hay que poder mirar antes de abrir nada.
+  /* Sin legajo abierto hay dos situaciones distintas y no se contestan igual.
+
+     ABRIR LA APLICACIÓN sin legajo es lo NORMAL, no un error: la sesión anterior se
+     cerró y la cookie que recuerda el legajo muere con el navegador, a propósito —en
+     una máquina compartida una causa no puede quedar abierta hasta mañana—. Ahí lo
+     que corresponde es empezar donde se elige con qué trabajar. Contestar con un
+     cartel de «primero hay que abrir un legajo» en el medio de una pantalla vacía se
+     lee como una falla del sistema, y hace pensar que los legajos se perdieron cuando
+     están todos ahí, a un clic.
+
+     IR A UNA PANTALLA que necesita un legajo, con la aplicación ya abierta, sí merece
+     la explicación: pediste algo puntual y hace falta un paso previo.
+
+     La diferencia es si esta es la primera pantalla de la sesión. */
   if (sinLegajo() && !SIN_LEGAJO_IGUAL_ANDAN.has(base)) {
+    if (PRIMERA_PANTALLA) {
+      PRIMERA_PANTALLA = false;
+      location.hash = '#/legajos';
+      return;                        // el cambio de hash vuelve a entrar acá
+    }
     return vistaSinLegajo(TITULOS[base] || 'Análisis documental');
   }
+  PRIMERA_PANTALLA = false;
   vista.innerHTML = '<div class="esqueleto"><i></i><i></i><i></i></div>';
   for (const [re, fn] of rutas) {
     const m = h.match(re);

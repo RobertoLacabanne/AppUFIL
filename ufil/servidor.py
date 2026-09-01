@@ -109,6 +109,27 @@ def _cx() -> sqlite3.Connection:
     return db.conectar(ruta)
 
 
+_PERMANENCIA: dict | None = None
+
+
+def permanencia() -> dict:
+    """
+    ¿Lo que se guarda sobrevive a un reinicio? Calculado una vez y recordado.
+
+    Va en `/api/legajos` —la pantalla donde se crea un legajo— porque es ahí donde
+    alguien está por invertir dos días de revisión, y es el último momento en que la
+    advertencia sirve de algo. Se cachea porque la respuesta no cambia mientras el
+    proceso vive: el disco se monta al arrancar el contenedor, no en el medio.
+    """
+    global _PERMANENCIA
+    if _PERMANENCIA is None:
+        from . import diagnostico
+        r = diagnostico._persistencia()
+        _PERMANENCIA = {"estado": r["estado"], "detalle": r["detalle"],
+                        "arreglo": r["arreglo"]}
+    return _PERMANENCIA
+
+
 def _falta_abrir_legajo() -> str:
     """
     ¿Se está por escribir material sin legajo abierto?
@@ -979,6 +1000,7 @@ class Manejador(BaseHTTPRequestHandler):
                     "legajos": legajos.listar(),
                     "activo": config.legajo_activo(),
                     "papelera": legajos.papelera(),
+                    "permanencia": permanencia(),
                 })
 
             if ruta.startswith("/api/"):

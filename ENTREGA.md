@@ -283,7 +283,56 @@ estimados. Todos los enlaces pasan 4,5:1 en claro y en oscuro.
 
 ---
 
-## 8. Riesgos que quedan, y son institucionales
+## 8. Que el trabajo no se pierda
+
+Es la única falla del sistema que no se ve venir. Un servicio de nube **sin disco
+montado** anda perfecto: guarda los PDF, arma las bases, muestra los totales bien, deja
+revisar campo por campo durante dos días. Y en el próximo despliegue la carpeta vuelve a
+estar vacía.
+
+Lo que se pierde no es simétrico:
+
+| | ¿Se recupera? |
+|---|---|
+| Los PDF originales | Sí — se vuelven a subir |
+| Las imágenes de página | Sí — se rehacen procesando de nuevo |
+| **Las revisiones hechas a mano** | **No.** Son horas de alguien mirando un folio y decidiendo, y no hay de dónde sacarlas otra vez |
+
+### El sistema ahora lo sabe y lo dice
+
+`Estado del sistema` trae el chequeo **«Permanencia de los datos»**, antes que el espacio
+libre —de nada sirve saber que entran diez mil páginas si se borran en el próximo
+despliegue—. Mira `/proc/self/mounts`: si la carpeta de datos está debajo de un punto de
+montaje propio, hay un volumen atrás; si el único que la contiene es `/` **y** además
+está corriendo en un contenedor, lo que se escriba muere con él.
+
+Cuando eso pasa, la advertencia también aparece **arriba de la pantalla de legajos**, que
+es donde alguien está por invertir dos días de revisión y el último momento en que sirve
+de algo.
+
+En una instalación de escritorio no alarma: el disco de la máquina es persistente, y
+alarmar donde no corresponde enseña a ignorar la alarma.
+
+### En Render
+
+`render.yaml` declara el disco. **Pero ese archivo sólo se aplica si el servicio se creó
+como Blueprint.** Si se creó a mano desde el tablero, se ignora entero — y eso se nota
+cuando los valores del tablero difieren de los del archivo.
+
+Para verificarlo sin adivinar: entrar a **Estado del sistema**. Si dice que los datos
+están en un disco propio, están. Si dice que no, hay que ir a *Settings → Disks* y montar
+uno con el mismo camino que `UFIL_DATOS`.
+
+### El paracaídas, en cualquier caso
+
+Panel → **Descargar una copia de respaldo** baja la base entera del legajo en un archivo,
+con el sistema andando y sin pedirle a nadie que deje de trabajar. Adentro va lo único
+irrecuperable: cada campo revisado contra el folio, cada identidad confirmada, con quién
+y cuándo. Conviene bajarla al terminar cada jornada de revisión y dejarla en otro disco.
+
+---
+
+## 9. Riesgos que quedan, y son institucionales
 
 Estos **no son defectos del software**. Son decisiones que le corresponden a la fiscalía
 y que el sistema no puede tomar por nadie.
