@@ -646,8 +646,11 @@ async function vLegajos() {
         <button class="boton" type="submit">Crear el legajo</button>
       </form>
       <p id="err-legajo" class="aviso" hidden></p>
-      <p class="prosa" style="font-size:13px">El número queda como nombre de la carpeta en
-        disco, para que mirando los archivos se entienda qué hay adentro de cada una.</p>`) +
+      <p class="prosa" style="font-size:13px">El número queda como nombre de la carpeta
+        en disco, para que mirando los archivos se entienda qué hay adentro de cada una.
+        ¿Tenés una copia de respaldo de un legajo?
+        <a href="#" id="ir-restaurar">Volvé a cargarla acá</a>.</p>
+`) +
     papeleraHTML(papelera);
 
   vista.querySelectorAll('tbody tr').forEach(tr => tr.onclick = ev => {
@@ -661,6 +664,8 @@ async function vLegajos() {
     if (l) pedirEliminar(l);
   });
   engancharPapelera(papelera);
+  const irRest = $('#ir-restaurar');
+  if (irRest) irRest.onclick = e => { e.preventDefault(); pedirRestaurar(activos); };
 
   $('#f-legajo').onsubmit = async ev => {
     ev.preventDefault();
@@ -751,6 +756,121 @@ function pedirEliminar(l) {
       const err = $('#err-borrar', d);
       err.textContent = e.message; err.hidden = false;
       ok.disabled = false; ok.textContent = 'Eliminar el legajo';
+    }
+  };
+}
+
+/* ── Volver atrás desde una copia de respaldo ──────────────────────────────
+   El respaldo era una calle de una sola mano: se bajaba el archivo y no había forma de
+   devolverlo. Sirve para la auditoría y no sirve para lo que de verdad hace falta el
+   día que el disco aparece vacío.
+
+   Restaurar PISA la base de un legajo, así que se trata como lo que es: primero se
+   mira qué trae el archivo —cuántas revisiones a mano, sobre todo, que es lo único que
+   no se puede volver a generar—, y recién con eso a la vista se pide el número del
+   legajo para confirmar. */
+function pedirRestaurar(activos) {
+  if (!activos.length) {
+    return alert('Primero creá el legajo donde querés cargar la copia. Después volvé acá.');
+  }
+  const d = dialogo(`
+    <form method="dialog" id="f-restaurar">
+      <h3>Volver a cargar una copia de respaldo</h3>
+      <p class="prosa">La copia reemplaza la base del legajo que elijas. Lo que había
+        <strong>no se borra</strong>: se aparta con fecha, por si la copia no era la que
+        pensabas.</p>
+      <label for="r-legajo">¿Sobre qué legajo?</label>
+      <select id="r-legajo">${activos.map(l =>
+        `<option value="${esc(l.slug)}" data-numero="${esc(l.numero)}"
+          >${esc(l.numero)} — ${esc(l.caratula)}</option>`).join('')}</select>
+      <label for="r-archivo" style="margin-top:12px">El archivo de la copia
+        <span class="opt">(.sqlite)</span></label>
+      <input id="r-archivo" type="file" accept=".sqlite">
+      <div id="r-contenido"></div>
+      <div id="r-confirmar" hidden>
+        <label for="conf-restaurar">Escribí el número del legajo para confirmar:
+          <b class="mono" id="r-numero"></b></label>
+        <input id="conf-restaurar" autocomplete="off" autocapitalize="off"
+               spellcheck="false">
+      </div>
+      <p class="mal" id="err-restaurar" hidden></p>
+      <div class="botonera">
+        <button class="boton gris" value="no" type="submit">Cancelar</button>
+        <button class="boton peligro" id="b-restaurar" type="button" disabled>
+          Reemplazar la base</button>
+      </div>
+    </form>`);
+
+  const archivo = $('#r-archivo', d), ok = $('#b-restaurar', d);
+  const err = $('#err-restaurar', d), donde = $('#r-contenido', d);
+  const sel = $('#r-legajo', d), caja = $('#r-confirmar', d);
+  const campo = $('#conf-restaurar', d);
+  let crudo = null;
+
+  // El número que hay que escribir es el del legajo ELEGIDO, así que cambiar de legajo
+  // invalida lo escrito: si no, se lee un cartel, se escribe un número, se cambia el
+  // destino de la lista y se termina pisando otra base con la confirmación de la
+  // anterior todavía puesta.
+  const numeroElegido = () => sel.selectedOptions[0].dataset.numero.trim();
+  const revisar = () => {
+    ok.disabled = !crudo || campo.value.trim() !== numeroElegido();
+  };
+  campo.oninput = revisar;
+  sel.onchange = () => {
+    $('#r-numero', d).textContent = numeroElegido();
+    campo.value = '';
+    revisar();
+  };
+
+  const fallar = m => { err.textContent = m; err.hidden = false;
+                        donde.innerHTML = ''; caja.hidden = true;
+                        ok.disabled = true; crudo = null; };
+
+  archivo.onchange = async () => {
+    err.hidden = true; donde.innerHTML = ''; caja.hidden = true;
+    ok.disabled = true; crudo = null; campo.value = '';
+    const f = archivo.files[0];
+    if (!f) return;
+    donde.innerHTML = '<p class="prosa">Mirando qué trae…</p>';
+    try {
+      const buf = await f.arrayBuffer();
+      const r = await api('/api/respaldo/mirar', {
+        method: 'POST', headers: {'Content-Type': 'application/octet-stream'},
+        body: buf});
+      // Lo que hay que ver ANTES de pisar nada: cuánto trabajo de personas trae.
+      donde.innerHTML = `<div class="aviso bien">${sello('ok', 'La copia se puede leer')}
+        <span><strong>${plural(r.documentos, 'documento', 'documentos')}</strong> ·
+          <strong>${plural(r.revisiones, 'campo revisado a mano',
+                           'campos revisados a mano')}</strong>${r.ultima_revision
+            ? ` · la última, del ${esc(fmtFecha(r.ultima_revision))}` : ''}.</span></div>`;
+      crudo = buf;
+      $('#r-numero', d).textContent = numeroElegido();
+      caja.hidden = false;
+      campo.focus();
+      revisar();
+    } catch (e) { fallar(e.message); }
+  };
+
+  ok.onclick = async () => {
+    const numero = numeroElegido();
+    ok.disabled = true; ok.textContent = 'cargando…';
+    try {
+      const r = await api(`/api/respaldo/restaurar?slug=${encodeURIComponent(sel.value)}`
+        + `&confirmacion=${encodeURIComponent(campo.value.trim())}`, {
+        method: 'POST', headers: {'Content-Type': 'application/octet-stream'},
+        body: crudo});
+      d.close();
+      // Decir dónde quedó lo que se apartó: si la copia no era la que la persona
+      // pensaba, este nombre es el camino de vuelta, y no está en ninguna otra parte.
+      alert(`Listo. El legajo ${numero} quedó con ${plural(r.documentos, 'documento',
+        'documentos')} y ${plural(r.revisiones, 'campo revisado a mano',
+        'campos revisados a mano')}.`
+        + (r.apartada ? `\n\nLa base que estaba quedó guardada como:\n`
+                        + r.apartada.split('/').pop() : ''));
+      abrirLegajo(sel.value);
+    } catch (e) {
+      fallar(e.message);
+      ok.textContent = 'Reemplazar la base';
     }
   };
 }

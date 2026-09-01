@@ -94,3 +94,111 @@ def texto(destino: Path, r: dict) -> str:
     L.append("  Para restaurar: parar el sistema y copiar este archivo sobre")
     L.append(f"  {config.BASE} (borrando antes los .sqlite-wal y .sqlite-shm si están).")
     return "\n".join(L)
+
+
+# ── Volver atrás ───────────────────────────────────────────────────────────
+#
+# El respaldo era una calle de una sola mano: se podía bajar la copia y no había forma
+# de devolverla. Sirve para la auditoría —queda el archivo— y no sirve para lo que hace
+# falta cuando el disco se vacía, que es tener el legajo de vuelta.
+#
+# Restaurar PISA una base. Es de las tres operaciones destructivas del sistema, junto
+# con vaciar la papelera y borrar un legajo, y se trata como tal:
+#
+#   1. se mira qué hay adentro del archivo ANTES de tocar nada, y se muestra;
+#   2. se rechaza cualquier cosa que no sea una base de este sistema;
+#   3. la base que estaba NO se borra: se aparta con fecha, para que una restauración
+#      equivocada tenga vuelta atrás igual que todo lo demás.
+
+class RespaldoInvalido(ValueError):
+    """El archivo no es una copia de este sistema. El mensaje se muestra tal cual."""
+
+
+def inspeccionar(ruta: Path) -> dict:
+    """
+    Qué hay adentro de un archivo de respaldo, sin instalarlo.
+
+    Se abre en SOLO LECTURA. Un archivo que llega de afuera no se toca hasta saber qué
+    es: abrirlo para escritura le aplicaría la migración de esquema al vuelo y lo
+    dejaría modificado antes de que nadie haya decidido nada.
+    """
+    ruta = Path(ruta)
+    if not ruta.is_file():
+        raise RespaldoInvalido("No se pudo leer el archivo.")
+    # Los controles van del más específico al más general, y cada uno dice lo suyo. Al
+    # revés, un PDF de cuarenta bytes se rechazaba con «el archivo está vacío», que es
+    # falso y manda a la persona a buscar el problema donde no está.
+    with ruta.open("rb") as f:
+        cabecera = f.read(16)
+    if cabecera != b"SQLite format 3\x00":
+        raise RespaldoInvalido(
+            "Eso no es una copia de respaldo: no es una base SQLite. La copia se baja "
+            "desde el panel, con «Descargar una copia de respaldo».")
+    if ruta.stat().st_size < 512:
+        raise RespaldoInvalido(
+            "El archivo empieza como una base pero está truncado: se cortó la descarga "
+            "o la copia quedó a medias.")
+
+    cx = sqlite3.connect(f"file:{ruta}?mode=ro", uri=True)
+    cx.row_factory = sqlite3.Row
+    try:
+        tablas = {r[0] for r in cx.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        faltan = {"archivo", "documento", "campo", "revision_humana"} - tablas
+        if faltan:
+            raise RespaldoInvalido(
+                "Es una base SQLite, pero no de este sistema: le faltan las tablas "
+                + ", ".join(sorted(faltan)) + ".")
+
+        def uno(sql, por_omision=0):
+            try:
+                r = cx.execute(sql).fetchone()
+                return (r[0] if r else por_omision) or por_omision
+            except sqlite3.Error:
+                return por_omision
+
+        return {
+            "version_esquema": uno("PRAGMA user_version"),
+            "archivos": uno("SELECT COUNT(*) FROM archivo"),
+            "documentos": uno("SELECT COUNT(*) FROM documento"),
+            "campos": uno("SELECT COUNT(*) FROM campo"),
+            # Lo único que no se puede volver a generar. Es el número que hay que mirar
+            # antes de pisar nada: si el archivo tiene menos que la base actual, se
+            # está por perder trabajo de personas.
+            "revisiones": uno("SELECT COUNT(*) FROM revision_humana"),
+            "ultima_revision": uno("SELECT MAX(cuando) FROM revision_humana", None),
+            "bytes": ruta.stat().st_size,
+        }
+    finally:
+        cx.close()
+
+
+def restaurar(origen: Path, destino: Path) -> dict:
+    """
+    Instala el respaldo `origen` como base `destino`.
+
+    Lo que estaba se aparta con fecha —no se borra— y se devuelve dónde quedó. Una
+    restauración equivocada sobre el legajo que no era es exactamente el accidente que
+    esta función podría causar, así que tiene la misma vuelta atrás que todo lo demás.
+    """
+    origen, destino = Path(origen), Path(destino)
+    datos = inspeccionar(origen)
+
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    apartada = None
+    if destino.exists():
+        sello = datetime.now().strftime("%Y%m%d-%H%M%S")
+        apartada = destino.with_name(f"{destino.stem}.reemplazada-{sello}{destino.suffix}")
+        destino.replace(apartada)
+    # Los archivos laterales del WAL pertenecen a la base que se acaba de apartar: si
+    # quedaran, SQLite los aplicaría sobre la base nueva y la corrompería.
+    for lateral in ("-wal", "-shm"):
+        suelto = destino.with_name(destino.name + lateral)
+        if suelto.exists():
+            suelto.unlink()
+
+    # Se copia en vez de mover: el archivo de origen puede ser el que la persona
+    # subió a una carpeta temporal, y moverlo dejaría la carpeta sin él si algo falla
+    # después.
+    destino.write_bytes(origen.read_bytes())
+    return {**datos, "apartada": str(apartada) if apartada else None}

@@ -1228,6 +1228,60 @@ class Manejador(BaseHTTPRequestHandler):
             finally:
                 cx.close()
 
+        # ── Volver atrás desde una copia de respaldo ──────────────────────
+        # Pisa la base de un legajo, así que es de las operaciones destructivas del
+        # sistema. El archivo llega crudo en el cuerpo, igual que un PDF de la ingesta.
+        if u.path == "/api/respaldo/mirar":
+            import tempfile
+            from . import respaldo as rp
+            crudo = self.rfile.read(largo) if largo else b""
+            if not crudo:
+                return self._json({"ok": False, "error": "no llegó ningún archivo"}, 400)
+            with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as t:
+                t.write(crudo)
+                temporal = Path(t.name)
+            try:
+                return self._json({"ok": True, **rp.inspeccionar(temporal)})
+            except rp.RespaldoInvalido as e:
+                return self._json({"ok": False, "error": str(e)}, 400)
+            finally:
+                temporal.unlink(missing_ok=True)
+
+        if u.path == "/api/respaldo/restaurar":
+            import tempfile
+            from . import respaldo as rp
+            slug = (parse_qs(u.query).get("slug", [""])[0] or "").strip()
+            confirmacion = (parse_qs(u.query).get("confirmacion", [""])[0] or "").strip()
+            if not _slug_valido(slug):
+                return self._json({"ok": False, "error": "ese legajo no existe"}, 404)
+            try:
+                l = legajos.obtener(slug)
+            except legajos.LegajoInexistente:
+                return self._json({"ok": False, "error": "ese legajo no existe"}, 404)
+            if confirmacion != l.numero.strip():
+                return self._json({"ok": False, "error":
+                    f"Para reemplazar la base hay que escribir el número del legajo: "
+                    f"{l.numero}"}, 400)
+            t = _procesador().estado.como_dict()
+            if t.get("estado") == "corriendo":
+                return self._json({"ok": False, "error":
+                    "Hay un procesamiento en curso. Paralo antes de reemplazar la base."},
+                    409)
+            crudo = self.rfile.read(largo) if largo else b""
+            if not crudo:
+                return self._json({"ok": False, "error": "no llegó ningún archivo"}, 400)
+            with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tf:
+                tf.write(crudo)
+                temporal = Path(tf.name)
+            try:
+                r = rp.restaurar(temporal, legajos.carpeta_de(slug) / "ufil.sqlite")
+            except rp.RespaldoInvalido as e:
+                return self._json({"ok": False, "error": str(e)}, 400)
+            finally:
+                temporal.unlink(missing_ok=True)
+            legajos.tocar(slug)
+            return self._json({"ok": True, **r})
+
         try:
             cuerpo = json.loads(self.rfile.read(largo) or b"{}")
         except json.JSONDecodeError:
