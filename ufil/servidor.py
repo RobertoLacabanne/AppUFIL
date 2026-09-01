@@ -123,10 +123,8 @@ def permanencia() -> dict:
     """
     global _PERMANENCIA
     if _PERMANENCIA is None:
-        from . import diagnostico
-        r = diagnostico._persistencia()
-        _PERMANENCIA = {"estado": r["estado"], "detalle": r["detalle"],
-                        "arreglo": r["arreglo"]}
+        from . import permanencia as pm
+        _PERMANENCIA = pm.estado()
     return _PERMANENCIA
 
 
@@ -1345,6 +1343,10 @@ def armar(puerto: int = 8713, host: str = "127.0.0.1",
     # red y quedarse sin clave por olvido.
     PORTERIA = acceso.Porteria(exigir=acceso.hace_falta_clave(host))
     HOST_ESCUCHA = host
+    # Deja la marca que después permite afirmar —con pruebas, no por deducción— si lo
+    # que se guarda sobrevive a un reinicio. Ver ufil/permanencia.py.
+    from . import permanencia as _pm
+    _pm.registrar_arranque()
     return ThreadingHTTPServer((host, puerto), Manejador)
 
 

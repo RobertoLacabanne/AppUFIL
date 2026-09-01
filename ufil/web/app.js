@@ -527,10 +527,19 @@ async function vLegajos() {
   // Que la carpeta de datos no sobreviva a un reinicio es la única falla del sistema
   // que no se ve venir: todo anda, y en el próximo despliegue no queda nada. Se avisa
   // acá, que es donde alguien está por invertir dos días de revisión, y arriba de todo.
+  // «aviso» acá NO es un detalle menor: significa que el sistema todavía no puede
+  // afirmar que lo que se guarde vaya a estar mañana. Sobre una instalación de nube
+  // eso es exactamente el estado en el que alguien pierde un legajo, así que se
+  // muestra con el mismo peso que una falla.
   const perm = r.permanencia || {};
-  const avisoDisco = perm.estado === 'falla' ? `
-    <div class="aviso alerta" style="margin-bottom:16px">
-      ${sello('alerta', 'El trabajo no se está guardando en un lugar seguro')}
+  const grave = perm.estado === 'falla' || perm.estado === 'aviso';
+  const avisoDisco = grave ? `
+    <div class="aviso ${perm.estado === 'falla' ? 'alerta' : 'atento'}"
+         style="margin-bottom:16px">
+      ${sello(perm.estado === 'falla' ? 'alerta' : 'atencion',
+              perm.estado === 'falla'
+                ? 'El trabajo no se está guardando en un lugar seguro'
+                : 'Todavía no se sabe si el trabajo va a estar mañana')}
       <span>${esc(perm.detalle)}${perm.arreglo
         ? ` <strong>${esc(perm.arreglo)}</strong>` : ''}</span></div>` : '';
 

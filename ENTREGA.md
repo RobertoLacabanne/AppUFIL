@@ -298,30 +298,64 @@ Lo que se pierde no es simétrico:
 | Las imágenes de página | Sí — se rehacen procesando de nuevo |
 | **Las revisiones hechas a mano** | **No.** Son horas de alguien mirando un folio y decidiendo, y no hay de dónde sacarlas otra vez |
 
-### El sistema ahora lo sabe y lo dice
+### Cómo se comprueba: midiendo, no deduciendo
 
-`Estado del sistema` trae el chequeo **«Permanencia de los datos»**, antes que el espacio
-libre —de nada sirve saber que entran diez mil páginas si se borran en el próximo
-despliegue—. Mira `/proc/self/mounts`: si la carpeta de datos está debajo de un punto de
-montaje propio, hay un volumen atrás; si el único que la contiene es `/` **y** además
-está corriendo en un contenedor, lo que se escriba muere con él.
+La primera versión de este chequeo miraba `/proc/self/mounts`: si la carpeta de datos
+estaba debajo de un punto de montaje propio, había un disco atrás. Suena razonable y
+**es falso**, de la peor manera posible: da tranquilidad donde hay peligro.
 
-Cuando eso pasa, la advertencia también aparece **arriba de la pantalla de legajos**, que
-es donde alguien está por invertir dos días de revisión y el último momento en que sirve
-de algo.
+El `Dockerfile` declaraba `VOLUME ["/app/datos"]`. Eso hace que el motor de contenedores
+cree ahí un **volumen anónimo**, que aparece en los montajes como cualquier otro… y que
+se destruye junto con el contenedor, o sea en cada despliegue. El chequeo contestaba
+«está en un disco propio: sobrevive a los reinicios» sobre almacenamiento que no
+sobrevivía a ninguno.
+
+Un instrumento mal calibrado es peor que no medir: sin chequeo alguien desconfía y baja
+un respaldo; con un chequeo que miente, se queda tranquilo. Esa declaración se sacó del
+`Dockerfile` y el chequeo pasó a **medir**:
+
+`ufil/permanencia.py` deja una marca en la carpeta de datos y cuenta los arranques que
+sobrevivió. No se puede falsear: o el archivo sigue ahí después de reiniciar, o no.
+
+| Arranques | Qué dice |
+|---|---|
+| 1 | **Todavía no se sabe.** Un disco nuevo y una carpeta que se borra en cada despliegue se ven igual desde adentro, en el primer arranque. Decir que no se sabe es lo único honesto. |
+| 2 o más | **Comprobado**: la carpeta sobrevivió a N arranques desde tal fecha. Es la única afirmación de permanencia que el sistema puede hacer con pruebas. |
+
+**Cómo confirmarlo en dos minutos:** reiniciar el servicio y volver a *Estado del
+sistema*. Si el número de arranques no sube, los datos se están borrando.
+
+Mientras el número sea 1 y esto corra en un contenedor, la advertencia aparece también
+**arriba de la pantalla de legajos** —donde alguien está por invertir dos días de
+revisión y es el último momento en que sirve—, con el mismo peso que una falla.
 
 En una instalación de escritorio no alarma: el disco de la máquina es persistente, y
 alarmar donde no corresponde enseña a ignorar la alarma.
 
 ### En Render
 
-`render.yaml` declara el disco. **Pero ese archivo sólo se aplica si el servicio se creó
+`render.yaml` declara un disco. **Pero ese archivo sólo se aplica si el servicio se creó
 como Blueprint.** Si se creó a mano desde el tablero, se ignora entero — y eso se nota
-cuando los valores del tablero difieren de los del archivo.
+cuando los valores del tablero difieren de los del archivo (por ejemplo, `UFIL_ACCESO`
+en `abierto` cuando el archivo dice `clave`).
 
-Para verificarlo sin adivinar: entrar a **Estado del sistema**. Si dice que los datos
-están en un disco propio, están. Si dice que no, hay que ir a *Settings → Disks* y montar
-uno con el mismo camino que `UFIL_DATOS`.
+Sin disco declarado, `/app/datos` es almacenamiento del contenedor y **se borra en cada
+despliegue**. Es lo que pasó: se creaba un legajo, andaba todo bien, y al día siguiente
+no estaba.
+
+Cómo arreglarlo:
+
+1. *Settings → Disks → Add Disk*
+2. **Mount Path: `/app/datos`** — el mismo valor que `UFIL_DATOS`
+3. Tamaño: 10 GB alcanza para unas ocho mil páginas de derivados
+4. Guardar. Render reinicia el servicio.
+
+Cómo verificarlo sin adivinar: reiniciar el servicio una vez más y mirar **Estado del
+sistema → Permanencia de los datos**. Si el número de arranques sube, está resuelto. Si
+sigue en 1, no.
+
+Ojo: adjuntar un disco **no recupera** lo que ya se perdió. Empieza a guardar de ahí en
+adelante.
 
 ### El paracaídas, en cualquier caso
 

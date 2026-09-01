@@ -142,71 +142,18 @@ def _disco():
 
 def _persistencia():
     """
-    ¿Lo que se guarda sobrevive a un reinicio?
+    ¿Lo que se guarda sobrevive a un reinicio? Ver ufil/permanencia.py.
 
-    Es el chequeo más importante de todos y el último que se agregó, porque el modo de
-    fallar es silencioso: en un servicio de nube sin disco montado, el sistema anda
-    perfecto, guarda todo, muestra los totales bien… y en el próximo despliegue la
-    carpeta entera vuelve a estar vacía. Nadie se entera hasta que abre la app y no
-    encuentra el legajo que revisó durante dos días.
-
-    En Linux la respuesta está en `/proc/self/mounts`: si la carpeta de datos —o
-    alguna carpeta por encima que no sea la raíz— es un punto de montaje, hay un
-    volumen atrás. Si el único punto de montaje que la contiene es `/`, lo que se
-    escriba vive en el sistema de archivos del contenedor y muere con él.
-
-    En una instalación de escritorio esto no aplica: el disco de la máquina ES
-    persistente. Por eso el chequeo sólo alarma cuando además detecta que está
-    corriendo adentro de un contenedor.
+    La primera versión de esto deducía la respuesta de `/proc/self/mounts` y **mentía**:
+    el Dockerfile declara `VOLUME ["/app/datos"]`, el motor de contenedores crea ahí un
+    volumen anónimo, ese volumen aparece como punto de montaje, y se destruye en cada
+    despliegue. El chequeo contestaba «sobrevive a los reinicios» sobre algo que no
+    sobrevivía a ninguno. Ahora se mide: se deja una marca y se cuentan los arranques
+    que sobrevivió.
     """
-    ruta = config.DATOS
-    try:
-        ruta.mkdir(parents=True, exist_ok=True)
-        real = ruta.resolve()
-    except OSError as e:                                     # noqa: BLE001
-        return _r("Permanencia de los datos", "falla",
-                  f"no se pudo abrir la carpeta de datos: {e}",
-                  "revisar permisos de la carpeta de datos")
-
-    en_contenedor = Path("/.dockerenv").exists() or os.environ.get("RENDER") is not None
-
-    montajes = set()
-    try:
-        with open("/proc/self/mounts", encoding="utf-8") as f:
-            for linea in f:
-                partes = linea.split()
-                if len(partes) > 1:
-                    montajes.add(partes[1])
-    except OSError:
-        # Sin /proc no se puede saber. Se dice que no se sabe, que es distinto de
-        # decir que está bien.
-        return _r("Permanencia de los datos", "aviso",
-                  f"no se pudo determinar si {real} está en un disco propio")
-
-    # El punto de montaje más específico que contiene la carpeta de datos.
-    cubre = [m for m in montajes
-             if real == Path(m) or m == "/" or str(real).startswith(m.rstrip("/") + "/")]
-    punto = max(cubre, key=len) if cubre else "/"
-
-    if punto != "/":
-        return _r("Permanencia de los datos", "ok",
-                  f"{real} está en un disco propio ({punto}): sobrevive a los reinicios "
-                  f"y a los despliegues")
-
-    if en_contenedor:
-        return _r(
-            "Permanencia de los datos", "falla",
-            f"{real} NO está en un disco propio. Esto corre en un contenedor, así que "
-            f"todo lo que se cargue y se revise SE BORRA en el próximo despliegue o "
-            f"reinicio: los PDF, las bases de los legajos y —lo único que no se puede "
-            f"volver a generar— las revisiones hechas a mano.",
-            "montar un disco persistente en esa carpeta antes de cargar material de "
-            "una causa. En Render: Settings → Disks, con el mismo camino que "
-            "UFIL_DATOS. Mientras tanto, bajar una copia de respaldo al terminar cada "
-            "jornada.")
-
-    return _r("Permanencia de los datos", "ok",
-              f"{real} está en el disco de esta máquina")
+    from . import permanencia
+    r = permanencia.estado()
+    return _r("Permanencia de los datos", r["estado"], r["detalle"], r["arreglo"])
 
 
 def _cpu():

@@ -28,7 +28,22 @@ COPY herramientas/ ./herramientas/
 RUN mkdir -p /app/datos && chown -R ufil:ufil /app
 USER ufil
 
-VOLUME ["/corpus", "/app/datos"]
+# `/corpus` se monta de afuera en solo lectura. `/app/datos` NO se declara acá, y es
+# a propósito: `VOLUME` hace que el motor de contenedores cree un **volumen anónimo**
+# en ese camino, que aparece como punto de montaje —igual que un disco de verdad— y se
+# destruye junto con el contenedor. O sea, en cada despliegue.
+#
+# Eso costó un legajo con dieciocho documentos y setenta y siete campos revisados a
+# mano: se creaba, andaba todo bien, y al siguiente despliegue no estaba. Y como el
+# volumen anónimo se ve como un montaje propio, cualquier comprobación que mire
+# `/proc/self/mounts` contesta que los datos están a salvo.
+#
+# Dónde vive `/app/datos` lo declara quien corre la imagen, explícitamente:
+# docker-compose lo mapea a `./datos` del host, y en Render se monta un disco en
+# Settings → Disks. Si nadie lo declara, es almacenamiento efímero — y ahora el
+# sistema lo dice, porque cuenta los arranques que sobrevivió en vez de deducirlo
+# (ver ufil/permanencia.py).
+VOLUME ["/corpus"]
 
 # OJO CON `UFIL_ACCESO`. Esta imagen NO la trae, y es a propósito.
 #

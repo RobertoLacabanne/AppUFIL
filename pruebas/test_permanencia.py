@@ -16,6 +16,7 @@ antes de que alguien cargue una causa. Estas pruebas verifican que lo sepa.
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -24,16 +25,30 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
-from ufil import config, diagnostico
+from ufil import config, diagnostico, permanencia
 
 
-class ElSistemaSabeSiSusDatosSobreviven(unittest.TestCase):
+class LaPermanenciaSeMideNoSeDeduce(unittest.TestCase):
+    """
+    La primera versión de este chequeo miraba `/proc/self/mounts` y **mentía**.
+
+    El Dockerfile declara `VOLUME ["/app/datos"]`. El motor de contenedores crea ahí un
+    volumen anónimo, que aparece en los montajes como cualquier otro… y se destruye
+    junto con el contenedor, o sea en cada despliegue. El chequeo contestaba «está en
+    un disco propio: sobrevive a los reinicios» sobre almacenamiento que no sobrevivía
+    a ninguno, y esa respuesta tranquilizadora es peor que no tener chequeo: sin él
+    alguien desconfía y baja un respaldo.
+
+    Ahora se mide. Se deja una marca en la carpeta de datos y se cuentan los arranques
+    que sobrevivió. O el archivo sigue ahí después de reiniciar, o no sigue.
+    """
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self._datos = config.DATOS
         self._render = os.environ.get("RENDER")
         config.DATOS = Path(self.tmp.name) / "datos"
+        os.environ["RENDER"] = "true"          # se comporta como en la nube
 
     def tearDown(self):
         config.DATOS = self._datos
@@ -43,56 +58,94 @@ class ElSistemaSabeSiSusDatosSobreviven(unittest.TestCase):
             os.environ["RENDER"] = self._render
         self.tmp.cleanup()
 
-    def test_en_un_contenedor_sin_disco_propio_es_una_falla(self):
+    # ── El caso que le costó el legajo a alguien ───────────────────────────
+    def test_un_montaje_propio_NO_alcanza_para_decir_que_sobrevive(self):
         """
-        No un aviso: una falla. «Aviso» es lo que se lee y se sigue de largo, y acá
-        seguir de largo cuesta el trabajo de dos días.
-        """
-        os.environ["RENDER"] = "true"
-        r = diagnostico._persistencia()
-        self.assertEqual(r["estado"], "falla", r)
-        self.assertIn("SE BORRA", r["detalle"])
-        self.assertTrue(r["arreglo"], "una falla sin arreglo deja a la persona igual")
-        self.assertIn("disco", r["arreglo"].lower())
+        LA prueba de esta historia. Se simula exactamente el escenario del volumen
+        anónimo: la carpeta de datos está bajo un punto de montaje propio, y aun así
+        se borra en cada arranque.
 
-    def test_dice_qué_es_lo_que_no_se_puede_recuperar(self):
+        El sistema NO puede decir «ok» acá. Si lo dice, alguien carga una causa encima.
         """
-        «Se pierden los datos» no alcanza para entender el tamaño. Los PDF se vuelven a
-        subir; las revisiones hechas a mano no existen en ningún otro lado.
-        """
-        os.environ["RENDER"] = "true"
-        r = diagnostico._persistencia()
-        self.assertIn("revisiones hechas a mano", r["detalle"])
+        montaje = self._montaje_de_verdad()
+        if montaje is None:
+            self.skipTest("no hay ningún punto de montaje además de / en esta máquina")
+        config.DATOS = Path(montaje) / "ufil-volumen-anonimo"
+        # Esta carpeta vive FUERA del directorio temporal —tiene que estar sobre un
+        # montaje de verdad— así que la limpieza no la hace `tearDown`. Sin este borrado
+        # inicial, la marca de la corrida anterior queda ahí y la primera vuelta arranca
+        # con la cuenta heredada: la prueba pasa o falla según el orden. Pasó.
+        shutil.rmtree(config.DATOS, ignore_errors=True)
+        self.addCleanup(shutil.rmtree, config.DATOS, True)
+
+        # Tres despliegues seguidos: cada uno arranca y cada uno se lleva la carpeta,
+        # que es justo lo que hace un volumen anónimo.
+        for _ in range(3):
+            permanencia.registrar_arranque()
+            r = permanencia.estado()
+            self.assertNotEqual(
+                r["estado"], "ok",
+                "declara que los datos sobreviven sobre almacenamiento que se borra "
+                "en cada arranque: es exactamente el defecto que costó un legajo")
+            self.assertEqual(r["arranques"], 1)
+            shutil.rmtree(config.DATOS, ignore_errors=True)   # el despliegue se la lleva
+
+    # ── Lo que sí puede afirmar ────────────────────────────────────────────
+    def test_el_primer_arranque_no_afirma_nada_todavia(self):
+        permanencia.registrar_arranque()
+        r = permanencia.estado()
+        self.assertEqual(r["estado"], "aviso", r)
+        self.assertIn("todavía no se puede afirmar", r["detalle"])
+        self.assertIn("reiniciá el servicio", r["arreglo"],
+                      "no dice cómo salir de la duda en dos minutos")
+
+    def test_al_sobrevivir_un_reinicio_lo_afirma_con_el_numero(self):
+        permanencia.registrar_arranque()
+        permanencia.registrar_arranque()
+        r = permanencia.estado()
+        self.assertEqual(r["estado"], "ok", r)
+        self.assertIn("comprobado", r["detalle"])
+        self.assertIn("2 arranques", r["detalle"])
+
+    def test_la_cuenta_sigue_subiendo(self):
+        for _ in range(5):
+            permanencia.registrar_arranque()
+        self.assertEqual(permanencia.estado()["arranques"], 5)
 
     def test_en_una_maquina_de_escritorio_no_alarma(self):
         """El disco de una notebook ES persistente. Alarmar ahí enseña a ignorar."""
         os.environ.pop("RENDER", None)
-        r = diagnostico._persistencia()
-        self.assertEqual(r["estado"], "ok", r)
+        permanencia.registrar_arranque()
+        self.assertEqual(permanencia.estado()["estado"], "ok")
 
-    def test_con_un_disco_montado_lo_reconoce(self):
+    def test_si_no_puede_dejar_la_marca_es_una_falla(self):
+        """Sin marca no hay medición, y sin medición no se puede afirmar nada."""
+        config.DATOS.mkdir(parents=True, exist_ok=True)
+        r = permanencia.estado()          # sin registrar_arranque(): no hay archivo
+        self.assertEqual(r["estado"], "falla", r)
+
+    # ── Que esté puesto donde se mira ──────────────────────────────────────
+    def test_el_chequeo_esta_en_la_pantalla_de_estado_y_antes_que_el_espacio(self):
+        permanencia.registrar_arranque()
+        nombres = [c["nombre"] for c in diagnostico.correr(desde_web=True)]
+        self.assertIn("Permanencia de los datos", nombres)
+        self.assertLess(nombres.index("Permanencia de los datos"),
+                        nombres.index("Espacio en disco"),
+                        "el espacio libre se muestra antes que si los datos sobreviven")
+
+    def test_el_servidor_registra_el_arranque(self):
         """
-        Un punto de montaje que contiene la carpeta de datos significa que hay un
-        volumen atrás. Se busca el más específico: en un contenedor TODO está debajo de
-        «/», así que quedarse con el primero que aparezca daría siempre «hay disco».
+        La medición depende de que alguien deje la marca. Si el servidor deja de
+        llamarla, el contador se queda en cero para siempre y el chequeo pasa a decir
+        «falla» sobre una instalación sana.
         """
-        montaje = self._algun_montaje_de_verdad()
-        if montaje is None:
-            self.skipTest("no hay ningún punto de montaje además de / en esta máquina")
-        os.environ["RENDER"] = "true"
-        config.DATOS = Path(montaje) / "ufil-prueba"
-        r = diagnostico._persistencia()
-        self.assertEqual(r["estado"], "ok", r)
-        self.assertIn(montaje, r["detalle"])
+        fuente = (RAIZ / "ufil/servidor.py").read_text(encoding="utf-8")
+        i = fuente.index("def armar(")
+        self.assertIn("registrar_arranque()", fuente[i:i + 2000],
+                      "el servidor ya no deja la marca al arrancar")
 
     @staticmethod
-    def _algun_montaje_de_verdad():
-        """
-        Un punto de montaje donde de verdad se pueda crear una carpeta.
-
-        `os.access(..., W_OK)` no alcanza: `/proc` lo pasa y después no deja crear
-        nada. La única comprobación que no miente es intentarlo.
-        """
+    def _montaje_de_verdad():
         try:
             with open("/proc/self/mounts", encoding="utf-8") as f:
                 candidatos = [l.split()[1] for l in f if len(l.split()) > 1]
@@ -109,24 +162,6 @@ class ElSistemaSabeSiSusDatosSobreviven(unittest.TestCase):
             except OSError:
                 continue
         return None
-
-    def test_el_chequeo_esta_en_la_pantalla_de_estado(self):
-        """
-        Que exista la función no sirve si no la corre nadie. Y va ANTES del espacio
-        libre: de nada sirve saber que entran diez mil páginas si se borran en el
-        próximo despliegue.
-        """
-        nombres = [c["nombre"] for c in diagnostico.correr(desde_web=True)]
-        self.assertIn("Permanencia de los datos", nombres)
-        self.assertLess(nombres.index("Permanencia de los datos"),
-                        nombres.index("Espacio en disco"),
-                        "el espacio libre se muestra antes que si los datos sobreviven")
-
-    def test_una_falla_de_permanencia_impide_decir_que_todo_esta_bien(self):
-        os.environ["RENDER"] = "true"
-        r = diagnostico.resumen(diagnostico.correr(desde_web=True))
-        self.assertFalse(r["puede_trabajar"],
-                         "el sistema se declara listo mientras los datos se borran")
 
 
 class AbrirLaAppSinLegajoNoEsUnError(unittest.TestCase):
