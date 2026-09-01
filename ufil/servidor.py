@@ -680,7 +680,27 @@ def api_cola(cx, filtros=None, desde=0, limite=POR_PAGINA) -> dict:
                 f"SELECT q.{columna}, COUNT(*) FROM ({base}) q "
                 f"GROUP BY q.{columna} ORDER BY COUNT(*) DESC")]
 
+    # ── Cuánto se lleva hecho ──────────────────────────────────────────────
+    #
+    # «1 de 6» dice dónde está el cursor y no dice nada de la tarea. En una cola de
+    # tres mil campos —que es el caso real— alguien revisa cuarenta minutos, ve «1 de
+    # 2.847» y no tiene forma de saber si avanzó. Eso es lo que agota y lo que hace
+    # que se deje por la mitad.
+    #
+    # El universo es lo que ALGUNA VEZ necesitó a una persona: lo que sigue esperando
+    # más lo que ya se decidió. Un campo revisado sale de la cola y entra en
+    # `revision_humana`; si alguien deshace la decisión, la fila se borra y el campo
+    # vuelve a la cola. O sea que los dos números se mueven juntos y el total no
+    # cambia solo, que es justamente lo que hace falta para que una barra de avance
+    # no mienta.
+    revisados = cx.execute("SELECT COUNT(*) FROM revision_humana").fetchone()[0]
+    # Y de quiénes. Varias personas de la fiscalía trabajan la misma causa: ver el
+    # trabajo del equipo acumulado, y no sólo el propio, es parte de por qué esto se
+    # comparte.
+    revisores = [{"quien": r[0], "n": r[1]} for r in cx.execute(
+        "SELECT quien, COUNT(*) FROM revision_humana GROUP BY quien ORDER BY COUNT(*) DESC")]
     return {"filas": filas, "total": total, "total_sin_filtro": total_sin_filtro,
+            "revisados": revisados, "revisores": revisores,
             "desde": desde, "limite": limite, "opciones": opciones}
 
 

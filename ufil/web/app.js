@@ -1534,6 +1534,68 @@ async function vDocumento(id) {
 /* Antes cada campo costaba dos navegaciones (ir al folio y volver) y se perdía el
    lugar en la lista. Con 42 campos eso son 84 saltos de pantalla. Acá la foja
    acompaña a la fila que tiene el foco, con una lupa sobre el campo. */
+/* ── Cuánto se lleva hecho ─────────────────────────────────────────────────
+   «1 de 6» dice dónde está el cursor; no dice nada de la tarea. En una cola de tres
+   mil campos —el caso real— alguien revisa cuarenta minutos, ve «1 de 2.847» y no
+   tiene forma de saber si avanzó. Eso es lo que agota y lo que hace que se deje por
+   la mitad.
+
+   El universo es lo que ALGUNA VEZ necesitó a una persona: lo que espera más lo que
+   ya se decidió. Los dos números se mueven juntos —deshacer una decisión devuelve el
+   campo a la cola— así que el total no salta solo y la barra no miente.
+
+   Y abajo, quiénes. Son varios los que trabajan la misma causa: que el avance sea del
+   equipo y no de cada uno por su lado es la mitad de por qué esto se comparte. */
+function avanceCola(r) {
+  const hechos = r.revisados || 0;
+  const universo = hechos + (r.total_sin_filtro || 0);
+  if (!universo) return '';
+  return `<div class="avance" id="avance">${tripasAvance(hechos, universo, r.revisores)}</div>`;
+}
+
+/* Se separa del envoltorio porque hay que volver a pintarla en cada decisión SIN
+   volver a pedir la cola: la pantalla saca la fila decidida y sigue, y una barra de
+   avance que sólo se mueve al recargar es peor que no tenerla —quien revisa cuarenta
+   minutos la ve clavada y concluye que no anda—. */
+function tripasAvance(hechos, universo, revisores) {
+  const pct = Math.round(hechos * 100 / universo);
+  const yo = (REVISOR || '').trim();
+  const equipo = (revisores || []).filter(x => x.n > 0);
+  const otros = yo ? equipo.filter(x => x.quien !== yo) : equipo;
+  const suma = otros.reduce((t, x) => t + x.n, 0);
+  const mios = yo ? equipo.filter(x => x.quien === yo).reduce((t, x) => t + x.n, 0) : 0;
+
+  // Nombrar a los demás sólo cuando hay demás: trabajando solo, «y 0 del equipo» es
+  // ruido y encima suena a que falta alguien. Y sin identificarse no hay «tuyos» que
+  // valga: se cuenta todo junto.
+  const deLosOtros = otros.length === 1 ? 'de otra persona'
+                                       : `entre otras ${fmtNum.format(otros.length)} personas`;
+  let detalle = '';
+  if (hechos && otros.length && yo && mios) {
+    detalle = ` — <strong>${fmtNum.format(mios)}</strong> ${mios === 1 ? 'tuyo' : 'tuyos'} y ` +
+      `<strong>${fmtNum.format(suma)}</strong> ${deLosOtros}`;
+  } else if (hechos && otros.length && yo) {
+    // Todavía no revisaste nada: «0 tuyos y 5 de otra persona» es una cuenta de más
+    // para decir lo mismo, y encima empieza marcando un cero.
+    detalle = `, todos ${deLosOtros}`;
+  } else if (hechos && otros.length > 1 && !yo) {
+    detalle = `, entre ${fmtNum.format(otros.length)} personas`;
+  }
+  return `<div class="riel"><i style="width:${pct}%"></i></div>
+    <p><strong>${fmtNum.format(hechos)}</strong> de ${fmtNum.format(universo)}
+      ${universo === 1 ? 'campo revisado' : 'campos revisados'}${detalle}.</p>`;
+}
+
+/* Vuelve a pintar el avance con lo que la pantalla ya sabe, sin ir al servidor. */
+function pintarAvance() {
+  const caja = $('#avance');
+  if (!caja) return;
+  const hechos = colaEstado.revisados || 0;
+  const universo = hechos + (colaEstado.total_sin_filtro || 0);
+  if (!universo) return;
+  caja.innerHTML = tripasAvance(hechos, universo, colaEstado.revisores);
+}
+
 let colaEstado = {filas: [], foco: 0};
 
 /* Qué filtros hay puestos. Vive afuera de la vista para sobrevivir al repintado que
@@ -1559,6 +1621,7 @@ async function vCola(campoId) {
   const pedido = campoId ? filas.findIndex(f => String(f.campo_id) === String(campoId)) : -1;
   colaEstado = {filas, foco: pedido >= 0 ? pedido : 0,
                 total: r.total, total_sin_filtro: r.total_sin_filtro,
+                revisados: r.revisados || 0, revisores: r.revisores || [],
                 opciones: r.opciones, cargando: false};
   if (!r.total_sin_filtro) {
     vista.innerHTML = bloque('f. 0006', 'Cola', `<h2>Cola de revisión</h2>
@@ -1596,9 +1659,15 @@ async function vCola(campoId) {
       <header class="taller-cabeza">
         <div>
           <h2>Cola de revisión</h2>
-          <p class="taller-sub">${plural(r.total_sin_filtro, 'campo espera', 'campos esperan')}
-            revisión, ordenados por lo que más daño hace si queda mal. <strong>El folio
-            está a la vista</strong>: no hace falta salir de acá.</p>
+          <!-- Sin el número acá. Este subtítulo se pinta una sola vez, cuando se
+               abre la cola, y la cola baja con cada decisión: a los cinco campos
+               revisados decía «6 campos esperan revisión» arriba de un «1 de 4», dos
+               cuentas de lo mismo contradiciéndose en la misma pantalla. El número
+               vive en la barra de avance de abajo y en el «1 de N» de la derecha, que
+               son los dos que sí se actualizan. -->
+          <p class="taller-sub">Ordenados por lo que más daño hace si queda mal.
+            <strong>El folio está a la vista</strong>: no hace falta salir de acá.</p>
+          ${avanceCola(r)}
         </div>
         <div class="posicion" id="posicion"></div>
       </header>
@@ -1937,8 +2006,16 @@ async function decidir(campoId, accion, valor) {
     // El campo salió de la cola porque alguien lo decidió; eso lo sabemos acá sin
     // preguntarle de nuevo al servidor.
     sacarDeLaCola(campoId);
+    // El campo que salió de la cola entró en el trabajo hecho, y lo hizo esta persona.
+    // Se anota acá, con lo que la pantalla ya sabe: pedirle la cola de nuevo al
+    // servidor para mover una barra tiraría las páginas ya traídas y volvería arriba.
+    colaEstado.revisados = (colaEstado.revisados || 0) + 1;
+    const mio = (colaEstado.revisores || []).find(x => x.quien === quien);
+    if (mio) mio.n += 1;
+    else (colaEstado.revisores = colaEstado.revisores || []).push({quien, n: 1});
     colaEstado.foco = Math.min(posicion, Math.max(0, colaEstado.filas.length - 1));
     pintarFoco();
+    pintarAvance();
     mostrarDeshacer();
     refrescarCuentas();
   } catch (e) {

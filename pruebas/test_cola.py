@@ -346,3 +346,95 @@ class RevisarNoPuedeCostarUnaEsperaPorCampo(UnCampoEnLaCola):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class ElAvanceDeLaColaNoMiente(unittest.TestCase):
+    """
+    Cuánto se lleva hecho, y de quién es.
+
+    «1 de 6» dice dónde está el cursor y no dice nada de la tarea. En una cola de tres
+    mil campos —el caso real de un lote de la Legislatura— alguien revisa cuarenta
+    minutos, ve «1 de 2.847» y no tiene forma de saber si avanzó.
+
+    La barra de avance se apoya en una propiedad que hay que sostener: el universo
+    —lo que espera MÁS lo que ya se decidió— no puede moverse solo. Un campo revisado
+    sale de la cola y entra en `revision_humana`; si alguien deshace la decisión, la
+    fila se borra y el campo vuelve a la cola. Los dos números tienen que moverse
+    juntos y en sentidos opuestos, siempre.
+
+    Si esa propiedad se rompe, la barra retrocede o salta sin que nadie haya hecho
+    nada, y una barra que hace eso deja de creerse a la semana.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,
+                                                paginas,ingerido_en)
+                           VALUES ('aa','/x/aa.pdf','contrato-12.pdf',1,1,?)""", (ahora(),))
+        self.cx.execute("""INSERT INTO pagina (sha256,nro,ancho_pt,alto_pt)
+                           VALUES ('aa',1,595,842)""")
+        self.doc = self.cx.execute(
+            """INSERT INTO documento (sha256,orden,pagina_desde,pagina_hasta,tipo,perfil)
+               VALUES ('aa',1,1,1,'contrato_obra','p')""").lastrowid
+        self.campos = [self.cx.execute(
+            """INSERT INTO campo (documento_id,nombre,valor_literal,pagina_nro,
+                                  x0,y0,x1,y1,confianza,estado)
+               VALUES (?,?,'$ 4.850.000',1,60,120,300,145,0.42,?)""",
+            (self.doc, n, cf.PENDIENTE_BAJA)).lastrowid
+            for n in ("monto", "contratado_nombre", "fecha_desde")]
+        self.cx.commit()
+
+    def _cola(self):
+        from ufil import servidor
+        return servidor.api_cola(self.cx)
+
+    def _universo(self, r):
+        return r["revisados"] + r["total_sin_filtro"]
+
+    def test_el_universo_no_se_mueve_solo(self):
+        antes = self._cola()
+        self.assertEqual(antes["revisados"], 0)
+        self.assertEqual(self._universo(antes), 3)
+
+        aplicar(self.cx, self.campos[0], "verificar", None, "ana")
+        medio = self._cola()
+        self.assertEqual(medio["revisados"], 1)
+        self.assertEqual(medio["total_sin_filtro"], 2)
+        self.assertEqual(self._universo(medio), 3, "el universo saltó al revisar")
+
+        # Deshacer devuelve el campo a la cola. Si el universo cambiara acá, la barra
+        # retrocedería sola y quien la mira concluiría que perdió trabajo.
+        aplicar(self.cx, self.campos[0], "revertir", None, "ana")
+        vuelta = self._cola()
+        self.assertEqual(vuelta["revisados"], 0)
+        self.assertEqual(vuelta["total_sin_filtro"], 3)
+        self.assertEqual(self._universo(vuelta), 3, "el universo cambió al deshacer")
+
+    def test_dice_de_quien_es_cada_revision(self):
+        """Varios de la fiscalía sobre la misma causa: el avance es del equipo."""
+        aplicar(self.cx, self.campos[0], "verificar", None, "ana")
+        aplicar(self.cx, self.campos[1], "verificar", None, "bruno")
+        aplicar(self.cx, self.campos[2], "verificar", None, "bruno")
+        r = self._cola()
+        self.assertEqual(r["revisados"], 3)
+        # Ordenado por cantidad: quien más hizo, primero.
+        self.assertEqual([(x["quien"], x["n"]) for x in r["revisores"]],
+                         [("bruno", 2), ("ana", 1)])
+
+    def test_al_deshacer_baja_la_cuenta_de_quien_lo_habia_hecho(self):
+        """
+        Deshacer BORRA la fila de `revision_humana` —la auditoría queda igual, que es
+        append-only— así que la persona tiene que dejar de figurar. Si no, el reparto
+        acumula trabajo que ya no existe y la suma de los revisores deja de dar el
+        total.
+        """
+        aplicar(self.cx, self.campos[0], "verificar", None, "ana")
+        aplicar(self.cx, self.campos[1], "verificar", None, "ana")
+        aplicar(self.cx, self.campos[0], "revertir", None, "ana")
+        r = self._cola()
+        self.assertEqual(r["revisados"], 1)
+        self.assertEqual([(x["quien"], x["n"]) for x in r["revisores"]], [("ana", 1)])
+        self.assertEqual(sum(x["n"] for x in r["revisores"]), r["revisados"],
+                         "el reparto por persona no suma el total")
