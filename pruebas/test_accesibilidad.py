@@ -144,6 +144,49 @@ PARES = [
 ]
 
 
+class LaBarraNoPuedeSerLoMasClaroDeLaPantalla(unittest.TestCase):
+    """
+    §4 dice qué hace cada plano: a la izquierda dónde estás parado, a la derecha en qué
+    estás trabajando. El folio tiene que ser la superficie más clara y más grande, y la
+    barra lateral es cromo: no compite.
+
+    En el tema claro salía solo —la barra es azul macizo, lo más oscuro de la pantalla—
+    pero en el oscuro se había dado vuelta: `--barra` en #1E2C40 daba luminancia 0,0245
+    contra 0,0125 del folio. La barra era casi el DOBLE de clara que el lugar donde está
+    el trabajo, o sea lo que más tiraba del ojo en toda la pantalla.
+
+    Ninguna prueba lo veía porque la tabla de pares mide CONTRASTE entre un texto y su
+    fondo, y esto no es contraste: es jerarquía entre dos superficies que nunca se tocan.
+    """
+
+    def _lum(self, tema, token):
+        return luminancia(tema[token])
+
+    def test_en_los_dos_temas_el_folio_manda(self):
+        problemas = []
+        for nombre, tema in (("claro", CLARO), ("oscuro", OSCURO)):
+            barra, folio = self._lum(tema, "barra"), self._lum(tema, "folio")
+            if barra > folio:
+                problemas.append(
+                    f"{nombre}: --barra ({tema['barra']}, luminancia {barra:.4f}) es más "
+                    f"clara que --folio ({tema['folio']}, {folio:.4f}). La barra es "
+                    f"cromo: no puede ser lo que más tira del ojo.")
+        self.assertEqual(problemas, [], "\n" + "\n".join(problemas))
+
+    def test_la_barra_igual_se_distingue_de_la_mesa(self):
+        """
+        Bajarla no puede terminar fundiéndola con el fondo: si la barra y la mesa se
+        ven iguales, no se sabe dónde termina una y empieza la otra. Se acepta poco
+        contraste porque además hay un filete, pero no cero.
+        """
+        for nombre, tema in (("claro", CLARO), ("oscuro", OSCURO)):
+            r = relacion(tema["barra"], tema["fondo"])
+            self.assertGreater(
+                r, 1.02,
+                f"{nombre}: --barra y --fondo dan {r:.3f}:1; son el mismo color y no "
+                f"se ve dónde termina la barra")
+
+
 class ElContrasteAlcanzaAA(unittest.TestCase):
 
     def _revisar(self, tema, nombre):

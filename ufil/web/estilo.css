@@ -166,8 +166,17 @@
   --filete:#2C3B4D; --filete-2:#1E2938;
   --borde-control:#5C6D80;
   --tribunal:#7FA9D6; --tribunal-txt:#7FA9D6; --rio:#6B9FCB; --oro:#E5C57C;
-  --barra:#1E2C40; --barra-2:#293A52; --barra-3:#344863;
-  --barra-txt:#F2F5F8; --barra-txt-2:#AEB9C6; --barra-filete:#3E5372;
+  /* La barra, POR DEBAJO del folio.
+     Estaba en #1E2C40, con luminancia 0,0245 contra 0,0125 del folio: la barra
+     lateral era la superficie más clara y más grande de la pantalla, o sea lo que
+     más tiraba del ojo, y el folio —donde está el trabajo— quedaba más apagado que
+     el cromo. Es justo al revés de lo que dice §4: a la izquierda dónde estás
+     parado, a la derecha en qué estás trabajando. En el tema claro la barra es lo
+     más oscuro de la pantalla y funciona; en el oscuro se había dado vuelta sola.
+     Ahora queda entre la mesa (0,0054) y el folio (0,0125), en 0,0088, y todos los
+     contrastes de sus textos SUBEN: 16,3:1 el texto principal contra 14,4 que tenía. */
+  --barra:#101822; --barra-2:#18222E; --barra-3:#212D3C;
+  --barra-txt:#F2F5F8; --barra-txt-2:#AEB9C6; --barra-filete:#263346;
   /* Los dos tintes suben respecto del folio, no del fondo. Con el folio en #141E2B,
      el interp viejo (#131E2A) quedaba a 1,003:1 del folio: el total firme y el
      provisional pasaban a tener el mismo fondo y la distinción que decide qué se
@@ -199,8 +208,17 @@
   --filete:#2C3B4D; --filete-2:#1E2938;
   --borde-control:#5C6D80;
   --tribunal:#7FA9D6; --tribunal-txt:#7FA9D6; --rio:#6B9FCB; --oro:#E5C57C;
-  --barra:#1E2C40; --barra-2:#293A52; --barra-3:#344863;
-  --barra-txt:#F2F5F8; --barra-txt-2:#AEB9C6; --barra-filete:#3E5372;
+  /* La barra, POR DEBAJO del folio.
+     Estaba en #1E2C40, con luminancia 0,0245 contra 0,0125 del folio: la barra
+     lateral era la superficie más clara y más grande de la pantalla, o sea lo que
+     más tiraba del ojo, y el folio —donde está el trabajo— quedaba más apagado que
+     el cromo. Es justo al revés de lo que dice §4: a la izquierda dónde estás
+     parado, a la derecha en qué estás trabajando. En el tema claro la barra es lo
+     más oscuro de la pantalla y funciona; en el oscuro se había dado vuelta sola.
+     Ahora queda entre la mesa (0,0054) y el folio (0,0125), en 0,0088, y todos los
+     contrastes de sus textos SUBEN: 16,3:1 el texto principal contra 14,4 que tenía. */
+  --barra:#101822; --barra-2:#18222E; --barra-3:#212D3C;
+  --barra-txt:#F2F5F8; --barra-txt-2:#AEB9C6; --barra-filete:#263346;
   /* Los dos tintes suben respecto del folio, no del fondo. Con el folio en #141E2B,
      el interp viejo (#131E2A) quedaba a 1,003:1 del folio: el total firme y el
      provisional pasaban a tener el mismo fondo y la distinción que decide qué se
