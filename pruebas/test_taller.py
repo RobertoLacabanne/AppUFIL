@@ -33,6 +33,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
 CSS = (RAIZ / "ufil/web/estilo.css").read_text(encoding="utf-8")
+APP = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
 JS = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
 
 
@@ -136,3 +137,65 @@ class UnaSolaBarraDeDesplazamiento(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ElNombreDelDocumentoNoSeParte(unittest.TestCase):
+    """
+    La celda de la izquierda dice de qué papel salió el campo que se está por decidir.
+
+    Tenía `overflow-wrap:anywhere`, puesto a propósito para que un nombre largo no se
+    cortara por la izquierda. El efecto real era peor: a 1440 px `contrato_A_0013` se
+    leía «contrato_A_001» y en el renglón de abajo, solo, un «3». Con quince renglones
+    así en pantalla, decidir sobre el documento equivocado es cuestión de tiempo, y es
+    lo más caro que puede pasar en esta pantalla.
+
+    Se elide por el MEDIO y se conserva el final: los nombres de un lote comparten
+    prefijo, así que lo que distingue un documento de otro son los últimos caracteres.
+    Cortando por la izquierda se pierde justamente lo que identifica.
+    """
+
+    def _hay(self, aguja, donde, queja):
+        self.assertTrue(aguja in donde, queja + f"\n  (falta: {aguja!r})")
+
+    def test_la_celda_no_parte_palabras(self):
+        """
+        Se miran TODAS las reglas con ese selector, no la primera. Hay tres —una por
+        cada corte de pantalla— y `re.search` devolvía la de la media query de 1024,
+        así que la prueba habría dado por buena la regla principal con el defecto
+        adentro. Lo encontré rompiéndola a propósito: falló señalando la regla que no
+        era.
+        """
+        reglas = re.findall(r"\.taller-cuerpo \.fila \.marginalia\{([^{}]*)\}", CSS)
+        self.assertGreaterEqual(len(reglas), 2,
+                                "se perdieron las reglas de la celda del nombre")
+        for i, cuerpo in enumerate(reglas):
+            for prohibido in ("overflow-wrap:anywhere", "word-break:break-all",
+                              "word-break:break-word"):
+                self.assertNotIn(
+                    prohibido.replace(" ", ""), cuerpo.replace(" ", ""),
+                    f"«{prohibido}» en la regla {i + 1} de {len(reglas)} vuelve a "
+                    f"partir el identificador del documento por cualquier lado; el "
+                    f"último dígito cae solo al renglón de abajo")
+
+    def test_se_elide_por_el_medio_conservando_el_final(self):
+        self._hay("function nombreArchivo", APP,
+                  "se perdió la elisión por el medio del nombre del documento")
+        self._hay("n.slice(-COLA_NOMBRE)", APP,
+                  "el final del nombre —lo único que distingue un documento de otro— "
+                  "dejó de conservarse entero")
+        m = re.search(r"\.nombre-doc \.doc-ini\{([^{}]*)\}", CSS)
+        self.assertIsNotNone(m, "se perdió la pieza que se encoge del nombre")
+        self.assertIn("text-overflow:ellipsis", m.group(1).replace(" ", ""),
+                      "la parte de adelante dejó de mostrar los puntos suspensivos: "
+                      "el nombre se corta sin avisar que se cortó")
+        f = re.search(r"\.nombre-doc \.doc-fin\{([^{}]*)\}", CSS)
+        self.assertIsNotNone(f, "se perdió la pieza que NO se encoge")
+        self.assertIn("flex:0 0 auto", f.group(1).replace("  ", " "),
+                      "el final del nombre puede encogerse otra vez")
+
+    def test_el_nombre_completo_queda_al_alcance(self):
+        """Elidido en pantalla, entero en el `title`: nada se pierde del todo."""
+        i = APP.index("function nombreArchivo")
+        cuerpo = APP[i:APP.index("\nfunction filaCola")]
+        self.assertIn('title="${esc(n)}"', cuerpo,
+                      "el nombre completo dejó de estar disponible al pasar el puntero")

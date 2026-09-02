@@ -1302,13 +1302,33 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
    un importe partido en tres renglones es exactamente lo que esto vino a arreglar.
    Se le da el ancho que un monto necesita y se le saca al nombre del archivo, que es
    lo que menos se lee de la fila. */
-.taller-cuerpo .fila{grid-template-columns:104px minmax(0,1fr) minmax(212px,25%);
+.taller-cuerpo .fila{grid-template-columns:126px minmax(0,1fr) minmax(212px,25%);
                      cursor:pointer}
 /* El nombre del archivo se corta por la izquierda si no entra, y con nombres reales
    —que son más largos que «contrato_A_0020»— eso deja ilegible justo lo que ubica el
    campo. Que baje de renglón antes de perderse. */
+/* Sin `overflow-wrap:anywhere`. Cortaba el identificador por cualquier lado y dejaba
+   el último dígito solo en el renglón de abajo. Ahora la celda no parte nada y el
+   nombre se elide por el medio (ver `nombreArchivo` en app.js). */
 .taller-cuerpo .fila .marginalia{padding:9px 10px 9px 0; font-size:11px;
-  overflow-wrap:anywhere; line-height:1.35}
+  line-height:1.35; min-width:0}
+/* La cabeza se encoge y se le ponen los puntos suspensivos; la cola —lo que
+   distingue un documento de otro— no se recorta nunca. */
+/* Se llaman `doc-ini` y `doc-fin`, y no `cabeza` y `cola`, porque las dos estaban
+   TOMADAS: `.cola` es el contenedor entero del listado de revisión —con borde, fondo
+   y radio— y `.cabeza` es la cabecera de sección de la barra lateral. Puesto
+   `<span class="cola">` adentro del nombre, el pedazo heredó el borde y el fondo del
+   contenedor y pasó a medir 96 px de ancho por 39 de alto: el nombre quedaba partido
+   igual que antes, pero ahora por otro motivo.
+
+   Es la TERCERA colisión de nombres de este rediseño —antes fueron `.marca` y
+   `.lupa`— y las tres se vieron sólo mirando la pantalla, porque un nombre de clase
+   repetido no da ningún error: da otra pantalla. Hay una prueba para esto ahora, en
+   test_reticula.py. */
+.nombre-doc{display:flex; min-width:0; white-space:nowrap; justify-content:flex-end}
+.nombre-doc .doc-ini{flex:0 1 auto; overflow:hidden; text-overflow:ellipsis;
+  min-width:0; white-space:nowrap}
+.nombre-doc .doc-fin{flex:0 0 auto; white-space:nowrap}
 .taller-cuerpo .fila .med{padding:9px 12px}
 .taller-cuerpo .fila .acc{padding:9px 10px; gap:3px}
 .taller-cuerpo .tecla{font-size:11px}
@@ -1612,6 +1632,9 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   font-size:12px; padding:4px 0; align-items:baseline}
 .rastro .cuando{color:var(--tinta-3); font-size:11px}
 .rastro .quien{color:var(--tinta-2); overflow:hidden; text-overflow:ellipsis}
+/* Qué se hizo: es lo que se lee de las tres columnas, así que va en la tinta plena.
+   No tenía regla ninguna —heredaba— y quedaba del mismo peso que la fecha. */
+.rastro .que{color:var(--tinta)}
 .rastro .antes{color:var(--tinta-3)}
 .rastro .nota{display:block; color:var(--tinta-3); font-style:italic}
 .rastro .paso.vacio{grid-template-columns:1fr; color:var(--tinta-3)}

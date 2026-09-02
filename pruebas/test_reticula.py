@@ -112,3 +112,68 @@ class ElEstiloNoSeEscribeAdentroDelJavaScript(unittest.TestCase):
         """`<divclass="…">` no es un div: es una etiqueta inventada que no aplica nada."""
         self.assertEqual(re.findall(r"<[a-z]+class=", APP), [],
                          "quedó una etiqueta pegada a su atributo class")
+
+
+class TodaClaseQueElJavaScriptPintaExisteEnLaHoja(unittest.TestCase):
+    """
+    Van TRES colisiones de nombres en este rediseño, y las tres se vieron sólo mirando
+    la pantalla:
+
+      · `.marca` era el resaltado de lo buscado adentro de una tabla —punzó, negrita—
+        y se usó como nombre del bloque de identidad: el nombre de la unidad salió
+        pintado de rojo alarma en la barra lateral.
+      · `.lupa` era el panel de 132 px del renglón ampliado de la cola —blanco, con
+        borde— y se usó para el ícono del buscador: dibujaba una caja blanca colgando
+        del techo.
+      · `.cola` es el contenedor entero del listado de revisión —borde, fondo, radio—
+        y se usó para el pedazo final del nombre de un documento: el pedazo heredó el
+        borde y pasó a medir 96 px de ancho por 39 de alto en vez de 53 por 15.
+
+    **Esta prueba NO las detecta, y conviene decirlo en vez de fingir que sí.** Un
+    nombre reutilizado y un nombre reestilizado según el contexto se escriben igual
+    —`.componente .clase{…}`— y sólo se distinguen sabiendo qué elemento es cuál. Un
+    intento de detectarlas por la forma marcó diez sobreescrituras perfectamente
+    legítimas: una prueba con diez falsos positivos es peor que ninguna, porque enseña
+    a ignorarla.
+
+    Lo que sí es decidible, y también es un defecto silencioso: que el JavaScript pinte
+    una clase que en la hoja no existe. Ahí no hay herencia sorpresa, hay nada — el
+    elemento sale sin estilo y la pantalla se ve casi bien.
+
+    Contra las colisiones, lo que hay es el hábito de mirar la pantalla después de
+    tocarla, y el comentario que quedó escrito al lado de cada uno de los tres nombres.
+    """
+
+    # Clases que las pinta el navegador o vienen de un atributo, no de la hoja.
+    DEL_SISTEMA = {"activa", "activo", "abierto", "foco", "clic", "hidden"}
+
+    def _enganches(self):
+        """
+        Una clase que el JavaScript usa SÓLO para encontrar el elemento después
+        —`querySelector('.limpiar-tabla')`— es un enganche, no un estilo, y es un
+        patrón legítimo: no tiene por qué existir en la hoja.
+        """
+        return {m.group(1) for m in
+                re.finditer(r"""querySelector(?:All)?\(['"]\.([\w-]+)""", APP)}
+
+    def _clases_del_js(self):
+        fuera = set()
+        for m in re.finditer(r'class="([^"$]*)"', APP):      # sin interpolación
+            for c in m.group(1).split():
+                if c and not c.startswith("$"):
+                    fuera.add(c)
+        return fuera - self.DEL_SISTEMA
+
+    def test_ninguna_clase_pintada_falta_en_la_hoja(self):
+        enganches = self._enganches()
+        huerfanas = sorted(c for c in self._clases_del_js() - enganches
+                           if not re.search(rf"\.{re.escape(c)}(?![\w-])", CSS))
+        self.assertEqual(
+            huerfanas, [],
+            "\nel JavaScript pinta clases que no existen en estilo.css: el elemento "
+            "sale sin estilo\n  y la pantalla se ve casi bien.\n  "
+            + "\n  ".join(huerfanas))
+
+    def test_la_prueba_encuentra_clases_para_mirar(self):
+        self.assertGreater(len(self._clases_del_js()), 40,
+                           "la prueba se quedó sin clases que mirar en app.js")

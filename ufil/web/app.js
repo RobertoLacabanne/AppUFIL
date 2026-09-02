@@ -1771,6 +1771,31 @@ function engancharFilasCola() {
   });
 }
 
+/* ── El nombre del documento, sin partirlo ─────────────────────────────────
+   La celda que dice de qué papel salió el campo tenía `overflow-wrap:anywhere`, que
+   se puso a propósito para que un nombre largo no se cortara por la izquierda y se
+   perdiera. El efecto real era peor: `contrato_A_0013` se leía «contrato_A_001» y
+   abajo, solo, un «3». Con quince renglones así en pantalla, decidir sobre el
+   documento equivocado es cuestión de tiempo, y es lo más caro que puede pasar acá.
+
+   Se elide por el MEDIO y se conserva el final. Los nombres de un lote comparten
+   prefijo —`contrato_A_…`, `contrato_B_…`— así que lo que distingue un documento de
+   otro son los últimos caracteres, no los primeros. Cortando por la izquierda se
+   pierde justamente lo que identifica.
+
+   No se puede hacer sólo con CSS: `text-overflow:ellipsis` corta por el final. Van
+   dos piezas, la cabeza que se encoge y la cola que no, y el navegador pone los
+   puntos suspensivos donde corresponde. */
+const COLA_NOMBRE = 8;      // caracteres del final que nunca se recortan
+
+function nombreArchivo(nombre) {
+  const n = String(nombre || '').replace(/\.pdf$/i, '');
+  if (n.length <= COLA_NOMBRE) return `<span class="nombre-doc">${esc(n)}</span>`;
+  return `<span class="nombre-doc" title="${esc(n)}"
+    ><span class="doc-ini">${esc(n.slice(0, -COLA_NOMBRE))}</span
+    ><span class="doc-fin">${esc(n.slice(-COLA_NOMBRE))}</span></span>`;
+}
+
 function filaCola(f, i) {
   /* Las opciones SON los valores.
 
@@ -1840,7 +1865,7 @@ function filaCola(f, i) {
     </button>`;
 
   return `<div class="fila" data-i="${i}">
-    <div class="marginalia"><span>${esc(f.archivo.replace('.pdf', ''))}</span>
+    <div class="marginalia">${nombreArchivo(f.archivo)}
       <span>f. ${f.pagina_nro ?? '—'}</span></div>
     <div class="med">
       <div class="cabeza-campo">
