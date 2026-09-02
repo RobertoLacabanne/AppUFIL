@@ -1788,11 +1788,17 @@ async function vCola(campoId) {
         <aside class="folio-lado" id="folio-lado">
           <div class="lupa" id="lupa"><img id="lupa-img" alt=""></div>
           <div class="pie-lamina"><span id="lupa-campo"></span><span id="lupa-xy"></span></div>
-          <div class="lienzo" id="lienzo-cola">
+          <!-- La hoja entera va OCULTA mientras haya recorte.
+               A unos 250 px de ancho no se distingue una sola palabra, y se llevaba la
+               mitad del panel: el recorte del campo es lo que se necesita para decidir,
+               y el anclaje —foja y coordenadas— ya está escrito arriba, en el pie.
+               Se enciende en el único caso donde es lo que hace falta: cuando el
+               sistema NO encontró el campo en la foja y hay que buscarlo a mano. -->
+          <div class="lienzo" id="lienzo-cola" hidden>
             <img id="folio-cola" alt="">
             <div class="recuadro" id="recuadro-cola" hidden></div>
           </div>
-          <a class="chip" id="ir-doc" href="#/panel">ver el documento completo</a>
+          <a class="boton" id="ir-doc" href="#/panel">Ver el documento completo</a>
         </aside>
       </div>
 
@@ -1984,14 +1990,18 @@ function encuadrar(f) {
     img.removeAttribute('src');
     $('#lupa-campo').textContent = 'el sistema no encontró este campo en la foja';
     $('#lupa-xy').textContent = 'mirá el folio y cargalo a mano';
+    // Sin anclaje la hoja entera SÍ va: es lo único con lo que se puede encontrar el
+    // campo a mano, que es lo que el cartel de arriba está pidiendo que se haga.
     const resp = f.pagina_respaldo;
-    const folio0 = $('#folio-cola'), rec0 = $('#recuadro-cola');
+    const hoja = $('#lienzo-cola'), folio0 = $('#folio-cola'), rec0 = $('#recuadro-cola');
     rec0.style.display = 'none';
     if (resp && resp.nro) {
       const src0 = `/pagina?doc=${f.documento_id}&nro=${resp.nro}`;
       if (folio0.getAttribute('src') !== src0) folio0.src = src0;
+      hoja.hidden = false;
     } else {
       folio0.removeAttribute('src');
+      hoja.hidden = true;
     }
     return;
   }
@@ -2010,14 +2020,9 @@ function encuadrar(f) {
   $('#lupa-campo').textContent = `${f.campo}${f.ruta ? ' · ruta ' + f.ruta : ''}`;
   $('#lupa-xy').textContent = `f.${f.pagina_nro} · ${(escala / (200 / 72)).toFixed(1)}×`;
 
-  const folio = $('#folio-cola'), rec = $('#recuadro-cola');
-  if (folio.getAttribute('src') !== src) folio.src = src;
-  rec.style.display = 'block';
-  rec.style.left = (100 * f.x0 / pag.ancho_pt) + '%';
-  rec.style.top = (100 * f.y0 / pag.alto_pt) + '%';
-  rec.style.width = (100 * caja.w / pag.ancho_pt) + '%';
-  rec.style.height = (100 * caja.h / pag.alto_pt) + '%';
-  rec.className = 'recuadro' + (f.clase === 'conflicto' ? ' conf' : '');
+  // Con recorte, la hoja entera se apaga: el anclaje ya lo dice el pie —foja y
+  // aumento— y una página de 250 px en la que no se lee una palabra sólo ocupa lugar.
+  $('#lienzo-cola').hidden = true;
 }
 
 function pintarFoco() {

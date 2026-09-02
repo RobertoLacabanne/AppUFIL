@@ -128,7 +128,17 @@
   --mono:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;
   --canaleta:112px;
   --lateral:232px;              /* ancho de la barra lateral */
-  --radio:5px;                  /* uno solo, chico: esto es un expediente */
+  /* ── Los radios ──────────────────────────────────────────────────────────
+     Tres, y ninguno más. La hoja llegó a tener DIEZ valores distintos —1, 2, 3, 8, 9,
+     10, 14, 20, 99 px y el token— mientras el documento afirmaba que eran dos. Se
+     veía en el panel: el aviso, el chip de campos a revisar y el cuño «AFUERA» tenían
+     tres esquinas distintas para tres cosas de la misma familia.
+     Es el mismo argumento que ya estaba escrito sobre los veintiún tamaños de letra,
+     aplicado a otra propiedad, y sin nada que lo cuidara. Ahora lo cuida
+     test_reticula.py. */
+  --radio:5px;                  /* un control: botón, campo, selector, chip */
+  --radio-folio:14px;           /* una superficie grande: el folio, un diálogo */
+  --radio-pildora:99px;         /* lo que quiere ser una píldora: la barra de avance */
   /* Sombras en tres capas, no en una.
      Una sola sombra difusa es una mancha gris: el ojo la lee como suciedad y no como
      altura. Apiladas —cada capa duplicando el desenfoque y bajando la opacidad a la
@@ -265,7 +275,7 @@ body{background:var(--fondo); color:var(--tinta); font-family:var(--sans);
 
    El `outline-offset` deja un hueco entre el elemento y el anillo: contra un fondo
    parejo eso hace de segundo tono y el anillo se despega igual sobre claro y oscuro. */
-:focus-visible{outline:2.5px solid var(--sello); outline-offset:2px; border-radius:3px}
+:focus-visible{outline:2.5px solid var(--sello); outline-offset:2px; border-radius:var(--radio)}
 #lateral :focus-visible{outline-color:var(--oro)}
 button{font:inherit; color:inherit}
 
@@ -358,7 +368,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    federalismo, y va de arriba a la izquierda a abajo a la derecha como en la bandera.
    Es el único lugar de la aplicación donde vive ese rojo. */
 .marca-provincia{position:relative; height:13px; margin:13px 0 0; overflow:hidden;
-  border-radius:1px;
+  border-radius:var(--radio);
   background:
     linear-gradient(var(--rio),var(--rio)) 0 4px  / 100% 1.5px no-repeat,
     linear-gradient(var(--rio),var(--rio)) 0 8.5px / 100% 1.5px no-repeat;
@@ -421,7 +431,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    oscuro del ítem abierto, con la cifra en negrita. */
 .nav-lateral .cuenta{
   font-family:var(--mono); font-size:11px; font-variant-numeric:tabular-nums;
-  padding:1px 6px; border-radius:9px; background:var(--barra-3);
+  padding:1px 6px; border-radius:var(--radio-folio); background:var(--barra-3);
   color:var(--barra-txt); flex:none;
 }
 .nav-lateral .cabeza.activo .cuenta, .nav-lateral .items a.activo .cuenta{
@@ -549,7 +559,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    así que el color es el tercer refuerzo y nunca el único. */
 .estado{
   display:inline-flex; align-items:center; gap:5px; padding:2px 8px 2px 6px;
-  border:1px solid currentColor; border-radius:20px; font-size:11px; font-weight:600;
+  border:1px solid currentColor; border-radius:var(--radio-folio); font-size:11px; font-weight:600;
   line-height:1.5; white-space:nowrap; color:var(--sello); background:transparent;
 }
 .estado svg{flex:none}
@@ -585,7 +595,7 @@ main{padding:18px 26px 90px; flex:1}
    lo que se ve, no el número. */
 .bloque{display:grid; grid-template-columns:var(--canaleta) minmax(0,1fr);
         background:var(--folio); border:1px solid var(--filete-2);
-        border-radius:14px; box-shadow:var(--sombra);
+        border-radius:var(--radio-folio); box-shadow:var(--sombra);
         padding:20px 26px 24px; margin-top:16px}
 .bloque:first-child{margin-top:0}
 .marginalia{border-right:1px solid var(--filete-2); padding-right:16px; text-align:right;
@@ -678,7 +688,7 @@ h3.menor{font-size:13px}
    afuera del total— y pegados uno al otro se leen como una grilla sola que se cayó.
    Ese aire de más es lo único que dice que se cambió de tema. */
 .cifras + .cifras{margin-top:12px}
-.cifra{padding:13px 15px 15px; background:var(--realce); border-radius:10px}
+.cifra{padding:13px 15px 15px; background:var(--realce); border-radius:var(--radio-folio)}
 .cifra b{display:block; font-family:var(--mono); font-size:34px; font-weight:400;
          font-variant-numeric:tabular-nums; letter-spacing:-.03em; line-height:1.05}
 .cifra span{display:block; font-size:12px; letter-spacing:0; color:var(--tinta-2);
@@ -714,8 +724,8 @@ thead th{text-align:left; font-size:12px; font-weight:600; letter-spacing:0;
          color:var(--tinta-2); padding:9px 11px 10px; white-space:nowrap;
          border-bottom:1px solid var(--filete); position:sticky; top:0;
          background:var(--realce)}
-thead th:first-child{border-radius:8px 0 0 0}
-thead th:last-child{border-radius:0 8px 0 0}
+thead th:first-child{border-radius:var(--radio-folio) 0 0 0}
+thead th:last-child{border-radius:0 var(--radio-folio) 0 0}
 tbody td{padding:11px 11px; border-bottom:1px solid var(--filete-2); vertical-align:baseline}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:var(--realce)}
@@ -752,7 +762,7 @@ tbody tr.clic{cursor:pointer}
 .barra-conf.baja i.on{background:var(--lapiz)}
 
 .ancla{font-family:var(--mono); font-size:11px; border:1px solid var(--borde-control);
-       border-radius:2px; background:var(--papel-2); color:var(--sello);
+       border-radius:var(--radio); background:var(--papel-2); color:var(--sello);
        padding:1px 5px; margin-left:7px; cursor:pointer; white-space:nowrap}
 .ancla:hover{background:var(--sello-suave); border-color:var(--sello)}
 .ancla[aria-pressed="true"]{background:var(--sello); border-color:var(--sello); color:var(--papel)}
@@ -764,7 +774,7 @@ tbody tr.clic{cursor:pointer}
                line-height:1.58; color:var(--tinta); margin:8px 0 10px; max-width:74ch}
 .interp .fuentes{display:flex; flex-wrap:wrap; gap:5px; padding-top:9px;
                  border-top:1px solid var(--interp-filete)}
-.chip{font-family:var(--mono); font-size:11px; padding:1px 6px; border-radius:2px;
+.chip{font-family:var(--mono); font-size:11px; padding:1px 6px; border-radius:var(--radio);
       border:1px solid var(--interp-filete); color:var(--tinta-2); background:transparent;
       cursor:pointer; text-decoration:none}
 .chip:hover{background:var(--sello-suave); color:var(--tinta)}
@@ -810,7 +820,7 @@ tbody tr.clic{cursor:pointer}
        text-transform:uppercase; color:var(--tinta-3); width:66px; flex:none}
 
 /* ── Cola de revisión ─────────────────────────────────────────────────── */
-.cola{border:1px solid var(--filete-2); border-radius:10px; overflow:hidden;
+.cola{border:1px solid var(--filete-2); border-radius:var(--radio-folio); overflow:hidden;
       background:var(--folio)}
 .fila{display:grid; grid-template-columns:var(--canaleta) minmax(0,1fr) 210px;
       border-bottom:1px solid var(--filete-2)}
@@ -889,7 +899,7 @@ td.acciones .mini + .mini{margin-left:5px}
    `<dialog>` del navegador y no un div propio: trae solo el foco atrapado adentro,
    Escape para cerrar, y el resto de la página marcado como inerte para quien navega
    con lector de pantalla. Escribir eso a mano sale mal casi siempre. */
-.dialogo{border:1px solid var(--filete); border-radius:8px; padding:20px 22px;
+.dialogo{border:1px solid var(--filete); border-radius:var(--radio-folio); padding:20px 22px;
   max-width:min(480px,92vw); background:var(--folio); color:var(--tinta);
   box-shadow:var(--sombra-alta); font-family:var(--sans); font-size:13px}
 .dialogo::backdrop{background:rgba(11,18,19,.5)}
@@ -909,7 +919,7 @@ pre.sql{font-family:var(--mono); font-size:12px; margin:0; padding:12px 14px;
   overflow-x:auto; white-space:pre; line-height:1.45}
 .aviso{display:flex; gap:12px; align-items:baseline; border-left:4px solid var(--ambar);
        background:var(--ambar-suave); padding:12px 15px; font-size:12px;
-       line-height:1.5; margin-bottom:15px; border-radius:0 10px 10px 0}
+       line-height:1.5; margin-bottom:15px; border-radius:0 var(--radio-folio) var(--radio-folio) 0}
 /* Un aviso de que TODO ESTÁ BIEN no puede pintarse con los colores de alarma: de un
    vistazo se lee como un problema, que es exactamente lo contrario de lo que dice. */
 .aviso.bien{border-left-color:var(--verde); background:var(--realce)}
@@ -971,7 +981,7 @@ tr.chequeo-mal td{background:var(--ambar-suave)}
 tr.chequeo-mal td:first-child{box-shadow:inset 3px 0 0 var(--ambar)}
 
 .riel{height:8px; background:var(--realce); border:1px solid var(--filete-2);
-      border-radius:99px; overflow:hidden}
+      border-radius:var(--radio-pildora); overflow:hidden}
 .riel i{display:block; height:100%; background:var(--rio); transition:width .4s ease}
 @media (prefers-reduced-motion:reduce){.riel i{transition:none}}
 details summary{cursor:pointer}
@@ -986,7 +996,7 @@ button:disabled{opacity:.45; cursor:not-allowed}
   color:var(--tinta-2); margin:0 0 16px; max-width:70ch; text-wrap:pretty}
 .cobertura strong{color:var(--tinta)}
 .cobertura.falta{border-left:3px solid var(--ambar); background:var(--ambar-suave);
-  padding:11px 14px; border-radius:0 10px 10px 0}
+  padding:11px 14px; border-radius:0 var(--radio-folio) var(--radio-folio) 0}
 .hallazgos{border:1px solid var(--filete)}
 .hallazgo{display:grid; grid-template-columns:190px 1fr; gap:14px; padding:9px 13px;
   border-bottom:1px solid var(--filete-2); text-decoration:none; color:inherit; align-items:baseline}
@@ -1005,7 +1015,7 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
    carril se lee entero —dónde empieza, dónde termina— y el rojo marca el pedazo del
    propio contrato que está en conflicto, que es la lectura correcta. */
 .pista-par{position:relative; height:22px; min-width:110px}
-.pista-par i{position:absolute; display:block; height:7px; border-radius:2px;
+.pista-par i{position:absolute; display:block; height:7px; border-radius:var(--radio);
   background:var(--marca)}
 .pista-par .carril-a, .pista-par .pisa-a{top:3px}
 .pista-par .carril-b, .pista-par .pisa-b{top:12px}
@@ -1026,7 +1036,7 @@ td.pista{width:22%; min-width:120px; vertical-align:middle}
 
 /* ── Cronología de tramos ─────────────────────────────────────────────── */
 
-.cronologia{border:1px solid var(--filete-2); border-radius:10px;
+.cronologia{border:1px solid var(--filete-2); border-radius:var(--radio-folio);
   padding:12px 14px 14px; margin-top:10px; background:var(--realce)}
 .tramo-fila{display:grid; grid-template-columns:150px 1fr 190px; gap:12px;
   align-items:center; padding:3px 0}
@@ -1178,7 +1188,7 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
    monoespaciada; la conjetura a la derecha, sobre otro fondo y en serif bastardilla.
    Se distingue de una ojeada, que es todo el punto. */
 .carriles{display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--filete-2);
-          border-radius:10px; overflow:hidden;
+          border-radius:var(--radio-folio); overflow:hidden;
   margin:14px 0}
 @media (max-width:860px){.carriles{grid-template-columns:1fr}}
 .carril{padding:16px 18px 18px; min-width:0}
@@ -1294,7 +1304,9 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
   border:none; border-radius:0; background:transparent; scrollbar-gutter:stable}
 .taller-cuerpo .folio-lado{
   min-height:0; overflow:hidden; display:grid;
-  grid-template-rows:auto auto minmax(0,1fr) auto; gap:8px;
+  /* El recorte se lleva el alto que sobra. Antes lo tenía la hoja entera, que a esa
+     escala no se lee, y el recorte quedaba clavado en 132 px. */
+  grid-template-rows:minmax(0,1fr) auto auto auto; gap:8px;
   border-left:1px solid var(--filete-2); background:var(--realce); padding:14px 20px 16px;
 }
 /* La foja entra entera, escalada al alto que quede: sin esto el panel de la derecha
@@ -1370,7 +1382,7 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 }
 
 /* La lupa: el renglón del campo, ampliado. Es lo que hace falta para decidir. */
-.lupa{position:relative; overflow:hidden; height:132px; background:#fff;
+.lupa{position:relative; overflow:hidden; min-height:132px; background:#fff;
   border:1px solid var(--filete); box-shadow:inset 0 0 0 1px var(--sello-suave)}
 .lupa img{position:absolute; max-width:none; image-rendering:auto}
 .lupa.sin-anclaje{background:var(--papel-3)}
@@ -1620,7 +1632,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
    El panel abría con lo que encontró, que es lo interesante pero no es lo accionable.
    Quien entra a la mañana necesita saber en un renglón si hay trabajo suyo esperando. */
 .siguiente-paso{display:flex; gap:16px; align-items:center; justify-content:space-between;
-  flex-wrap:wrap; border:1px solid var(--filete-2); border-radius:10px;
+  flex-wrap:wrap; border:1px solid var(--filete-2); border-radius:var(--radio-folio);
   background:var(--realce); padding:15px 18px; margin-bottom:20px}
 .siguiente-paso b{display:block; font-size:15px; margin-bottom:3px;
   letter-spacing:-.01em}
@@ -1683,7 +1695,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   .tabla-legajos table, .tabla-legajos tbody, .tabla-legajos tr{display:block}
   .tabla-legajos thead{display:none}
   .tabla-legajos .tabla-env{overflow-x:visible}
-  .tabla-legajos tr{border:1px solid var(--filete-2); border-radius:10px;
+  .tabla-legajos tr{border:1px solid var(--filete-2); border-radius:var(--radio-folio);
     padding:13px 14px; margin-bottom:10px; background:var(--realce)}
   .tabla-legajos td{display:block; padding:0; border:none; text-align:left !important;
     width:auto !important; white-space:normal}

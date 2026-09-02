@@ -287,10 +287,24 @@ En el tema oscuro la relación se da vuelta a propósito: la altura la da la sup
 —que se aclara— y no la sombra, porque sobre un fondo casi negro una sombra negra no
 se ve. Es el mismo criterio de Carbon y es el correcto.
 
-**El radio es 5 px en un control y 14 px en un folio.** No son dos sistemas: es la
-misma proporción. 14 px en una hoja de 950 px se ve igual de contenido que 5 px en un
-botón de 90; un radio fijo para todo se ve enorme en lo chico o inexistente en lo
-grande.
+**Los radios son tres, declarados, y ninguno más:**
+
+| token | valor | dónde |
+|---|---|---|
+| `--radio` | 5 px | un control: botón, campo, selector, chip |
+| `--radio-folio` | 14 px | una superficie grande: el folio, un diálogo, una tabla |
+| `--radio-pildora` | 99 px | lo que quiere ser una píldora: la barra de avance |
+
+No son tres sistemas: es la misma proporción. 14 px en una hoja de 950 px se ve igual
+de contenido que 5 px en un botón de 90; un radio fijo para todo se ve enorme en lo
+chico o inexistente en lo grande. Y `0` siempre vale: una esquina viva es una decisión.
+
+Esto se había perdido igual que la escala tipográfica: la hoja llegó a tener **diez**
+valores distintos —1, 2, 3, 8, 9, 10, 14, 20, 99 px y el token— mientras este documento
+afirmaba que eran dos. Se veía en el panel, donde el aviso, el chip de campos a revisar
+y el cuño «AFUERA» tenían tres esquinas distintas para tres cosas de la misma familia.
+`pruebas/test_reticula.py` falla ahora si aparece un `border-radius` con un valor que no
+sea `0` ni uno de los tres.
 
 **Las sombras van en tres capas, no en una.** Una sola sombra difusa es una mancha
 gris que el ojo lee como suciedad y no como altura; apiladas, cada una duplicando el

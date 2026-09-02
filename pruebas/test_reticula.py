@@ -114,6 +114,49 @@ class ElEstiloNoSeEscribeAdentroDelJavaScript(unittest.TestCase):
                          "quedó una etiqueta pegada a su atributo class")
 
 
+class LosRadiosSonTresYNoDiez(unittest.TestCase):
+    """
+    Es el mismo argumento que ya estaba escrito sobre los veintiún tamaños de letra,
+    aplicado a otra propiedad, y sin nada que lo cuidara.
+
+    La hoja llegó a tener DIEZ valores distintos —1, 2, 3, 8, 9, 10, 14, 20, 99 px y
+    el token— mientras `DESIGN_SYSTEM.md` afirmaba que eran dos. Se veía en el panel:
+    el aviso, el chip de campos a revisar y el cuño «AFUERA» tenían tres esquinas
+    distintas para tres cosas de la misma familia. Nada se ve mal por separado; el
+    conjunto se ve casi prolijo.
+    """
+
+    # `0` siempre vale: una esquina viva es una decisión, no un descuido.
+    PERMITIDOS = {"0", "var(--radio)", "var(--radio-folio)", "var(--radio-pildora)"}
+
+    def test_ningun_border_radius_trae_un_valor_crudo(self):
+        intrusos = []
+        for n, linea in enumerate(CSS.splitlines(), 1):
+            if "--radio" in linea and ":" in linea.split("--radio")[0][-3:]:
+                continue                      # la declaración de los tokens
+            for m in re.finditer(r"border-radius:\s*([^;}]+)", linea):
+                for pieza in m.group(1).split():
+                    if pieza not in self.PERMITIDOS:
+                        intrusos.append(
+                            f"  estilo.css:{n} — «{pieza}» no es ninguno de los tres "
+                            f"radios declarados")
+        self.assertEqual(
+            intrusos, [],
+            "\naparecieron radios fuera de los tres tokens "
+            f"{sorted(self.PERMITIDOS - {'0'})}:\n" + "\n".join(intrusos))
+
+    def test_los_tres_estan_declarados(self):
+        for token, que in (("--radio:", "un control"),
+                           ("--radio-folio:", "una superficie grande"),
+                           ("--radio-pildora:", "lo que quiere ser una píldora")):
+            self.assertTrue(token in CSS,
+                            f"falta el token del radio de {que} ({token})")
+
+    def test_la_prueba_esta_mirando_algo(self):
+        self.assertGreater(len(re.findall(r"border-radius:", CSS)), 15,
+                           "la prueba se quedó sin radios que mirar")
+
+
 class TodaClaseQueElJavaScriptPintaExisteEnLaHoja(unittest.TestCase):
     """
     Van TRES colisiones de nombres en este rediseño, y las tres se vieron sólo mirando
