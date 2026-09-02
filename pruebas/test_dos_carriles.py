@@ -128,3 +128,31 @@ class LaPruebaEstaMirandoAlgo(unittest.TestCase):
                 self.assertIn(sel + "{", LIMPIO.replace(" {", "{"),
                               f"«{sel}» ya no está en el CSS: la prueba se quedó sin "
                               f"terreno y hay que apuntarla al selector nuevo")
+
+
+class LoQueFaltaSeDiceComoFalta(unittest.TestCase):
+    """
+    La norma del sistema para un valor que falta es `Ø motivo`: nunca una celda vacía,
+    nunca un cero, y nunca un texto plano que se parezca a un dato.
+
+    La consulta de superposiciones devolvía `COALESCE(a.nombre_literal, '(sin nombre)')`
+    y la pantalla lo escribía tal cual, en la misma tipografía y el mismo peso que un
+    nombre de verdad. Quien lee la tabla ve una columna donde todas las celdas tienen
+    algo escrito, y no hay nada que le diga que esa fila no tiene nombre leído.
+    """
+
+    def test_la_consulta_no_inventa_un_texto_donde_falta_el_dato(self):
+        sql = (RAIZ / "ufil/consultas/01_superposicion.sql").read_text(encoding="utf-8")
+        self.assertFalse(
+            "'(sin nombre)'" in sql,
+            "la consulta volvió a rellenar el hueco con un texto que se lee como dato "
+            "(COALESCE a «(sin nombre)» en 01_superposicion.sql)")
+
+    def test_la_pantalla_lo_marca_con_el_componente_de_nulo(self):
+        app = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
+        i = app.index("async function vSuperposiciones")
+        cuerpo = app[i:i + 2500]
+        self.assertIn('Ø sin nombre', cuerpo,
+                      "la columna «Contratado/a» dejó de marcar el nulo")
+        self.assertIn('class="nulo"', cuerpo,
+                      "el nulo se escribe sin el componente que lo distingue de un dato")

@@ -11,7 +11,11 @@ SELECT
   b.documento_id                                  AS doc_b,
   a.archivo                                       AS archivo_a,
   b.archivo                                       AS archivo_b,
-  COALESCE(a.nombre_literal, '(sin nombre)')      AS contratado,
+  -- Sin COALESCE a un texto. `(sin nombre)` se escribe igual que un dato y se lee
+  -- como un dato: la norma del sistema para lo que falta es `Ø motivo`, nunca una
+  -- celda vacía y nunca un texto plano que se le parezca. La consulta devuelve lo que
+  -- hay —o nada— y cada consumidor lo dice como corresponde en su soporte.
+  a.nombre_literal                                AS contratado,
   a.documento_literal                             AS documento,
   CASE WHEN a.camara = b.camara THEN 'intracámara'
        ELSE 'intercámara' END                     AS cruce,

@@ -230,7 +230,8 @@ def a_rtf(cx: sqlite3.Connection, destino: Path) -> Path:
         p.append(P + _rtf("No se detectaron superposiciones entre los contratos legibles.") + r"\par")
     for s in sup[:60]:
         p.append(P + _rtf(
-            f"{s['contratado']} (documento {s['documento'] or 'no legible'}) registra "
+            f"{s['contratado'] or 'Un contratado sin nombre legible'} "
+            f"(documento {s['documento'] or 'no legible'}) registra "
             f"contratos superpuestos por {plural(s['dias_solapados'], 'día', 'días')}, "
             f"de tipo {s['cruce']}: el período {_periodo(s['periodo_a'])} en la cámara de "
             f"{camara(s['camara_a'])} y el período {_periodo(s['periodo_b'])} en la de "
@@ -246,7 +247,8 @@ def a_rtf(cx: sqlite3.Connection, destino: Path) -> Path:
         # Un documento que se firma, con los apellidos mal escritos. El formato del
         # importe vive en ufil/castellano.py y no toca el resto del texto.
         p.append(P + _rtf(
-            f"{a['contratado']} (documento {a['documento'] or 'no legible'}) registra "
+            f"{a['contratado'] or 'Un contratado sin nombre legible'} "
+            f"(documento {a['documento'] or 'no legible'}) registra "
             f"{plural(a['contratos_camara_a'], 'contrato', 'contratos')} en la cámara de "
             f"{camara('A')} y {a['contratos_camara_b']} en la de {camara('B')}, entre "
             f"{fecha(a['desde'])} y {fecha(a['hasta'])}, por un acumulado mensual de "

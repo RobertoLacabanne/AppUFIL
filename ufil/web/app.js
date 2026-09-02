@@ -1022,23 +1022,36 @@ async function vPanel() {
   vista.innerHTML =
     bloque('f. 0001', 'Resumen', paso + `
       <h2>Qué encontró el sistema</h2>
+      <!-- La negrita, SÓLO en la cifra.
+           Este párrafo tenía siete corridas en negrita —«47 contratos leídos», «9
+           personas figuran», «10 pares de contratos se pisan»…— y a 1024 px el bloque
+           quedaba como un damero. Cuando todo está enfatizado nada lo está: el ojo no
+           encuentra dónde parar. En una serif un número ya destaca solo; el peso extra
+           en las palabras de alrededor es el que ensucia. -->
       <p class="prosa resumen">
-        Sobre <strong>${plural(p.contratos, 'contrato leído', 'contratos leídos')}</strong>${
-          p.comprobantes ? ` y <strong>${plural(p.comprobantes, 'comprobante', 'comprobantes')}</strong>` : ''}
+        Sobre <strong>${n(p.contratos)}</strong>
+        ${p.contratos === 1 ? 'contrato leído' : 'contratos leídos'}${
+          p.comprobantes ? ` y <strong>${n(p.comprobantes)}</strong>
+          ${p.comprobantes === 1 ? 'comprobante' : 'comprobantes'}` : ''}
         del lote «${esc(p.lote)}»:
-        <strong>${plural(p.personas_ambas_camaras, 'persona figura', 'personas figuran')}</strong>
+        <strong>${n(p.personas_ambas_camaras)}</strong>
+        ${p.personas_ambas_camaras === 1 ? 'persona figura' : 'personas figuran'}
         en las dos cámaras y
-        <strong>${plural(p.superposiciones, 'par de contratos se pisa', 'pares de contratos se pisan')}</strong>
-        en el tiempo${p.fechas_imposibles ? `, y <strong>${
-          plural(p.fechas_imposibles, 'contrato tiene', 'contratos tienen')}</strong>
+        <strong>${n(p.superposiciones)}</strong>
+        ${p.superposiciones === 1 ? 'par de contratos se pisa'
+                                  : 'pares de contratos se pisan'}
+        en el tiempo${p.fechas_imposibles ? `, y <strong>${n(p.fechas_imposibles)}</strong>
+        ${p.fechas_imposibles === 1 ? 'contrato tiene' : 'contratos tienen'}
         fechas imposibles` : ''}.
-        De los <strong>${plural(p.campos_criticos_total, 'campo crítico', 'campos críticos')}</strong>
+        De los <strong>${n(p.campos_criticos_total)}</strong>
+        ${p.campos_criticos_total === 1 ? 'campo crítico' : 'campos críticos'}
         de los contratos, <strong>${n(p.campos_criticos_firmes)}</strong>
         ${p.campos_criticos_firmes === 1 ? 'está firme' : 'están firmes'}
         (${fmtPct(p.cobertura_pct)}) y <strong>${n(p.a_revisar)}</strong>
         ${p.a_revisar === 1 ? 'espera' : 'esperan'} revisión${p.excluidos ? `, y
-        <strong>${plural(p.excluidos, 'contrato queda afuera', 'contratos quedan afuera')}
-          del cruce</strong> por faltarle${p.excluidos === 1 ? '' : 's'} algún dato firme` : ''}.
+        <strong>${n(p.excluidos)}</strong>
+        ${p.excluidos === 1 ? 'contrato queda afuera' : 'contratos quedan afuera'}
+          del cruce por faltarle${p.excluidos === 1 ? '' : 's'} algún dato firme` : ''}.
       </p>
       ${(p.contratos_repetidos || p.archivos_con_varios) ? `
         <div class="aviso sep-corta">
@@ -1417,8 +1430,10 @@ async function vSuperposiciones() {
       Sólo entran contratos con las dos fechas firmes.</p>
     ${tabla([
       {t:'Folios', c:'fol', r:f => `${esc(f.archivo_a)}<br>${esc(f.archivo_b)}`},
-      {t:'Contratado/a', k:'contratado'},
-      {t:'Documento', k:'documento', c:'mono'},
+      {t:'Contratado/a', r:f => f.contratado ? esc(f.contratado)
+          : '<span class="nulo">Ø sin nombre</span>'},
+      {t:'Documento', c:'mono', r:f => f.documento ? esc(f.documento)
+          : '<span class="nulo">Ø sin dato</span>'},
       {t:'Cruce', r:f => f.cruce === 'intercámara' ? `<span class="marca">${esc(f.cruce)}</span>` : esc(f.cruce)},
       /* En formato argentino y sin partirse. La consulta los devuelve unidos y en
          ISO —`2020-03-19 → 2021-01-18`—, que es lo correcto para ordenar y lo
