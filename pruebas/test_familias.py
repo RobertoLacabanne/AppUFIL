@@ -327,3 +327,86 @@ class LaListaDeTiposViveEnUnSoloLugar(BaseMixta):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class ElSolapeSeVeSinHacerLaCuenta(unittest.TestCase):
+    """
+    La pantalla de superposiciones era cuatro fechas por fila más una columna con los
+    días, y para ver que dos períodos se pisan había que hacer la resta en la cabeza,
+    fila por fila. Es la consulta central del caso.
+
+    Lo que se mide acá es la geometría del gráfico, calculada igual que en la pantalla:
+    que un solape grande dé una barra más ancha que uno chico, y que el eje sea de cada
+    PAR y no del legajo entero —con un eje global todas las barras quedarían del tamaño
+    de una uña—.
+    """
+
+    @staticmethod
+    def _pista(ia, fa, ib, fb):
+        """Lo mismo que hace `pistaSolape` en app.js: porcentajes sobre el eje del par."""
+        from datetime import date
+        d = lambda t: date.fromisoformat(t).toordinal()
+        ia, fa, ib, fb = d(ia), d(fa), d(ib), d(fb)
+        t0, t1 = min(ia, ib), max(fa, fb)
+        luz = (t1 - t0) or 1
+        pi, pf = max(ia, ib), min(fa, fb)
+        return {
+            "a": (ia - t0) / luz * 100, "ancho_a": (fa - ia) / luz * 100,
+            "b": (ib - t0) / luz * 100, "ancho_b": (fb - ib) / luz * 100,
+            "pisa": (pf - pi) / luz * 100 if pf >= pi else 0.0,
+        }
+
+    def _app(self):
+        return (Path(__file__).resolve().parent.parent
+                / "ufil/web/app.js").read_text(encoding="utf-8")
+
+    def test_un_solape_grande_da_una_barra_mas_ancha_que_uno_chico(self):
+        """El criterio de aceptación del brief, medido: 306 días contra 5."""
+        largo = self._pista("2019-02-10", "2024-12-31", "2020-03-19", "2021-01-18")
+        corto = self._pista("2019-02-10", "2024-12-31", "2019-02-01", "2019-02-14")
+        self.assertGreater(
+            largo["pisa"], corto["pisa"] * 3,
+            "el solape de 306 días no se ve claramente más ancho que el de 5")
+
+    def test_el_eje_es_del_par_y_no_del_legajo(self):
+        """
+        Dos contratos de un mes que se pisan quince días tienen que llenar su fila. Con
+        un eje global —de 2019 a 2024— esa barra mediría menos del 2 % y no se vería.
+        """
+        p = self._pista("2020-03-01", "2020-03-31", "2020-03-16", "2020-04-15")
+        self.assertGreater(p["ancho_a"] + p["b"], 60,
+                           "las barras no llenan la fila: el eje dejó de ser del par")
+        self.assertGreater(p["pisa"], 20, "quince días de treinta y cinco casi no se ven")
+
+    def test_dos_periodos_que_no_se_tocan_no_dibujan_solape(self):
+        p = self._pista("2019-01-01", "2019-06-30", "2020-01-01", "2020-06-30")
+        self.assertEqual(p["pisa"], 0.0,
+                         "dibuja un solape donde los períodos no se tocan")
+
+    def test_la_pantalla_dice_en_palabras_lo_que_dibuja(self):
+        """Un gráfico sin rótulo no existe para quien usa lector de pantalla."""
+        app = self._app()
+        i = app.index("function pistaSolape")
+        cuerpo = app[i:app.index("\nasync function vSuperposiciones")]
+        for pieza in ('role="img"', "aria-label=", "Se pisan ${dias}"):
+            self.assertTrue(
+                pieza in cuerpo,
+                f"el gráfico se quedó sin «{pieza}»: no se puede leer en voz alta")
+
+    def test_no_dibuja_nada_si_falta_una_fecha(self):
+        """
+        Media barra sería una conjetura, y acá no se conjetura. La fila igual muestra
+        los períodos en texto.
+        """
+        self.assertTrue(
+            "if ([ia, fa, ib, fb].some(v => v == null)) return '';" in self._app(),
+            "el gráfico dibujaría con fechas incompletas")
+
+    def test_en_papel_los_dos_carriles_se_distinguen_sin_color(self):
+        """Impreso en escala de grises, dos azules son el mismo gris."""
+        css = (Path(__file__).resolve().parent.parent
+               / "ufil/web/estilo.css").read_text(encoding="utf-8")
+        impresion = css[css.index("@media print{", css.index(".pista-par")):]
+        self.assertIn("repeating-linear-gradient", impresion[:600],
+                      "el segundo carril dejó de distinguirse por trama: impreso, el "
+                      "gráfico deja de decir que son dos contratos")

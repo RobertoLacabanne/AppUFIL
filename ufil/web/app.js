@@ -1359,6 +1359,52 @@ async function vCruce() {
     ], r.filas, {placeholder: 'Buscar por nombre o documento…'});
 }
 
+/* ── El solape, dibujado ───────────────────────────────────────────────────
+   La pantalla de superposiciones era cuatro fechas por fila más una columna con los
+   días, y para ver que dos períodos se pisan había que hacer la resta en la cabeza,
+   fila por fila. El sistema ya tenía las piezas —`--marca` para el contrato,
+   `--marca-solape` para lo que se pisa, y la regla escrita en §2 de que el punzó acá
+   marca ÚNICAMENTE la superposición— y no se usaban donde más falta.
+
+   El eje es de cada PAR, no del legajo entero: la fila compara dos contratos entre
+   sí, y un eje global dejaría todas las barras del tamaño de una uña.
+
+   El gráfico no reemplaza las fechas: las anticipa. Se sigue pudiendo leer el dato
+   exacto en mono al lado, que es lo que se cita en un escrito.
+
+   La geometría va en `style` porque sale del dato —es la excepción que §4 declara
+   legítima, y la única—. */
+function pistaSolape(f) {
+  const dia = t => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t || ''); 
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null; };
+  const ia = dia(f.inicio_a), fa = dia(f.fin_a);
+  const ib = dia(f.inicio_b), fb = dia(f.fin_b);
+  // Sin las cuatro fechas no se dibuja nada. Media barra sería una conjetura, y acá
+  // no se conjetura: la fila igual muestra los períodos en texto.
+  if ([ia, fa, ib, fb].some(v => v == null)) return '';
+  const t0 = Math.min(ia, ib), t1 = Math.max(fa, fb);
+  const luz = (t1 - t0) || 1;
+  const x = t => ((t - t0) / luz) * 100;
+  const ancho = (a, b) => Math.max(((b - a) / luz) * 100, 1.2);   // que nunca sea invisible
+  const pi = Math.max(ia, ib), pf = Math.min(fa, fb);
+  const hayPisado = pf >= pi;
+
+  const barra = (clase, desde, hasta) =>
+    `<i class="${clase}" style="left:${x(desde).toFixed(2)}%;width:${ancho(desde, hasta).toFixed(2)}%"></i>`;
+
+  const dias = f.dias_solapados;
+  const rotulo = hayPisado
+    ? `Se pisan ${dias} ${dias === 1 ? 'día' : 'días'}, del ${fmtFecha(
+        new Date(pi).toISOString().slice(0, 10))} al ${fmtFecha(
+        new Date(pf).toISOString().slice(0, 10))}.`
+    : 'Los dos períodos no se tocan.';
+
+  return `<div class="pista-par" role="img" aria-label="${esc(rotulo)}">
+    ${barra('carril-a', ia, fa)}${barra('carril-b', ib, fb)}
+    ${hayPisado ? barra('pisa-a', pi, pf) + barra('pisa-b', pi, pf) : ''}
+  </div>`;
+}
+
 async function vSuperposiciones() {
   const r = await api('/api/consulta?id=01_superposicion');
   if (!r.filas.length) return vistaVacia('f. 0005', 'Cruce', 'Superposición temporal',
@@ -1374,7 +1420,14 @@ async function vSuperposiciones() {
       {t:'Contratado/a', k:'contratado'},
       {t:'Documento', k:'documento', c:'mono'},
       {t:'Cruce', r:f => f.cruce === 'intercámara' ? `<span class="marca">${esc(f.cruce)}</span>` : esc(f.cruce)},
-      {t:'Períodos', c:'mono', r:f => `${esc(f.periodo_a)}<br>${esc(f.periodo_b)}`},
+      /* En formato argentino y sin partirse. La consulta los devuelve unidos y en
+         ISO —`2020-03-19 → 2021-01-18`—, que es lo correcto para ordenar y lo
+         equivocado para leer: el resto del sistema escribe 19/03/2020, y en una
+         columna angosta la fecha ISO se cortaba a la mitad del año. */
+      {t:'Períodos', c:'mono nowrap', r:f =>
+        `${esc(fmtFecha(f.inicio_a))} → ${esc(fmtFecha(f.fin_a))}<br
+         >${esc(fmtFecha(f.inicio_b))} → ${esc(fmtFecha(f.fin_b))}`},
+      {t:'Cuánto se pisan', c:'pista', r:f => pistaSolape(f)},
       {t:'Días', k:'dias_solapados', c:'num'},
       {t:'Suma', c:'num', r:f => esc(fmtPesos(f.suma_centavos))},
       {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},

@@ -19,6 +19,13 @@ SELECT
   b.camara                                        AS camara_b,
   a.inicio || ' → ' || a.fin                      AS periodo_a,
   b.inicio || ' → ' || b.fin                      AS periodo_b,
+  -- Las mismas fechas sin unir, para poder DIBUJAR el solape en vez de obligar a
+  -- hacer la resta en la cabeza. Se agregan además de `periodo_a`/`periodo_b` y no
+  -- en su lugar: la exportación las escribe ya unidas y no tiene por qué cambiar.
+  a.inicio                                        AS inicio_a,
+  a.fin                                           AS fin_a,
+  b.inicio                                        AS inicio_b,
+  b.fin                                           AS fin_b,
   CAST(julianday(MIN(a.fin, b.fin))
      - julianday(MAX(a.inicio, b.inicio)) + 1 AS INTEGER) AS dias_solapados,
   a.monto_centavos                                AS monto_a_centavos,

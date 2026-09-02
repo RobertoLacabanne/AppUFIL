@@ -722,6 +722,9 @@ tbody tr:hover{background:var(--realce)}
 tbody tr.clic{cursor:pointer}
 .num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
 .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+/* Una fecha o un identificador no se parten a la mitad: `2020-03-19` cortado entre el
+   año y el mes deja de ser una fecha. */
+.nowrap{white-space:nowrap}
 .fol{font-family:var(--mono); font-size:11px; color:var(--tinta-3); white-space:nowrap}
 .marca{color:var(--lapiz); font-weight:600}   /* resaltado en tablas. OJO: no usar como nombre de bloque. */
 /* Trabajo por hacer adentro de una tabla. Es lo mismo que `.marca` pero en ámbar, y
@@ -979,6 +982,35 @@ button:disabled{opacity:.45; cursor:not-allowed}
 .hallazgo:hover{background:var(--realce)}
 .hallazgo .frag{font-family:var(--serif); font-size:13px; color:var(--tinta-2); line-height:1.5}
 mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weight:600}
+
+/* ── El solape, dibujado, adentro de una fila de la tabla ─────────────────
+   Dos carriles apilados: arriba un contrato, abajo el otro. En `--marca` los dos,
+   porque son la misma cosa —un contrato— y distinguirlos por color diría algo que no
+   es. Lo que se pisa va en `--marca-solape`, y es el único punzó de esta pantalla:
+   significa exactamente lo que el punzó tiene permitido significar.
+
+   El tramo pisado se pinta ENCIMA de cada barra y no como un bloque aparte: así cada
+   carril se lee entero —dónde empieza, dónde termina— y el rojo marca el pedazo del
+   propio contrato que está en conflicto, que es la lectura correcta. */
+.pista-par{position:relative; height:22px; min-width:110px}
+.pista-par i{position:absolute; display:block; height:7px; border-radius:2px;
+  background:var(--marca)}
+.pista-par .carril-a, .pista-par .pisa-a{top:3px}
+.pista-par .carril-b, .pista-par .pisa-b{top:12px}
+.pista-par .pisa-a, .pista-par .pisa-b{background:var(--marca-solape)}
+td.pista{width:22%; min-width:120px; vertical-align:middle}
+@media (max-width:720px){ td.pista{width:auto} .pista-par{min-width:80px} }
+/* En papel no hay color: el segundo carril se distingue por trama. Impreso en escala
+   de grises los dos azules son el mismo gris, y entonces el gráfico deja de decir que
+   son dos contratos. */
+@media print{
+  .pista-par i{background:#555 !important; border-radius:0}
+  .pista-par .carril-b{background-image:repeating-linear-gradient(90deg,
+    #555 0 3px, #fff 3px 5px) !important}
+  .pista-par .pisa-a, .pista-par .pisa-b{background:#000 !important; height:9px}
+  .pista-par .pisa-b{background-image:repeating-linear-gradient(90deg,
+    #000 0 3px, #fff 3px 5px) !important}
+}
 
 /* ── Cronología de tramos ─────────────────────────────────────────────── */
 

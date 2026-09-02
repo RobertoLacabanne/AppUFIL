@@ -141,6 +141,14 @@ PARES = [
     ("ambar",         "realce", 4.5, "cifra en ámbar en su baldosa"),
     ("lapiz",         "realce", 4.5, "cifra en conflicto en su baldosa"),
     ("sello",         "realce", 4.5, "enlace sobre una fila resaltada"),
+
+    # La cronología por par de la pantalla de superposiciones. Las barras son
+    # información —dicen cuánto se pisan dos contratos—, no adorno, así que entran en
+    # el criterio 1.4.11 y piden 3:1 contra la superficie donde se apoyan.
+    ("marca",        "folio", 3.0, "la barra de un contrato en la cronología del par"),
+    ("marca-solape", "folio", 3.0, "el tramo que se pisa, que es lo que el gráfico existe para mostrar"),
+    ("marca",        "realce", 3.0, "la barra sobre una fila bajo el puntero"),
+    ("marca-solape", "realce", 3.0, "el tramo pisado sobre una fila bajo el puntero"),
 ]
 
 
