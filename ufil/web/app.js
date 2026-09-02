@@ -1602,14 +1602,15 @@ function avanceCola(r) {
   const hechos = r.revisados || 0;
   const universo = hechos + (r.total_sin_filtro || 0);
   if (!universo) return '';
-  return `<div class="avance" id="avance">${tripasAvance(hechos, universo, r.revisores)}</div>`;
+  return `<div class="avance" id="avance">${
+    tripasAvance(hechos, universo, r.revisores, 0, r.total)}</div>`;
 }
 
 /* Se separa del envoltorio porque hay que volver a pintarla en cada decisión SIN
    volver a pedir la cola: la pantalla saca la fila decidida y sigue, y una barra de
    avance que sólo se mueve al recargar es peor que no tenerla —quien revisa cuarenta
    minutos la ve clavada y concluye que no anda—. */
-function tripasAvance(hechos, universo, revisores) {
+function tripasAvance(hechos, universo, revisores, donde, cuantos) {
   const pct = Math.round(hechos * 100 / universo);
   const yo = (REVISOR || '').trim();
   const equipo = (revisores || []).filter(x => x.n > 0);
@@ -1633,8 +1634,17 @@ function tripasAvance(hechos, universo, revisores) {
   } else if (hechos && otros.length > 1 && !yo) {
     detalle = `, entre ${fmtNum.format(otros.length)} personas`;
   }
+  /* Dónde estás y cuánto llevás, en el MISMO renglón.
+     Eran dos: «0 de 62 campos revisados» arriba a la izquierda y «1 de 62» arriba a
+     la derecha, separados por todo el ancho de la pantalla. Uno es avance y el otro
+     es posición, pero se leen igual, y en el teléfono quedaban pegados uno al otro,
+     donde además se veía que el 0 y el 1 no coinciden. Dos cuentas del mismo total en
+     la misma pantalla es una de más. */
+  const posicion = cuantos
+    ? `<span class="donde">Campo <strong>${fmtNum.format(donde + 1)}</strong> de
+        ${fmtNum.format(cuantos)}</span> · ` : '';
   return `<div class="riel"><i style="width:${pct}%"></i></div>
-    <p><strong>${fmtNum.format(hechos)}</strong> de ${fmtNum.format(universo)}
+    <p>${posicion}<strong>${fmtNum.format(hechos)}</strong> de ${fmtNum.format(universo)}
       ${universo === 1 ? 'campo revisado' : 'campos revisados'}${detalle}.</p>`;
 }
 
@@ -1645,8 +1655,12 @@ function pintarAvance() {
   const hechos = colaEstado.revisados || 0;
   const universo = hechos + (colaEstado.total_sin_filtro || 0);
   if (!universo) return;
-  caja.innerHTML = tripasAvance(hechos, universo, colaEstado.revisores);
+  caja.innerHTML = tripasAvance(hechos, universo, colaEstado.revisores,
+                                colaEstado.foco, colaEstado.total);
 }
+
+/* Un teléfono, medido y no supuesto: el mismo corte que usa la hoja de estilos. */
+const esTelefono = () => window.matchMedia('(max-width:720px)').matches;
 
 let colaEstado = {filas: [], foco: 0};
 
@@ -1706,6 +1720,7 @@ async function vCola(campoId) {
      Ahora se mueve una sola cosa: la lista. La foja de al lado entra entera en su
      panel, escalada, sin desplazamiento propio. */
   document.body.classList.add('taller-abierto');
+  const hayFiltro = !!(filtroCola.familia || filtroCola.campo || filtroCola.clase);
   vista.innerHTML = `
     <div class="taller">
       <header class="taller-cabeza">
@@ -1721,12 +1736,18 @@ async function vCola(campoId) {
             <strong>El folio está a la vista</strong>: no hace falta salir de acá.</p>
           ${avanceCola(r)}
         </div>
-        <div class="posicion" id="posicion"></div>
       </header>
 
       <div class="otros-revisaron" id="otros-revisaron" hidden></div>
 
-      <div class="taller-filtros">
+      <!-- Plegados en el teléfono. Tres selectores a ancho completo son tres
+           renglones de 44 px que hay que pasar CADA VEZ que se entra, y en el caso
+           normal —sin filtro— no dicen nada. Abiertos si hay alguno puesto: un filtro
+           activo escondido es peor que tres selectores de más. -->
+      <details class="taller-filtros" id="filtros-cola"${
+          hayFiltro || !esTelefono() ? ' open' : ''}>
+        <summary>Filtros${hayFiltro ? ' · activos' : ''}
+          <span class="rotulo">${plural(r.total_sin_filtro, 'campo', 'campos')}</span></summary>
         <label>Documento
           <select id="f-familia"><option value="">todos (${todas.length})</option>
             ${opciones('familia', v => FAMILIA_DOC[v] || 'sin clasificar')}</select></label>
@@ -1738,7 +1759,7 @@ async function vCola(campoId) {
             ${opciones('clase', v => CLASE_COLA[v] || v)}</select></label>
         ${filtroCola.familia || filtroCola.campo || filtroCola.clase
           ? `<button class="boton gris" id="f-limpiar">Quitar los filtros</button>` : ''}
-      </div>
+      </details>
 
       <div class="taller-cuerpo">
         <div class="cola" id="cola">${
@@ -2005,15 +2026,8 @@ function pintarFoco() {
   // Dónde estás sobre el TOTAL, no sobre lo que llegó. «1 de 400» con 3.892 campos
   // esperando no es una imprecisión: es esconder tres mil cuatrocientos noventa y dos
   // campos de trabajo, y quien termine los 400 va a creer que el legajo está listo.
-  const pos = $('#posicion');
-  if (pos) {
-    const filtrado = colaEstado.total !== colaEstado.total_sin_filtro;
-    pos.innerHTML = colaEstado.total
-      ? `<b>${fmtNum.format(colaEstado.foco + 1)}</b> de ${fmtNum.format(colaEstado.total)}` +
-        (filtrado ? ` <span class="de-todo">(${fmtNum.format(colaEstado.total_sin_filtro)}
-           en la cola entera)</span>` : '')
-      : '';
-  }
+  // La posición vive en el renglón de avance, que es uno solo y dice las dos cosas.
+  pintarAvance();
   // Al acercarse al final de lo cargado, se trae la página siguiente. Que bajar con J
   // se termine en la fila 200 de 3.892 sería el mismo tope de antes con otra cara.
   if (colaEstado.foco >= colaEstado.filas.length - 5) traerMasCola();

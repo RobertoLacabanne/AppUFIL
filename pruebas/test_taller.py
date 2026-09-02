@@ -199,3 +199,103 @@ class ElNombreDelDocumentoNoSeParte(unittest.TestCase):
         cuerpo = APP[i:APP.index("\nfunction filaCola")]
         self.assertIn('title="${esc(n)}"', cuerpo,
                       "el nombre completo dejó de estar disponible al pasar el puntero")
+
+
+def _hay(caso, aguja, donde, queja):
+    """
+    `assertIn` contra un archivo de tres mil líneas imprime el archivo entero cuando
+    falla, y ahí el mensaje ya no se puede leer.
+    """
+    caso.assertTrue(aguja in donde, queja + f"\n  (falta: {aguja!r})")
+
+
+class EnUnTelefonoSeEmpiezaATrabajarEnSeguida(unittest.TestCase):
+    """
+    Contado en un teléfono de 390×844: antes de la primera fila que hay que decidir
+    había el techo, el título, dos renglones de prosa, la barra de avance, tres
+    selectores a ancho completo y el recorte de la foja con su botón. La primera fila
+    arrancaba cerca de los **1.300 px**: tres pantallas de desplazamiento cada vez que
+    se entra, sólo para empezar.
+
+    Medido después del cambio: 226 px.
+    """
+
+    def _movil(self):
+        """
+        TODO el CSS de teléfono, con las llaves balanceadas.
+
+        Cortar desde el primer `@media (max-width:720px){` hasta el final del archivo
+        —que es lo que hacía— se lleva puestas también las reglas de escritorio que
+        vienen después, y entonces `re.search` encuentra la de escritorio y da por
+        buena una regla de teléfono que no existe. Lo encontré porque tres pruebas
+        fallaron señalando el cuerpo equivocado.
+        """
+        trozos, i = [], 0
+        marca = "@media (max-width:720px){"
+        while (i := CSS.find(marca, i)) != -1:
+            j, hondo = i + len(marca), 1
+            while j < len(CSS) and hondo:
+                hondo += (CSS[j] == "{") - (CSS[j] == "}")
+                j += 1
+            trozos.append(CSS[i + len(marca):j - 1])
+            i = j
+        self.assertTrue(trozos, "no hay ningún bloque de teléfono en la hoja")
+        return "\n".join(trozos)
+
+    def _regla(self, selector, donde):
+        cuerpos = re.findall(re.escape(selector) + r"\{([^{}]*)\}", donde)
+        self.assertTrue(cuerpos, f"se perdió la regla «{selector}» del teléfono")
+        return " ".join(cuerpos).replace(" ", "")
+
+    def test_el_recorte_de_la_foja_va_despues_de_la_lista(self):
+        """
+        En el escritorio va al costado y se mira de reojo. En el teléfono el orden
+        natural es ver qué hay que decidir y DESPUÉS mirar el papel; iba con
+        `order:-1`, o sea primero, empujando la lista una pantalla para abajo.
+        """
+        cuerpo = self._regla(".taller-cuerpo .folio-lado", self._movil())
+        self.assertIn("order:1", cuerpo,
+                      "el recorte de la foja volvió a ponerse arriba de la lista")
+        self.assertIn("position:static", cuerpo,
+                      "sigue pegado arriba: ocupa pantalla antes de la primera fila")
+
+    def test_los_filtros_van_plegados(self):
+        """Tres selectores de 44 px que en el caso normal —sin filtro— no dicen nada."""
+        _hay(self, '<details class="taller-filtros"', APP,
+             "los filtros dejaron de poder plegarse")
+        _hay(self, "hayFiltro || !esTelefono()", APP,
+             "los filtros dejaron de abrirse solos cuando hay uno puesto: un filtro "
+             "activo escondido es peor que tres selectores de más")
+        self.assertIn("display:flex", self._regla(".taller-filtros > summary", self._movil()),
+                      "el resumen plegable no se ve en el teléfono")
+
+    def test_la_prosa_explicativa_no_va_en_el_telefono(self):
+        """Dice cómo funciona la pantalla y se lee una vez; cuesta dos renglones cada
+        vez que se entra."""
+        self.assertIn("display:none", self._regla(".taller-sub", self._movil()))
+
+
+class UnSoloContadorYNoDos(unittest.TestCase):
+    """
+    Convivían «0 de 62 campos revisados» arriba a la izquierda y «1 de 62» arriba a la
+    derecha, separados por todo el ancho de la pantalla. Uno es avance y el otro es
+    posición, pero se leen igual, y en el teléfono quedaban pegados uno al otro, donde
+    además se veía que el 0 y el 1 no coinciden.
+    """
+
+    def test_el_contador_de_la_derecha_ya_no_existe(self):
+        self.assertFalse('id="posicion"' in APP,
+                         "volvió el segundo contador arriba a la derecha")
+        self.assertFalse(".taller-cabeza .posicion" in CSS,
+                         "quedó CSS de un contador que ya no se pinta")
+
+    def test_el_que_queda_dice_las_dos_cosas(self):
+        i = APP.index("function tripasAvance")
+        cuerpo = APP[i:APP.index("\n/* Vuelve a pintar el avance")]
+        _hay(self, "Campo <strong>", cuerpo, "el renglón dejó de decir dónde estás")
+        _hay(self, "campos revisados", cuerpo, "el renglón dejó de decir cuánto llevás")
+
+    def test_la_posicion_se_repinta_al_moverse(self):
+        """Un contador que sólo se actualiza al recargar es peor que no tenerlo."""
+        _hay(self, "colaEstado.foco, colaEstado.total", APP,
+             "el renglón dejó de recibir la posición al repintarse")

@@ -1245,14 +1245,6 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
             text-wrap:pretty;
             color:var(--tinta-2); max-width:64ch}
 .taller-sub strong{color:var(--tinta)}
-/* El «1 de 42», que es lo único de esta pantalla que se mira de reojo cada treinta
-   segundos. Grande, alineado a la derecha y siempre en el mismo lugar. */
-.taller-cabeza .posicion{flex:none; text-align:right; font-family:var(--mono);
-  font-size:12px; color:var(--tinta-2); line-height:1.35; padding-top:2px}
-.taller-cabeza .posicion b{font-size:24px; font-weight:600; color:var(--tinta);
-  font-variant-numeric:tabular-nums; letter-spacing:-.02em}
-.taller-cabeza .de-todo{display:block; font-family:var(--sans); font-size:11px;
-  color:var(--tinta-3)}
 
 /* El avance va debajo del subtítulo y NO al lado del «1 de 42»: son dos cosas
    distintas —dónde está el cursor y cuánto se lleva hecho— y juntas se confunden. */
@@ -1260,10 +1252,19 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 .avance .riel{height:6px}
 .avance p{margin:6px 0 0; font-size:12px; color:var(--tinta-2)}
 .avance p strong{color:var(--tinta); font-variant-numeric:tabular-nums}
+/* Dónde estás, al principio del renglón: es lo que se mira de reojo cada treinta
+   segundos, así que va primero y con algo más de cuerpo. */
+.avance .donde{font-size:15px}
+.avance .donde strong{font-size:18px; letter-spacing:-.01em}
 
 .taller-filtros{display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;
   padding:11px 24px; background:var(--realce);
   border-bottom:1px solid var(--filete-2)}
+/* Es un `<details>`: en el escritorio va abierto y se ve igual que antes —el resumen
+   se esconde—, y en el teléfono va plegado. El navegador se encarga de abrirlo y
+   cerrarlo, sin JavaScript que mantener. */
+.taller-filtros > summary{display:none}
+.taller-filtros[open]{display:flex}
 
 /* Lo que revisaron los demás mientras esta pantalla estaba abierta. Es una faja más
    del taller y ocupa alto sólo cuando tiene algo que decir: `hidden` la saca de la
@@ -1327,10 +1328,33 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 }
 @media (max-width:720px){
   .taller-cabeza, .taller-filtros, .taller-pie{padding-left:16px; padding-right:16px}
-  .taller-cuerpo .folio-lado{padding:8px 16px 10px; top:0}
   .taller-cuerpo .folio-lado .lienzo{display:none}
   .taller-cabeza{flex-direction:column; gap:8px}
-  .taller-cabeza .posicion{text-align:left}
+  
+  /* ── Empezar a trabajar sin bajar tres pantallas ────────────────────────
+     Contado en un teléfono de 390×844: antes de la primera fila que hay que decidir
+     había el techo, el título, dos renglones de prosa, la barra de avance, tres
+     selectores a ancho completo y el recorte de la foja con su botón. La primera
+     fila arrancaba cerca de los 1.300 px: tres pantallas de desplazamiento cada vez
+     que se entra, para empezar. */
+
+  /* 1. El recorte de la foja, DESPUÉS de la lista y no antes. En el escritorio va al
+        costado y se mira de reojo; en el teléfono el orden natural es ver qué hay que
+        decidir y después mirar el papel. Iba con `order:-1`, o sea primero. */
+  .taller-cuerpo .folio-lado{order:1; position:static; padding:10px 16px 12px;
+    border-top:1px solid var(--filete); border-bottom:none}
+
+  /* 2. Los filtros, plegados. El `<summary>` vuelve a verse y la caja se cierra. */
+  .taller-filtros{display:block; padding:0}
+  .taller-filtros > summary{display:flex; gap:9px; align-items:baseline; cursor:pointer;
+    padding:12px 16px; min-height:44px; font-weight:600; font-size:13px}
+  .taller-filtros[open]{display:block; padding-bottom:12px}
+  .taller-filtros[open] > summary{margin-bottom:4px}
+  .taller-filtros > label, .taller-filtros > .boton{margin:0 16px 10px}
+
+  /* 3. La prosa explicativa, sólo en el escritorio. Dice cómo funciona la pantalla y
+        se lee UNA vez; en un teléfono cuesta dos renglones cada vez que se entra. */
+  .taller-sub{display:none}
 }
 
 /* La lupa: el renglón del campo, ampliado. Es lo que hace falta para decidir. */
@@ -1636,7 +1660,6 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   .taller-filtros{gap:9px}
   .taller-filtros label{flex:1 1 45%}
   .taller-filtros select{width:100%; max-width:none; min-height:44px}
-  .taller-filtros .posicion{margin-left:0; flex-basis:100%}
 }
 
 /* En un teléfono esto no puede ser una tabla. Elegir legajo es comparar cuánto
