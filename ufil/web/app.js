@@ -646,7 +646,7 @@ async function vLegajos() {
         <button class="boton lleno" type="submit">Crear el legajo</button>
       </form>
       <p id="err-legajo" class="aviso" hidden></p>
-      <p class="prosa" style="font-size:13px">El número queda como nombre de la carpeta
+      <p class="prosa nota">El número queda como nombre de la carpeta
         en disco, para que mirando los archivos se entienda qué hay adentro de cada una.
         ¿Tenés una copia de respaldo de un legajo?
         <a href="#" id="ir-restaurar">Volvé a cargarla acá</a>.</p>
@@ -783,7 +783,7 @@ function pedirRestaurar(activos) {
       <select id="r-legajo">${activos.map(l =>
         `<option value="${esc(l.slug)}" data-numero="${esc(l.numero)}"
           >${esc(l.numero)} — ${esc(l.caratula)}</option>`).join('')}</select>
-      <label for="r-archivo" style="margin-top:12px">El archivo de la copia
+      <label for="r-archivo" class="sep-corta">El archivo de la copia
         <span class="opt">(.sqlite)</span></label>
       <input id="r-archivo" type="file" accept=".sqlite">
       <div id="r-contenido"></div>
@@ -981,7 +981,7 @@ async function vPanel() {
         'y cruza solo; lo que no puede leer con seguridad lo deja marcado para que lo ' +
         'revise una persona.',
         {href:'#/ingesta', texto:'Cargar escaneos'})}
-      <p class="prosa" style="margin-top:18px;font-size:13px">
+      <p class="prosa nota sep-corta">
         ¿Primera vez? <a href="#/como-funciona">Cómo funciona</a> lo explica en una pantalla.</p>`);
     return;
   }
@@ -1041,8 +1041,8 @@ async function vPanel() {
           del cruce</strong> por faltarle${p.excluidos === 1 ? '' : 's'} algún dato firme` : ''}.
       </p>
       ${(p.contratos_repetidos || p.archivos_con_varios) ? `
-        <div class="aviso" style="margin-top:14px">
-          <span class="sello alerta" style="flex:none">Revisar</span>
+        <div class="aviso sep-corta">
+          <span class="sello alerta">Revisar</span>
           <span>${p.archivos_con_varios ? `<strong>${plural(p.archivos_con_varios,
               'archivo trae varios documentos adentro', 'archivos traen varios documentos adentro')
             }</strong> y se separaron solos. ` : ''}
@@ -1053,15 +1053,15 @@ async function vPanel() {
             <a href="#/consultas/08_contratos_repetidos">ver cuáles</a>.` : ''}</span>
         </div>` : ''}
       ${p.afuera ? `
-        <div class="aviso" style="margin-top:14px">
-          <span class="sello alerta" style="flex:none">Afuera</span>
+        <div class="aviso sep-corta">
+          <span class="sello alerta">Afuera</span>
           <span><strong>${plural(p.afuera, 'archivo no produjo ningún documento',
               'archivos no produjeron ningún documento')}</strong> y
             por lo tanto no ${p.afuera === 1 ? 'entra' : 'entran'} en ninguno de estos números:
             <a href="#/afuera">ver cuáles y por qué</a>.</span>
         </div>` : ''}
       ${p.destacados.length ? `
-        <h3 style="margin-top:20px">Las superposiciones más largas</h3>
+        <h3>Las superposiciones más largas</h3>
         <div class="destacados">
           <div class="destacado-fila cab">
             <span class="dias">días</span><span class="quien">contratado/a</span>
@@ -1069,7 +1069,7 @@ async function vPanel() {
           </div>
           ${destacados}
         </div>
-        <p class="prosa" style="font-size:13px;margin-top:10px">
+        <p class="prosa nota sep-corta">
           <a href="#/superposiciones">Ver las ${n(p.superposiciones)} superposiciones</a> ·
           <a href="#/personas">ver a todos los contratados</a></p>` : ''}`) +
 
@@ -1093,7 +1093,7 @@ async function vPanel() {
           <span>fojas enderezadas</span></div>` : ''}
       </div>
 
-      <h3 style="margin-top:22px">Lo contratado</h3>
+      <h3>Lo contratado</h3>
       <div class="cifras totales">
         <div class="cifra ancha firme">
           <b>${esc(fmtPesos(t.total_firme_centavos))}</b>
@@ -1109,7 +1109,7 @@ async function vPanel() {
           <b>${n(t.contratos_sin_monto_firme)}</b><span>contratos sin monto firme</span></div>
       </div>
       ${t.comprobantes ? `
-      <h3 style="margin-top:22px">Lo facturado</h3>
+      <h3>Lo facturado</h3>
       <div class="cifras totales">
         <div class="cifra ancha facturado">
           <b>${esc(fmtPesos(t.total_facturado_firme_centavos))}</b>
@@ -1119,21 +1119,21 @@ async function vPanel() {
           <b>${n(t.comprobantes_sin_importe_legible)}</b>
           <span>sin importe legible · escritos a mano</span></div>
       </div>
-      <p class="prosa" style="font-size:12.5px;margin-top:10px">
+      <p class="prosa nota sep-corta">
         <strong>Lo facturado no se suma con lo contratado.</strong> El contrato dice
         cuánto se pactó pagar y la factura dice cuánto se cobró: cuando la factura es el
         cobro de ese mismo contrato, sumarlos cuenta la misma plata dos veces. Para ver
         uno contra otro, persona por persona, está
         <a href="#/cruce">Lo facturado contra lo contratado</a>.</p>` : ''}
       ${t.documentos_sin_familia ? `
-      <div class="aviso" style="margin-top:12px">
-        <span class="sello atencion" style="flex:none">Sin clasificar</span>
+      <div class="aviso sep-corta">
+        <span class="sello atencion">Sin clasificar</span>
         <span>${plural(t.documentos_sin_familia, 'documento', 'documentos')} no se
           reconoce${t.documentos_sin_familia === 1 ? '' : 'n'} como contrato ni como
           comprobante, así que no entra${t.documentos_sin_familia === 1 ? '' : 'n'} en
           ningún total. Están en <a href="#/afuera">Quedaron afuera</a>.</span>
       </div>` : ''}
-      <p class="prosa" style="font-size:12.5px;margin-top:10px">
+      <p class="prosa nota sep-corta">
         <strong>El total firme</strong> suma únicamente los montos que el sistema leyó con
         confianza alta o que una persona verificó contra el documento. <strong>El
         provisional</strong> son montos leídos que todavía están esperando revisión: se
@@ -1144,7 +1144,7 @@ async function vPanel() {
         ${p.paginas_enderezadas === 1 ? 'Una foja llegó' : n(p.paginas_enderezadas) + ' fojas llegaron'}
         girada en el escaneo y se enderezó la copia de trabajo para poder leerla.` : ''}</p>
       ${(p.perfiles || []).length > 1 ? `
-        <p class="prosa" style="font-size:12.5px">
+        <p class="prosa nota">
           Se reconocieron <strong>${p.perfiles.length} formatos de formulario</strong> distintos:
           ${p.perfiles.map(f => `<span class="mono">${esc(f.perfil)}</span> (${f.n})`).join(', ')}.</p>` : ''}`) +
 
@@ -1155,7 +1155,7 @@ async function vPanel() {
         confianza alta, o lo verificó una persona contra el documento. Todo lo demás
         existe y se ve, pero no entra en ningún total. Una cola larga no es una falla: es
         el sistema prefiriendo dudar antes que equivocarse callado.</p>
-      <p class="prosa" style="font-size:12.5px">Van separados por tipo de documento
+      <p class="prosa nota">Van separados por tipo de documento
         porque el mismo campo dice cosas distintas: en un contrato <em>Contratado</em> es
         quien fue contratado, y en una factura es quien la emitió.</p>
       ${tabla([
@@ -1188,7 +1188,7 @@ async function vPanel() {
           {t:'Ausentes confirmados', k:'ausentes_confirmados', c:'num'},
         ], cob)}
       </details>
-      ${p.excluidos ? `<p class="prosa" style="font-size:13px;margin-top:12px">
+      ${p.excluidos ? `<p class="prosa nota sep-corta">
         <strong>${plural(p.excluidos, 'contrato quedó fuera del cruce',
                           'contratos quedaron fuera del cruce')}</strong> por faltarle${
           p.excluidos === 1 ? '' : 's'} algún dato firme:
@@ -1200,23 +1200,23 @@ async function vPanel() {
         interlineado 1,5, justificado y cuerpo 11. <strong>Cada afirmación del informe cita
         el archivo y la foja</strong> de donde salió el dato, para poder verificarla contra
         el original.</p>
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px">
+      <div class="fila-suelta">
         <a class="boton" href="/descargar?que=xlsx">Descargar la planilla (.xlsx)</a>
         <a class="boton gris" href="/descargar?que=rtf">Descargar el informe (.rtf)</a>
         <button class="boton gris" onclick="window.print()">Imprimir esta pantalla</button>
       </div>
-      <p class="prosa" style="font-size:12.5px;margin-top:12px">La planilla abre con una
+      <p class="prosa nota sep-corta">La planilla abre con una
         portada que aclara qué campos no están verificados por una persona. Nada de lo que
         sale de acá debería incorporarse a un legajo sin cotejarlo contra el original.</p>
-      <h3 style="margin-top:22px">Y guardar una copia</h3>
+      <h3>Y guardar una copia</h3>
       <p class="prosa">Los PDF originales están en su carpeta y las imágenes de página se
         rehacen procesando de nuevo. Lo que <strong>no</strong> se regenera es el trabajo
         de las personas: cada campo revisado contra el folio, cada identidad confirmada,
         con quién y cuándo. Eso vive en un solo archivo.</p>
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px">
+      <div class="fila-suelta">
         <a class="boton" href="/descargar?que=respaldo">Descargar una copia de respaldo</a>
       </div>
-      <p class="prosa" style="font-size:12.5px;margin-top:12px">La copia se hace con el
+      <p class="prosa nota sep-corta">La copia se hace con el
         sistema andando, sin pedirle a nadie que deje de trabajar. Conviene bajarla al
         terminar cada jornada de revisión y dejarla en otro disco.</p>`);
 }
@@ -1268,7 +1268,7 @@ async function vComprobantes() {
       contrato, sumarlas la cuenta dos veces. El cruce está en
       <a href="#/cruce">Lo facturado contra lo contratado</a>.</p>
     ${aMano ? `<div class="aviso">
-      <span class="sello atencion" style="flex:none">A mano</span>
+      <span class="sello atencion">A mano</span>
       <span>${plural(aMano, 'comprobante tiene', 'comprobantes tienen')} el importe
         escrito a mano. <strong>No se lee con OCR</strong> —leerlo mal y no saberlo es
         peor que no leerlo— así que aparece vacío y espera que una persona lo cargue
@@ -1311,7 +1311,7 @@ async function vCruce() {
       factura lleva adentro el DNI del contrato</strong>, así que se cruzan solos aunque
       el nombre esté escrito distinto en cada foja.</p>
     <div id="tabla-cruce"></div>
-    <p class="prosa" style="font-size:12.5px;margin-top:12px">
+    <p class="prosa nota sep-corta">
       <strong>Mensual y total no son lo mismo, y no se comparan entre sí.</strong> El
       contrato fija un importe <em>mensual</em>; las facturas se acumulan. El único
       número comparable con lo facturado es el <strong>total contratado</strong>, que el
@@ -1319,13 +1319,13 @@ async function vCruce() {
       vez de mostrar un cero o el mensual en su lugar: el sistema no multiplica mensual
       por plazo para llenarla, porque eso sería calcular un número que el papel dice o
       no dice.</p>
-    <p class="prosa" style="font-size:12.5px">
+    <p class="prosa nota">
       <strong>Una fila por persona, no por contrato.</strong> Una factura no dice a qué
       contrato corresponde, y repartirlas por fecha sería adivinar. Con una fila por
       contrato, quien tiene dos aparecía dos veces y cada fila traía todas sus facturas:
       sumar la columna daba el doble de lo facturado. El detalle contrato por contrato
       está en la ficha de cada persona.</p>
-    <p class="prosa" style="font-size:12.5px">
+    <p class="prosa nota">
       <strong>Facturado legible</strong> suma sólo los importes impresos que se pudieron
       leer con seguridad. La columna <strong>a mano</strong> cuenta las facturas de
       talonario, donde el importe está manuscrito y el sistema no lo lee: existen y no
@@ -1401,7 +1401,7 @@ async function vDocumento(id) {
       ? `<button class="ancla" data-campo="${c.id}">f.${c.pagina_nro} · ▣</button>` : '';
     const tocado = c.estado === 'verificado' || c.estado === 'corregido';
     const marca = tocado
-      ? ` <span class="sello ok" style="font-size:8.5px;padding:1px 5px;outline:none">✓ ${
+      ? ` <span class="sello ok mini-cuno">✓ ${
            c.estado === 'corregido' ? 'cargado a mano' : 'verificado'}</span>` +
         ` <button class="deshacer" data-campo="${c.id}"
             title="volver a lo que había leído el sistema">deshacer</button>` : '';
@@ -1426,18 +1426,17 @@ async function vDocumento(id) {
     <h2>${esc(doc.archivo)}${varios
         ? ` <span class="rotulo">documento ${doc.orden} de ${d.hermanos.length}</span>` : ''}</h2>
     <p class="tipo-doc"><span class="sello">${esc(TIPO_DOC[doc.tipo] || doc.tipo)}</span></p>
-    <p class="prosa" style="font-size:13px">
+    <p class="prosa nota">
       ${doc.camara ? 'Cámara de ' + esc(camaraTexto(doc.camara)) + ' · ' : ''}perfil <span class="mono">${esc(doc.perfil)}</span> ·
       lote ${esc(doc.lote || '—')} ·
       fojas <span class="mono">${doc.pagina_desde}–${doc.pagina_hasta}</span><br>
-      <span class="mono" style="font-size:11px">sha256 ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
-    ${enderezadas.length ? `<div class="aviso" style="border-left-color:var(--sello);
-      background:var(--sello-suave)"><span class="sello" style="flex:none">Enderezado</span>
+      <span class="mono menor">sha256 ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
+    ${enderezadas.length ? `<div class="aviso info"><span class="sello">Enderezado</span>
       <span>${enderezadas.length === 1 ? 'La foja' : 'Las fojas'}
       ${enderezadas.map(p => `${p.nro} (${p.rotacion}°)`).join(', ')} llegó girada en el
       escaneo. <strong>El original no se tocó</strong>: se giró la copia de trabajo para
       poder leerla, y es esa la que ves acá.</span></div>` : ''}
-    ${varios ? `<div class="aviso"><span class="sello alerta" style="flex:none">Ojo</span>
+    ${varios ? `<div class="aviso"><span class="sello alerta">Ojo</span>
       <span>Este PDF trae <strong>${plural(d.hermanos.length, 'documento', 'documentos')}</strong>
       adentro. Estás viendo el número ${doc.orden}, que ocupa las fojas
       ${doc.pagina_desde} a ${doc.pagina_hasta}. Los otros:
@@ -1447,7 +1446,7 @@ async function vDocumento(id) {
       ).join(' · ')}</span></div>` : ''}
     <div class="visor">
       <div class="datos">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px">
+        <div class="entre-extremos">
           <span class="rotulo">Carril de datos — leído del documento</span>
         </div>
         ${campos}
@@ -1456,16 +1455,16 @@ async function vDocumento(id) {
         ${paginas.length > 1 ? `<div class="fojas">${tiras}</div>` : ''}
         <div class="lienzo" id="lienzo">
           <img id="folio" alt="Foja de ${esc(doc.archivo)}">
-          <div class="recuadro" id="recuadro" style="display:none"></div>
+          <div class="recuadro" id="recuadro" hidden></div>
         </div>
         <div class="pie-lamina"><span id="pie-campo">tocá una ficha de anclaje</span>
           <span id="pie-xy"></span></div>
       </div>
     </div>
     ${d.interpretaciones.length ? `
-      <div style="margin-top:22px">
+      <div class="sep">
         <span class="rotulo">Carril de interpretación — conjeturas del sistema</span>
-        <p class="prosa" style="font-size:13px;margin:6px 0 12px">Esto no se leyó de ningún
+        <p class="prosa nota">Esto no se leyó de ningún
           papel: son hipótesis armadas cruzando datos. Pueden estar mal. Cada una linkea a
           los documentos que la sostienen.</p>
         ${d.interpretaciones.map(interpHTML).join('')}
@@ -1702,7 +1701,7 @@ async function vCola(campoId) {
           <div class="pie-lamina"><span id="lupa-campo"></span><span id="lupa-xy"></span></div>
           <div class="lienzo" id="lienzo-cola">
             <img id="folio-cola" alt="">
-            <div class="recuadro" id="recuadro-cola" style="display:none"></div>
+            <div class="recuadro" id="recuadro-cola" hidden></div>
           </div>
           <a class="chip" id="ir-doc" href="#/panel">ver el documento completo</a>
         </aside>
@@ -2106,10 +2105,10 @@ async function vIdentidad() {
       <div class="fila" data-i="${i}">
         <div class="marginalia"><span>#${f.id}</span><span>${(f.score * 100).toFixed(0)}%</span></div>
         <div class="med">
-          <div class="rotulo" style="margin-bottom:7px">${esc(f.motivo)}</div>
-          <div class="mono" style="font-size:12.5px;display:flex;flex-direction:column;gap:3px">
-            <span>${esc(f.lit_a)} <span style="color:var(--tinta-3)">— ${esc(f.doc_a || 'sin documento')}</span></span>
-            <span>${esc(f.lit_b)} <span style="color:var(--tinta-3)">— ${esc(f.doc_b || 'sin documento')}</span></span>
+          <div class="rotulo sep-abajo-corta">${esc(f.motivo)}</div>
+          <div class="mono pila-menor">
+            <span>${esc(f.lit_a)} <span class="apagado">— ${esc(f.doc_a || 'sin documento')}</span></span>
+            <span>${esc(f.lit_b)} <span class="apagado">— ${esc(f.doc_b || 'sin documento')}</span></span>
           </div>
         </div>
         <div class="acc">
@@ -2137,14 +2136,14 @@ async function vInterpretacion() {
   items.forEach(i => (porClase[i.clase] ||= []).push(i));
   vista.innerHTML = bloque('f. 0008', 'Conjetura', `
     <h2>Interpretación</h2>
-    <div class="aviso"><span class="sello alerta" style="flex:none">Otro carril</span>
+    <div class="aviso"><span class="sello alerta">Otro carril</span>
       <span>Nada de esta pantalla se leyó de un documento. Son hipótesis y patrones que el
       sistema arma cruzando los datos. <strong>Pueden estar equivocados.</strong> Cada
       afirmación linkea a los documentos que la sostienen: chequealos antes de usarla.</span></div>
     ${Object.entries(porClase).map(([clase, its]) => `
-      <h3 style="margin-top:18px">${esc(clase)} <span class="rotulo">(${its.length})</span></h3>
+      <h3>${esc(clase)} <span class="rotulo">(${its.length})</span></h3>
       ${its.map(interpHTML).join('')}`).join('') || '<div class="vacio">Sin interpretaciones.</div>'}
-    <div style="margin-top:16px"><button class="boton" id="b-regen">Volver a generar</button></div>`);
+    <div class="sep-corta"><button class="boton" id="b-regen">Volver a generar</button></div>`);
   $('#b-regen').onclick = async () => {
     await api('/api/interpretar', {method: 'POST'}); vInterpretacion();
   };
@@ -2159,13 +2158,12 @@ async function vConsultas(id) {
     <p class="prosa">Cada consulta es un archivo <span class="mono">.sql</span> versionado en
       el repositorio, no una cadena escondida en el código. Cuando pidan una variante se
       copia el archivo, se edita, y quedan las dos.</p>
-    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px">
-      ${cat.map(c => `<a class="chip" href="#/consultas/${c.id}"
-        style="${c.id === activa ? 'background:var(--sello);color:var(--papel);border-color:var(--sello)' : ''}"
-        >${esc(c.id)}</a>`).join('')}
+    <div class="fila-suelta abajo">
+      ${cat.map(c => `<a class="chip${c.id === activa ? ' activa' : ''}"
+        href="#/consultas/${c.id}">${esc(c.id)}</a>`).join('')}
     </div>
     ${r ? `<pre class="sql">${esc(r.sql.trim())}</pre>
-      <p class="prosa" style="font-size:12px;margin:10px 0">${esc(r.ruta)} · ${r.n} filas</p>
+      <p class="prosa nota sep-corta">${esc(r.ruta)} · ${r.n} filas</p>
       ${tabla(r.columnas.map(c => ({t:c, k:c, c: /centavos|dias|total|_id|^n$/.test(c) ? 'num' : ''})), r.filas)}`
     : ''}`);
 }
@@ -2182,12 +2180,12 @@ async function vBuscar(q) {
   const r = q ? await api('/api/buscar?q=' + encodeURIComponent(q)) : null;
   vista.innerHTML = bloque('f. 0010', 'Buscar', `
     <h2>Buscar en el corpus</h2>
-    <form id="f-buscar" style="display:flex; gap:8px; margin:12px 0 6px; flex-wrap:wrap">
-      <input type="text" id="q" value="${esc(q)}" style="flex:1; min-width:260px; font-size:14px"
+    <form id="f-buscar" class="fila-suelta">
+      <input type="text" id="q" value="${esc(q)}" class="campo-crece"
         placeholder="un apellido, un CUIL, una palabra del contrato…" autocomplete="off">
       <button class="boton" type="submit">Buscar</button>
     </form>
-    <p class="prosa" style="font-size:13px">Sin tildes está bien: <span class="mono">locacion</span>
+    <p class="prosa nota">Sin tildes está bien: <span class="mono">locacion</span>
       encuentra <span class="mono">locación</span>. Entre comillas busca la frase exacta.</p>
     ${r ? resultadosHTML(r) : '<div class="vacio">Escribí algo y dale a Buscar.</div>'}`);
 
@@ -2243,8 +2241,8 @@ function resultadosHTML(r) {
     «${esc(r.consulta)}».</div>`;
   return `${cob}
     ${r.campos.length ? `
-      <h3 style="margin-top:22px">En los datos extraídos <span class="rotulo">(${r.campos.length})</span></h3>
-      <p class="prosa" style="font-size:13px">Esto son <strong>contratos</strong>: el dato ya
+      <h3>En los datos extraídos <span class="rotulo">(${r.campos.length})</span></h3>
+      <p class="prosa nota">Esto son <strong>contratos</strong>: el dato ya
         está leído y anclado.</p>
       ${tabla([
         {t:'Archivo', k:'archivo', c:'fol'},
@@ -2256,8 +2254,8 @@ function resultadosHTML(r) {
         {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '—' : esc(fmtPesos(f.monto_centavos))},
       ], r.campos, {alClic:true})}` : ''}
     ${r.paginas.length ? `
-      <h3 style="margin-top:24px">En el texto de los folios <span class="rotulo">(${r.paginas.length})</span></h3>
-      <p class="prosa" style="font-size:13px">Esto son <strong>lugares donde mirar</strong>:
+      <h3>En el texto de los folios <span class="rotulo">(${r.paginas.length})</span></h3>
+      <p class="prosa nota">Esto son <strong>lugares donde mirar</strong>:
         apareció en la página, sin que sea un campo extraído.</p>
       <div class="hallazgos">${r.paginas.map(p => `
         <a class="hallazgo" href="#/documento/${p.documento_id}">
@@ -2370,7 +2368,7 @@ async function vPersona(id) {
 
   vista.innerHTML = bloque('f. ' + String(id).padStart(4,'0'), 'Ficha', `
     <h2>${esc(nombre)}</h2>
-    <p class="prosa" style="font-size:13.5px">
+    <p class="prosa nota">
       ${d.persona.clave_fuerte
         ? `Documento <span class="mono">${esc(d.persona.doc_tipo)} ${esc(d.persona.doc_numero)}</span> ·
            los contratos se agruparon por clave fuerte.`
@@ -2379,24 +2377,24 @@ async function vPersona(id) {
       ${otros.length ? `<br>También aparece escrito como ${otros.map(o =>
         `<span class="mono">${esc(o.nombre_literal)}</span>`).join(', ')}.` : ''}</p>
 
-    <div class="cifras" style="margin:14px 0 4px">
+    <div class="cifras sep-corta">
       <div class="cifra"><b>${t.contratos}</b><span>contratos</span></div>
       <div class="cifra"><b>${esc(fmtPesos(t.acumulado_centavos) || '—')}</b><span>mensual acumulado</span></div>
       <div class="cifra ${d.solapes.length ? 'alerta' : ''}"><b>${d.solapes.length}</b><span>superposiciones</span></div>
       <div class="cifra"><b>${esc((t.camaras || []).map(camaraTexto).join(' + ') || '—')}</b><span>cámaras</span></div>
       <div class="cifra ${t.sin_monto ? 'alerta' : ''}"><b>${t.sin_monto}</b><span>sin monto legible</span></div>
     </div>
-    ${t.sin_monto || t.sin_fechas ? `<p class="prosa" style="font-size:12.5px">
+    ${t.sin_monto || t.sin_fechas ? `<p class="prosa nota">
       El acumulado suma sólo los contratos con monto firme: hay ${t.sin_monto} sin monto y
       ${t.sin_fechas} sin fechas completas. <strong>Es un piso, no un total.</strong></p>` : ''}
     ${t.comprobantes ? `
-    <div class="cifras" style="margin:10px 0 4px">
+    <div class="cifras sep-corta">
       <div class="cifra facturado"><b>${t.comprobantes}</b><span>facturas y recibos</span></div>
       <div class="cifra facturado"><b>${esc(fmtPesos(t.facturado_centavos) || '—')}</b><span>facturado legible</span></div>
       ${t.comprobantes_sin_importe ? `<div class="cifra alerta">
         <b>${t.comprobantes_sin_importe}</b><span>importes a mano, sin leer</span></div>` : ''}
     </div>
-    <p class="prosa" style="font-size:12.5px">
+    <p class="prosa nota">
       <strong>Lo facturado no se suma con lo contratado.</strong> El mensual acumulado es
       lo que dicen los contratos por mes; lo facturado es lo que esta persona cobró. Son
       la misma plata vista de los dos lados${t.comprobantes_sin_importe
@@ -2404,11 +2402,11 @@ async function vPersona(id) {
             'comprobante trae el importe a mano', 'comprobantes traen el importe a mano')}
            y el sistema no lo lee` : ''}.</p>` : ''}
 
-    <h3 style="margin-top:24px">Cronología</h3>
+    <h3>Cronología</h3>
     ${cronologia(d.contratos, d.solapes)}
 
     ${d.solapes.length ? `
-      <h3 style="margin-top:26px">Períodos que se pisan</h3>
+      <h3>Períodos que se pisan</h3>
       ${tabla([
         {t:'Folios', c:'fol', r:f => `${esc(f.archivo_a)}<br>${esc(f.archivo_b)}`},
         {t:'Cruce', r:f => f.cruce === 'intercámara' ? `<span class="marca">${esc(f.cruce)}</span>` : esc(f.cruce)},
@@ -2417,7 +2415,7 @@ async function vPersona(id) {
         {t:'Días', k:'dias', c:'num'},
       ], d.solapes)}` : ''}
 
-    <h3 style="margin-top:26px">Contratos</h3>
+    <h3>Contratos</h3>
     ${tabla([
       {t:'Archivo', k:'archivo', c:'fol'},
       {t:'Cámara', r:f => esc(camaraTexto(f.camara))},
@@ -2429,8 +2427,8 @@ async function vPersona(id) {
     ], d.contratos, {alClic:true, lista:'contratos'})}
 
     ${(d.comprobantes || []).length ? `
-      <h3 style="margin-top:26px">Facturas y recibos</h3>
-      <p class="prosa" style="font-size:12.5px">Emitidos con el mismo documento. El CUIL de
+      <h3>Facturas y recibos</h3>
+      <p class="prosa nota">Emitidos con el mismo documento. El CUIL de
         la factura lleva adentro el DNI del contrato, así que se enganchan solos.</p>
       ${tabla([
         {t:'Archivo', k:'archivo', c:'fol'},
@@ -2443,9 +2441,9 @@ async function vPersona(id) {
       ], d.comprobantes, {alClic:true, lista:'comprobantes'})}` : ''}
 
     ${d.interpretaciones.length ? `
-      <div style="margin-top:26px">
+      <div class="sep">
         <span class="rotulo">Carril de interpretación</span>
-        <p class="prosa" style="font-size:13px;margin:6px 0 12px">Nada de esto se leyó de un
+        <p class="prosa nota">Nada de esto se leyó de un
           papel. Son hipótesis armadas cruzando los datos de arriba, y pueden estar mal.</p>
         ${d.interpretaciones.map(interpHTML).join('')}
       </div>` : ''}`);
@@ -2497,7 +2495,7 @@ async function vIngesta() {
     </div>
     <div id="subidas"></div>
 
-    <div style="display:flex; gap:10px; align-items:center; margin-top:18px; flex-wrap:wrap">
+    <div class="fila-suelta">
       <button class="boton" id="b-procesar" ${t.sin_leer ? '' : 'disabled'}>
         Procesar ${t.sin_leer || 0} documento${t.sin_leer === 1 ? '' : 's'} sin leer</button>
       <span class="rotulo" id="estado-trabajo"></span>
@@ -2520,7 +2518,7 @@ async function vIngesta() {
     </details>
 
     ${t.lotes && t.lotes.length ? `
-      <h3 style="margin-top:26px">Lotes cargados</h3>
+      <h3>Lotes cargados</h3>
       ${tabla([
         {t:'Lote', k:'lote'},
         {t:'Archivos', k:'archivos', c:'num'},
@@ -2628,17 +2626,17 @@ function pintarTrabajo(t) {
          <button class="boton gris" id="b-detener">Parar</button>
          <span>Se termina la página que está en curso y ahí frena. Lo leído queda
            guardado: al procesar de nuevo retoma donde iba.</span></div>` : ''}
-      ${t.estado === 'terminado' ? `<p class="prosa" style="font-size:13px;margin:10px 0 0">
+      ${t.estado === 'terminado' ? `<p class="prosa nota sep-corta">
          <strong>Listo.</strong> ${esc(t.mensaje)} · ${t.segundos} s.
          <a href="#/panel">Ver el panel</a> · <a href="#/cola">Ir a la cola</a></p>` : ''}
-      ${t.estado === 'detenido' ? `<div class="aviso" style="margin-top:10px">
-         <span class="sello atencion" style="flex:none">Parado</span>
+      ${t.estado === 'detenido' ? `<div class="aviso sep-corta">
+         <span class="sello atencion">Parado</span>
          <span>${esc(t.mensaje)}</span></div>` : ''}
-      ${t.estado === 'error' ? `<div class="aviso" style="margin-top:10px">
+      ${t.estado === 'error' ? `<div class="aviso sep-corta">
          <span class="sello alerta">Error</span><span>${esc(t.mensaje)}</span></div>` : ''}
-      ${(t.errores || []).length ? `<details style="margin-top:10px"><summary class="rotulo">
+      ${(t.errores || []).length ? `<details class="sep-corta"><summary class="rotulo">
          ${plural(t.errores.length, 'documento con problemas', 'documentos con problemas')}</summary>
-         <ul style="margin-top:8px">${t.errores.slice(0,20).map(e =>
+         <ul class="sep-corta">${t.errores.slice(0,20).map(e =>
            `<li>${esc(e.etapa)}: ${esc(e.detalle)}</li>`).join('')}</ul></details>` : ''}
     </div>`;
 
@@ -2805,10 +2803,10 @@ async function vSalud() {
 
   const veredicto = s.puede_trabajar
     ? `<div class="aviso ${s.avisos ? 'atento' : 'bien'}">
-         <span class="sello ${s.avisos ? 'atencion' : 'ok'}" style="flex:none">Listo</span>
+         <span class="sello ${s.avisos ? 'atencion' : 'ok'}">Listo</span>
          <span>El equipo tiene todo lo necesario para trabajar${
            s.avisos ? `, con ${s.avisos} aviso${s.avisos > 1 ? 's' : ''} que conviene mirar` : ''}.</span></div>`
-    : `<div class="aviso"><span class="sello alerta" style="flex:none">Falta</span>
+    : `<div class="aviso"><span class="sello alerta">Falta</span>
          <span>Todavía no se puede trabajar: faltan ${s.fallas} cosa${s.fallas > 1 ? 's' : ''}.
          Abajo está cada una con lo que hay que instalar.</span></div>`;
 
@@ -2836,7 +2834,7 @@ async function vSalud() {
 
   const inv = s.invariantes.length
     ? `<ul class="fallas">${s.invariantes.map(f => `<li>${esc(f)}</li>`).join('')}</ul>`
-    : `<div class="aviso bien"><span class="sello ok" style="flex:none">Cumple</span>
+    : `<div class="aviso bien"><span class="sello ok">Cumple</span>
          <span>Las reglas del pliego se siguen cumpliendo sobre los datos cargados:
          ningún campo con valor sin ubicación en la imagen, ninguna interpretación sin
          documento que la sostenga, ninguna fusión de identidad aplicada sola.</span></div>`;
@@ -2852,7 +2850,7 @@ async function vSalud() {
           : ' El acervo entero está cubierto.'}
         ${i.mas_viejo ? ` La verificación más antigua es del
           <span class="mono">${esc(String(i.mas_viejo).slice(0, 16).replace('T', ' '))}</span>.` : ''}</p>
-       <p class="prosa" style="font-size:13px">Rehashear originales lee del disco archivo
+       <p class="prosa nota">Rehashear originales lee del disco archivo
          por archivo, así que no se hace al abrir esta pantalla: se pide.</p>
        <button class="boton" id="b-verificar">Comprobar los originales ahora</button>
        <div id="r-verificar"></div>`
@@ -2888,11 +2886,11 @@ async function vSalud() {
     try {
       const r = await api('/api/verificar', {method: 'POST'});
       $('#r-verificar').innerHTML = r.fallas.length
-        ? `<div class="aviso" style="margin-top:12px">
-             <span class="sello alerta" style="flex:none">Ojo</span>
+        ? `<div class="aviso sep-corta">
+             <span class="sello alerta">Ojo</span>
              <span>${r.fallas.map(esc).join('<br>')}</span></div>`
-        : `<div class="aviso bien" style="margin-top:12px">
-             <span class="sello ok" style="flex:none">Intactos</span>
+        : `<div class="aviso bien sep-corta">
+             <span class="sello ok">Intactos</span>
              <span>Se rehashearon <b>${r.revisados}</b> originales y los
              <b>${r.ok}</b> coinciden con el hash con el que entraron.
              Cubiertos hasta ahora: ${r.cubiertos} de ${r.total}.</span></div>`;
@@ -2913,7 +2911,7 @@ async function vAfuera() {
   if (!d.afuera) {
     return vista.innerHTML = bloque('f. 0800', 'Control', `
       <h2>Ningún archivo quedó afuera</h2>
-      <div class="aviso bien"><span class="sello ok" style="flex:none">Completo</span>
+      <div class="aviso bien"><span class="sello ok">Completo</span>
         <span>Los <b>${d.total_archivos}</b> archivos cargados produjeron al menos un
         contrato. No hay nada perdido en el camino.</span></div>
       <p class="prosa">Esta pantalla es un control: cada vez que un PDF entra y no sale
@@ -2930,7 +2928,7 @@ async function vAfuera() {
     return bloque(`f. 08${String(i + 1).padStart(2, '0')}`, `${fs.length} archivo${fs.length > 1 ? 's' : ''}`, `
       <h2>${esc(g.titulo)}</h2>
       <p class="prosa">${esc(g.que_hacer)}</p>
-      ${clase === 'perfil_no_aplica' ? `<p class="prosa" style="font-size:13px">
+      ${clase === 'perfil_no_aplica' ? `<p class="prosa nota">
         Formularios que el sistema conoce hoy:
         ${d.perfiles_conocidos.map(p => `<span class="mono">${esc(p)}</span>`).join(', ')}.
         Agregar uno nuevo no requiere programar: se copia un archivo de
@@ -2949,7 +2947,7 @@ async function vAfuera() {
 
   vista.innerHTML = bloque('f. 0800', 'Control', `
       <h2>Quedaron afuera</h2>
-      <div class="aviso"><span class="sello alerta" style="flex:none">Ojo</span>
+      <div class="aviso"><span class="sello alerta">Ojo</span>
         <span><b>${d.afuera}</b> de <b>${d.total_archivos}</b> archivos cargados no
         produjeron ningún contrato. No se perdieron —están registrados con su hash—
         pero <b>no entran en ningún cruce ni en ningún acumulado</b>.</span></div>
@@ -2967,7 +2965,7 @@ function vComoFunciona() {
       <p class="prosa">Este sistema lee contratos escaneados y arma con ellos una tabla que
         se puede cruzar. Sirve para <strong>entender rápido un volumen de papel que hoy no se
         puede abarcar</strong> y para decidir dónde mirar.</p>
-      <div class="aviso"><span class="sello alerta" style="flex:none">Importante</span>
+      <div class="aviso"><span class="sello alerta">Importante</span>
         <span>No es un sistema de gestión del legajo y no produce piezas procesales.
         <strong>Lo que se incorpora formalmente al legajo se hace después, a mano, sobre la
         documentación original.</strong></span></div>`) +
@@ -2979,10 +2977,10 @@ function vComoFunciona() {
       <div class="carriles">
         <div class="carril carril--dato">
           <h3><span class="rotulo">Carril de datos</span> <span class="sello">Leído</span></h3>
-          <p style="font-size:13px;margin:0 0 10px">Lo que dice el papel. Se muestra en
+          <p class="prosa nota pegada">Lo que dice el papel. Se muestra en
             <span class="mono">monoespaciada</span> y cada valor sabe de qué archivo, qué
             página y qué parte de la imagen salió.</p>
-          <ul style="font-size:13px;margin:0;padding-left:18px">
+          <ul class="lista-nota">
             <li>No interviene ningún modelo que pueda inventar.</li>
             <li>Lo que no se puede leer se guarda vacío <b>con el motivo</b>, nunca completado.</li>
             <li>Un valor sin ubicación en la imagen no entra en la base.</li>
@@ -2990,17 +2988,17 @@ function vComoFunciona() {
         </div>
         <div class="carril carril--interp">
           <h3><span class="rotulo">Carril de interpretación</span> <span class="sello">Conjetura</span></h3>
-          <p class="interp-texto" style="font-size:14px;margin:0 0 10px">Lo que el sistema
+          <p class="interp-texto pegada">Lo que el sistema
             deduce cruzando esos datos: patrones, anomalías, cosas para mirar. Va en serif
             bastardilla y sobre otro fondo.</p>
-          <ul style="font-size:13px;margin:0;padding-left:18px">
+          <ul class="lista-nota">
             <li>Puede equivocarse, y se presenta como lo que es.</li>
             <li>Cada afirmación linkea a los documentos que la sostienen.</li>
             <li>El sistema no guarda una hipótesis sin fuente: la rechaza.</li>
           </ul>
         </div>
       </div>
-      <p class="prosa" style="margin-top:14px">Un fiscal tiene que poder mirar una pantalla y
+      <p class="prosa sep-corta">Un fiscal tiene que poder mirar una pantalla y
         saber, sin pensarlo, si lo que está viendo salió de una fecha impresa en un contrato o
         de una conjetura del sistema. <strong>Por eso la tipografía cambia.</strong></p>`) +
 
@@ -3058,7 +3056,7 @@ function vComoFunciona() {
         De 300 para arriba no se gana nada medible y el archivo pesa el doble.</p>
 
       <h3>Nunca el «modo texto»</h3>
-      <div class="aviso"><span class="sello alerta" style="flex:none">Importante</span>
+      <div class="aviso"><span class="sello alerta">Importante</span>
         <span>El blanco y negro puro que muchos escáneres traen puesto es la única
           configuración de todo lo que se probó que llegó a <strong>guardar un dato falso
           dándolo por bueno</strong>. Y eso pasa aunque el número de exactitud

@@ -108,6 +108,21 @@
      texto: no informa nada por sí solo. */
   --realce:#E9F0F8;
 
+  /* ── La escala tipográfica ───────────────────────────────────────────────
+     Siete pasos y ninguno intermedio. `docs/01-identidad-visual.md` la declaraba
+     así desde el principio y el CSS tenía VEINTIÚN tamaños distintos, catorce de
+     ellos medios puntos: 9,5 · 10,5 · 11,5 · 12,5 · 13,5 · 14,5 · 15,5 · 16,5.
+
+     Eso es exactamente lo que hacía que la aplicación se viera CASI prolija en vez
+     de prolija. Nada se ve mal por separado; pero un rótulo de 12,5 al lado de uno
+     de 13 y de uno de 11,5 no forma un sistema, forma tres tamaños que el ojo
+     registra como desalineados sin poder decir por qué.
+
+     Están como tokens para que se puedan nombrar, y una prueba falla si aparece un
+     `font-size` en px que no sea uno de estos siete. */
+  --t-11:11px; --t-12:12px; --t-13:13px; --t-15:15px;
+  --t-18:18px; --t-24:24px; --t-34:34px;
+
   --sans:'Archivo','Helvetica Neue',Arial,sans-serif;
   --serif:'Source Serif 4',Georgia,'Times New Roman',serif;
   --mono:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;
@@ -216,7 +231,7 @@
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--fondo); color:var(--tinta); font-family:var(--sans);
-     font-size:13.5px; line-height:1.55; -webkit-font-smoothing:antialiased;
+     font-size:13px; line-height:1.55; -webkit-font-smoothing:antialiased;
      text-rendering:optimizeLegibility}
 /* ── Dónde estoy parado con el teclado ─────────────────────────────────────
    Esto estaba mal medido y nadie lo había mirado: el anillo iba en `--sello` SIEMPRE,
@@ -312,7 +327,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
 .monograma{flex:none; display:grid; place-items:center; color:var(--barra-txt)}
 .identidad-texto{display:flex; flex-direction:column; min-width:0}
 .identidad-unidad{font-size:15px; font-weight:700; letter-spacing:-.01em; line-height:1.15}
-.identidad-area{font-size:10.5px; letter-spacing:.06em; color:var(--barra-txt-2);
+.identidad-area{font-size:11px; letter-spacing:.06em; color:var(--barra-txt-2);
             margin-top:2px}
 /* El dorado no dice nada acá: subraya lo que ya dice la palabra de al lado. */
 /* ── Entre Ríos ────────────────────────────────────────────────────────────
@@ -340,7 +355,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    y ahora ese trabajo lo hace la marca provincial, que separa igual y además dice algo.
    Dos rayas horizontales seguidas es la clase de ruido que este sistema evita en todas
    las otras pantallas: son dos objetos compitiendo para hacer un solo trabajo. */
-.identidad-organismo{margin:9px 0 0; font-size:10.5px; line-height:1.4;
+.identidad-organismo{margin:9px 0 0; font-size:11px; line-height:1.4;
                  color:var(--barra-txt-2); max-width:26ch}
 .identidad-oficial{display:block; max-width:150px; max-height:44px; margin:12px 0 0}
 
@@ -349,7 +364,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    suspensivos —un apellido a medias en un membrete institucional es peor que un
    renglón de más—, así que bajan de línea. */
 .identidad-fiscales{margin:9px 0 0; display:flex; flex-direction:column; gap:1px}
-.rotulo-fiscales{font-size:8.5px; font-weight:600; letter-spacing:.13em;
+.rotulo-fiscales{font-size:11px; font-weight:600; letter-spacing:.13em;
   text-transform:uppercase; color:var(--barra-txt-2); margin-bottom:2px}
 .nombre-fiscal{font-size:11px; line-height:1.35; color:var(--barra-txt-2)}
 
@@ -375,7 +390,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
                     margin:2px 0 6px; padding-left:10px;
                     border-left:1px solid var(--barra-filete); margin-left:19px}
 .nav-lateral .items a{
-  display:flex; align-items:center; gap:8px; padding:6px 10px; font-size:12.5px;
+  display:flex; align-items:center; gap:8px; padding:6px 10px; font-size:12px;
   color:var(--barra-txt-2); border-radius:var(--radio);
   transition:background var(--paso) var(--curva), color var(--paso) var(--curva);
 }
@@ -387,7 +402,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    acá el fondo es azul y el rojo del papel no se lee. Va en claro sobre el azul
    oscuro del ítem abierto, con la cifra en negrita. */
 .nav-lateral .cuenta{
-  font-family:var(--mono); font-size:10.5px; font-variant-numeric:tabular-nums;
+  font-family:var(--mono); font-size:11px; font-variant-numeric:tabular-nums;
   padding:1px 6px; border-radius:9px; background:var(--barra-3);
   color:var(--barra-txt); flex:none;
 }
@@ -411,9 +426,9 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    identifique no puede decidir nada y conviene que lo vea antes de intentarlo. */
 #b-revisor{align-items:center}
 #b-revisor .txt{display:flex; flex-direction:column; line-height:1.25; min-width:0}
-#b-revisor .etq{font-size:9px; letter-spacing:.11em; text-transform:uppercase;
+#b-revisor .etq{font-size:11px; letter-spacing:.11em; text-transform:uppercase;
                 color:var(--barra-txt-2)}
-#b-revisor .quien{font-size:12.5px; font-weight:600; color:var(--barra-txt);
+#b-revisor .quien{font-size:12px; font-weight:600; color:var(--barra-txt);
                   overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .lateral-pie #b-revisor.sin-nombre .quien{color:var(--oro)}
 
@@ -431,15 +446,15 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
   transition:background var(--paso) var(--curva);
 }
 .techo-legajo:hover{background:var(--realce)}
-.techo-legajo .etq{font-size:9.5px; font-weight:600; letter-spacing:.13em;
+.techo-legajo .etq{font-size:11px; font-weight:600; letter-spacing:.13em;
                    text-transform:uppercase; color:var(--tinta-3); flex:none}
-.techo-legajo b{font-size:15.5px; font-weight:650; font-variant-numeric:tabular-nums;
+.techo-legajo b{font-size:15px; font-weight:650; font-variant-numeric:tabular-nums;
                 letter-spacing:-.01em; flex:none}
 .techo-legajo .caratula{font-size:12px; color:var(--tinta-2); overflow:hidden;
                         text-overflow:ellipsis; white-space:nowrap}
 .techo-medio{display:flex; align-items:center; gap:10px; margin-left:auto; flex:none}
 .techo-dato{font-size:11px; color:var(--tinta-2); white-space:nowrap}
-.techo-dato .etq{font-size:9.5px; font-weight:600; letter-spacing:.13em;
+.techo-dato .etq{font-size:11px; font-weight:600; letter-spacing:.13em;
                  text-transform:uppercase; color:var(--tinta-3)}
 .techo-buscar{position:relative; flex:none; width:min(272px,30vw)}
 /* `.icono-buscar` y no `.lupa`: `.lupa` es el panel del renglón ampliado de la cola,
@@ -450,14 +465,14 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
 .techo-buscar .icono-buscar{position:absolute; left:9px; top:50%; margin-top:-7px;
                     color:var(--tinta-3); pointer-events:none}
 .techo-buscar input{
-  width:100%; font:inherit; font-size:16px; padding:6px 10px 6px 28px;
+  width:100%; font:inherit; font-size:18px; padding:6px 10px 6px 28px;
   border:1px solid var(--borde-control); border-radius:var(--radio);
   background:var(--papel); color:var(--tinta);
   transition:border-color var(--paso) var(--curva), box-shadow var(--paso) var(--curva);
 }
 .techo-buscar input:focus{border-color:var(--tribunal-txt); outline:none;
                           box-shadow:0 0 0 3px var(--sello-suave)}
-@media (min-width:721px){.techo-buscar input{font-size:12.5px}}
+@media (min-width:721px){.techo-buscar input{font-size:12px}}
 
 /* ── En un teléfono la barra lateral es un cajón ──────────────────────────
    Con menos de 900 px de ancho, 232 px de barra fija son un cuarto de la pantalla
@@ -533,7 +548,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
 /* El sello viejo, cuadrado y con doble filete, sigue existiendo donde hace falta un
    cuño y no un estado: la portada de un informe, el rótulo de un bloque impreso. */
 .sello{display:inline-block; padding:4px 9px 3px; border:1px solid currentColor;
-       outline:1px solid currentColor; outline-offset:2px; font-size:9.5px;
+       outline:1px solid currentColor; outline-offset:2px; font-size:11px;
        font-weight:600; letter-spacing:.15em; text-transform:uppercase;
        color:var(--sello); background:transparent}
 .sello.alerta{color:var(--lapiz)} .sello.ok{color:var(--verde)}
@@ -556,7 +571,7 @@ main{padding:18px 26px 90px; flex:1}
         padding:20px 26px 24px; margin-top:16px}
 .bloque:first-child{margin-top:0}
 .marginalia{border-right:1px solid var(--filete-2); padding-right:16px; text-align:right;
-            font-family:var(--mono); font-size:10.5px; color:var(--tinta-3);
+            font-family:var(--mono); font-size:11px; color:var(--tinta-3);
             display:flex; flex-direction:column; gap:4px}
 /* Adentro del folio la canaleta arranca a la altura del título y no del borde de la
    hoja: si no, el número de foja queda flotando más arriba que todo lo demás. */
@@ -568,18 +583,67 @@ main{padding:18px 26px 90px; flex:1}
    13 el cuerpo. Con tan poca distancia entre un nivel y el siguiente, la página no
    tiene jerarquía y hay que LEERLA entera para saber qué es cada cosa. Un título
    que se ve como título deja mirar de reojo y encontrar. */
-h2{margin:0 0 12px; font-size:26px; font-weight:650; letter-spacing:-.024em;
+h2{margin:0 0 12px; font-size:24px; font-weight:650; letter-spacing:-.024em;
    line-height:1.18; text-wrap:balance}
-h3{margin:0 0 9px; font-size:14.5px; font-weight:650; letter-spacing:-.005em}
-.rotulo{font-size:10px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+h3{margin:0 0 9px; font-size:15px; font-weight:650; letter-spacing:-.005em}
+.rotulo{font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
         color:var(--tinta-3)}
 /* `pretty` en vez de nada: el navegador mira los últimos renglones y evita dejar una
    palabra sola colgando al final del párrafo. En textos explicativos como éstos, que
    son casi todos los de la aplicación, una huérfana por bloque es lo que hace que una
    página se vea descuidada sin que se pueda señalar por qué. */
-.prosa{font-family:var(--serif); font-size:15.5px; line-height:1.68; color:var(--tinta-2);
+.prosa{font-family:var(--serif); font-size:15px; line-height:1.68; color:var(--tinta-2);
        max-width:66ch; margin:0 0 14px; text-wrap:pretty}
 .prosa strong{color:var(--tinta)}
+
+/* ── Lo que antes estaba escrito adentro del JavaScript ────────────────────
+   Había 98 atributos `style="…"` a mano en app.js. Cada uno era una excepción
+   silenciosa: no se puede auditar, no se puede cambiar de una vez, y no lo alcanza
+   ninguna de las pruebas que vigilan esta hoja. Eran además la fuente de casi todos
+   los tamaños sueltos y de márgenes de 6, 7, 10, 14, 18, 20, 22 y 26 px sobre un
+   sistema que declara múltiplos de 4.
+
+   Quedaron tres, y son las únicas que corresponden: `left` y `width` calculados a
+   partir de un dato —dónde empieza y termina un contrato en la cronología, cuánto
+   se lleva procesado—. Eso es geometría que sale de la base y no puede vivir acá.
+   Una prueba se asegura de que ninguna de las que vuelvan traiga tamaño, margen o
+   relleno. */
+
+/* La nota: prosa chica al pie de un bloque o aclaración bajo un título. */
+.prosa.nota{font-size:13px; line-height:1.6}
+.prosa.pegada, .interp-texto.pegada{margin:0 0 10px}
+.prosa.sangria{padding-left:18px}
+.lista-nota{font-size:13px; margin:0; padding-left:18px; color:var(--tinta-2);
+  font-family:var(--serif); line-height:1.6}
+
+/* Un h3 que no abre el bloque es un cambio de tema adentro del mismo folio, y
+   necesita aire arriba. Es una regla y no una clase: así no hay que acordarse de
+   ponerla, que es exactamente como se llenó esto de márgenes a mano. */
+.cuerpo > h3:not(:first-child){margin-top:24px}
+h3.sep-corta{margin-top:15px}
+h3.menor{font-size:13px}
+
+/* Separaciones, con los dos únicos pasos que hacían falta de verdad. */
+.sep{margin-top:24px}
+.sep-corta{margin-top:12px}
+.sep-abajo-corta{margin-bottom:12px}
+.menor{font-size:11px}
+.nota{font-size:13px}
+.apagado{color:var(--tinta-3)}
+
+/* Una fila de cosas que se acomodan solas cuando no entran. */
+.fila-suelta{display:flex; gap:11px; flex-wrap:wrap; align-items:center; margin-top:12px}
+.fila-suelta.abajo{margin:0 0 15px}
+.entre-extremos{display:flex; justify-content:space-between; align-items:baseline;
+  gap:11px; margin-bottom:12px}
+.pila-menor{font-size:12px; display:flex; flex-direction:column; gap:3px}
+/* El campo que se lleva el ancho que sobra en la fila de búsqueda. */
+.campo-crece{flex:1; min-width:260px; font-size:15px}
+.mini-cuno{font-size:11px; padding:1px 5px; outline:none}
+/* El sello adentro de un aviso no se estira: 17 veces estaba dicho a mano. */
+.aviso .sello{flex:none}
+/* Un aviso que informa y no alarma. */
+.aviso.info{border-left-color:var(--sello); background:var(--sello-suave)}
 
 /* ── Cifras del panel ─────────────────────────────────────────────────── */
 /* Las cifras tampoco van en una caja con tabiques. El número es grande y el rótulo
@@ -597,13 +661,13 @@ h3{margin:0 0 9px; font-size:14.5px; font-weight:650; letter-spacing:-.005em}
    Ese aire de más es lo único que dice que se cambió de tema. */
 .cifras + .cifras{margin-top:12px}
 .cifra{padding:13px 15px 15px; background:var(--realce); border-radius:10px}
-.cifra b{display:block; font-family:var(--mono); font-size:29px; font-weight:400;
+.cifra b{display:block; font-family:var(--mono); font-size:34px; font-weight:400;
          font-variant-numeric:tabular-nums; letter-spacing:-.03em; line-height:1.05}
-.cifra span{display:block; font-size:11.5px; letter-spacing:0; color:var(--tinta-2);
+.cifra span{display:block; font-size:12px; letter-spacing:0; color:var(--tinta-2);
             margin-top:7px; text-wrap:balance; line-height:1.35}
 /* El denominador, atado al número y en un cuerpo menor: «213 / 250» se lee como una
    proporción, no como dos cifras sueltas. */
-.cifra b .de{font-style:normal; font-size:14px; font-weight:400; color:var(--tinta-3);
+.cifra b .de{font-style:normal; font-size:15px; font-weight:400; color:var(--tinta-3);
              margin-left:4px; letter-spacing:0}
 /* Trabajo pendiente y conflicto no son lo mismo, y por eso no comparten color.
    El punzó grita una sola cosa —las dos lecturas no coinciden, no confíes todavía—;
@@ -618,7 +682,7 @@ h3{margin:0 0 9px; font-size:14.5px; font-weight:650; letter-spacing:-.005em}
    los cuales dice nada. Lo que separa una tabla de lo de al lado es el aire, y lo que
    separa un renglón del siguiente es un filete finito. Nada más hace falta. */
 .tabla-env{overflow-x:auto; background:transparent; margin:0 -4px}
-table{border-collapse:collapse; width:100%; font-size:12.5px}
+table{border-collapse:collapse; width:100%; font-size:12px}
 /* El encabezado de columna va en `--tinta-2` y no en `--tinta-3`. `--tinta-3` está
    pensado para marginalia —el folio al costado, la fecha chica— y se le exige 3:1
    porque no es esencial. Un encabezado de columna sí lo es: es lo único que dice qué
@@ -628,7 +692,7 @@ table{border-collapse:collapse; width:100%; font-size:12.5px}
 /* El encabezado sin versalitas ni interletrado: en un texto de 9,5 px eso obliga a
    descifrar cada palabra letra por letra. En redonda y con el mismo cuerpo se lee de
    corrido, y sigue distinguiéndose del dato por el color y por el filete de abajo. */
-thead th{text-align:left; font-size:11.5px; font-weight:600; letter-spacing:0;
+thead th{text-align:left; font-size:12px; font-weight:600; letter-spacing:0;
          color:var(--tinta-2); padding:9px 11px 10px; white-space:nowrap;
          border-bottom:1px solid var(--filete); position:sticky; top:0;
          background:var(--realce)}
@@ -640,7 +704,7 @@ tbody tr:hover{background:var(--realce)}
 tbody tr.clic{cursor:pointer}
 .num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
 .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
-.fol{font-family:var(--mono); font-size:10.5px; color:var(--tinta-3); white-space:nowrap}
+.fol{font-family:var(--mono); font-size:11px; color:var(--tinta-3); white-space:nowrap}
 .marca{color:var(--lapiz); font-weight:600}   /* resaltado en tablas. OJO: no usar como nombre de bloque. */
 /* Trabajo por hacer adentro de una tabla. Es lo mismo que `.marca` pero en ámbar, y
    existe porque no son lo mismo: `.marca` grita «acá hay algo mal» —un cruce
@@ -654,7 +718,7 @@ tbody tr.clic{cursor:pointer}
    nulo que no se lee vuelve a ser una celda en blanco, que es exactamente lo que la
    regla «nada se inventa en un campo de datos» existe para impedir. Estaba en
    `--tinta-3` y daba 3,83:1 sobre su propio fondo gris. */
-.nulo{font-size:10px; font-weight:600; letter-spacing:.11em; text-transform:uppercase;
+.nulo{font-size:11px; font-weight:600; letter-spacing:.11em; text-transform:uppercase;
       color:var(--tinta-2); background:var(--papel-2); border:1px solid var(--filete-2);
       padding:1px 6px; white-space:nowrap}
 .nulo.conf{color:var(--lapiz); border-color:var(--lapiz); background:var(--lapiz-suave)}
@@ -666,7 +730,7 @@ tbody tr.clic{cursor:pointer}
 .barra-conf.media i.on{background:var(--ambar)}
 .barra-conf.baja i.on{background:var(--lapiz)}
 
-.ancla{font-family:var(--mono); font-size:10px; border:1px solid var(--borde-control);
+.ancla{font-family:var(--mono); font-size:11px; border:1px solid var(--borde-control);
        border-radius:2px; background:var(--papel-2); color:var(--sello);
        padding:1px 5px; margin-left:7px; cursor:pointer; white-space:nowrap}
 .ancla:hover{background:var(--sello-suave); border-color:var(--sello)}
@@ -675,15 +739,18 @@ tbody tr.clic{cursor:pointer}
 /* ── Carril de interpretación ─────────────────────────────────────────── */
 .interp{background:var(--interp); border-left:3px solid var(--interp-filete);
         padding:13px 16px; margin-bottom:10px}
-.interp .texto{font-family:var(--serif); font-style:italic; font-size:14.5px;
+.interp .texto{font-family:var(--serif); font-style:italic; font-size:15px;
                line-height:1.58; color:var(--tinta); margin:8px 0 10px; max-width:74ch}
 .interp .fuentes{display:flex; flex-wrap:wrap; gap:5px; padding-top:9px;
                  border-top:1px solid var(--interp-filete)}
-.chip{font-family:var(--mono); font-size:10px; padding:1px 6px; border-radius:2px;
+.chip{font-family:var(--mono); font-size:11px; padding:1px 6px; border-radius:2px;
       border:1px solid var(--interp-filete); color:var(--tinta-2); background:transparent;
       cursor:pointer; text-decoration:none}
 .chip:hover{background:var(--sello-suave); color:var(--tinta)}
-.clase{font-size:9.5px; font-weight:600; letter-spacing:.13em; text-transform:uppercase;
+/* La consulta que se está mirando. Estaba escrito a mano en el JavaScript y quedó
+   pisado por un segundo atributo `class`, así que directamente no se veía cuál era. */
+.chip.activa{background:var(--sello); border-color:var(--sello); color:var(--papel)}
+.clase{font-size:11px; font-weight:600; letter-spacing:.13em; text-transform:uppercase;
        color:var(--tribunal-txt)}
 
 /* ── Visor ────────────────────────────────────────────────────────────── */
@@ -698,14 +765,14 @@ tbody tr.clic{cursor:pointer}
           transition:all .26s cubic-bezier(.4,0,.2,1); pointer-events:none}
 .recuadro.conf{border-color:var(--lapiz); background:rgba(150,48,31,.10)}
 @media (prefers-reduced-motion:reduce){.recuadro{transition:none}}
-.pie-lamina{font-family:var(--mono); font-size:10px; color:var(--tinta-2);
+.pie-lamina{font-family:var(--mono); font-size:11px; color:var(--tinta-2);
             display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap}
 
 .campo{display:grid; grid-template-columns:118px 1fr; gap:10px; align-items:baseline;
        padding:7px 0; border-bottom:1px solid var(--filete-2)}
 .campo:last-child{border-bottom:none}
-.campo dt{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--tinta-3)}
-.campo dd{margin:0; font-family:var(--mono); font-size:12.5px; word-break:break-word}
+.campo dt{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--tinta-3)}
+.campo dd{margin:0; font-family:var(--mono); font-size:12px; word-break:break-word}
 /* El valor del campo: lo único que hay que juzgar contra la foja, así que se lee
    como el dato que es y no como una línea más de la fila. */
 .valor-campo{font-family:var(--mono); font-size:15px; color:var(--tinta);
@@ -718,7 +785,7 @@ tbody tr.clic{cursor:pointer}
 
 .conflicto{border-left:3px solid var(--lapiz); padding-left:11px}
 .conflicto .ruta{display:flex; gap:9px; align-items:baseline; font-family:var(--mono); font-size:12px}
-.conflicto .ruta span:first-child{font-family:var(--sans); font-size:9px; letter-spacing:.09em;
+.conflicto .ruta span:first-child{font-family:var(--sans); font-size:11px; letter-spacing:.09em;
        text-transform:uppercase; color:var(--tinta-3); width:66px; flex:none}
 
 /* ── Cola de revisión ─────────────────────────────────────────────────── */
@@ -737,15 +804,15 @@ tbody tr.clic{cursor:pointer}
    puede apretar: superficie propia, no un renglón de texto suelto con una letra al
    lado. Y cuando la opción ES un valor, el valor manda y la procedencia va debajo,
    chica — se decide cuál dice el papel, no de qué ruta salió. */
-.tecla{display:flex; align-items:center; gap:9px; font-size:11.5px; color:var(--tinta-2);
+.tecla{display:flex; align-items:center; gap:9px; font-size:12px; color:var(--tinta-2);
        background:none; border:1px solid transparent; border-radius:var(--radio);
        padding:5px 8px; cursor:pointer; text-align:left; width:100%;
        transition:background var(--paso) var(--curva), color var(--paso) var(--curva),
                   border-color var(--paso) var(--curva)}
 .tecla:hover{color:var(--tinta); background:var(--realce); border-color:var(--rio)}
 .tecla .cuerpo{display:flex; flex-direction:column; min-width:0; line-height:1.3}
-.tecla .valor{font-size:13.5px; color:var(--tinta); font-weight:500}
-.tecla .de{font-size:9.5px; color:var(--tinta-3); letter-spacing:.04em}
+.tecla .valor{font-size:13px; color:var(--tinta); font-weight:500}
+.tecla .de{font-size:11px; color:var(--tinta-3); letter-spacing:.04em}
 .tecla.opcion{border-color:var(--filete)}
 .tecla.opcion:hover{border-color:var(--verde); background:var(--sello-suave)}
 .tecla.principal .cuerpo{color:var(--verde); font-weight:600}
@@ -754,17 +821,17 @@ tbody tr.clic{cursor:pointer}
 /* La tecla dibujada. `.tecla` no tiene borde propio —es un botón de texto— así que
    este recuadro es el límite visible de lo que se aprieta, y le corresponde el
    contraste de un control. */
-kbd{font-family:var(--mono); font-size:10px; border:1px solid var(--borde-control);
+kbd{font-family:var(--mono); font-size:11px; border:1px solid var(--borde-control);
     border-bottom-width:2px; padding:0 5px; background:var(--papel); color:var(--tinta);
     min-width:19px; display:inline-block; text-align:center}
 
-input[type=text]{font-family:var(--mono); font-size:12.5px; padding:4px 7px;
+input[type=text]{font-family:var(--mono); font-size:12px; padding:4px 7px;
   border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta); border-radius:0}
 /* Un botón de 11,5 px con el texto subrayado adentro —porque a veces es un `<a>` y
    heredaba el subrayado de los enlaces— no se lee como un botón: se lee como un
    enlace roto adentro de un recuadro. Cuerpo, peso y aire; y el subrayado afuera. */
 .boton{border:1px solid var(--tribunal-txt); background:transparent; color:var(--tribunal-txt);
-       padding:7px 15px; font-size:12.5px; cursor:pointer; letter-spacing:.01em;
+       padding:7px 15px; font-size:12px; cursor:pointer; letter-spacing:.01em;
        text-decoration:none; display:inline-block;
        border-radius:var(--radio); font-weight:600;
        transition:background var(--paso) var(--curva), color var(--paso) var(--curva),
@@ -805,10 +872,10 @@ td.acciones .mini + .mini{margin-left:5px}
   max-width:min(480px,92vw); background:var(--folio); color:var(--tinta);
   box-shadow:var(--sombra-alta); font-family:var(--sans); font-size:13px}
 .dialogo::backdrop{background:rgba(11,18,19,.5)}
-.dialogo h3{margin:0 0 4px; font-size:16px}
-.dialogo .prosa{font-size:13.5px; margin-bottom:12px}
+.dialogo h3{margin:0 0 4px; font-size:18px}
+.dialogo .prosa{font-size:13px; margin-bottom:12px}
 .dialogo label{display:block; font-size:12px; color:var(--tinta-2); margin-bottom:6px}
-.dialogo input{width:100%; font-family:var(--mono); font-size:16px; padding:8px 10px;
+.dialogo input{width:100%; font-family:var(--mono); font-size:18px; padding:8px 10px;
   border:1px solid var(--borde-control); border-radius:var(--radio);
   background:var(--papel-2); color:var(--tinta)}
 .dialogo input:focus{outline:none; border-color:var(--tribunal-txt);
@@ -816,11 +883,11 @@ td.acciones .mini + .mini{margin-left:5px}
 .dialogo .mal{color:var(--lapiz); background:var(--lapiz-suave); padding:8px 11px;
   border-radius:var(--radio); font-size:12px; margin:10px 0 0}
 
-pre.sql{font-family:var(--mono); font-size:11.5px; margin:0; padding:12px 14px;
+pre.sql{font-family:var(--mono); font-size:12px; margin:0; padding:12px 14px;
   background:var(--papel-2); border-left:3px solid var(--sello); color:var(--tinta);
   overflow-x:auto; white-space:pre; line-height:1.45}
 .aviso{display:flex; gap:12px; align-items:baseline; border-left:4px solid var(--ambar);
-       background:var(--ambar-suave); padding:12px 15px; font-size:12.5px;
+       background:var(--ambar-suave); padding:12px 15px; font-size:12px;
        line-height:1.5; margin-bottom:15px; border-radius:0 10px 10px 0}
 /* Un aviso de que TODO ESTÁ BIEN no puede pintarse con los colores de alarma: de un
    vistazo se lee como un problema, que es exactamente lo contrario de lo que dice. */
@@ -844,20 +911,20 @@ pre.sql{font-family:var(--mono); font-size:11.5px; margin:0; padding:12px 14px;
 
 /* ── Carga de escaneos ────────────────────────────────────────────────── */
 .campos-lote{display:flex; gap:16px; flex-wrap:wrap; margin:14px 0 16px}
-.campos-lote label{display:flex; flex-direction:column; gap:5px; font-size:10px;
+.campos-lote label{display:flex; flex-direction:column; gap:5px; font-size:11px;
   letter-spacing:.11em; text-transform:uppercase; color:var(--tinta-3)}
 .campos-lote input{min-width:230px}
 .soltar{border:1px dashed var(--filete); background:var(--papel-2); padding:34px 20px;
   text-align:center; cursor:pointer; display:flex; flex-direction:column; gap:6px;
   transition:background .12s, border-color .12s}
 .soltar:hover,.soltar.encima{border-color:var(--sello); background:var(--sello-suave)}
-.soltar b{font-size:14px} .soltar span{font-size:11.5px; color:var(--tinta-2)}
+.soltar b{font-size:15px} .soltar span{font-size:12px; color:var(--tinta-2)}
 @media (prefers-reduced-motion:reduce){.soltar{transition:none}}
 .lista-subida{border:1px solid var(--filete); margin-top:14px; max-height:330px; overflow-y:auto}
 .subida{display:grid; grid-template-columns:60px 1fr 150px; gap:10px; padding:6px 12px;
   border-bottom:1px solid var(--filete-2); align-items:baseline; font-size:12px}
 .subida:last-child{border-bottom:none}
-.subida .nom{font-family:var(--mono); font-size:11.5px; overflow:hidden;
+.subida .nom{font-family:var(--mono); font-size:12px; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap}
 .subida .res{text-align:right; font-size:11px}
 .ok-txt{color:var(--verde); font-family:var(--mono); font-size:11px}
@@ -882,7 +949,7 @@ button:disabled{opacity:.45; cursor:not-allowed}
    lleva los colores de alarma: es el denominador de la respuesta, y va pegado a
    ella. Cuando algo quedó afuera se marca con el filete de atención al costado,
    que es «prestá atención», no «esto está mal». */
-.cobertura{font-family:var(--serif); font-size:14.5px; line-height:1.6;
+.cobertura{font-family:var(--serif); font-size:15px; line-height:1.6;
   color:var(--tinta-2); margin:0 0 16px; max-width:70ch; text-wrap:pretty}
 .cobertura strong{color:var(--tinta)}
 .cobertura.falta{border-left:3px solid var(--ambar); background:var(--ambar-suave);
@@ -892,7 +959,7 @@ button:disabled{opacity:.45; cursor:not-allowed}
   border-bottom:1px solid var(--filete-2); text-decoration:none; color:inherit; align-items:baseline}
 .hallazgo:last-child{border-bottom:none}
 .hallazgo:hover{background:var(--realce)}
-.hallazgo .frag{font-family:var(--serif); font-size:13.5px; color:var(--tinta-2); line-height:1.5}
+.hallazgo .frag{font-family:var(--serif); font-size:13px; color:var(--tinta-2); line-height:1.5}
 mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weight:600}
 
 /* ── Cronología de tramos ─────────────────────────────────────────────── */
@@ -903,18 +970,18 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
   align-items:center; padding:3px 0}
 .tramo-fila.eje{padding-bottom:8px; margin-bottom:4px; border-bottom:1px solid var(--filete-2)}
 .tramo-rot{display:flex; flex-direction:column; gap:1px; text-align:right;
-  font-size:10.5px; line-height:1.3}
-.tramo-rot .fol{font-size:10px}
+  font-size:11px; line-height:1.3}
+.tramo-rot .fol{font-size:11px}
 .tramo-pista{position:relative; height:15px}
 .tramo-fila.eje .tramo-pista{height:13px}
 .guia{position:absolute; top:-3px; bottom:-3px; width:1px; background:var(--filete-2)}
 .anio{position:absolute; top:0; transform:translateX(-50%); font-family:var(--mono);
-  font-size:9.5px; color:var(--tinta-3); white-space:nowrap}
+  font-size:11px; color:var(--tinta-3); white-space:nowrap}
 .tramo{position:absolute; top:3px; height:9px; background:var(--marca); display:block;
   box-shadow:0 0 0 2px var(--papel); border-radius:0}
 .tramo:hover{outline:1px solid var(--tinta); outline-offset:1px}
 .tramo.solapa{background:var(--marca-solape)}
-.tramo-dato{font-size:10.5px; color:var(--tinta-2); white-space:nowrap}
+.tramo-dato{font-size:11px; color:var(--tinta-2); white-space:nowrap}
 /* En un celular las tres columnas suman 364 px de mínimo y no entran: el rótulo, la
    barra y las fechas se apilan. La barra sigue siendo lo importante —es lo que muestra
    la superposición— así que se queda a lo ancho de la pantalla. */
@@ -945,7 +1012,7 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
 #aviso-demo{
   display:flex; gap:11px; align-items:center;
   padding:7px 20px; background:var(--lapiz-suave);
-  border-bottom:1px solid var(--lapiz); font-size:11.5px; color:var(--tinta);
+  border-bottom:1px solid var(--lapiz); font-size:12px; color:var(--tinta);
   line-height:1.4;
 }
 #aviso-demo > span:last-child{min-width:0}
@@ -971,24 +1038,24 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
   padding:30px 26px; display:flex; flex-direction:column; gap:9px; align-items:flex-start;
   max-width:66ch; margin-top:14px}
 .sin-datos b{font-size:15px}
-.sin-datos p{font-family:var(--serif); font-size:14.5px; line-height:1.6;
+.sin-datos p{font-family:var(--serif); font-size:15px; line-height:1.6;
   color:var(--tinta-2); margin:0; max-width:60ch}
 .sin-datos .boton{margin-top:6px; padding:6px 14px; font-size:12px}
 
 /* ── Resumen y hallazgos del panel ────────────────────────────────────── */
-.prosa.resumen{font-size:16.5px; line-height:1.62; color:var(--tinta-2); max-width:72ch}
+.prosa.resumen{font-size:18px; line-height:1.62; color:var(--tinta-2); max-width:72ch}
 .prosa.resumen strong{color:var(--tinta)}
 .destacados{border:1px solid var(--filete)}
 .destacado-fila{display:grid; grid-template-columns:64px minmax(0,1fr) 118px minmax(0,1.5fr);
   gap:14px; padding:8px 13px; border-bottom:1px solid var(--filete-2);
-  text-decoration:none; color:inherit; align-items:baseline; font-size:12.5px}
+  text-decoration:none; color:inherit; align-items:baseline; font-size:12px}
 .destacado-fila:last-child{border-bottom:none}
 a.destacado-fila:hover{background:var(--realce)}
-.destacado-fila.cab{font-size:9.5px; font-weight:600; letter-spacing:.11em;
+.destacado-fila.cab{font-size:11px; font-weight:600; letter-spacing:.11em;
   text-transform:uppercase; color:var(--tinta-3); border-bottom:1px solid var(--tinta)}
 .destacado-fila .dias{text-align:right; font-variant-numeric:tabular-nums; font-weight:500}
 .destacado-fila.cab .dias{font-family:var(--sans)}
-.destacado-fila .fol{font-size:10.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.destacado-fila .fol{font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 /* En un celular cuatro columnas no entran: con 342 px de ancho útil, a la del nombre
    le tocaban 47 y el apellido se pisaba con la columna de al lado. Se apilan. */
 @media (max-width:720px){
@@ -996,7 +1063,7 @@ a.destacado-fila:hover{background:var(--realce)}
     grid-template-areas:"dias quien" ".    cruce" ".    fol"}
   .destacado-fila.cab{display:none}
   .destacado-fila .dias{grid-area:dias; align-self:start}
-  .destacado-fila .dias::after{content:" d"; font-size:10px; color:var(--tinta-3)}
+  .destacado-fila .dias::after{content:" d"; font-size:11px; color:var(--tinta-3)}
   .destacado-fila .quien{grid-area:quien; font-weight:600}
   .destacado-fila .cruce{grid-area:cruce; font-size:11px}
   .destacado-fila .fol{grid-area:fol; color:var(--tinta-3)}
@@ -1041,7 +1108,7 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 
 /* ── Cifras: que el monto no se corte ─────────────────────────────────── */
 .cifra.ancha{grid-column:span 2}
-.cifra.ancha b{font-size:19px; letter-spacing:-.015em}
+.cifra.ancha b{font-size:18px; letter-spacing:-.015em}
 @media (max-width:720px){.cifra.ancha{grid-column:span 1}}
 
 /* ── Los dos carriles, lado a lado ────────────────────────────────────── */
@@ -1063,7 +1130,7 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
   color:var(--tinta-2); line-height:1.55}
 .carril li{margin-bottom:5px}
 .carril li b{color:var(--tinta)}
-.interp-texto{font-family:var(--serif); font-style:italic; font-size:14.5px;
+.interp-texto{font-family:var(--serif); font-style:italic; font-size:15px;
   line-height:1.6; color:var(--tinta)}
 
 /* Etiqueta del campo en la cola. Antes usaba el sello, que se leía como un botón
@@ -1085,11 +1152,11 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 /* ── Consejo operativo en la pantalla de carga ────────────────────────── */
 .consejo{border-left:3px solid var(--sello); background:var(--sello-suave);
   padding:14px 18px; margin:14px 0 18px; max-width:78ch}
-.consejo b{display:block; font-size:14px; margin-bottom:8px}
-.consejo p{font-family:var(--serif); font-size:14px; line-height:1.58;
+.consejo b{display:block; font-size:15px; margin-bottom:8px}
+.consejo p{font-family:var(--serif); font-size:15px; line-height:1.58;
   color:var(--tinta-2); margin:0 0 9px; max-width:none}
 .consejo p:last-child{margin-bottom:0}
-.consejo p.medido{font-family:var(--mono); font-size:11.5px; line-height:1.55;
+.consejo p.medido{font-family:var(--mono); font-size:12px; line-height:1.55;
   background:var(--papel); border:1px solid var(--filete-2); padding:8px 11px}
 .consejo strong{color:var(--tinta)}
 
@@ -1124,7 +1191,7 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
   padding:16px 24px 10px; border-bottom:1px solid var(--filete-2);
 }
 .taller-cabeza h2{margin:0 0 3px}
-.taller-sub{margin:0; font-family:var(--serif); font-size:14.5px; line-height:1.55;
+.taller-sub{margin:0; font-family:var(--serif); font-size:15px; line-height:1.55;
             text-wrap:pretty;
             color:var(--tinta-2); max-width:64ch}
 .taller-sub strong{color:var(--tinta)}
@@ -1132,16 +1199,16 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
    segundos. Grande, alineado a la derecha y siempre en el mismo lugar. */
 .taller-cabeza .posicion{flex:none; text-align:right; font-family:var(--mono);
   font-size:12px; color:var(--tinta-2); line-height:1.35; padding-top:2px}
-.taller-cabeza .posicion b{font-size:25px; font-weight:600; color:var(--tinta);
+.taller-cabeza .posicion b{font-size:24px; font-weight:600; color:var(--tinta);
   font-variant-numeric:tabular-nums; letter-spacing:-.02em}
-.taller-cabeza .de-todo{display:block; font-family:var(--sans); font-size:10.5px;
+.taller-cabeza .de-todo{display:block; font-family:var(--sans); font-size:11px;
   color:var(--tinta-3)}
 
 /* El avance va debajo del subtítulo y NO al lado del «1 de 42»: son dos cosas
    distintas —dónde está el cursor y cuánto se lleva hecho— y juntas se confunden. */
 .avance{margin-top:11px; max-width:64ch}
 .avance .riel{height:6px}
-.avance p{margin:6px 0 0; font-size:12.5px; color:var(--tinta-2)}
+.avance p{margin:6px 0 0; font-size:12px; color:var(--tinta-2)}
 .avance p strong{color:var(--tinta); font-variant-numeric:tabular-nums}
 
 .taller-filtros{display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;
@@ -1154,7 +1221,7 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 .otros-revisaron{display:flex; align-items:center; gap:12px; flex-wrap:wrap;
   padding:8px 24px; background:var(--sello-suave);
   border-bottom:1px solid var(--filete); font-size:12px}
-.otros-revisaron .boton{padding:3px 10px; font-size:11.5px; min-height:28px}
+.otros-revisaron .boton{padding:3px 10px; font-size:12px; min-height:28px}
 @media (max-width:1180px){.otros-revisaron{padding-left:16px; padding-right:16px}}
 
 .taller-cuerpo{display:grid; grid-template-columns:minmax(0,1fr) minmax(340px,40%);
@@ -1240,7 +1307,7 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 /* El nombre del archivo se corta por la izquierda si no entra, y con nombres reales
    —que son más largos que «contrato_A_0020»— eso deja ilegible justo lo que ubica el
    campo. Que baje de renglón antes de perderse. */
-.taller-cuerpo .fila .marginalia{padding:9px 10px 9px 0; font-size:10px;
+.taller-cuerpo .fila .marginalia{padding:9px 10px 9px 0; font-size:11px;
   overflow-wrap:anywhere; line-height:1.35}
 .taller-cuerpo .fila .med{padding:9px 12px}
 .taller-cuerpo .fila .acc{padding:9px 10px; gap:3px}
@@ -1249,7 +1316,7 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 
 /* Deshacer una revisión: discreto, pero siempre a mano. Equivocarse revisando es
    normal, y sin vuelta atrás habría que reprocesar el lote para arreglar un clic. */
-.deshacer{font-size:10px; border:1px solid var(--borde-control); background:transparent;
+.deshacer{font-size:11px; border:1px solid var(--borde-control); background:transparent;
   color:var(--tinta-3); padding:1px 6px; cursor:pointer; margin-left:4px}
 .deshacer:hover{border-color:var(--lapiz); color:var(--lapiz)}
 
@@ -1316,7 +1383,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 
   /* Botones y campos que se puedan tocar sin errar. */
   .boton, .tecla, .chip{min-height:44px; display:inline-flex; align-items:center}
-  input, select, textarea{min-height:44px; font-size:16px}   /* 16px: iOS no hace zoom */
+  input, select, textarea{min-height:44px; font-size:18px}   /* ≥16px: iOS no hace zoom al enfocar */
   .nav-lateral .cabeza, .nav-lateral .items a, .pie-boton{min-height:44px}
 
   /* En un teléfono no hay teclado: los atajos son ruido que ocupa lugar. */
@@ -1336,7 +1403,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   .folio-lado .lupa{max-height:104px}
   /* El pie y el enlace, en un renglón: cada píxel que ocupa la lupa es un píxel que
      le falta a la lista de abajo. */
-  .folio-lado .pie-lamina{display:flex; gap:10px; flex-wrap:wrap; font-size:10.5px}
+  .folio-lado .pie-lamina{display:flex; gap:10px; flex-wrap:wrap; font-size:11px}
   .folio-lado .chip{min-height:34px; font-size:11px}
 
   .taller-cuerpo .fila{grid-template-columns:1fr; padding:2px 0 0}
@@ -1347,7 +1414,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   .taller-cuerpo .fila .acc{border-left:none; border-top:1px solid var(--filete-2);
     padding:7px 0 10px; flex-direction:row; flex-wrap:wrap; gap:7px}
   .taller-cuerpo .tecla{border:1px solid var(--filete); background:var(--papel);
-    padding:0 13px; font-size:12.5px; color:var(--tinta)}
+    padding:0 13px; font-size:12px; color:var(--tinta)}
   .taller-cuerpo .tecla:active{background:var(--papel-2)}
   /* Con la fila entera a lo ancho, el fondo del foco se pierde: se marca al costado. */
   .taller-cuerpo .fila.foco{box-shadow:inset 3px 0 0 var(--sello); padding-left:9px}
@@ -1356,7 +1423,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 /* Las dos rutas de un conflicto, una arriba de la otra: en 360 px no entran al lado. */
 @media (max-width:720px){
   .conflicto .ruta{flex-direction:column; align-items:flex-start; gap:0; padding:5px 0}
-  .conflicto .ruta span:first-child{font-size:10px; color:var(--tinta-3)}
+  .conflicto .ruta span:first-child{font-size:11px; color:var(--tinta-3)}
 }
 
 /* Propuesta de un modelo de visión para un campo escrito a mano.
@@ -1368,11 +1435,11 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .propuesta{margin-top:8px; padding:7px 11px; background:var(--interp);
   border-left:3px solid var(--interp-filete); display:flex; gap:10px;
   align-items:baseline; flex-wrap:wrap; font-size:13px}
-.propuesta .de-donde{font-family:var(--sans); font-size:9.5px; letter-spacing:.09em;
+.propuesta .de-donde{font-family:var(--sans); font-size:11px; letter-spacing:.09em;
   text-transform:uppercase; color:var(--tinta-3); flex:none}
-.propuesta b{font-size:14px; color:var(--tinta)}
+.propuesta b{font-size:15px; color:var(--tinta)}
 .propuesta .nota{font-family:var(--serif); font-style:italic; color:var(--tinta-2);
-  font-size:12.5px}
+  font-size:12px}
 .propuesta.ilegible b{color:var(--tinta-2); font-weight:500}
 
 /* ── Firme contra provisional ──────────────────────────────────────────────
@@ -1421,10 +1488,10 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
    quedan sobre la misma línea diga lo que diga el rótulo. */
 .form-legajo{display:grid; grid-template-columns:1fr 1fr; gap:14px 18px;
   align-items:end; max-width:660px; margin:16px 0 12px}
-.form-legajo label{display:grid; gap:5px; font-size:12.5px; color:var(--tinta-2)}
+.form-legajo label{display:grid; gap:5px; font-size:12px; color:var(--tinta-2)}
 .form-legajo label.ancho{grid-column:1 / -1}
 .form-legajo .opt{color:var(--tinta-3); font-weight:400}
-.form-legajo input{font:inherit; font-size:14px; padding:9px 11px;
+.form-legajo input{font:inherit; font-size:15px; padding:9px 11px;
   border:1px solid var(--borde-control); border-radius:var(--radio);
   background:var(--papel); color:var(--tinta); min-height:40px;
   transition:border-color var(--paso) var(--curva), box-shadow var(--paso) var(--curva)}
@@ -1449,9 +1516,9 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .siguiente-paso{display:flex; gap:16px; align-items:center; justify-content:space-between;
   flex-wrap:wrap; border:1px solid var(--filete-2); border-radius:10px;
   background:var(--realce); padding:15px 18px; margin-bottom:20px}
-.siguiente-paso b{display:block; font-size:15.5px; margin-bottom:3px;
+.siguiente-paso b{display:block; font-size:15px; margin-bottom:3px;
   letter-spacing:-.01em}
-.siguiente-paso span{font-family:var(--serif); font-size:14.5px; color:var(--tinta-2);
+.siguiente-paso span{font-family:var(--serif); font-size:15px; color:var(--tinta-2);
   display:block; max-width:70ch; line-height:1.55}
 .siguiente-paso .boton{flex:none}
 /* Con trabajo pendiente cambia el filete, no el fondo: un bloque de color arriba de
@@ -1464,19 +1531,19 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .siguiente-paso.hay-trabajo{border-left:3px solid var(--ambar)}
 
 .detalle-cobertura{margin-top:12px}
-.detalle-cobertura summary{cursor:pointer; font-size:12.5px; color:var(--tinta-2);
+.detalle-cobertura summary{cursor:pointer; font-size:12px; color:var(--tinta-2);
   padding:6px 0}
 .detalle-cobertura summary:hover{color:var(--tinta)}
 
 /* ── Filtros y posición en la cola ────────────────────────────────────────
    «Cola de revisión» sin número no dice si faltan tres o trescientos, y sin saber eso
    nadie puede decidir si lo termina hoy. */
-.taller-filtros label{display:grid; gap:3px; font-size:10.5px; font-weight:600;
+.taller-filtros label{display:grid; gap:3px; font-size:11px; font-weight:600;
   letter-spacing:.1em; text-transform:uppercase; color:var(--tinta-3)}
-.taller-filtros select{font:inherit; font-size:12.5px; padding:5px 8px;
+.taller-filtros select{font:inherit; font-size:12px; padding:5px 8px;
   border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta);
   min-height:32px; max-width:220px}
-.taller-filtros .boton{padding:5px 11px; font-size:11.5px; min-height:32px}
+.taller-filtros .boton{padding:5px 11px; font-size:12px; min-height:32px}
 .taller-filtros select{border-radius:var(--radio)}
 
 /* Deshacer lo último. Aparece recién después de decidir algo y desaparece al recargar:
@@ -1484,14 +1551,14 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .deshacer-barra{display:flex; gap:12px; align-items:center; justify-content:space-between;
   flex-wrap:wrap; background:var(--papel-2); border:1px solid var(--filete);
   border-left:3px solid var(--sello); padding:8px 13px; margin:10px 0 2px;
-  font-size:12.5px}
-.deshacer-barra .fol{font-family:var(--mono); font-size:11.5px; color:var(--tinta-2)}
+  font-size:12px}
+.deshacer-barra .fol{font-family:var(--mono); font-size:12px; color:var(--tinta-2)}
 
 /* Traer más de la cola. Es un botón y no un scroll infinito a propósito: con carga
    automática, el final de la lista se corre solo y nunca se llega a «terminé». */
 .mas-cola{display:block; width:100%; background:var(--papel-2); border:none;
   border-top:1px solid var(--filete); padding:13px; cursor:pointer; font:inherit;
-  font-size:12.5px; color:var(--tinta-2); text-align:center}
+  font-size:12px; color:var(--tinta-2); text-align:center}
 .mas-cola:hover{background:var(--papel-3); color:var(--tinta)}
 .mas-cola span{display:block; font-size:11px; color:var(--tinta-3); margin-top:2px}
 
@@ -1516,20 +1583,20 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   .tabla-legajos td{display:block; padding:0; border:none; text-align:left !important;
     width:auto !important; white-space:normal}
   .tabla-legajos td:nth-child(1){font-size:15px; margin-bottom:2px}
-  .tabla-legajos td:nth-child(2){font-family:var(--serif); font-size:14px;
+  .tabla-legajos td:nth-child(2){font-family:var(--serif); font-size:15px;
     color:var(--tinta-2); margin-bottom:6px}
   .tabla-legajos td:nth-child(3){font-size:12px; color:var(--tinta-3); margin-bottom:8px}
   /* Sin fiscal cargado no se deja un renglón con una raya sola: se saca el renglón. */
   .tabla-legajos td:empty{display:none}
   /* Los tres datos que deciden, en un renglón y con su rótulo: sin el encabezado de
      la tabla, un número suelto no dice de qué es. */
-  .tabla-legajos td:nth-child(n+4){display:inline-block; font-size:11.5px;
+  .tabla-legajos td:nth-child(n+4){display:inline-block; font-size:12px;
     margin-right:14px; color:var(--tinta-2)}
   .tabla-legajos td:nth-child(4)::before{content:"Documentos "}
   .tabla-legajos td:nth-child(5)::before{content:"Pendiente "}
   .tabla-legajos td:nth-child(6)::before{content:"Actividad "}
   .tabla-legajos td:nth-child(n+4)::before{color:var(--tinta-3)}
-  .tabla-legajos .sello{font-size:9px; padding:2px 6px}
+  .tabla-legajos .sello{font-size:11px; padding:2px 6px}
 }
 
 
@@ -1537,7 +1604,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
    Quién puso esto, cuándo y qué decía antes. La auditoría es append-only: deshacer no
    borra la decisión anterior, agrega una línea que dice que se revirtió. */
 .historial{background:none; border:1px solid var(--borde-control); color:var(--tinta-3);
-  font-size:10px; letter-spacing:.08em; text-transform:uppercase; padding:2px 6px;
+  font-size:11px; letter-spacing:.08em; text-transform:uppercase; padding:2px 6px;
   cursor:pointer; margin-left:6px; vertical-align:1px}
 .historial:hover{color:var(--tinta); border-color:var(--tinta-3)}
 .rastro{margin-top:8px; border-left:2px solid var(--filete); padding-left:11px}
@@ -1565,8 +1632,8 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .campo-buscar input:focus{border-color:var(--sello)}
 .buscador-tabla .cuantas{font-family:var(--mono); font-size:12px; color:var(--tinta-2);
   white-space:nowrap}
-.buscador-tabla .cuantas b{color:var(--tinta); font-size:13.5px}
-.buscador-tabla .boton{padding:5px 11px; font-size:11.5px; min-height:34px}
+.buscador-tabla .cuantas b{color:var(--tinta); font-size:13px}
+.buscador-tabla .boton{padding:5px 11px; font-size:12px; min-height:34px}
 
 /* El encabezado ordena. La flecha dice por cuál y para qué lado: sin marca, después de
    ordenar no se sabe si la lista está ordenada o llegó así. */
@@ -1576,21 +1643,21 @@ th.ord.asc::after{content:" ↑"; color:var(--sello)}
 th.ord.desc::after{content:" ↓"; color:var(--sello)}
 
 .mas-tabla{display:block; width:100%; background:var(--papel-2); border:1px solid var(--filete);
-  border-top:none; padding:12px; cursor:pointer; font:inherit; font-size:12.5px;
+  border-top:none; padding:12px; cursor:pointer; font:inherit; font-size:12px;
   color:var(--tinta-2); text-align:center}
 .mas-tabla:hover{background:var(--papel-3); color:var(--tinta)}
 .mas-tabla span{display:block; font-size:11px; color:var(--tinta-3); margin-top:2px}
 
 @media (max-width:720px){
   .campo-buscar{flex-basis:100%; max-width:none}
-  .campo-buscar input{min-height:44px; font-size:16px}
+  .campo-buscar input{min-height:44px; font-size:18px}
 }
 
 /* Parar un procesamiento. Un lote grande son horas; arrancar sobre el equivocado y no
    poder frenarlo dejaba una sola salida —matar el proceso— que con SQLite en medio de
    una escritura es la peor de todas. */
 .pie-progreso{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px}
-.pie-progreso span{font-family:var(--serif); font-size:12.5px; color:var(--tinta-2);
+.pie-progreso span{font-family:var(--serif); font-size:12px; color:var(--tinta-2);
   flex:1 1 260px; line-height:1.5}
 
 
@@ -1605,8 +1672,8 @@ th.ord.desc::after{content:" ↓"; color:var(--sello)}
    valor tipeado en la cola. */
 #aviso-version{display:flex; gap:12px; align-items:center; flex-wrap:wrap;
   padding:8px 24px; background:var(--papel-3); border-bottom:1px solid var(--filete);
-  font-size:12.5px}
-#aviso-version .boton{padding:3px 10px; font-size:11.5px; margin-left:8px}
+  font-size:12px}
+#aviso-version .boton{padding:3px 10px; font-size:12px; margin-left:8px}
 @media (max-width:720px){#aviso-version{padding:8px 16px}}
 
 /* ── Acerca del sistema ────────────────────────────────────────────────────
@@ -1623,15 +1690,15 @@ th.ord.desc::after{content:" ↓"; color:var(--sello)}
    sin necesidad de contar los tamaños de letra. */
 .jerarquia .nivel::before{content:''; position:absolute; left:0; top:.62em;
   width:9px; height:1px; background:var(--filete)}
-.jerarquia .n1{font-size:14px; font-weight:600; color:var(--tinta)}
+.jerarquia .n1{font-size:15px; font-weight:600; color:var(--tinta)}
 .jerarquia .n2{font-size:13px; color:var(--tinta-2); margin-left:12px}
-.jerarquia .n3{font-size:12.5px; color:var(--tinta-2); margin-left:24px}
+.jerarquia .n3{font-size:12px; color:var(--tinta-2); margin-left:24px}
 .jerarquia .n4{font-size:12px; color:var(--tinta-3); margin-left:36px}
 .jerarquia .n1::before{background:var(--tribunal); height:2px; width:11px}
 
 .ficha-identidad .fiscales{padding-left:20px; border-left:1px solid var(--filete)}
 .ficha-identidad .fiscales ul{margin:5px 0 0; padding:0; list-style:none;
-  font-size:13.5px; font-family:var(--serif)}
+  font-size:13px; font-family:var(--serif)}
 .ficha-identidad .fiscales li{padding:1px 0}
 @media (max-width:720px){
   .ficha-identidad{gap:14px}

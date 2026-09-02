@@ -235,6 +235,34 @@ marginalia de un expediente: dice dónde estás sin ocupar el lugar del contenid
 
 En pantallas de menos de 720 px la canaleta desaparece y el rótulo pasa arriba.
 
+### La escala tipográfica
+
+Siete pasos y **ninguno intermedio**. Están declarados como tokens (`--t-11` … `--t-34`)
+y `pruebas/test_reticula.py` falla si aparece un `font-size` en px que no sea uno de
+ellos.
+
+| paso | dónde |
+|---|---|
+| **11** | rótulos en versalitas, foliatura, marginalia, cuños |
+| **12** | encabezado de tabla, sellos, pies, la barra lateral |
+| **13** | cuerpo de la aplicación, notas al pie de un bloque |
+| **15** | prosa, valores de campo, campos de formulario |
+| **18** | `h3`, el número de legajo, campos en el teléfono (≥16 evita el zoom de iOS) |
+| **24** | `h2`, el título de una sección |
+| **34** | la cifra grande de una baldosa del panel |
+
+Esto se había perdido: el CSS llegó a tener **veintiún** tamaños distintos, catorce de
+ellos medios puntos (9,5 · 10,5 · 11,5 · 12,5 · 13,5 · 14,5 · 15,5 · 16,5). Nada se ve
+mal por separado; pero un rótulo de 12,5 al lado de uno de 13 y de uno de 11,5 no forma
+un sistema, forma tres tamaños que el ojo registra como desalineados sin poder decir por
+qué. **Es la diferencia entre una interfaz cuidada y una casi cuidada.**
+
+La fuente de casi todas esas desviaciones eran los **98 atributos `style="…"`** escritos
+a mano en `app.js`. Un estilo incrustado no se puede auditar, no se puede cambiar de una
+vez, y no lo alcanza ninguna prueba de esta hoja: cada uno es una excepción silenciosa.
+Quedan tres, y son las únicas que corresponden — `left` y `width` calculados a partir de
+un dato, que es geometría que sale de la base y no puede vivir en el CSS.
+
 ### Dos planos: la mesa y el folio
 
 **Decidido: hay superficies, hay radio y hay sombra.** Se deja escrito porque

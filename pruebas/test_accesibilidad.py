@@ -410,8 +410,24 @@ class SeVeEnUnTelefono(unittest.TestCase):
                          "los campos dejaron de tener 44 px en un teléfono")
 
     def test_el_tipo_de_los_campos_evita_el_zoom_de_ios(self):
-        """Con menos de 16px, iOS hace zoom al tocar un campo y descuadra la pantalla."""
-        self.assertIn("font-size:16px", CSS)
+        """
+        Con MENOS de 16 px, iOS hace zoom al tocar un campo y descuadra la pantalla.
+
+        Esto exigía `font-size:16px` literal, o sea que medía la constante y no la
+        propiedad. Cuando la escala tipográfica se unificó en siete pasos, ese 16
+        pasó a 18 —que también evita el zoom, porque el umbral es un mínimo— y la
+        prueba falló sobre un cambio que estaba bien. Ahora mide lo que de verdad
+        importa: que el tipo de los campos en un teléfono no baje de 16.
+        """
+        movil = CSS[CSS.index("@media (max-width:720px){"):]
+        m = re.search(r"input,\s*select,\s*textarea\{[^}]*font-size:\s*([\d.]+)px",
+                      movil)
+        self.assertIsNotNone(
+            m, "la regla que fija el tipo de los campos en el teléfono ya no está")
+        self.assertGreaterEqual(
+            float(m.group(1)), 16,
+            f"los campos quedaron en {m.group(1)}px: por debajo de 16, iOS hace zoom "
+            f"al enfocar y descuadra la pantalla")
 
 
 class LaPuertaDeLaNube(unittest.TestCase):
