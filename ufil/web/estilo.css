@@ -137,7 +137,13 @@
      aplicado a otra propiedad, y sin nada que lo cuidara. Ahora lo cuida
      test_reticula.py. */
   --radio:5px;                  /* un control: botón, campo, selector, chip */
-  --radio-folio:14px;           /* una superficie grande: el folio, un diálogo */
+  /* Una hoja de papel NO tiene esquinas redondeadas de ningún radio: tiene canto.
+     Estaba en 14 px con el argumento de que 14 en una hoja de 950 se ve igual de
+     contenido que 5 en un botón de 90. El argumento de la proporción es correcto y
+     la conclusión no, porque la proporción sólo importa si el objeto de verdad tiene
+     esquinas curvas, y el papel no las tiene. Un rectángulo blanco con radio 14 y una
+     sombra difusa es la tarjeta de cualquier aplicación de los últimos diez años. */
+  --radio-folio:2px;            /* una hoja: el folio, la cola, una tabla */
   --radio-pildora:99px;         /* lo que quiere ser una píldora: la barra de avance */
   /* Sombras en tres capas, no en una.
      Una sola sombra difusa es una mancha gris: el ojo la lee como suciedad y no como
@@ -258,9 +264,24 @@
 
 *{box-sizing:border-box}
 html,body{margin:0}
+/* ── La mesa: un color no, un papel ────────────────────────────────────────
+   Un crema uniforme es un color; un papel tiene fibra. Es un `feTurbulence` en SVG
+   incrustado, en escala de grises, al 5,5 % — 400 bytes, sin red y sin archivo. Se
+   nota antes de que uno pueda decir por qué.
+   Va en `background-image` y NO en el atajo: la prueba de contraste mide el par
+   «color de texto sobre fondo» de cada regla, y un `url(...)` en el atajo no se
+   resuelve a un color, así que la regla se saltearía entera y el fondo dejaría de
+   estar medido. Con el sólido en `background` y la textura encima, sigue midiendo
+   `--fondo`, que además es lo que se ve por debajo del 5,5 %. */
 body{background:var(--fondo); color:var(--tinta); font-family:var(--sans);
      font-size:13px; line-height:1.55; -webkit-font-smoothing:antialiased;
      text-rendering:optimizeLegibility}
+body{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23f)' opacity='.055'/%3E%3C/svg%3E")}
+/* En el oscuro no hay papel que imitar: la textura sobre un fondo casi negro es
+   ruido, y a esa luminancia se ve como suciedad de pantalla. */
+:root[data-tema="oscuro"] body{background-image:none}
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]) body{background-image:none}}
+@media print{body{background-image:none}}
 /* ── Dónde estoy parado con el teclado ─────────────────────────────────────
    Esto estaba mal medido y nadie lo había mirado: el anillo iba en `--sello` SIEMPRE,
    y sobre la barra lateral —que es azul macizo— el par daba **1,28:1** en el tema
@@ -431,7 +452,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    oscuro del ítem abierto, con la cifra en negrita. */
 .nav-lateral .cuenta{
   font-family:var(--mono); font-size:11px; font-variant-numeric:tabular-nums;
-  padding:1px 6px; border-radius:var(--radio-folio); background:var(--barra-3);
+  padding:1px 6px; border-radius:var(--radio-pildora); background:var(--barra-3);
   color:var(--barra-txt); flex:none;
 }
 .nav-lateral .cabeza.activo .cuenta, .nav-lateral .items a.activo .cuenta{
@@ -559,7 +580,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    así que el color es el tercer refuerzo y nunca el único. */
 .estado{
   display:inline-flex; align-items:center; gap:5px; padding:2px 8px 2px 6px;
-  border:1px solid currentColor; border-radius:var(--radio-folio); font-size:11px; font-weight:600;
+  border:1px solid currentColor; border-radius:var(--radio); font-size:11px; font-weight:600;
   line-height:1.5; white-space:nowrap; color:var(--sello); background:transparent;
 }
 .estado svg{flex:none}
@@ -594,17 +615,60 @@ main{padding:18px 26px 90px; flex:1}
    pero 14 px en una hoja grande es lo mismo que 5 px en un botón: la proporción es
    lo que se ve, no el número. */
 .bloque{display:grid; grid-template-columns:var(--canaleta) minmax(0,1fr);
+        position:relative;
         background:var(--folio); border:1px solid var(--filete-2);
-        border-radius:var(--radio-folio); box-shadow:var(--sombra);
-        padding:20px 26px 24px; margin-top:16px}
+        border-radius:var(--radio-folio);
+        /* Lo que hace que se lea como papel no es el radio: es el CANTO claro de
+           arriba —el grosor de la hoja tomando luz—, el filete cálido, y una sombra
+           de CONTACTO corta y pegada al borde en vez de una nube gris difusa. Más un
+           degradé de 130 px desde arriba, porque una hoja apoyada toma más luz en el
+           borde superior que en el medio. */
+        border-color:color-mix(in srgb, var(--filete) 55%, var(--folio));
+        background-image:linear-gradient(180deg,
+          color-mix(in srgb, #fff 55%, var(--folio)) 0, var(--folio) 130px);
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.85),
+                   0 1px 1px rgba(26,38,54,.055),
+                   0 10px 22px -16px rgba(26,38,54,.42);
+        padding:24px 30px 28px; margin-top:16px}
+/* En el oscuro no hay luz que tomar: el degradé claro sobre un fondo oscuro se ve
+   como una mancha, y el canto blanco al 85 % es una raya. */
+:root[data-tema="oscuro"] .bloque{background-image:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 10px 22px -16px rgba(0,0,0,.7)}
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]) .bloque{
+  background-image:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 10px 22px -16px rgba(0,0,0,.7)}}
 .bloque:first-child{margin-top:0}
-.marginalia{border-right:1px solid var(--filete-2); padding-right:16px; text-align:right;
+.marginalia{padding-right:16px; text-align:right;
             font-family:var(--mono); font-size:11px; color:var(--tinta-3);
             display:flex; flex-direction:column; gap:4px}
+/* Adentro de la fila de la cola sí lleva su propio filete: ahí no hay margen de
+   folio que dibujar porque no es un folio, es un renglón. */
+.fila .marginalia{border-right:1px solid var(--filete-2)}
 /* Adentro del folio la canaleta arranca a la altura del título y no del borde de la
    hoja: si no, el número de foja queda flotando más arriba que todo lo demás. */
 .bloque > .marginalia{padding-top:5px; padding-bottom:2px}
-.cuerpo{padding-left:26px; min-width:0}
+/* 112 px de aire mostrando dos renglones de 11 px es el espacio más caro y peor usado
+   de la pantalla, y es además la idea estructural más propia de este layout. El
+   número de foja de un expediente tiene que leerse COMO un número de foja, no como
+   una nota al pie de sí mismo. */
+.bloque > .marginalia > span:first-child{font-size:18px; letter-spacing:-.02em;
+  color:var(--tinta-2); display:block; line-height:1.1}
+.bloque > .marginalia .rotulo{margin-top:5px; font-size:11px; letter-spacing:.16em;
+  color:var(--tinta-3)}
+.cuerpo{padding-left:26px; min-width:0; position:relative}
+/* El margen del papel de oficio: una línea continua que corre TODO el alto del folio
+   entre la marginalia y el texto, difuminada en las dos puntas. Es el gesto que
+   convierte un bloque en una foja. La canaleta ya tenía un `border-right` en la
+   marginalia, pero ese sólo mide lo que mide el rótulo —dos renglones— y por eso no
+   se leía como margen. */
+.cuerpo::before{content:''; position:absolute; top:-6px; bottom:-6px;
+  left:-26px; width:1px; pointer-events:none;
+  background:linear-gradient(180deg, transparent 0,
+    color-mix(in srgb, var(--filete) 85%, transparent) 22px,
+    color-mix(in srgb, var(--filete) 85%, transparent) calc(100% - 22px),
+    transparent 100%)}
+/* Por debajo de 1100 no hay canaleta, así que no hay margen que dibujar. */
+@media (max-width:1100px){ .cuerpo::before{display:none} }
 
 /* ── Escala tipográfica ───────────────────────────────────────────────────
    Estaba todo en el mismo susurro: 21 px el título de una sección, 14,5 la prosa,
@@ -899,7 +963,7 @@ td.acciones .mini + .mini{margin-left:5px}
    `<dialog>` del navegador y no un div propio: trae solo el foco atrapado adentro,
    Escape para cerrar, y el resto de la página marcado como inerte para quien navega
    con lector de pantalla. Escribir eso a mano sale mal casi siempre. */
-.dialogo{border:1px solid var(--filete); border-radius:var(--radio-folio); padding:20px 22px;
+.dialogo{border:1px solid var(--filete); border-radius:var(--radio); padding:20px 22px;
   max-width:min(480px,92vw); background:var(--folio); color:var(--tinta);
   box-shadow:var(--sombra-alta); font-family:var(--sans); font-size:13px}
 .dialogo::backdrop{background:rgba(11,18,19,.5)}
@@ -919,7 +983,7 @@ pre.sql{font-family:var(--mono); font-size:12px; margin:0; padding:12px 14px;
   overflow-x:auto; white-space:pre; line-height:1.45}
 .aviso{display:flex; gap:12px; align-items:baseline; border-left:4px solid var(--ambar);
        background:var(--ambar-suave); padding:12px 15px; font-size:12px;
-       line-height:1.5; margin-bottom:15px; border-radius:0 var(--radio-folio) var(--radio-folio) 0}
+       line-height:1.5; margin-bottom:15px; border-radius:0 var(--radio) var(--radio) 0}
 /* Un aviso de que TODO ESTÁ BIEN no puede pintarse con los colores de alarma: de un
    vistazo se lee como un problema, que es exactamente lo contrario de lo que dice. */
 .aviso.bien{border-left-color:var(--verde); background:var(--realce)}

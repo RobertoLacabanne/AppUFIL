@@ -152,6 +152,62 @@ PARES = [
 ]
 
 
+class LaTexturaDelPapelNoCambiaNingunContraste(unittest.TestCase):
+    """
+    La mesa dejó de ser un color plano y pasó a tener fibra: un `feTurbulence` en
+    escala de grises al 5,5 %. Es lo único que separa «fondo crema» de «papel».
+
+    Y es exactamente el tipo de agregado que puede tirar abajo una medición sin que
+    nadie se entere, por dos caminos distintos:
+
+      · si se escribiera en el atajo `background`, la prueba de contraste —que mide el
+        par «color de texto sobre fondo» de cada regla— no podría resolver el
+        `url(...)` a un color y se saltearía la regla ENTERA: el fondo del cuerpo
+        dejaría de estar medido y nadie lo notaría;
+      · si quedara encendida en el tema oscuro, sobre un fondo casi negro una textura
+        clara al 5,5 % no se lee como fibra: se lee como suciedad de pantalla, y sube
+        la luminancia efectiva por encima de lo medido.
+    """
+
+    def _regla_del_cuerpo(self):
+        return re.search(r"(?<![-\w.])body\{([^{}]*background:[^{}]*)\}", CSS)
+
+    def test_el_fondo_solido_sigue_declarado_y_medible(self):
+        m = self._regla_del_cuerpo()
+        self.assertIsNotNone(m, "el cuerpo se quedó sin un fondo sólido que medir")
+        self.assertIn("background:var(--fondo)", m.group(1).replace(" ", ""),
+                      "el fondo del cuerpo dejó de ser un token: la tabla de pares no "
+                      "puede medir lo que no puede resolver")
+        self.assertNotIn("url(", m.group(1),
+                         "la textura se metió en el atajo `background` y se lleva "
+                         "puesta la medición de toda la regla")
+
+    def test_la_textura_va_aparte_y_es_tenue(self):
+        m = re.search(r"body\{background-image:url\(\"data:image/svg\+xml[^\"]*\"\)\}",
+                      CSS)
+        self.assertIsNotNone(m, "se perdió la textura del papel")
+        op = re.search(r"opacity='([\d.]+)'", m.group(0))
+        self.assertIsNotNone(op, "la textura dejó de declarar su opacidad")
+        # Como fracción y no como dígitos: `.055` leído con `int` da 55, y con eso la
+        # prueba fallaba sobre una textura perfectamente tenue.
+        valor = float("0" + op.group(1) if op.group(1).startswith(".") else op.group(1))
+        self.assertLessEqual(
+            valor, 0.08,
+            f"la textura está al {valor}: por encima de 0,08 deja de ser fibra y "
+            f"empieza a bajar el contraste real")
+
+    def test_no_existe_en_el_oscuro_ni_en_papel(self):
+        faltan = [d for d, r in (
+            ("tema oscuro elegido a mano",
+             r':root\[data-tema="oscuro"\] body\{background-image:none\}'),
+            ("tema oscuro del sistema",
+             r':root:not\(\[data-tema="claro"\]\) body\{background-image:none\}'),
+            ("impresión", r'@media print\{body\{background-image:none\}\}'),
+        ) if not re.search(r, CSS)]
+        self.assertEqual(faltan, [],
+                         "la textura sigue encendida en: " + ", ".join(faltan))
+
+
 class LaBarraNoPuedeSerLoMasClaroDeLaPantalla(unittest.TestCase):
     """
     §4 dice qué hace cada plano: a la izquierda dónde estás parado, a la derecha en qué
