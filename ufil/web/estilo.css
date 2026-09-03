@@ -5,7 +5,10 @@
      sans  = la aplicación hablando.
    Fuentes servidas desde disco. Ninguna llamada de red. */
 
-@font-face{font-family:'Archivo';src:url('/fuentes/Archivo-Variable.ttf') format('truetype-variations');font-weight:400 700;font-style:normal;font-display:swap}
+/* El rango de ANCHO hay que declararlo acá o el navegador no deja pedirlo: sin
+   `font-stretch` en el @font-face, un `font-stretch:92%` más abajo no hace nada.
+   Archivo trae el eje wdth de 62 a 125 y no lo usaba nadie. */
+@font-face{font-family:'Archivo';src:url('/fuentes/Archivo-Variable.ttf') format('truetype-variations');font-weight:400 700;font-stretch:62% 125%;font-style:normal;font-display:swap}
 @font-face{font-family:'Source Serif 4';src:url('/fuentes/SourceSerif4-Variable.ttf') format('truetype-variations');font-weight:400 700;font-style:normal;font-display:swap}
 @font-face{font-family:'Source Serif 4';src:url('/fuentes/SourceSerif4-Italic-Variable.ttf') format('truetype-variations');font-weight:400 700;font-style:italic;font-display:swap}
 @font-face{font-family:'IBM Plex Mono';src:url('/fuentes/IBMPlexMono-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
@@ -677,9 +680,31 @@ main{padding:18px 26px 90px; flex:1}
    que se ve como título deja mirar de reojo y encontrar. */
 h2{margin:0 0 12px; font-size:24px; font-weight:650; letter-spacing:-.024em;
    line-height:1.18; text-wrap:balance}
+/* ── La portada de la pantalla ─────────────────────────────────────────────
+   Ninguna pantalla tenía un momento de gravedad: el título iba en el mismo cuerpo
+   que un subtítulo de bloque, así que todo pesaba igual y el ojo no encontraba por
+   dónde empezar. El h2 que ABRE un folio es la carátula de la pantalla y se trata
+   como tal: 31 px, filete de 1,5 px en tinta debajo, y un segundo filete fino
+   separado. Es el doble filete del cuño, que ya existe en el sistema, aplicado a la
+   portada — ceremonia sin agregar un solo elemento.
+   El resto de los h2 no cambia: adentro de un folio con varios temas, un título de
+   31 px cada tres párrafos sería la misma falta de jerarquía al revés. */
+.cuerpo > h2:first-child,
+.cuerpo > .entre-extremos:first-child h2{font-size:34px; line-height:1.08;
+  letter-spacing:-.018em}
+.cuerpo > h2:first-child{padding-bottom:11px; margin-bottom:3px;
+  border-bottom:1.5px solid var(--tinta)}
+.cuerpo > h2:first-child + *{padding-top:13px;
+  border-top:1px solid color-mix(in srgb, var(--filete) 80%, transparent)}
 h3{margin:0 0 9px; font-size:15px; font-weight:650; letter-spacing:-.005em}
+/* Un rótulo en mayúsculas espaciadas se ve flojo porque la letra ya es ancha y el
+   interletrado la separa todavía más: queda gris y sin color. Llevarla al 92 % del
+   eje de ancho le devuelve densidad sin cambiar de fuente, de cuerpo ni de peso. Es
+   el tipo de cosa que la fuente variable trae de fábrica y casi nadie usa. */
 .rotulo{font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
-        color:var(--tinta-3)}
+        font-stretch:92%; color:var(--tinta-3)}
+thead th, .rotulo-fiscales, .identidad-area, .techo-legajo .etq, .techo-dato .etq,
+.bloque > .marginalia .rotulo{font-stretch:92%}
 /* `pretty` en vez de nada: el navegador mira los últimos renglones y evita dejar una
    palabra sola colgando al final del párrafo. En textos explicativos como éstos, que
    son casi todos los de la aplicación, una huérfana por bloque es lo que hace que una
@@ -746,17 +771,48 @@ h3.menor{font-size:13px}
    en una fila, y con el legajo recién abierto —siete ceros— la pantalla se leía como
    un error. La baldosa le da borde a cada uno: el cero deja de ser una ausencia y
    pasa a ser una medición que dio cero, que es lo que en realidad es. */
-.cifras{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-        gap:10px; background:transparent}
+/* Siete rectángulos celestes iguales en fila es la forma más rápida de que una
+   pantalla se lea como un tablero, y era exactamente lo que estaba pasando. La
+   baldosa se puso para que un cero no pareciera una ausencia, y ese trabajo lo hace
+   mejor el rótulo en versalitas debajo del número: el cero deja de ser un hueco
+   porque tiene un nombre, no porque tenga una caja.
+   Queda una tira: regla gruesa arriba, regla fina abajo, tabiques finos entre
+   cifras. Es como se imprime una tabla de totales, y pesa la mitad. */
+/* Columnas EXPLÍCITAS y no `auto-fit`. Con auto-fit el navegador decide cuántas
+   entran, y entonces no hay forma de saber cuál cifra abre renglón: la que caía al
+   segundo arrastraba el tabique de su izquierda y quedaba una raya vertical flotando
+   sola. Sabiendo el número de columnas, `nth-child` sabe cuáles son las primeras. */
+.cifras{display:grid; grid-template-columns:repeat(4,minmax(0,1fr));
+        gap:0; background:transparent;
+        border-top:1.5px solid var(--tinta);
+        border-bottom:1px solid color-mix(in srgb, var(--filete) 80%, transparent)}
+.cifras > .cifra:nth-child(4n+1){border-left:0; padding-left:0}
+@media (min-width:1200px){
+  .cifras{grid-template-columns:repeat(7,minmax(0,1fr))}
+  .cifras > .cifra:nth-child(4n+1){border-left:1px solid
+    color-mix(in srgb, var(--filete) 70%, transparent); padding-left:20px}
+  .cifras > .cifra:nth-child(7n+1){border-left:0; padding-left:0}
+}
+@media (max-width:720px){
+  .cifras{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cifras > .cifra:nth-child(4n+1){border-left:1px solid
+    color-mix(in srgb, var(--filete) 70%, transparent); padding-left:20px}
+  .cifras > .cifra:nth-child(2n+1){border-left:0; padding-left:0}
+}
 /* Dos grupos de cifras seguidos son dos preguntas distintas —el total, y qué quedó
    afuera del total— y pegados uno al otro se leen como una grilla sola que se cayó.
    Ese aire de más es lo único que dice que se cambió de tema. */
 .cifras + .cifras{margin-top:12px}
-.cifra{padding:13px 15px 15px; background:var(--realce); border-radius:var(--radio-folio)}
+.cifra{padding:15px 20px 17px; background:transparent; border-radius:0;
+  border-left:1px solid color-mix(in srgb, var(--filete) 70%, transparent)}
+.cifra:first-child{border-left:0; padding-left:0}
 .cifra b{display:block; font-family:var(--mono); font-size:34px; font-weight:400;
-         font-variant-numeric:tabular-nums; letter-spacing:-.03em; line-height:1.05}
-.cifra span{display:block; font-size:12px; letter-spacing:0; color:var(--tinta-2);
-            margin-top:7px; text-wrap:balance; line-height:1.35}
+         font-variant-numeric:tabular-nums; letter-spacing:-.045em; line-height:1.05}
+/* El rótulo en versalitas es lo que hace que el cero no se lea como una ausencia:
+   un número sin nombre es un hueco, con nombre es una medición que dio cero. */
+.cifra span{display:block; font-size:11px; letter-spacing:.04em; color:var(--tinta-3);
+            text-transform:uppercase; margin-top:9px; text-wrap:balance;
+            line-height:1.35}
 /* El denominador, atado al número y en un cuerpo menor: «213 / 250» se lee como una
    proporción, no como dos cifras sueltas. */
 .cifra b .de{font-style:normal; font-size:15px; font-weight:400; color:var(--tinta-3);
@@ -784,14 +840,23 @@ table{border-collapse:collapse; width:100%; font-size:12px}
 /* El encabezado sin versalitas ni interletrado: en un texto de 9,5 px eso obliga a
    descifrar cada palabra letra por letra. En redonda y con el mismo cuerpo se lee de
    corrido, y sigue distinguiéndose del dato por el color y por el filete de abajo. */
-thead th{text-align:left; font-size:12px; font-weight:600; letter-spacing:0;
-         color:var(--tinta-2); padding:9px 11px 10px; white-space:nowrap;
-         border-bottom:1px solid var(--filete); position:sticky; top:0;
-         background:var(--realce)}
-thead th:first-child{border-radius:var(--radio-folio) 0 0 0}
-thead th:last-child{border-radius:0 var(--radio-folio) 0 0}
-tbody td{padding:11px 11px; border-bottom:1px solid var(--filete-2); vertical-align:baseline}
-tbody tr:last-child td{border-bottom:none}
+/* Una banda de color detrás de los rótulos es peso sin información. Lo que separa
+   un encabezado de su cuerpo es una REGLA, como en cualquier tabla impresa de los
+   últimos cuatrocientos años; el fondo celeste hacía que cada tabla trajera su propia
+   barra de color a una pantalla que ya tiene cinco.
+   Vuelven las versalitas: acá el rótulo no es la aplicación hablando, es la etiqueta
+   de una columna, y en 11 px con interletrado se distingue del dato sin necesidad de
+   una caja. El fondo sigue declarado —hace falta para que `position:sticky` no deje
+   ver el dato pasando por debajo— pero es el del folio, no un color. */
+thead th{text-align:left; font-size:11px; font-weight:600; letter-spacing:.055em;
+         text-transform:uppercase;
+         color:var(--tinta-2); padding:2px 11px 7px; white-space:nowrap;
+         border-bottom:1.5px solid var(--tinta); position:sticky; top:0;
+         background:var(--folio)}
+tbody td{padding:9px 11px; border-bottom:none; vertical-align:baseline}
+/* El filete va ENTRE renglones y no debajo de cada uno: así el último no arrastra una
+   raya suelta y no hay que apagarla con una regla aparte. */
+tbody tr + tr td{border-top:1px solid color-mix(in srgb, var(--filete) 55%, transparent)}
 tbody tr:hover{background:var(--realce)}
 tbody tr.clic{cursor:pointer}
 .num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
@@ -1635,7 +1700,8 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
    distinción que decide qué se puede sumar y llevar a un informe se borró de la
    pantalla sin que fallara nada. Lo firme vuelve a ir sobre el folio, plano y
    limpio; lo provisional, teñido. Plano contra teñido se lee de lejos. */
-.cifras.totales{grid-template-columns:1fr 1fr; gap:12px}
+.cifras.totales{grid-template-columns:1fr 1fr; gap:12px; border:none}
+.cifras.totales > .cifra{border-left:0; padding-left:15px}
 .cifra.firme{background:var(--folio); border:1px solid var(--filete-2);
              border-left:3px solid var(--verde)}
 .cifra.firme b{color:var(--tinta)}
