@@ -93,6 +93,73 @@ class ElRojoFederalNoSeEscapa(unittest.TestCase):
                         "abajo a la derecha, como en la bandera de Entre Ríos")
 
 
+class LaPaletaInstitucionalNoSeVuelvePaletaDeInterfaz(unittest.TestCase):
+    """
+    Llegó el logotipo oficial del MPF Entre Ríos y con él la tentación de repintar la
+    aplicación con sus colores. No se puede, y el motivo es de fondo, no de gusto.
+
+    **Acá el color significa estado.** El verde quiere decir «dato firme». El punzó
+    quiere decir «las dos lecturas no coinciden». Si el verde institucional #1C8F80
+    entra como color de interfaz, en la misma pantalla conviven dos verdes que quieren
+    decir cosas distintas y el operador tiene que aprender cuál es cuál. Lo mismo con
+    el rojo #EA3F3F al lado del punzó #A81F26. Una aplicación institucional se ve
+    institucional porque lleva bien la marca, no porque se pinte con sus colores.
+
+    Y además ninguno de los tres podría ser texto: medidos sobre el papel #FFFDF8 dan
+    3,01:1 el celeste, 3,90:1 el verde y 3,91:1 el rojo, contra los 4,5 que pide AA.
+    El único que entra es el MARINO #011E3F, y entra porque no lleva estado: es cromo.
+
+    Es la misma regla que ya cuida al dorado y al rojo de la bandera, aplicada al
+    logotipo. Los colores viven adentro del isotipo —un archivo— y no en la hoja.
+    """
+
+    # Muestreados del logotipo oficial. El marino queda afuera de la lista: ese sí
+    # entra, y está medido en la tabla de pares.
+    FUERA_DE_LA_HOJA = {
+        "#009DDD": "celeste institucional",
+        "#1C8F80": "verde institucional",
+        "#EA3F3F": "rojo del logotipo",
+    }
+
+    def test_ninguno_aparece_en_la_hoja_de_estilos(self):
+        # Sin los comentarios: el motivo por el que estos tres NO entran está escrito
+        # en la hoja, con los tres hex adentro, y buscarlos en crudo los encuentra ahí.
+        # Se reemplaza cada comentario por saltos de línea para no correr la numeración.
+        limpio = re.sub(r"/\*.*?\*/",
+                        lambda m: "\n" * m.group(0).count("\n"), CSS, flags=re.S)
+        intrusos = []
+        for n, linea in enumerate(limpio.splitlines(), 1):
+            for color, que in self.FUERA_DE_LA_HOJA.items():
+                if color.lower() in linea.lower():
+                    intrusos.append(f"  estilo.css:{n} — {color} ({que})")
+        self.assertEqual(
+            intrusos, [],
+            "\nun color de la paleta institucional se volvió color de interfaz.\n"
+            "  Acá el color significa estado: dos verdes o dos rojos en la misma "
+            "pantalla\n  obligan a aprender cuál es cuál.\n" + "\n".join(intrusos))
+
+    def test_el_marino_si_entro_y_es_el_cromo(self):
+        """Lo único que se alinea, porque no lleva estado."""
+        for token in ("--tribunal:#011E3F", "--barra:#011E3F"):
+            self.assertTrue(token in CSS.replace(" ", ""),
+                            f"el cromo dejó de estar alineado con el marino oficial "
+                            f"({token})")
+
+    def test_alinearlo_mejoro_el_contraste_y_no_lo_empeoro(self):
+        """
+        El cambio tenía que ser gratis. Si alguna vez deja de serlo, esta prueba lo
+        dice en vez de dejarlo pasar por venir «del manual».
+        """
+        for texto, minimo, que in (("barra-txt", 12.0, "el texto de la barra"),
+                                   ("barra-txt-2", 7.5, "los rótulos de grupo"),
+                                   ("oro", 6.5, "el anillo de foco")):
+            r = relacion(CLARO[texto], CLARO["barra"])
+            self.assertGreaterEqual(
+                r, minimo,
+                f"{que} sobre la barra da {r:.2f}:1 y con el azul viejo daba más: "
+                f"alinear con la marca no puede costar contraste")
+
+
 class LosDosRiosVanEnElTokenDelRio(unittest.TestCase):
 
     def test_las_lineas_son_del_color_del_rio(self):

@@ -66,12 +66,29 @@
      toca. Éste da 4,54:1 sobre el papel y 3,62:1 sobre el gris. */
   --borde-control:#737E8C;
 
-  --tribunal:#1C3557; --tribunal-txt:#2A5480; --rio:#4E88B5; --oro:#D7B46A;
+  /* El marino del manual institucional del MPF Entre Ríos, muestreado del logotipo
+     oficial. Es el ÚNICO color de la paleta institucional que entra a la aplicación,
+     y entra porque no lleva estado: es cromo puro.
+     Los otros tres —celeste #009DDD, verde #1C8F80, rojo #EA3F3F— se quedan afuera y
+     hay una prueba que lo vigila. El motivo es de fondo: acá el color significa
+     estado. El verde quiere decir «dato firme» y el punzó «las dos lecturas no
+     coinciden». Con el verde institucional adentro, en la misma pantalla conviven dos
+     verdes que quieren decir cosas distintas y el operador tiene que aprender cuál es
+     cuál. Una aplicación institucional se ve institucional porque lleva bien la marca,
+     no porque se pinte con sus colores. (Y los tres dan menos de 4,5:1 sobre el
+     papel, así que tampoco podrían ser texto: 3,01 · 3,90 · 3,91.)
+     De paso mejora todo lo de la barra: el blanco pasa de 11,31:1 a 15,25:1 y el
+     dorado del anillo de foco de 6,26 a 8,44. */
+  --tribunal:#011E3F; --tribunal-txt:#2A5480; --rio:#4E88B5; --oro:#D7B46A;
 
   /* La barra lateral: azul tribunal macizo, con su propio juego de textos.
      No hereda del papel porque no está sobre el papel. */
-  --barra:#1C3557; --barra-2:#142944; --barra-3:#26456B;
-  --barra-txt:#F2F6FA; --barra-txt-2:#B6C7DC; --barra-filete:#2E4C72;
+  /* Los tres tonos de la barra se derivaron del azul viejo y quedaban desafinados
+     contra el marino oficial: se rehicieron sobre él. El ítem abierto y el que está
+     bajo el puntero SUBEN respecto de la barra —no bajan— porque sobre un marino tan
+     oscuro lo que se hunde deja de verse. */
+  --barra:#011E3F; --barra-2:#032C58; --barra-3:#08406F;
+  --barra-txt:#F2F6FA; --barra-txt-2:#B6C7DC; --barra-filete:#0D4272;
 
   --sello:#24466E; --sello-suave:#E8EEF6;
   --interp:#EBF1F7; --interp-filete:#4A79A8;
