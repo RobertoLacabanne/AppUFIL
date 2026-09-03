@@ -1429,7 +1429,15 @@ async function vSuperposiciones() {
     <p class="prosa">Pares de contratos de una misma persona cuyos períodos se pisan.
       Sólo entran contratos con las dos fechas firmes.</p>
     ${tabla([
-      {t:'Folios', c:'fol', r:f => `${esc(f.archivo_a)}<br>${esc(f.archivo_b)}`},
+      /* Los dos nombres, elididos por el medio con la misma pieza que la cola.
+         El brief pedía sacarle el ancho a «Períodos» y mandar las cuatro fechas al
+         `title`. Medido, el ancho no está ahí: «Folios» se lleva el 34 % de la tabla
+         con dos nombres enteros y «Períodos» el 15 %. Y un `title` pide puntero —en
+         un teléfono no existe— y no se puede citar de un vistazo, que es justo para
+         lo que están las fechas en la pantalla central del caso. Se elide acá y las
+         fechas se quedan donde se leen. */
+      {t:'Folios', c:'fol', r:f =>
+        `${nombreArchivo(f.archivo_a)}${nombreArchivo(f.archivo_b)}`},
       {t:'Contratado/a', r:f => f.contratado ? esc(f.contratado)
           : '<span class="nulo">Ø sin nombre</span>'},
       {t:'Documento', c:'mono', r:f => f.documento ? esc(f.documento)

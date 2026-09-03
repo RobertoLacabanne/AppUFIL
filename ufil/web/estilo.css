@@ -861,9 +861,19 @@ tbody tr:hover{background:var(--realce)}
 tbody tr.clic{cursor:pointer}
 .num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
 .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
-/* Una fecha o un identificador no se parten a la mitad: `2020-03-19` cortado entre el
-   año y el mes deja de ser una fecha. */
+/* ── Nada leído de un papel se parte en dos renglones ──────────────────────
+   El nombre de archivo ya estaba resuelto; el resto no. Al agregar la columna de
+   cronología la tabla se apretó y el CUIT salía cortado en tres pedazos —`27-` /
+   `30456789-` / `4`— que es exactamente el número que después se copia a un oficio.
+
+   Son dos reglas distintas y hacen falta las dos. `nowrap` en las celdas de dato
+   —mono, número, folio— porque un identificador es UN token y partirlo lo destruye.
+   Y `word-break:normal` con `hyphens:none` en toda celda, porque eso impide que se
+   parta una PALABRA en cualquier lado; entre palabras sí puede bajar de renglón, que
+   es lo que hace un apellido largo sin perder ninguna letra. */
 .nowrap{white-space:nowrap}
+td.mono, td.num, td.fol, td .mono{white-space:nowrap}
+table td{overflow-wrap:normal; word-break:normal; hyphens:none}
 .fol{font-family:var(--mono); font-size:11px; color:var(--tinta-3); white-space:nowrap}
 .marca{color:var(--lapiz); font-weight:600}   /* resaltado en tablas. OJO: no usar como nombre de bloque. */
 /* Trabajo por hacer adentro de una tabla. Es lo mismo que `.marca` pero en ámbar, y
@@ -1143,14 +1153,25 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
    El tramo pisado se pinta ENCIMA de cada barra y no como un bloque aparte: así cada
    carril se lee entero —dónde empieza, dónde termina— y el rojo marca el pedazo del
    propio contrato que está en conflicto, que es la lectura correcta. */
-.pista-par{position:relative; height:22px; min-width:110px}
-.pista-par i{position:absolute; display:block; height:7px; border-radius:var(--radio);
+/* Carriles de 10 px separados por 12, y no de 7 separados por 5: con dos barras
+   finas y pegadas, el tramo pisado no se distingue de las barras y el gráfico entero
+   se lee como una mancha. */
+.pista-par{position:relative; height:26px; min-width:110px}
+.pista-par i{position:absolute; display:block; height:10px; border-radius:var(--radio-folio);
   background:var(--marca)}
-.pista-par .carril-a, .pista-par .pisa-a{top:3px}
-.pista-par .carril-b, .pista-par .pisa-b{top:12px}
+.pista-par .carril-a, .pista-par .pisa-a{top:2px}
+.pista-par .carril-b, .pista-par .pisa-b{top:14px}
 .pista-par .pisa-a, .pista-par .pisa-b{background:var(--marca-solape)}
-td.pista{width:22%; min-width:120px; vertical-align:middle}
-@media (max-width:720px){ td.pista{width:auto} .pista-par{min-width:80px} }
+/* El ancho lo pide la PISTA y no la celda: con `table-layout:auto` un `min-width` en
+   un `td` es una sugerencia que el navegador ignora si el reparto no le cierra, y la
+   columna se quedaba en 132 px por más que la celda pidiera 240. Un elemento de
+   bloque adentro sí obliga.
+   Era la columna más angosta de la tabla siendo el hallazgo de la pantalla: a 110 px,
+   con dos carriles finos y pegados, los dos contratos y el tramo pisado se funden en
+   una mancha, y por eso el gráfico no se veía. */
+td.pista{vertical-align:middle}
+td.pista .pista-par{min-width:240px}
+@media (max-width:720px){ td.pista .pista-par{min-width:120px} }
 /* En papel no hay color: el segundo carril se distingue por trama. Impreso en escala
    de grises los dos azules son el mismo gris, y entonces el gráfico deja de decir que
    son dos contratos. */
@@ -1553,6 +1574,11 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
    repetido no da ningún error: da otra pantalla. Hay una prueba para esto ahora, en
    test_reticula.py. */
 .nombre-doc{display:flex; min-width:0; white-space:nowrap; justify-content:flex-end}
+/* Adentro de una tabla hay que ponerle un techo AL ELEMENTO y no a la celda: con
+   `table-layout:auto` el `td` se dimensiona al contenido y un `max-width` en la celda
+   se ignora, así que la cabeza nunca se encogía y la elisión no hacía nada. Se veía
+   midiendo: la columna «Folios» seguía llevándose el 33 % de la tabla. */
+td.fol .nombre-doc{max-width:230px; justify-content:flex-start}
 .nombre-doc .doc-ini{flex:0 1 auto; overflow:hidden; text-overflow:ellipsis;
   min-width:0; white-space:nowrap}
 .nombre-doc .doc-fin{flex:0 0 auto; white-space:nowrap}

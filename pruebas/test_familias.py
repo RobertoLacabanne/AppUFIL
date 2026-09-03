@@ -23,6 +23,7 @@ Lo que estas pruebas custodian:
 """
 from __future__ import annotations
 
+import re
 import sys
 import tempfile
 import unittest
@@ -410,3 +411,63 @@ class ElSolapeSeVeSinHacerLaCuenta(unittest.TestCase):
         self.assertIn("repeating-linear-gradient", impresion[:600],
                       "el segundo carril dejó de distinguirse por trama: impreso, el "
                       "gráfico deja de decir que son dos contratos")
+
+
+class LaCronologiaTieneAnchoParaLeerse(unittest.TestCase):
+    """
+    Era la columna más angosta de la tabla siendo el hallazgo de la pantalla: 110 px
+    para dos carriles finos y pegados. A ese tamaño los dos contratos y el tramo
+    pisado se funden en una mancha, y el gráfico que se agregó no se veía.
+
+    El ancho salió de «Folios», que se llevaba el 34 % de la tabla con dos nombres
+    enteros —medido— mientras «Períodos» se llevaba el 15 %. El brief proponía sacarlo
+    de «Períodos» mandando las cuatro fechas a un `title`; no se hizo así porque un
+    `title` pide puntero —en un teléfono no existe— y no se puede citar de un vistazo,
+    que es justamente para lo que están las fechas en la pantalla central del caso.
+    """
+
+    def _css(self):
+        return (Path(__file__).resolve().parent.parent
+                / "ufil/web/estilo.css").read_text(encoding="utf-8")
+
+    def test_el_ancho_lo_pide_la_pista_y_no_la_celda(self):
+        """
+        Con `table-layout:auto`, un `min-width` en un `td` es una sugerencia que el
+        navegador ignora si el reparto no le cierra: la columna se quedaba en 132 px
+        por más que la celda pidiera 240. Un elemento de bloque adentro sí obliga.
+        """
+        css = self._css()
+        m = re.search(r"td\.pista \.pista-par\{([^{}]*)\}", css)
+        self.assertIsNotNone(
+            m, "el ancho volvió a pedirse desde la celda, donde no se respeta")
+        ancho = re.search(r"min-width:\s*(\d+)px", m.group(1))
+        self.assertIsNotNone(ancho, "la pista se quedó sin ancho mínimo")
+        self.assertGreaterEqual(
+            int(ancho.group(1)), 200,
+            f"la pista quedó en {ancho.group(1)}px: por debajo de 200 los dos "
+            f"contratos y el tramo pisado se funden en una mancha")
+
+    def test_los_carriles_se_separan_lo_suficiente(self):
+        css = self._css()
+        m = re.search(r"\.pista-par i\{([^{}]*)\}", css)
+        alto = int(re.search(r"height:\s*(\d+)px", m.group(1)).group(1))
+        a = int(re.search(r"\.pista-par \.carril-a[^{}]*\{top:(\d+)px\}", css).group(1))
+        b = int(re.search(r"\.pista-par \.carril-b[^{}]*\{top:(\d+)px\}", css).group(1))
+        self.assertGreaterEqual(alto, 9, "los carriles son demasiado finos para leerse")
+        self.assertGreaterEqual(
+            b - a - alto, 2,
+            "los dos carriles quedaron pegados: sin aire entre ellos se leen como una "
+            "sola barra y deja de verse que son dos contratos")
+
+    def test_los_nombres_de_archivo_se_eliden_en_la_tabla(self):
+        app = (Path(__file__).resolve().parent.parent
+               / "ufil/web/app.js").read_text(encoding="utf-8")
+        i = app.index("async function vSuperposiciones")
+        cuerpo = app[i:i + 2500]
+        self.assertIn("nombreArchivo(f.archivo_a)", cuerpo,
+                      "la columna «Folios» volvió a escribir los nombres enteros y se "
+                      "lleva el ancho que necesita la cronología")
+        css = self._css()
+        self.assertIn("td.fol .nombre-doc{max-width", css,
+                      "sin techo AL ELEMENTO la elisión no hace nada: en una celda de "
+                      "tabla el `td` se dimensiona al contenido")

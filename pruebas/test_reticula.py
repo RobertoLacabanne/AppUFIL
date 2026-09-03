@@ -220,3 +220,37 @@ class TodaClaseQueElJavaScriptPintaExisteEnLaHoja(unittest.TestCase):
     def test_la_prueba_encuentra_clases_para_mirar(self):
         self.assertGreater(len(self._clases_del_js()), 40,
                            "la prueba se quedó sin clases que mirar en app.js")
+
+
+class NadaLeidoDeUnPapelSeParteEnDos(unittest.TestCase):
+    """
+    Un identificador partido deja de ser el identificador.
+
+    El nombre de archivo ya estaba resuelto; el resto no. Al agregar la columna de
+    cronología la tabla se apretó y el CUIT salía cortado en tres pedazos —`27-` /
+    `30456789-` / `4`— que es exactamente el número que después se copia a un oficio.
+    Una fecha cortada entre el día y el mes deja de ser una fecha.
+
+    Son dos reglas distintas y hacen falta las dos:
+
+      · `white-space:nowrap` en las celdas de dato —mono, número, folio—, porque un
+        identificador es UN token y bajarlo de renglón lo destruye;
+      · `word-break:normal` con `hyphens:none` en toda celda, que impide partir una
+        PALABRA en cualquier lado. Entre palabras sí puede bajar de renglón, que es lo
+        que hace un apellido largo sin perder una sola letra.
+    """
+
+    def test_las_celdas_de_dato_no_bajan_de_renglon(self):
+        m = re.search(r"td\.mono, td\.num, td\.fol, td \.mono\{([^{}]*)\}", CSS)
+        self.assertIsNotNone(
+            m, "se perdió la regla que impide partir un dato en una celda de tabla")
+        self.assertIn("white-space:nowrap", m.group(1).replace(" ", ""))
+
+    def test_ninguna_palabra_se_parte_por_la_mitad(self):
+        m = re.search(r"table td\{([^{}]*)\}", CSS)
+        self.assertIsNotNone(m, "se perdió la regla de corte de palabra en las tablas")
+        cuerpo = m.group(1).replace(" ", "")
+        for pieza in ("overflow-wrap:normal", "word-break:normal", "hyphens:none"):
+            self.assertIn(pieza, cuerpo,
+                          f"falta «{pieza}»: una palabra puede volver a partirse en "
+                          f"cualquier lado, y con ella un apellido o un CUIT")
