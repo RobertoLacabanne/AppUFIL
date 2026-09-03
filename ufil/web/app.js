@@ -3599,6 +3599,19 @@ addEventListener('keydown', e => {
   $('#q-rapida').select();
 });
 
+/* Antes de imprimir, sellar la hoja: qué legajo y cuándo se emitió. Se hace en
+   `beforeprint` y no al cargar, porque una pestaña abierta desde la mañana imprimiría
+   la hora de la mañana, y esa hoja se agrega a un legajo. */
+addEventListener('beforeprint', () => {
+  const l = $('#membrete-legajo'), f = $('#membrete-fecha');
+  if (l) {
+    const n = $('#l-numero')?.textContent?.trim();
+    const c = $('#l-caratula')?.textContent?.trim();
+    l.textContent = n && n !== '—' ? `Legajo ${n}${c ? ' · ' + c : ''}` : '';
+  }
+  if (f) f.textContent = 'Emitido el ' + fmtFechaHora(new Date().toISOString());
+});
+
 /* ── Quién firma ───────────────────────────────────────────────────────────
    Los nombres de la casa vienen del servidor (ufil/identidad.py), no escritos acá:
    cambiar de fiscal no puede obligar a tocar seis archivos. */
@@ -3609,6 +3622,11 @@ async function pintarIdentidad() {
     $('#m-unidad').textContent = d.unidad;
     $('#m-area').textContent = d.area;
     $('#m-organismo').textContent = d.linea_organismo;
+    // El membrete de impresión sale de la misma fuente: cambiar de unidad no puede
+    // dejar una hoja impresa con el nombre viejo.
+    const mo = $('#membrete-organismo'), mu = $('#membrete-unidad');
+    if (mo) mo.textContent = `${d.organismo} · ${d.jurisdiccion}`;
+    if (mu) mu.textContent = `${d.unidad} — ${d.area}`;
     const oficial = $('#identidad-oficial');
     if (oficial) oficial.alt = d.linea_organismo;
     // Los fiscales, abajo del organismo y en cuerpo menor: es una firma institucional,

@@ -1248,14 +1248,33 @@ td.pista .pista-par{min-width:240px}
    depender de que alguien se acuerde de aclararlo. */
 /* El cartel de datos inventados ocupa un renglón y no tres: en una pantalla de 768
    px de alto, cada renglón de acá es un renglón menos de la lista de trabajo. */
+/* ── El aviso de demostración: un cuño, no una franja ──────────────────────
+   Era una franja que cruzaba TODAS las pantallas, siempre, y a los dos días se
+   aprende a no verla — que es lo peor que le puede pasar a un aviso de seguridad.
+   Ahora es el cuño de doble filete que ya existe en el sistema, girado, fijo abajo a
+   la derecha: dice lo mismo, se ve más, y devuelve el renglón que se comía.
+
+   Es un aviso de seguridad, así que: no se puede cerrar, no se puede tapar —va por
+   encima de todo con `z-index` alto y `pointer-events:none` para no estorbar el
+   trabajo— y en impresión sale sí o sí. */
 #aviso-demo{
-  display:flex; gap:11px; align-items:center;
-  padding:7px 20px; background:var(--lapiz-suave);
-  border-bottom:1px solid var(--lapiz); font-size:12px; color:var(--tinta);
-  line-height:1.4;
+  position:fixed; right:22px; bottom:20px; z-index:60; pointer-events:none;
+  display:flex; flex-direction:column; gap:2px; align-items:center;
+  padding:9px 15px 10px; max-width:200px;
+  background:var(--lapiz-suave); color:var(--lapiz);
+  border:2px solid var(--lapiz); box-shadow:0 0 0 2px var(--lapiz-suave),
+                                            0 0 0 3.5px var(--lapiz);
+  transform:rotate(-6deg); text-align:center;
+  font-size:11px; line-height:1.3;
 }
-#aviso-demo > span:last-child{min-width:0}
-#aviso-demo .estado{flex:none}
+#aviso-demo .estado{flex:none; font-weight:700; letter-spacing:.1em;
+  text-transform:uppercase; font-size:12px; font-stretch:92%}
+#aviso-demo > span:last-child{min-width:0; font-size:11px; color:var(--tinta-2)}
+@media (max-width:720px){
+  #aviso-demo{right:10px; bottom:10px; max-width:168px; padding:7px 12px 8px}
+  #aviso-demo > span:last-child{display:none}
+}
+@media (prefers-reduced-motion:reduce){#aviso-demo{transform:none}}
 
 /* ── Esqueleto de carga ───────────────────────────────────────────────── */
 /* Un bloque gris del tamaño de lo que viene, en vez de la palabra «Cargando». */
@@ -1314,7 +1333,31 @@ a.destacado-fila:hover{background:var(--realce)}
 
 /* ── Impresión ────────────────────────────────────────────────────────── */
 /* Van a querer imprimir el panel o el tablero de cruces para llevar a una reunión. */
+/* El membrete no existe en pantalla: la identidad ya está en la barra lateral y
+   repetirla arriba de cada folio sería decir dos veces lo mismo. */
+#membrete{display:none}
+
 @media print{
+  /* ── El membrete de la hoja impresa ──────────────────────────────────────
+     Una hoja que sale de este sistema y termina agregada a un legajo tiene que decir
+     de dónde salió sin depender de que alguien se acuerde de escribirlo: el
+     organismo, la unidad, el legajo y cuándo se emitió. El isotipo entra si está
+     puesto —`/marca` lo sirve— y si no, el membrete se sostiene con el texto. */
+  #membrete{display:flex; align-items:flex-start; gap:14px;
+    padding:0 0 10px; margin:0 0 4px; border-bottom:2px solid #000}
+  #membrete-marca{max-height:46px; max-width:130px}
+  #membrete-marca:not([src]), #membrete-marca[src=""]{display:none}
+  .membrete-texto{display:flex; flex-direction:column; gap:2px; flex:1}
+  #membrete-organismo{font-size:11pt; letter-spacing:-.01em}
+  #membrete-unidad{font-size:9.5pt; color:#333}
+  .membrete-emision{display:flex; flex-direction:column; gap:2px; text-align:right;
+    font-family:var(--mono); font-size:8.5pt; color:#333; flex:none}
+  /* Y el cuño de demostración sale SÍ O SÍ: es lo que impide que una hoja con
+     contratos inventados se confunda con una hoja de la causa. */
+  #aviso-demo{position:static; transform:rotate(-4deg); float:right; margin:0 0 8px 12px;
+    background:#fff !important; color:#000 !important; border-color:#000 !important;
+    box-shadow:0 0 0 2px #fff, 0 0 0 3.5px #000 !important}
+
   :root{--papel:#fff; --papel-2:#fff; --tinta:#000; --tinta-2:#333; --tinta-3:#555;
         --filete:#999; --filete-2:#ccc; --interp:#f2f4f7}
   #lateral, #velo, .saltar, .boton, .acc, .ancla, .esqueleto,
@@ -1324,7 +1367,6 @@ a.destacado-fila:hover{background:var(--realce)}
   #techo{position:static; border-bottom:2px solid #000; padding:0 0 8px;
          min-height:0; display:block}
   .techo-legajo{padding:0; margin:0}
-  #aviso-demo{border:2px solid #000}
   main{padding:0}
   .bloque{break-inside:avoid; page-break-inside:avoid; margin-top:18px}
   .tabla-env, .cifras, .carriles, .cronologia, .interp{break-inside:avoid}

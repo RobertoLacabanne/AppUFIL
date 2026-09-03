@@ -127,7 +127,25 @@
     </form>
   </header>
 
-  <div id="aviso-demo" hidden>
+  <!-- ── El encabezado que sale IMPRESO ────────────────────────────────────
+       Sólo existe en papel: en pantalla la identidad ya está en la barra lateral, y
+       repetirla arriba de cada folio sería decir dos veces lo mismo. Pero una hoja
+       que sale de este sistema y termina agregada a un legajo tiene que decir de
+       dónde salió sin depender de que alguien se acuerde de escribirlo. -->
+  <div id="membrete" aria-hidden="true">
+    <img id="membrete-marca" src="/marca" alt="">
+    <div class="membrete-texto">
+      <b id="membrete-organismo">Ministerio Público Fiscal · Provincia de Entre Ríos</b>
+      <span id="membrete-unidad">UFIL Paraná — Área Anticorrupción</span>
+    </div>
+    <div class="membrete-emision">
+      <span id="membrete-legajo"></span>
+      <span id="membrete-fecha"></span>
+    </div>
+  </div>
+
+  <div id="aviso-demo" hidden
+       title="Ninguno de estos contratos es real. Son documentos generados para probar el sistema: los nombres son inventados y los números de documento no corresponden a ninguna persona.">
     <span class="estado estado--alerta">
       <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path
         d="M8 1.6 15 14H1z" fill="none" stroke="currentColor" stroke-width="1.6"
@@ -135,9 +153,9 @@
         stroke-width="1.6" stroke-linecap="round"/></svg>
       Datos de demostración
     </span>
-    <span>Ninguno de estos contratos es real. Son documentos generados para probar el
-      sistema: los nombres son inventados y los números de documento no corresponden a
-      ninguna persona.</span>
+    <!-- Un cuño es breve o no es un cuño: el párrafo entero adentro lo convertía en un
+         cartel de 240×144 px. La explicación completa vive en el `title`. -->
+    <span>Ningún contrato de acá es real</span>
   </div>
 
   <main id="vista"><div class="esqueleto"><i></i><i></i><i></i></div></main>
