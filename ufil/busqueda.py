@@ -72,6 +72,36 @@ def preparar(consulta: str) -> str:
     return " AND ".join(tokens)
 
 
+# Los acentos, a un lado y al otro de la comparación.
+#
+# `COLLATE NOCASE` de SQLite es ASCII: «BENÍTEZ» y «benitez» le resultan distintos por
+# la Í, y ni siquiera `lower()` la baja. Medido sobre el legajo de prueba: buscando el
+# apellido sin acento —que es como lo escribe cualquiera— la búsqueda sobre campos
+# devolvía CERO y la del texto de las fojas devolvía cuatro. Dos respuestas distintas
+# a la misma pregunta en la misma pantalla, y la que decía cero es la que se lee como
+# «no está en el legajo».
+#
+# Se resuelve en SQL y no con una función de Python: la comparación corre adentro de
+# la consulta, sobre todos los valores, y una llamada a Python por fila cuesta más que
+# los reemplazos. Están las dos capitalizaciones porque `lower()` tampoco baja una Í.
+_ACENTOS = {"á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ü": "u", "ñ": "n",
+            "Á": "a", "É": "e", "Í": "i", "Ó": "o", "Ú": "u", "Ü": "u", "Ñ": "n"}
+
+
+def _plano_sql(columna: str) -> str:
+    expr = columna
+    for de, a in _ACENTOS.items():
+        expr = f"REPLACE({expr},'{de}','{a}')"
+    return f"lower({expr})"
+
+
+def plano(texto: str) -> str:
+    """Lo mismo del lado de Python, para que los dos lados comparen igual."""
+    for de, a in _ACENTOS.items():
+        texto = texto.replace(de, a)
+    return texto.lower()
+
+
 def en_campos(cx: sqlite3.Connection, consulta: str, limite: int = 60) -> list[dict]:
     """
     Busca sobre los datos extraídos. Devuelve documentos de cualquier familia.
@@ -81,15 +111,15 @@ def en_campos(cx: sqlite3.Connection, consulta: str, limite: int = 60) -> list[d
     calla la mitad del material es peor que ninguna, porque el que busca concluye que
     no hay nada.
     """
-    patron = f"%{consulta.strip()}%"
+    patron = f"%{plano(consulta.strip())}%"
     digitos = re.sub(r"\D", "", consulta)
-    filas = cx.execute("""
+    filas = cx.execute(f"""
         SELECT DISTINCT v.documento_id, v.archivo, v.camara, v.persona_id, v.familia,
                v.tipo, v.nombre_literal, v.documento_literal, v.inicio, v.fin,
                v.monto_centavos, c.nombre AS campo, c.valor_literal, c.pagina_nro
           FROM campo c
           JOIN v_documento_todo v ON v.documento_id = c.documento_id
-         WHERE c.valor_literal LIKE ? COLLATE NOCASE
+         WHERE {_plano_sql("c.valor_literal")} LIKE ?
             OR (? <> '' AND REPLACE(REPLACE(REPLACE(c.valor_literal,'-',''),'.',''),' ','')
                             LIKE '%' || ? || '%')
          ORDER BY v.documento_id LIMIT ?""",

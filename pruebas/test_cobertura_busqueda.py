@@ -160,3 +160,75 @@ class LaPantallaNuncaDiceSinCoincidenciasASecas(unittest.TestCase):
             self.assertIn(f"'{singular}' : '{plural_}'", cuerpo,
                           f"la frase no concuerda en número: falta el par "
                           f"{singular}/{plural_}")
+
+
+class BuscarUnApellidoNoDependeDeLosAcentos(unittest.TestCase):
+    """
+    `COLLATE NOCASE` de SQLite es ASCII: «BENÍTEZ» y «benitez» le resultan distintos
+    por la Í, y ni siquiera `lower()` la baja.
+
+    Medido sobre el legajo de prueba antes de arreglarlo: buscando el apellido sin
+    acento —que es como lo escribe cualquiera que lo tipea rápido— la búsqueda sobre
+    CAMPOS devolvía cero y la del TEXTO DE LAS FOJAS devolvía cuatro. Dos respuestas
+    distintas a la misma pregunta, en la misma pantalla, y la que decía cero es la que
+    se lee como «no está en el legajo».
+
+    En una herramienta donde alguien busca a una persona para saber si tiene contratos
+    superpuestos, eso no es una molestia: es una ausencia afirmada sin verificarla, que
+    es exactamente lo que el resto del sistema está construido para no hacer.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,
+                                                paginas,ingerido_en)
+                           VALUES ('aa','/x/aa.pdf','contrato-1.pdf',1,1,?)""", (ahora(),))
+        self.cx.execute("INSERT INTO pagina (sha256,nro,ancho_pt,alto_pt) VALUES ('aa',1,595,842)")
+        d = self.cx.execute("""INSERT INTO documento (sha256,orden,pagina_desde,
+                                   pagina_hasta,tipo,perfil)
+                               VALUES ('aa',1,1,1,'contrato_obra','p')""").lastrowid
+        for nombre, valor in (("nombre", "BENÍTEZ, Marcelo A"),
+                              ("cargo", "AUXILIAR ADMINISTRATIVO"),
+                              ("documento", "20-92686579-2")):
+            self.cx.execute("""INSERT INTO campo (documento_id,nombre,valor_literal,
+                                   pagina_nro,x0,y0,x1,y1,confianza,estado)
+                               VALUES (?,?,?,1,10,10,90,30,0.9,'automatico_alta')""",
+                            (d, nombre, valor))
+        self.cx.commit()
+
+    def _cuantos(self, q):
+        return len(busqueda.en_campos(self.cx, q))
+
+    def test_se_encuentra_con_acento_y_sin_acento(self):
+        # Una fila: el apellido está en el campo «nombre» y en ningún otro.
+        for q in ("BENÍTEZ", "benitez", "Benitez", "BENITEZ", "benítez", "bENiTEz"):
+            self.assertEqual(self._cuantos(q), 1,
+                             f"«{q}» no encuentra el contrato: quien lo busca así "
+                             f"concluye que no está en el legajo")
+
+    def test_la_enie_tambien(self):
+        """El caso que más importa acá: los apellidos de la provincia llevan ñ."""
+        self.cx.execute("UPDATE campo SET valor_literal='MUÑOZ PEÑA, Ana' WHERE nombre='nombre'")
+        self.cx.commit()
+        for q in ("MUÑOZ", "munoz", "Muñoz", "PEÑA", "pena"):
+            self.assertTrue(self._cuantos(q), f"«{q}» no encuentra a MUÑOZ PEÑA")
+
+    def test_no_encuentra_lo_que_no_esta(self):
+        """Aplanar acentos no puede volverse una coincidencia con cualquier cosa."""
+        for q in ("GONZALEZ", "zzz", "Perez"):
+            self.assertEqual(self._cuantos(q), 0, f"«{q}» encuentra algo que no está")
+
+    def test_el_numero_de_documento_sigue_encontrandose_como_sea(self):
+        for q in ("20-92686579-2", "20926865792", "92686579"):
+            self.assertTrue(self._cuantos(q), f"«{q}» dejó de encontrar el CUIL")
+
+    def test_los_dos_lados_se_aplanan_igual(self):
+        """
+        Si sólo se aplanara uno, buscar CON acento dejaría de encontrar lo que está
+        escrito SIN acento, que es el mismo defecto dado vuelta.
+        """
+        self.assertEqual(busqueda.plano("BENÍTEZ"), "benitez")
+        self.assertEqual(busqueda.plano("Muñoz"), "munoz")
+        self.assertEqual(busqueda.plano("ÜBER"), "uber")
