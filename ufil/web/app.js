@@ -2365,6 +2365,14 @@ function abrirFoja(f) {
   visor.hidden = false;
   document.body.classList.add('con-visor');
   fojasMiradas.add(String(f.campo_id));
+  /* Lo de abajo queda apagado mientras la foja está abierta: no se toca, no se tabula
+     y un lector de pantalla no lo lee. Sin esto, tabulando desde el botón de cerrar
+     se llega a los botones de decidir que están tapados —se decide un campo sin ver
+     lo que se está decidiendo, con la foja de otro encima—. Y al cerrar, el foco
+     vuelve a donde estaba: quien navega con teclado no tiene que buscar dónde quedó. */
+  volverElFoco = document.activeElement;
+  const cuerpo = document.getElementById('cuerpo');
+  if (cuerpo) cuerpo.inert = true;
   $('#visor-cerrar').focus();
   /* Y se abre MIRANDO EL CAMPO, no en la esquina de arriba. Una foja de 1.653 px en
      una ventana de 1.366 entra a medias: abierta en el origen, el campo que se venía
@@ -2386,11 +2394,17 @@ function abrirFoja(f) {
   else img.onload = alCampo;
 }
 
+let volverElFoco = null;
+
 function cerrarVisor() {
   const visor = $('#visor');
   if (!visor || visor.hidden) return;
   visor.hidden = true;
   document.body.classList.remove('con-visor');
+  const cuerpo = document.getElementById('cuerpo');
+  if (cuerpo) cuerpo.inert = false;
+  if (volverElFoco && document.contains(volverElFoco)) volverElFoco.focus();
+  volverElFoco = null;
   // Al volver, el campo ya fue mirado: los controles se encienden solos. Fuera de la
   // cola no hay nada que encender, y `vigilarVista` sale sola si no está la lupa.
   const f = colaEstado.filas[colaEstado.foco];

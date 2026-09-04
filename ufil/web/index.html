@@ -160,24 +160,6 @@
     </div>
   </div>
 
-  <!-- ── La foja entera, a pantalla completa ──────────────────────────────
-       La miniatura del costado sirve para ver que la hoja existe; no para leer un
-       importe. Acá la foja va al tamaño del escaneo, con desplazamiento, y con el
-       recuadro del campo dibujado encima si el sistema le puso alguno —ver dónde CREE
-       que está el campo es la mitad de entender por qué falló—. -->
-  <div id="visor" hidden role="dialog" aria-modal="true" aria-labelledby="visor-rotulo">
-    <div class="visor-barra">
-      <span id="visor-rotulo" class="mono"></span>
-      <button class="boton gris" id="visor-cerrar" type="button">Cerrar</button>
-    </div>
-    <div class="visor-hoja">
-      <div class="visor-lienzo">
-        <img id="visor-img" alt="">
-        <div id="visor-marco" hidden></div>
-      </div>
-    </div>
-  </div>
-
   <div id="aviso-demo" hidden
        title="Ninguno de estos contratos es real. Son documentos generados para probar el sistema: los nombres son inventados y los números de documento no corresponden a ninguna persona.">
     <span class="estado estado--alerta">
@@ -193,6 +175,28 @@
   </div>
 
   <main id="vista"><div class="esqueleto"><i></i><i></i><i></i></div></main>
+</div>
+
+<!-- ── La foja entera, a pantalla completa ────────────────────────────────
+     La miniatura del costado sirve para ver que la hoja existe; no para leer un
+     importe. Acá la foja va al tamaño del escaneo, con desplazamiento, y con el
+     recuadro del campo dibujado encima si el sistema le puso alguno —ver dónde CREE
+     que está el campo es la mitad de entender por qué falló—.
+
+     Va AFUERA de `#cuerpo` a propósito: mientras está abierto, todo lo de abajo queda
+     `inert` —ni se toca ni se tabula ni lo lee un lector de pantalla— y para eso no
+     puede ser hijo de lo que se apaga. -->
+<div id="visor" hidden role="dialog" aria-modal="true" aria-labelledby="visor-rotulo">
+  <div class="visor-barra">
+    <span id="visor-rotulo" class="mono"></span>
+    <button class="boton gris" id="visor-cerrar" type="button">Cerrar</button>
+  </div>
+  <div class="visor-hoja">
+    <div class="visor-lienzo">
+      <img id="visor-img" alt="">
+      <div id="visor-marco" hidden></div>
+    </div>
+  </div>
 </div>
 
 <script src="/estatico/app.js"></script>

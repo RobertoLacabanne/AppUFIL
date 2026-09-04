@@ -35,6 +35,7 @@ sys.path.insert(0, str(RAIZ))
 CSS = (RAIZ / "ufil/web/estilo.css").read_text(encoding="utf-8")
 APP = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
 JS = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
+HTML = (RAIZ / "ufil/web/index.html").read_text(encoding="utf-8")
 
 
 def _sin_medias(css: str) -> str:
@@ -489,6 +490,33 @@ class LaFojaSeAbreParaLeerla(unittest.TestCase):
         """
         _hay(self, "addEventListener('hashchange', () => { cerrarVisor(); rutear(); })", APP,
              "navegar con la foja abierta deja la foja tapando la pantalla nueva")
+
+    def test_lo_de_abajo_queda_apagado_mientras_esta_abierta(self):
+        """
+        Tabulando desde el botón de cerrar se llegaba a los botones de decidir que
+        estaban TAPADOS por la foja: se podía decidir un campo sin ver lo que se
+        estaba decidiendo, con la foja de otro encima. Con `inert` no se toca, no se
+        tabula y un lector de pantalla no lo lee.
+        """
+        _hay(self, "cuerpo.inert = true", APP, "lo de abajo sigue alcanzable con Tab")
+        _hay(self, "cuerpo.inert = false", APP,
+             "al cerrar no se vuelve a encender: la pantalla queda muerta")
+        # Y para eso el visor no puede ser hijo de lo que se apaga.
+        i = HTML.index('<div id="visor"')
+        j = HTML.index('<div id="cuerpo">')
+        k = HTML.index('</div>', HTML.index('<main id="vista"'))
+        self.assertTrue(i > k or i < j,
+                        "el visor está adentro de #cuerpo: al apagarlo se apaga a sí "
+                        "mismo y no se puede ni cerrar")
+
+    def test_al_cerrar_el_foco_vuelve_a_donde_estaba(self):
+        """Quien navega con teclado no tiene que salir a buscar dónde quedó."""
+        _hay(self, "volverElFoco = document.activeElement", APP,
+             "no se recuerda desde dónde se abrió")
+        _hay(self, "volverElFoco.focus()", APP, "el foco se pierde al cerrar la foja")
+        _hay(self, "document.contains(volverElFoco)", APP,
+             "si la pantalla se repintó, ese elemento ya no existe y enfocarlo "
+             "tiraría un error")
 
     def test_mientras_esta_abierto_ninguna_tecla_decide(self):
         i = APP.index("document.addEventListener('keydown'")
