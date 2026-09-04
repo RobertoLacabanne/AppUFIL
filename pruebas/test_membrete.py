@@ -122,3 +122,174 @@ class ElCunoDeDemostracionNoSePuedePerder(unittest.TestCase):
         cuerpo = re.sub(r"<[^>]*>", " ", marcado.split(">", 1)[1])
         self.assertLess(len(" ".join(cuerpo.split())), 90,
                         "el cuño volvió a llevar el párrafo entero adentro")
+
+
+class LaMarcaEnLoQueSeExporta(unittest.TestCase):
+    """
+    El `.rtf` y el `.xlsx` que salen del sistema son lo que después se pega en un
+    escrito, o se adjunta. Ahí el encabezado del organismo no es adorno: es lo que
+    hace que la hoja se sostenga sola cuando la mira alguien de afuera.
+
+    Tres cosas se verifican acá:
+
+      · que esté, y arriba del título, que es donde va un membrete;
+      · que las líneas salgan de `ufil/identidad.py` y no escritas a mano —escritas
+        a mano, cambiar de fiscal deja el nombre viejo adentro de un documento ya
+        entregado, que es exactamente lo que no se puede permitir—;
+      · que se pueda sacar, porque un borrador interno no tiene por qué salir con
+        la marca oficial encima.
+    """
+
+    def setUp(self):
+        import tempfile
+        from ufil import db
+        from ufil.db import ahora
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,ingerido_en)
+                           VALUES ('aa','/x/a.pdf','a.pdf',1,?)""", (ahora(),))
+        self.cx.execute("INSERT INTO documento (sha256,tipo,perfil) VALUES ('aa','contrato_obra','p')")
+        self.cx.commit()
+
+    def tearDown(self):
+        self.cx.close(); self.tmp.cleanup()
+
+    def _rtf(self, **kw) -> str:
+        from ufil import capa7_export as c7
+        destino = Path(self.tmp.name) / "i.rtf"
+        return Path(c7.a_rtf(self.cx, destino, **kw)).read_text(encoding="cp1252")
+
+    def _portada(self, **kw) -> str:
+        import openpyxl
+        from ufil import capa4_analisis as c4, capa7_export as c7
+        destino = Path(self.tmp.name) / "a.xlsx"
+        c7.a_xlsx(self.cx, destino, [c["id"] for c in c4.catalogo()], **kw)
+        hoja = openpyxl.load_workbook(destino)["procedencia"]
+        return " ".join(str(c) for f in hoja.iter_rows(values_only=True)
+                        for c in f if c is not None)
+
+    def test_el_informe_sale_encabezado_y_arriba_del_titulo(self):
+        from ufil import capa7_export as c7
+        from ufil import identidad as ident
+        texto = self._rtf()
+        primera = c7._rtf(ident.encabezado_export()[0])
+        self.assertIn(primera, texto, "el .rtf sale sin el encabezado del organismo")
+        # Un membrete abajo del título no es un membrete.
+        self.assertLess(texto.index(primera), texto.index("INFORME DE AN"),
+                        "el encabezado tiene que ir arriba del título")
+
+    def test_el_informe_lleva_a_los_fiscales(self):
+        from ufil import capa7_export as c7
+        from ufil import identidad as ident
+        firma = ident.firma()
+        self.assertTrue(firma, "la identidad de la casa tiene que traer fiscales")
+        self.assertIn(c7._rtf(firma), self._rtf())
+
+    def test_los_nombres_salen_de_identidad_y_no_escritos_a_mano(self):
+        """
+        Se cambia el organismo por el entorno y tiene que cambiar el papel. Si esto
+        falla es porque alguien escribió el nombre adentro de capa7_export.py, y ese
+        nombre va a sobrevivir al cambio de fiscal.
+        """
+        import os
+        from ufil import capa7_export as c7
+        previo = os.environ.get("UFIL_ORGANISMO")
+        os.environ["UFIL_ORGANISMO"] = "Fiscalia Inventada de Prueba"
+        try:
+            texto = self._rtf()
+            portada = self._portada()
+        finally:
+            if previo is None:
+                os.environ.pop("UFIL_ORGANISMO", None)
+            else:
+                os.environ["UFIL_ORGANISMO"] = previo
+        self.assertIn(c7._rtf("Fiscalia Inventada de Prueba"), texto,
+                      "el .rtf no lee el organismo de ufil/identidad.py")
+        self.assertIn("Fiscalia Inventada de Prueba", portada,
+                      "la portada del .xlsx no lee el organismo de ufil/identidad.py")
+
+    def test_se_puede_sacar_para_un_borrador(self):
+        from ufil import capa7_export as c7
+        from ufil import identidad as ident
+        primera = c7._rtf(ident.encabezado_export()[0])
+        sin = self._rtf(membrete=False)
+        self.assertNotIn(primera, sin, "pidieron sin membrete y salió con membrete")
+        # Y sin membrete sigue siendo el informe completo, no un archivo mutilado.
+        self.assertIn("INFORME DE AN", sin)
+        self.assertIn("Generado el", sin)
+        portada = self._portada(membrete=False)
+        self.assertNotIn(ident.encabezado_export()[0], portada)
+        self.assertIn("Generado", portada, "la portada perdió la procedencia")
+
+    def test_la_portada_del_excel_lo_lleva(self):
+        from ufil import identidad as ident
+        portada = self._portada()
+        for linea in ident.encabezado_export():
+            self.assertIn(linea, portada)
+
+    def test_el_escudo_va_en_la_portada_si_lo_pusieron(self):
+        """
+        Si hay `assets/marca/logo.png`, va arriba de la portada. Si no hay, la
+        planilla sale igual: que falte el emblema es un problema menor, que no
+        salga la planilla es un problema mayor.
+        """
+        import tempfile
+        import openpyxl
+        from PIL import Image
+        from ufil import capa4_analisis as c4, capa7_export as c7, config
+        marca = Path(tempfile.mkdtemp())
+        Image.new("RGB", (200, 100), "white").save(marca / "logo.png")
+        previo = config.MARCA
+        destino = Path(self.tmp.name) / "con-escudo.xlsx"
+        try:
+            config.MARCA = marca
+            c7.a_xlsx(self.cx, destino, [c["id"] for c in c4.catalogo()])
+        finally:
+            config.MARCA = previo
+        hoja = openpyxl.load_workbook(destino)["procedencia"]
+        self.assertEqual(len(hoja._images), 1, "el escudo no llegó a la portada")
+        # Al releer el .xlsx, `img.width` vuelve a salir del PNG y no del dibujo; el
+        # tamaño con el que se ve está en el ancla, en EMU.
+        from openpyxl.utils.units import EMU_to_pixels
+        ancla = hoja._images[0].anchor
+        ext = ancla.ext
+        # A la derecha del encabezado, que se desborda de la columna A.
+        self.assertGreaterEqual(ancla._from.col, 5,
+                                "el escudo le queda encima al nombre del organismo")
+        # Alto fijo y ancho proporcional: un escudo estirado es peor que ninguno.
+        self.assertEqual(EMU_to_pixels(ext.cy), 64)
+        self.assertEqual(EMU_to_pixels(ext.cx), 128)
+
+    def test_sin_escudo_la_planilla_sale_igual(self):
+        import tempfile
+        import openpyxl
+        from ufil import capa4_analisis as c4, capa7_export as c7, config
+        previo = config.MARCA
+        destino = Path(self.tmp.name) / "sin-escudo.xlsx"
+        try:
+            config.MARCA = Path(tempfile.mkdtemp())
+            c7.a_xlsx(self.cx, destino, [c["id"] for c in c4.catalogo()])
+        finally:
+            config.MARCA = previo
+        self.assertEqual(len(openpyxl.load_workbook(destino)["procedencia"]._images), 0)
+
+    def test_la_pantalla_ofrece_sacarlo_y_el_servidor_lo_entiende(self):
+        """La opción no sirve si no llega hasta el archivo que se baja."""
+        servidor = (RAIZ / "ufil/servidor.py").read_text(encoding="utf-8")
+        self.assertIn('id="con-membrete"', APP, "la pantalla no ofrece la opción")
+        self.assertIn("&membrete=no", APP, "la opción no viaja en el enlace")
+        self.assertIn('q.get("membrete"', servidor, "el servidor ignora la opción")
+        # Y no sale impresa: los botones que acompaña no se imprimen, así que en papel
+        # quedaría una casilla tildada sola en medio de una hoja que va a un legajo.
+        self.assertIn("opcion-suelta", _bloque_impresion(),
+                      "la casilla se imprime, y en papel no manda nada")
+        # Las DOS exportaciones tienen que recibirla. Pasándosela sólo al .rtf, quien
+        # destildaba la casilla bajaba igual una planilla con la marca oficial encima.
+        for llamada in ("c7.a_rtf(", "c7.a_xlsx("):
+            i = servidor.index(llamada) + len(llamada) - 1
+            j, hondo = i + 1, 1
+            while j < len(servidor) and hondo:
+                hondo += (servidor[j] == "(") - (servidor[j] == ")")
+                j += 1
+            self.assertIn("membrete", servidor[i:j],
+                          f"{llamada}…) del servidor no recibe la opción")

@@ -773,6 +773,20 @@ h3.menor{font-size:13px}
 /* Una fila de cosas que se acomodan solas cuando no entran. */
 .fila-suelta{display:flex; gap:11px; flex-wrap:wrap; align-items:center; margin-top:12px}
 .fila-suelta.abajo{margin:0 0 15px}
+
+/* Una opción al lado de los botones que bajan un archivo: la casilla arriba y el
+   texto al lado, alineados por la primera línea. El texto acompaña a la casilla
+   —no al revés—, así que el ancho se corta antes de que la explicación se vuelva
+   un párrafo. La casilla es más grande que la de fábrica: se toca con el dedo. */
+.opcion-suelta{display:flex; align-items:flex-start; gap:9px; margin-top:11px;
+  max-width:58ch; font-size:var(--t-13); line-height:1.5; color:var(--tinta-2);
+  cursor:pointer}
+.opcion-suelta input[type=checkbox]{width:16px; height:16px; margin:2px 0 0;
+  flex:none; accent-color:var(--sello); cursor:pointer}
+.opcion-suelta:hover{color:var(--tinta)}
+.opcion-suelta strong{color:var(--tinta); font-weight:600}
+.opcion-suelta input:focus-visible{outline:2px solid var(--tribunal-txt);
+  outline-offset:2px}
 .entre-extremos{display:flex; justify-content:space-between; align-items:baseline;
   gap:11px; margin-bottom:12px}
 .pila-menor{font-size:12px; display:flex; flex-direction:column; gap:3px}
@@ -1365,7 +1379,7 @@ a.destacado-fila:hover{background:var(--realce)}
 
   :root{--papel:#fff; --papel-2:#fff; --tinta:#000; --tinta-2:#333; --tinta-3:#555;
         --filete:#999; --filete-2:#ccc; --interp:#f2f4f7}
-  #lateral, #velo, .saltar, .boton, .acc, .ancla, .esqueleto,
+  #lateral, #velo, .saltar, .boton, .acc, .ancla, .esqueleto, .opcion-suelta,
   .techo-buscar, .techo-menu{display:none !important}
   body{font-size:10.5pt; display:block}
   /* Impreso, el legajo es dato de la carátula: se queda, y sin el enlace. */

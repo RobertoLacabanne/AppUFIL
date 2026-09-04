@@ -1029,6 +1029,9 @@ class Manejador(BaseHTTPRequestHandler):
                 # diferencia entre "se puede exportar" y ver el Excel abierto.
                 from . import capa7_export as c7
                 que = q.get("que", ["xlsx"])[0]
+                # La marca del organismo va puesta salvo que pidan lo contrario. Un
+                # borrador interno puede salir sin ella; lo que se presenta, no.
+                membrete = q.get("membrete", ["si"])[0] != "no"
                 cx = _cx()
                 try:
                     destino = config.EXPORT
@@ -1042,11 +1045,13 @@ class Manejador(BaseHTTPRequestHandler):
                         tipo = "application/vnd.sqlite3"
                         nombre = Path(archivo).name
                     elif que == "rtf":
-                        archivo = c7.a_rtf(cx, destino / "informe.rtf")
+                        archivo = c7.a_rtf(cx, destino / "informe.rtf",
+                                           membrete=membrete)
                         tipo, nombre = "application/rtf", "informe-analisis.rtf"
                     else:
                         archivo = c7.a_xlsx(cx, destino / "analisis.xlsx",
-                                            [c["id"] for c in c4.catalogo()])
+                                            [c["id"] for c in c4.catalogo()],
+                                            membrete=membrete)
                         tipo = ("application/vnd.openxmlformats-officedocument."
                                 "spreadsheetml.sheet")
                         nombre = "analisis-contratos.xlsx"

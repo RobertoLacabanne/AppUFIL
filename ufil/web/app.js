@@ -1242,10 +1242,14 @@ async function vPanel() {
         el archivo y la foja</strong> de donde salió el dato, para poder verificarla contra
         el original.</p>
       <div class="fila-suelta">
-        <a class="boton" href="/descargar?que=xlsx">Descargar la planilla (.xlsx)</a>
-        <a class="boton gris" href="/descargar?que=rtf">Descargar el informe (.rtf)</a>
+        <a class="boton" data-descarga="xlsx" href="/descargar?que=xlsx">Descargar la planilla (.xlsx)</a>
+        <a class="boton gris" data-descarga="rtf" href="/descargar?que=rtf">Descargar el informe (.rtf)</a>
         <button class="boton gris" onclick="window.print()">Imprimir esta pantalla</button>
       </div>
+      <label class="opcion-suelta"><input type="checkbox" id="con-membrete" checked>
+        <span>Encabezar con el <strong>${IDENTIDAD ? IDENTIDAD.organismo : 'Ministerio Público Fiscal'}</strong>
+        y la unidad. Es lo que hace que la hoja se sostenga sola cuando la lee alguien
+        de afuera; para un borrador interno se puede sacar.</span></label>
       <p class="prosa nota sep-corta">La planilla abre con una
         portada que aclara qué campos no están verificados por una persona. Nada de lo que
         sale de acá debería incorporarse a un legajo sin cotejarlo contra el original.</p>
@@ -1260,6 +1264,17 @@ async function vPanel() {
       <p class="prosa nota sep-corta">La copia se hace con el
         sistema andando, sin pedirle a nadie que deje de trabajar. Conviene bajarla al
         terminar cada jornada de revisión y dejarla en otro disco.</p>`);
+
+  // El encabezado del organismo se decide acá, al lado de los botones que bajan el
+  // archivo, y no adentro de un archivo de configuración que nadie va a abrir.
+  const conMembrete = vista.querySelector('#con-membrete');
+  if (conMembrete) {
+    const pintarMembrete = () => vista.querySelectorAll('a[data-descarga]').forEach(a =>
+      a.href = '/descargar?que=' + a.dataset.descarga +
+               (conMembrete.checked ? '' : '&membrete=no'));
+    conMembrete.onchange = pintarMembrete;
+    pintarMembrete();
+  }
 
   // Al final y no al principio: primero se pinta la pantalla y después se pregunta.
   // Al revés, quien entra ve un diálogo sobre un fondo vacío y no sabe ni dónde está.

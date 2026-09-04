@@ -586,6 +586,23 @@ la barra lateral lo muestra sola. No viaja en el repositorio: es material instit
 del organismo, no del proyecto, y un emblema oficial redibujado de memoria queda mal y
 no corresponde usarlo así. Ver `assets/marca/LEEME.md`.
 
+### El membrete en lo que se exporta
+
+El `.rtf` y el `.xlsx` **salen encabezados** por el organismo, la unidad, el área y los
+fiscales. No es adorno: son los archivos que después se pegan en un escrito o se
+adjuntan, y el encabezado es lo que hace que la hoja se sostenga sola cuando la lee
+alguien de afuera.
+
+Las líneas salen de `ufil/identidad.py`, nunca escritas adentro de `capa7_export.py`:
+escritas a mano, cambiar de fiscal deja el nombre viejo adentro de un documento ya
+entregado.
+
+Se puede sacar, porque un borrador interno no tiene por qué salir con la marca oficial
+encima: la casilla está en la pantalla «Salida», al lado de los botones que bajan el
+archivo (`/descargar?…&membrete=no`), y en la terminal es `ufil exportar --sin-membrete`.
+Si hay un `assets/marca/logo.png`, el escudo va además arriba de la portada del `.xlsx`
+—un `.svg` no se puede meter adentro de una planilla—.
+
 ---
 
 ## 9. Al agregar una pantalla

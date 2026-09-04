@@ -83,19 +83,78 @@ def _hoja(wb: Workbook, res: dict) -> None:
     ws.freeze_panes = "A2"
 
 
-def a_xlsx(cx: sqlite3.Connection, destino: Path, consultas: list[str]) -> Path:
+# ──────────────────────────────────────────────────── marca institucional ──
+# El .rtf y el .xlsx que salen de acá son lo que después se pega en un escrito. El
+# encabezado del organismo no es adorno: es lo que hace que la hoja se sostenga sola
+# cuando la mira alguien de afuera. Va detrás de una opción igual, porque un borrador
+# interno no tiene por qué salir con la marca oficial encima.
+#
+# Las líneas SIEMPRE salen de ufil/identidad.py. Escritas acá a mano, cambiar de fiscal
+# dejaba el nombre viejo dentro de un documento ya entregado.
+def _lineas_membrete() -> list[str]:
+    from . import identidad as ident
+    return ident.encabezado_export()
+
+
+def _isotipo() -> Path | None:
+    """
+    El escudo oficial, si lo pusieron y si es un mapa de bits.
+
+    Un .svg no se puede meter adentro de un .xlsx: la planilla lo muestra como un
+    recuadro vacío, que es peor que no poner nada. Ver assets/marca/LEEME.md.
+    """
+    from . import config
+    for nombre in ("logo.png", "logo.jpg", "logo.webp"):
+        archivo = config.MARCA / nombre
+        if archivo.exists():
+            return archivo
+    return None
+
+
+def _pegar_isotipo(portada) -> None:
+    """
+    El escudo arriba a la derecha de la portada, si hay archivo.
+
+    Alto fijo de 64 px y ancho proporcional: un escudo estirado es peor que ninguno.
+    Si algo falla —falta el archivo, Pillow no lo puede abrir, el formato no le
+    entra a openpyxl— la planilla sale igual, sin escudo. Que no haya emblema es un
+    problema menor; que no salga la planilla es un problema mayor.
+    """
+    archivo = _isotipo()
+    if archivo is None:
+        return
+    try:
+        from openpyxl.drawing.image import Image as ImagenXL
+        img = ImagenXL(str(archivo))
+        alto = 64
+        img.width = max(1, round(img.width * alto / img.height))
+        img.height = alto
+        # En la F y no en la C: las líneas del encabezado están en la columna A, y
+        # la primera —el organismo entero, en cuerpo 13— se desborda sobre las de al
+        # lado. Pegado más cerca, el escudo le queda encima al texto.
+        portada.add_image(img, "F1")
+    except Exception:
+        return
+
+
+def a_xlsx(cx: sqlite3.Connection, destino: Path, consultas: list[str],
+           membrete: bool = True) -> Path:
     wb = Workbook(); wb.remove(wb.active)
     portada = wb.create_sheet("procedencia", 0)
-    # El encabezado sale de ufil/identidad.py: es el mismo que muestra la pantalla y
-    # el mismo que va a llevar impreso lo que se presente. Escrito acá a mano, cambiar
-    # de fiscal dejaba el nombre viejo dentro de un Excel ya entregado.
-    from . import identidad as ident
-    lineas = ident.encabezado_export()
+    # Con `membrete` en falso sale sin la marca del organismo: la planilla arranca por
+    # lo que es, y no por quién firma. Lo demás de la portada no cambia.
+    if membrete:
+        lineas = _lineas_membrete()
+    else:
+        from . import identidad as ident
+        lineas = [ident.actual()["sistema"]]
     portada.append([lineas[0]])
     portada["A1"].font = Font(bold=True, size=13)
     for linea in lineas[1:]:
         portada.append([linea])
     portada.append([])
+    if membrete:
+        _pegar_isotipo(portada)
     portada.append(["Generado", date.today().isoformat()])
     portada.append(["Archivos ingeridos",
                     cx.execute("SELECT COUNT(*) FROM archivo").fetchone()[0]])
@@ -166,7 +225,7 @@ def _rtf(s: str) -> str:
     return "".join(out)
 
 
-def a_rtf(cx: sqlite3.Connection, destino: Path) -> Path:
+def a_rtf(cx: sqlite3.Connection, destino: Path, membrete: bool = True) -> Path:
     """Cuerpo justificado, interlineado 1,5, cuerpo 11. Cada afirmación con su cita."""
     sup = c4.correr(cx, "01_superposicion")["filas"]
     amb = c4.correr(cx, "03_ambas_camaras")["filas"]
@@ -177,15 +236,29 @@ def a_rtf(cx: sqlite3.Connection, destino: Path) -> Path:
     T = r"\pard\qc\sl360\slmult1\sa200\b\fs26 "
     H = r"\pard\ql\sl360\slmult1\sa120\sb200\b\fs24 "
 
+    # El encabezado institucional: centrado, cuerpo chico, versalitas, y un filete
+    # que lo separa del título. Arriba de todo, como en cualquier papel de la casa.
+    # La primera línea —el organismo— más marcada que las de abajo, que es la
+    # jerarquía de ufil/identidad.py y no una decisión de esta función.
+    M1 = r"\pard\qc\sl240\slmult1\sa0\b\scaps\fs20 "
+    M = r"\pard\qc\sl240\slmult1\sa0\fs18 "
+    FILETE = r"\pard\qc\brdrb\brdrs\brdrw10\brdrsp60\sa280\par"
+
     p = [r"{\rtf1\ansi\ansicpg1252\deff0",
          r"{\fonttbl{\f0\froman\fcharset0 Times New Roman;}}",
-         r"\margl1701\margr1134\margt1134\margb1134",
-         T + _rtf("INFORME DE ANÁLISIS DOCUMENTAL") + r"\b0\par",
-         P + _rtf(f"Generado el {date.today().strftime('%d/%m/%Y')} sobre "
-                  f"{plural(cx.execute('SELECT COUNT(*) FROM documento').fetchone()[0], 'documento procesado', 'documentos procesados')} "
-                  f"automáticamente. Cada afirmación de este informe cita el "
-                  f"archivo y la foja de donde se leyó el dato, para poder verificarla "
-                  f"contra el original.") + r"\par"]
+         r"\margl1701\margr1134\margt1134\margb1134"]
+    if membrete:
+        lineas = _lineas_membrete()
+        p.append(M1 + _rtf(lineas[0]) + r"\b0\scaps0\par")
+        for linea in lineas[1:]:
+            p.append(M + _rtf(linea) + r"\par")
+        p.append(FILETE)
+    p += [T + _rtf("INFORME DE ANÁLISIS DOCUMENTAL") + r"\b0\par",
+          P + _rtf(f"Generado el {date.today().strftime('%d/%m/%Y')} sobre "
+                   f"{plural(cx.execute('SELECT COUNT(*) FROM documento').fetchone()[0], 'documento procesado', 'documentos procesados')} "
+                   f"automáticamente. Cada afirmación de este informe cita el "
+                   f"archivo y la foja de donde se leyó el dato, para poder verificarla "
+                   f"contra el original.") + r"\par"]
 
     p.append(H + _rtf("1. Alcance y cobertura de la lectura") + r"\b0\par")
     for c in cob:
@@ -267,9 +340,10 @@ def a_rtf(cx: sqlite3.Connection, destino: Path) -> Path:
     return destino
 
 
-def exportar(cx: sqlite3.Connection, destino: Path, consultas: list[str] | None = None) -> list[str]:
+def exportar(cx: sqlite3.Connection, destino: Path, consultas: list[str] | None = None,
+             membrete: bool = True) -> list[str]:
     destino = Path(destino); destino.mkdir(parents=True, exist_ok=True)
     consultas = consultas or [c["id"] for c in c4.catalogo()]
-    hechos = [str(a_xlsx(cx, destino / "analisis.xlsx", consultas)),
-              str(a_rtf(cx, destino / "informe.rtf"))]
+    hechos = [str(a_xlsx(cx, destino / "analisis.xlsx", consultas, membrete=membrete)),
+              str(a_rtf(cx, destino / "informe.rtf", membrete=membrete))]
     return hechos

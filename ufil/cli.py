@@ -202,7 +202,8 @@ def cmd_exportar(a):
     from . import capa7_export as c7
     cx = _cx(a)
     destino = Path(a.destino)
-    hechos = c7.exportar(cx, destino, consultas=a.consulta or None)
+    hechos = c7.exportar(cx, destino, consultas=a.consulta or None,
+                         membrete=not a.sin_membrete)
     for h in hechos:
         print(f"  {h}")
     return 0
@@ -546,6 +547,8 @@ def main(argv=None) -> int:
 
     s = sub.add_parser("exportar", help="Capa 7: .xlsx y .rtf con cita de archivo y foja")
     s.add_argument("destino"); s.add_argument("--consulta", action="append")
+    s.add_argument("--sin-membrete", action="store_true",
+                   help="sin el encabezado del organismo (borrador interno)")
     s.set_defaults(func=cmd_exportar)
 
     s = sub.add_parser("manuscrita",
