@@ -336,21 +336,54 @@ function bloque(folio, rotulo, html) {
    sobrante se lo lleva UNA columna —la última que no sea de números, porque estirar
    una de números aleja el número de su rótulo otra vez— y las demás miden lo que
    mide su contenido. */
-function claseCol(cols, c, i) {
-  const propias = c.c || '';
-  let crece = -1;
-  for (let n = 0; n < cols.length; n++) {
-    if (!/(^|\s)num(\s|$)/.test(cols[n].c || '')) crece = n;
-  }
-  return (propias + (i === crece ? ' crece' : '')).trim();
+function claseCol(cols, c, i, filas) {
+  return ((c.c || '') + (i === cualCrece(cols, filas) ? ' crece' : '')).trim();
+}
+
+/* Cuál de las columnas se lleva el ancho que sobra: la de texto MÁS LARGO.
+   La primera versión le daba el sobrante a la última que no fuera de números, y en la
+   tabla de contratos esa era «Fin» —una fecha de nueve caracteres— que se quedaba con
+   doscientos píxeles mientras «Contratado/a» se apretaba y los apellidos caían en dos
+   renglones. El sobrante tiene que ir donde hace falta.
+   Las de números quedan afuera: estirar una aleja el número de su rótulo, que es
+   justo lo que esto vino a arreglar. */
+const _crece = new WeakMap();
+function cualCrece(cols, filas) {
+  if (_crece.has(cols)) return _crece.get(cols);
+  let cual = -1, largo = -1, ultimaSuelta = -1;
+  const sinEtiquetas = h => String(h).replace(/<[^>]*>/g, '');
+  const muestra = (filas || []).slice(0, 40);
+  // Las que nunca se parten no compiten: un CUIL, una fecha, un nombre de archivo o
+  // un importe son UN token y llevan `nowrap`, así que el ancho de más no les cambia
+  // nada y se lo sacan a la que sí se estaba partiendo. Medido en la tabla de
+  // contratos: el sobrante se lo llevaba «Archivo» —19 caracteres que no se cortan—
+  // mientras «Contratado/a» partía los apellidos en dos renglones.
+  const noSeParte = c => /(^|\s)(num|mono|fol|nowrap)(\s|$)/.test(c.c || '');
+  cols.forEach((c, i) => {
+    if (/(^|\s)num(\s|$)/.test(c.c || '')) return;
+    ultimaSuelta = i;
+    if (noSeParte(c)) return;
+    let max = c.t.length;
+    for (const f of muestra) {
+      try {
+        max = Math.max(max, sinEtiquetas(c.r ? c.r(f) : (f[c.k] ?? '')).trim().length);
+      } catch (e) { /* una columna que no se puede medir no compite */ }
+    }
+    if (max > largo) { largo = max; cual = i; }
+  });
+  // Si todas son de las que no se parten, igual tiene que sobrar en algún lado: sin
+  // esto la tabla vuelve a repartir el sobrante entre todas y se estira entera.
+  if (cual < 0) cual = ultimaSuelta;
+  _crece.set(cols, cual);
+  return cual;
 }
 
 function tabla(cols, filas, opts = {}) {
   if (!filas.length) return `<div class="tabla-env"><div class="vacio">Sin resultados.</div></div>`;
-  const th = cols.map((c, i) => `<th class="${claseCol(cols, c, i)}">${
+  const th = cols.map((c, i) => `<th class="${claseCol(cols, c, i, filas)}">${
     esc(c.t)}</th>`).join('');
   const tr = filas.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}" data-i="${i}">${
-    cols.map((c, i) => `<td class="${claseCol(cols, c, i)}">${
+    cols.map((c, i) => `<td class="${claseCol(cols, c, i, filas)}">${
       c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
   }</tr>`).join('');
   // `lista` marca QUÉ muestra esta tabla. Hace falta cuando una pantalla tiene más de
@@ -541,12 +574,12 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
     const tanda = v.slice(0, estado.mostradas);
     const th = cols.map((c, i) => {
       const act = estado.orden === i ? (estado.desc ? ' desc' : ' asc') : '';
-      return `<th class="ord${act} ${claseCol(cols, c, i)}" data-col="${i}"
+      return `<th class="ord${act} ${claseCol(cols, c, i, filas)}" data-col="${i}"
                 title="ordenar por ${esc(c.t)}">${esc(c.t)}</th>`;
     }).join('');
     const tr = tanda.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}"
         data-i="${filas.indexOf(f)}">${
-      cols.map((c, i) => `<td class="${claseCol(cols, c, i)}">${
+      cols.map((c, i) => `<td class="${claseCol(cols, c, i, filas)}">${
         c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
     }</tr>`).join('');
 

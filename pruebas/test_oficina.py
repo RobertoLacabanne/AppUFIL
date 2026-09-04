@@ -50,7 +50,7 @@ class UnaColumnaDeNumerosSeAlineaConSuRotulo(unittest.TestCase):
 
     def test_el_encabezado_lleva_la_clase_de_su_columna(self):
         """Sin eso no hay con qué alinearlo: el `<th>` no sabe qué columna es."""
-        self.assertIn("claseCol(cols, c, i)", APP,
+        self.assertIn("claseCol(cols, c, i, filas)", APP,
                       "el encabezado dejó de llevar la clase de su columna")
         self.assertNotIn("`<th>${esc(c.t)}</th>`", APP,
                          "volvió el encabezado sin clase")
@@ -65,9 +65,33 @@ class UnaColumnaDeNumerosSeAlineaConSuRotulo(unittest.TestCase):
 
     def test_no_crece_una_columna_de_numeros(self):
         """Estirar una columna de números vuelve a alejar el número de su rótulo."""
-        i = APP.index("function claseCol")
-        self.assertIn("num", APP[i:i + 500],
+        i = APP.index("function cualCrece")
+        self.assertIn("num", APP[i:i + 700],
                       "la columna que crece se elige sin mirar si es de números")
+
+    def test_crece_la_columna_de_texto_mas_largo(self):
+        """
+        La primera versión le daba el sobrante a la última columna que no fuera de
+        números. En la tabla de contratos esa era «Fin» —una fecha de nueve
+        caracteres— que se quedaba con doscientos píxeles mientras «Contratado/a» se
+        apretaba y los apellidos caían en dos renglones. El sobrante tiene que ir
+        donde hace falta.
+        """
+        i = APP.index("function cualCrece")
+        cuerpo = APP[i:APP.index("function tabla(", i)]
+        self.assertIn("Math.max(max", cuerpo,
+                      "la columna que crece se elige por posición y no por contenido")
+        self.assertIn("sinEtiquetas", cuerpo,
+                      "mide el HTML y no el texto: una celda con un sello o un enlace "
+                      "adentro parecería la más larga por las etiquetas")
+        # Y las que nunca se parten no compiten: el ancho de más no les cambia nada y
+        # se lo sacan a la que sí se estaba partiendo.
+        self.assertIn("const noSeParte", cuerpo,
+                      "una columna de fechas o de nombres de archivo se lleva el "
+                      "sobrante mientras los apellidos caen en dos renglones")
+        self.assertIn("if (cual < 0) cual = ultimaSuelta;", cuerpo,
+                      "si todas son de las que no se parten, nadie absorbe y la tabla "
+                      "vuelve a estirarse entera")
 
 
 class LosFiltrosNoSeLlevanLaQuintaParteDeLaPantalla(unittest.TestCase):
