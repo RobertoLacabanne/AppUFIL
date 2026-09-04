@@ -1611,6 +1611,11 @@ async function vDocumento(id) {
         </div>
         <div class="pie-lamina"><span id="pie-campo">tocá una ficha de anclaje</span>
           <span id="pie-xy"></span></div>
+        <!-- La foja de al lado entra entera y por eso no se lee: a ese tamaño no se
+             distingue un importe. Es un mapa, no el documento. Para leerlo está el
+             visor, que la abre al tamaño del escaneo. -->
+        <button class="boton gris" id="abrir-foja-doc" type="button">Ver la foja
+          entera, para leerla</button>
       </div>
     </div>
     ${d.interpretaciones.length ? `
@@ -1663,9 +1668,29 @@ async function vDocumento(id) {
   vista.querySelectorAll('.historial').forEach(b =>
     b.onclick = () => verRastro(+b.dataset.campo));
 
+  /* La misma foja, a pantalla completa. Se abre desde el botón y tocando la lámina:
+     quien quiere leerla va a tocarla antes de buscar un botón. `ultimoAnclado` es el
+     campo que se marcó por última vez, para que el visor abra con ese recuadro
+     dibujado y no vacío. */
+  let ultimoAnclado = null;
+  const abrirLaFoja = () => {
+    const pag = paginas.find(p => p.nro === actual) || paginas[0];
+    const c = (ultimoAnclado && (ultimoAnclado.pagina_nro || paginas[0].nro) === actual)
+      ? ultimoAnclado : null;
+    abrirFoja({documento_id: id, pagina_nro: actual, archivo: doc.archivo,
+               campo: c ? c.nombre : '', familia: doc.familia,
+               pagina: {ancho_pt: pag.ancho_pt, alto_pt: pag.alto_pt},
+               x0: c && c.x0, y0: c && c.y0, x1: c && c.x1, y1: c && c.y1,
+               campo_id: c && c.id});
+  };
+  $('#abrir-foja-doc').onclick = abrirLaFoja;
+  $('#lienzo').onclick = abrirLaFoja;
+  $('#lienzo').title = 'Tocá para ver la foja entera';
+
   vista.querySelectorAll('.ancla').forEach(b => b.onclick = () => {
     const c = anclables.find(x => x.id === +b.dataset.campo);
     if (!c) return;
+    ultimoAnclado = c;
     const nro = c.pagina_nro || paginas[0].nro;
     if (nro !== actual) verFoja(nro);
     const pag = paginas.find(p => p.nro === nro) || paginas[0];
@@ -1925,7 +1950,12 @@ async function vCola(campoId) {
                el teléfono: en el escritorio eso ya lo dice la marginalia de la fila,
                a la izquierda del campo. -->
           <p class="ficha-procedencia mono" id="ficha-procedencia"></p>
-          <div class="lupa" id="lupa"><img id="lupa-img" alt=""></div>
+          <!-- El recuadro del campo va dibujado sobre el recorte. La lupa muestra el
+               renglón Y lo que lo rodea —hace falta para saber que se está mirando el
+               renglón correcto—, pero sin nada que lo marque hay que adivinar cuál de
+               los renglones a la vista es el campo. -->
+          <div class="lupa" id="lupa"><img id="lupa-img" alt="">
+            <div id="lupa-marco" hidden></div></div>
           <div class="pie-lamina"><span id="lupa-campo"></span><span id="lupa-xy"></span></div>
           <!-- La hoja entera va OCULTA mientras haya recorte.
                A unos 250 px de ancho no se distingue una sola palabra, y se llevaba la
@@ -1961,8 +1991,6 @@ async function vCola(campoId) {
   engancharFilasCola();
   ponerModoCola(modoCola);
   $('#abrir-foja').onclick = () => abrirFoja(colaEstado.filas[colaEstado.foco]);
-  $('#visor-cerrar').onclick = cerrarVisor;
-  $('#visor').onclick = e => { if (e.target.id === 'visor') cerrarVisor(); };
   $('#ficha-antes').onclick = () => moverFicha(-1);
   $('#ficha-despues').onclick = () => moverFicha(+1);
   $('#ficha-lista').onclick = () => ponerModoCola(modoCola === 'ficha' ? 'lista' : 'ficha');
@@ -2290,7 +2318,8 @@ function abrirFoja(f) {
   if (!visor) return;
   img.src = `/pagina?doc=${f.documento_id}&nro=${nro}`;
   $('#visor-rotulo').textContent =
-    `${f.archivo || 'documento'} · f. ${nro} · ${rotularCampo(f.campo, f.familia)}`;
+    [f.archivo || 'documento', 'f. ' + nro,
+     f.campo ? rotularCampo(f.campo, f.familia) : ''].filter(Boolean).join(' · ');
   const pag = f.pagina || f.pagina_respaldo;
   const hayCaja = pag && pag.ancho_pt && f.x0 != null && f.x1 != null;
   marco.hidden = !hayCaja;
@@ -2304,6 +2333,24 @@ function abrirFoja(f) {
   document.body.classList.add('con-visor');
   fojasMiradas.add(String(f.campo_id));
   $('#visor-cerrar').focus();
+  /* Y se abre MIRANDO EL CAMPO, no en la esquina de arriba. Una foja de 1.653 px en
+     una ventana de 1.366 entra a medias: abierta en el origen, el campo que se venía
+     a leer suele quedar abajo del borde y hay que buscarlo. Peor todavía con el velo,
+     que oscurece todo lo que no es el recuadro: sin desplazar, la pantalla entera se
+     veía gris y el recuadro no estaba a la vista.
+
+     Se espera a que la imagen cargue: antes de eso no tiene tamaño y no hay a dónde
+     desplazarse. */
+  const alCampo = () => {
+    if (marco.hidden) return;
+    const caja = $('.visor-hoja');
+    if (!caja) return;
+    const r = marco.getBoundingClientRect(), c = caja.getBoundingClientRect();
+    caja.scrollTop += (r.top - c.top) - (c.height - r.height) / 2;
+    caja.scrollLeft += (r.left - c.left) - (c.width - r.width) / 2;
+  };
+  if (img.complete && img.naturalWidth) alCampo();
+  else img.onload = alCampo;
 }
 
 function cerrarVisor() {
@@ -2311,10 +2358,22 @@ function cerrarVisor() {
   if (!visor || visor.hidden) return;
   visor.hidden = true;
   document.body.classList.remove('con-visor');
-  // Al volver, el campo ya fue mirado: los controles se encienden solos.
+  // Al volver, el campo ya fue mirado: los controles se encienden solos. Fuera de la
+  // cola no hay nada que encender, y `vigilarVista` sale sola si no está la lupa.
   const f = colaEstado.filas[colaEstado.foco];
   if (f) vigilarVista(f);
 }
+
+/* El visor se engancha una sola vez, al cargar, y no adentro de una vista: lo abren
+   la cola Y la pantalla del documento, y enganchado adentro de `vCola` el botón de
+   cerrar no hacía nada en la otra —quedaba sólo `Esc`, que es un atajo y no una
+   salida—. */
+(function engancharVisor() {
+  const visor = document.getElementById('visor');
+  if (!visor) return;
+  document.getElementById('visor-cerrar').onclick = cerrarVisor;
+  visor.onclick = e => { if (e.target.id === 'visor') cerrarVisor(); };
+})();
 
 /* Encuadra el campo en la lupa: la foja entera a la derecha se ve chica, y lo que hace
    falta para decidir es leer ESE renglón. */
@@ -2376,6 +2435,8 @@ function sinRecorte(f, motivo, comoSeguir) {
   const lupa = $('#lupa'), img = $('#lupa-img');
   lupa.classList.add('sin-anclaje');
   img.removeAttribute('src');
+  const marco = $('#lupa-marco');
+  if (marco) marco.hidden = true;
   $('#lupa-campo').textContent = motivo;
   $('#lupa-xy').textContent = comoSeguir;
   // La hoja entera SÍ va: es lo único con lo que se puede encontrar el campo a mano,
@@ -2429,6 +2490,17 @@ function encuadrar(f) {
   img.style.width = (pag.ancho_pt * escala) + 'px';
   img.style.left = -(f.x0 * escala - (r.width - caja.w * escala) / 2) + 'px';
   img.style.top = -(f.y0 * escala - (r.height - caja.h * escala) / 2) + 'px';
+  // Y el recuadro encima, en el lugar donde quedó el campo. Como el encuadre lo
+  // CENTRA, el recuadro sale de la misma cuenta que centró la imagen: siempre coincide,
+  // sin volver a medir nada.
+  const marco = $('#lupa-marco');
+  if (marco) {
+    marco.hidden = false;
+    marco.style.left = ((r.width - caja.w * escala) / 2) + 'px';
+    marco.style.top = ((r.height - caja.h * escala) / 2) + 'px';
+    marco.style.width = (caja.w * escala) + 'px';
+    marco.style.height = (caja.h * escala) + 'px';
+  }
   $('#lupa-campo').textContent = `${rotularCampo(f.campo, f.familia)}${
     f.ruta ? ' · ruta ' + f.ruta : ''}`;
   $('#lupa-xy').textContent = `f.${f.pagina_nro} · ${(escala / natural).toFixed(1)}×`;
@@ -4161,7 +4233,10 @@ let IDENTIDAD = null;
    recién ahí saltaba a elegir legajo. El parpadeo se ve como si algo hubiera fallado.
    Ahora se pregunta primero y se pinta una sola vez, la pantalla que corresponde. */
 medirTecho();
-addEventListener('hashchange', rutear);
+/* Cambiar de pantalla cierra la foja abierta. El visor vive AFUERA de `#vista` —tiene
+   que taparlo todo—, así que un cambio de ruta repinta lo de abajo y la foja quedaba
+   flotando encima de otra pantalla, tapándola entera. */
+addEventListener('hashchange', () => { cerrarVisor(); rutear(); });
 pintarIdentidad();
 refrescarCuentas().then(rutear);
 vigilarTrabajo();

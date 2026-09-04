@@ -440,6 +440,64 @@ class ElTelefonoEsUnCampoPorPantalla(unittest.TestCase):
              "la procedencia va en mono: es un dato leído del documento")
 
 
+class LaFojaSeAbreParaLeerla(unittest.TestCase):
+    """
+    La lámina del costado —tanto en la cola como en la pantalla del documento— entra
+    entera y por eso no se lee: a 340 px no se distingue un importe. Es un mapa, no el
+    documento. El visor la abre al tamaño del escaneo, que es la única manera de
+    leerla, y por eso también es la única manera honesta de habilitar una decisión
+    cuando el recorte no sirve.
+    """
+
+    def test_se_abre_desde_las_dos_pantallas(self):
+        _hay(self, 'id="abrir-foja"', APP, "la cola no puede abrir la foja")
+        _hay(self, 'id="abrir-foja-doc"', APP,
+             "la pantalla del documento no puede abrir la foja, y es donde más se "
+             "mira: la lámina de ahí tampoco se lee")
+        _hay(self, "$('#lienzo').onclick = abrirLaFoja", APP,
+             "tocar la lámina tiene que abrirla: quien quiere leerla la toca antes "
+             "de buscar un botón")
+
+    def test_se_engancha_una_sola_vez_y_no_adentro_de_una_vista(self):
+        """
+        Enganchado adentro de `vCola`, el botón de cerrar no hacía nada en la
+        pantalla del documento: quedaba sólo `Esc`, que es un atajo y no una salida.
+        """
+        _hay(self, "function engancharVisor", APP,
+             "el visor volvió a engancharse adentro de una vista")
+        self.assertNotIn("$('#visor-cerrar').onclick", APP.split("async function vCola")[1][:6000],
+                         "el visor se volvió a enganchar adentro de la cola")
+
+    def test_abre_mirando_el_campo(self):
+        """
+        Una foja de 1.653 px en una ventana de 1.366 entra a medias. Abierta en el
+        origen, el campo que se venía a leer queda abajo del borde; y con el velo que
+        oscurece lo que no es el recuadro, la pantalla entera se veía gris sin que el
+        recuadro estuviera a la vista.
+        """
+        _hay(self, "const alCampo = ()", APP, "el visor abre en la esquina de arriba")
+        _hay(self, "caja.scrollTop +=", APP,
+             "el visor no se desplaza al recuadro")
+        _hay(self, "if (img.complete && img.naturalWidth) alCampo();", APP,
+             "sin esperar a que cargue la imagen no hay a dónde desplazarse")
+
+    def test_cambiar_de_pantalla_lo_cierra(self):
+        """
+        El visor vive AFUERA de `#vista` —tiene que taparlo todo—, así que un cambio
+        de ruta repintaba lo de abajo y la foja quedaba flotando encima de otra
+        pantalla, tapándola entera y con el desplazamiento del cuerpo trabado.
+        """
+        _hay(self, "addEventListener('hashchange', () => { cerrarVisor(); rutear(); })", APP,
+             "navegar con la foja abierta deja la foja tapando la pantalla nueva")
+
+    def test_mientras_esta_abierto_ninguna_tecla_decide(self):
+        i = APP.index("document.addEventListener('keydown'")
+        cabeza = APP[i:i + 400]
+        self.assertIn("if (!$('#visor')?.hidden)", cabeza,
+                      "con la foja abierta a pantalla completa, las teclas de la cola "
+                      "siguen decidiendo campos que no se están mirando")
+
+
 class NoSeDecideSinVer(unittest.TestCase):
     """
     La quinta restricción de la casa, del lado de quien decide. Un «es correcto»
@@ -557,6 +615,25 @@ class NoSeDecideSinVer(unittest.TestCase):
             # equivoca.
             self.assertRegex(salida[malo], r"\d+×\d+ pt",
                              f"el motivo de «{malo}» no dice cuánto medía la caja")
+
+    def test_el_campo_esta_marcado_adentro_del_recorte(self):
+        """
+        La lupa muestra el renglón Y lo que lo rodea, y eso hace falta: es lo que
+        permite saber que se está mirando el renglón correcto. Pero sin nada que lo
+        marque hay que adivinar cuál de los renglones a la vista es el campo, y
+        adivinar mal es decidir sobre el renglón equivocado y firmarlo.
+        """
+        _hay(self, 'id="lupa-marco"', APP, "el campo no está marcado adentro de la lupa")
+        _hay(self, "if (marco) {\n    marco.hidden = false;", APP,
+             "el recuadro se calcula y nunca se muestra")
+        _hay(self, "marco.style.left = ((r.width - caja.w * escala) / 2)", APP,
+             "el recuadro se calcula por otro lado que el encuadre: si no sale de la "
+             "misma cuenta que centró la imagen, señala un renglón que no es")
+        # Y se apaga cuando no hay recorte: un recuadro sobre una caja vacía señala
+        # un lugar que no existe.
+        i = APP.index("lupa.classList.add('sin-anclaje')")
+        self.assertIn("marco.hidden = true", APP[i:i + 300],
+                      "sin recorte, el recuadro queda dibujado sobre la nada")
 
     def test_el_aumento_tiene_piso_y_no_solo_techo(self):
         """

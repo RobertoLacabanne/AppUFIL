@@ -1707,6 +1707,19 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 .lupa{position:relative; overflow:hidden; min-height:132px; background:#fff;
   border:1px solid var(--filete); box-shadow:inset 0 0 0 1px var(--sello-suave)}
 .lupa img{position:absolute; max-width:none; image-rendering:auto}
+/* El recuadro del campo sobre el recorte. La lupa muestra el renglón y lo que lo
+   rodea; sin esto hay que adivinar cuál de los renglones a la vista es el campo, y
+   adivinar mal es decidir sobre el renglón equivocado y firmarlo.
+
+   Va con el azul del sistema y no con el punzó: no dice que haya nada mal, dice
+   dónde mirar. Y con el fondo de afuera apenas velado, que es lo que hace que el ojo
+   caiga solo adentro sin tapar el contexto. */
+#lupa-marco{position:absolute; border:1.5px solid var(--sello);
+  border-radius:var(--radio-folio);
+  box-shadow:0 0 0 9999px rgba(15,23,42,.10); pointer-events:none}
+:root[data-tema="oscuro"] #lupa-marco{box-shadow:0 0 0 9999px rgba(0,0,0,.28)}
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]) #lupa-marco{
+  box-shadow:0 0 0 9999px rgba(0,0,0,.28)}}
 .lupa.sin-anclaje{background:var(--papel-3)}
 .lupa.sin-anclaje::after{content:'sin recuadro'; position:absolute; inset:0;
   display:flex; align-items:center; justify-content:center;
@@ -1748,9 +1761,16 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 #visor-img{display:block; max-width:none}
 /* El recuadro que el sistema le puso al campo, dibujado sobre la hoja. Va también
    cuando está mal: ver dónde CREE que está el campo es la mitad de entender el error. */
-#visor-marco{position:absolute; border:2px solid var(--lapiz);
+/* El mismo azul que el recuadro de la lámina y que el de la lupa: no dice que haya
+   nada mal —para eso está el punzó, y `.recuadro.conf` lo usa— sino dónde mirar.
+   El velo de afuera, apenas: lo que rodea al campo es lo que permite confirmar que se
+   está mirando el renglón correcto, así que tiene que seguir leyéndose. */
+#visor-marco{position:absolute; border:2px solid var(--sello);
   border-radius:var(--radio-folio);
-  box-shadow:0 0 0 9999px rgba(15,23,42,.28); pointer-events:none}
+  box-shadow:0 0 0 9999px rgba(15,23,42,.12); pointer-events:none}
+:root[data-tema="oscuro"] #visor-marco{box-shadow:0 0 0 9999px rgba(0,0,0,.24)}
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]) #visor-marco{
+  box-shadow:0 0 0 9999px rgba(0,0,0,.24)}}
 body.con-visor{overflow:hidden}
 
 /* ── No se decide sin ver ──────────────────────────────────────────────────
