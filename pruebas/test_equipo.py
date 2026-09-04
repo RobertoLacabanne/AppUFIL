@@ -220,3 +220,91 @@ class ElEquipoTrabajaJunto(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SePreguntaQuienEstaTrabajando(unittest.TestCase):
+    """
+    El botón de la barra está bien puesto y es correcto que esté siempre a la vista,
+    pero mientras nadie lo toque TODO lo que se revise queda sin firma — y eso no se
+    arregla después: la decisión ya quedó anotada sin autor, y al firmar un informe no
+    hay forma de decir quién miró cada dato contra el folio.
+
+    Se pregunta UNA vez por sesión, al abrir un legajo, con la lista de quienes ya
+    revisaron algo en esa base. Y se puede saltear: el sistema tiene que dejar
+    trabajar.
+    """
+
+    APP = (Path(__file__).resolve().parent.parent
+           / "ufil/web/app.js").read_text(encoding="utf-8")
+
+    def _hay(self, aguja, queja):
+        self.assertTrue(aguja in self.APP, queja + f"\n  (falta: {aguja!r})")
+
+    def test_se_pregunta_al_abrir_el_legajo(self):
+        self._hay("preguntarQuienUnaVez(p);",
+                  "dejó de preguntarse quién está trabajando al abrir un legajo")
+
+    def test_una_sola_vez_por_sesion(self):
+        """Preguntar en cada pantalla es la forma más rápida de que lo saltee siempre."""
+        self._hay("sessionStorage.getItem('ufil.ya-pregunte')",
+                  "el diálogo volvió a poder aparecer más de una vez por sesión")
+
+    def test_no_se_pregunta_si_ya_hay_nombre(self):
+        i = self.APP.index("async function preguntarQuienUnaVez")
+        cuerpo = self.APP[i:self.APP.index("\nasync function vPanel")]
+        self.assertIn("if (REVISOR) return;", cuerpo,
+                      "le pregunta el nombre a quien ya se identificó")
+
+    def test_se_puede_saltear(self):
+        i = self.APP.index("function pedirRevisor")
+        cuerpo = self.APP[i:i + 1800]
+        self.assertIn("Ahora no", cuerpo,
+                      "se perdió la salida del diálogo: el sistema tiene que dejar "
+                      "trabajar aunque nadie se identifique")
+
+    def test_ofrece_a_los_que_ya_trabajaron_en_la_base(self):
+        """
+        Escribirse a mano cada vez termina en que la misma persona quede anotada como
+        «Perez» y «perez, j» sobre el mismo legajo, y entonces el reparto de trabajo
+        del equipo cuenta dos personas donde hay una.
+        """
+        self._hay("data-quien=", "el diálogo dejó de ofrecer quiénes ya revisaron")
+        srv = (Path(__file__).resolve().parent.parent
+               / "ufil/servidor.py").read_text(encoding="utf-8")
+        self.assertIn('"quienes"', srv,
+                      "el panel dejó de decir quiénes ya revisaron algo en esta base")
+
+
+class LaBusquedaTieneAtajo(unittest.TestCase):
+    """
+    La cola de revisión tiene teclas para decidir; la búsqueda, que es la acción
+    principal de todo el sistema, no tenía ninguna.
+    """
+
+    APP = (Path(__file__).resolve().parent.parent
+           / "ufil/web/app.js").read_text(encoding="utf-8")
+    HTML = (Path(__file__).resolve().parent.parent
+            / "ufil/web/index.html").read_text(encoding="utf-8")
+
+    def test_la_barra_enfoca_la_busqueda(self):
+        self.assertTrue("if (e.key === '/' && !enUnCampo" in self.APP,
+                        "se perdió el atajo «/» para buscar")
+
+    def test_no_se_dispara_mientras_se_escribe(self):
+        """Adentro de un campo, «/» es una barra y tiene que seguir siéndolo."""
+        self.assertTrue("/^(INPUT|TEXTAREA|SELECT)$/" in self.APP,
+                        "el atajo se dispara mientras alguien escribe: le come la "
+                        "barra a quien está cargando un valor a mano")
+
+    def test_escape_sale_del_campo(self):
+        self.assertTrue("e.key === 'Escape' && document.activeElement === $('#q-rapida')"
+                        in self.APP, "no se puede salir de la búsqueda con Escape")
+
+    def test_la_tecla_esta_dicha_en_la_pantalla(self):
+        """Un atajo que no está escrito en ningún lado lo usa quien lo escribió."""
+        import re as _re
+        m = _re.search(r'id="q-rapida"[^>]*placeholder="([^"]*)"', self.HTML)
+        self.assertIsNotNone(m, "se perdió el campo de búsqueda")
+        self.assertIn("/", m.group(1),
+                      f"la tecla dejó de estar dicha en el campo: el placeholder dice "
+                      f"«{m.group(1)}» y no menciona «/»")

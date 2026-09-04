@@ -223,8 +223,9 @@ function pintarRevisor() {
 /* Pide el nombre y devuelve una promesa con él, o con null si la persona cerró el
    diálogo. Se resuelve ANTES de tocar nada: una decisión sin nombre no se guarda, y
    el servidor la rechaza igual, así que preguntar después sería perder el trabajo. */
-function pedirRevisor() {
+function pedirRevisor(yaEstan = []) {
   return new Promise(resolver => {
+    const otros = (yaEstan || []).filter(q => q && q !== REVISOR);
     const d = dialogo(`
       <form method="dialog" id="f-revisor">
         <h3>¿Quién está trabajando?</h3>
@@ -233,7 +234,12 @@ function pedirRevisor() {
           revisó cada dato contra el folio.</p>
         <p class="prosa">En esta causa trabajan varias personas sobre la misma base: sin
           esto, el trabajo de todos aparece junto y sin autor.</p>
-        <label for="n-revisor">Apellido y nombre, o usuario</label>
+        ${otros.length ? `<p class="rotulo">Ya trabajaron en este legajo</p>
+        <div class="fila-suelta abajo" id="quienes-ya">${otros.map(q =>
+          `<button type="button" class="chip" data-quien="${esc(q)}">${esc(q)}</button>`
+          ).join('')}</div>` : ''}
+        <label for="n-revisor">${otros.length ? 'O escribí el tuyo'
+                                              : 'Apellido y nombre, o usuario'}</label>
         <input id="n-revisor" autocomplete="off" spellcheck="false"
                placeholder="lacabanne.r" value="${esc(REVISOR || '')}">
         <div class="botonera">
@@ -243,6 +249,11 @@ function pedirRevisor() {
       </form>`);
     const campo = $('#n-revisor', d), ok = $('#b-soy', d);
     let elegido = null;
+    // Elegir de la lista es lo mismo que escribirlo, y evita que la misma persona
+    // quede anotada como «Perez» y «perez, j» sobre el mismo legajo.
+    d.querySelectorAll('[data-quien]').forEach(b => b.onclick = () => {
+      campo.value = b.dataset.quien; ok.click();
+    });
     const confirmar = () => {
       const v = campo.value.trim();
       if (!v) { campo.focus(); return; }
@@ -962,6 +973,23 @@ async function abrirLegajo(slug) {
   location.reload();
 }
 
+/* ── Preguntar quién está trabajando, una vez ──────────────────────────────
+   El botón de la barra está bien puesto y es lo correcto que esté siempre a la vista,
+   pero mientras nadie lo toque TODO lo que se revise queda sin firma, y eso no se
+   arregla después: la decisión ya quedó anotada sin autor.
+
+   Se pregunta una sola vez por sesión, al abrir un legajo, y con la lista de quienes
+   ya revisaron algo en esta base para no obligar a nadie a escribirse de nuevo. Se
+   puede saltear —el sistema tiene que dejar trabajar— pero se pregunta. */
+async function preguntarQuienUnaVez(p) {
+  if (REVISOR) return;
+  try {
+    if (sessionStorage.getItem('ufil.ya-pregunte')) return;
+    sessionStorage.setItem('ufil.ya-pregunte', '1');
+  } catch (e) { return; }        // sin sessionStorage, mejor no insistir nunca
+  await pedirRevisor(p.quienes || []);
+}
+
 async function vPanel() {
   const p = await api('/api/panel');
   // `cargo` se saca: no aporta al estado de lectura y alarga la tabla. `fecha_fin` de
@@ -1232,6 +1260,10 @@ async function vPanel() {
       <p class="prosa nota sep-corta">La copia se hace con el
         sistema andando, sin pedirle a nadie que deje de trabajar. Conviene bajarla al
         terminar cada jornada de revisión y dejarla en otro disco.</p>`);
+
+  // Al final y no al principio: primero se pinta la pantalla y después se pregunta.
+  // Al revés, quien entra ve un diálogo sobre un fondo vacío y no sabe ni dónde está.
+  preguntarQuienUnaVez(p);
 }
 
 async function vContratos() {
@@ -2189,7 +2221,26 @@ function mostrarDeshacer() {
   };
 }
 
+/* ── Buscar con «/» ────────────────────────────────────────────────────────
+   La cola de revisión tiene teclas para decidir y la búsqueda —que es la acción
+   principal de todo el sistema— no tenía ninguna. `/` la enfoca desde cualquier
+   pantalla y `Esc` sale; la tecla está dicha en el propio campo, porque un atajo que
+   no está escrito en ningún lado lo usa quien lo escribió y nadie más.
+
+   No se dispara si ya se está escribiendo en algún lado: dentro de un campo, «/» es
+   una barra y tiene que seguir siéndolo. */
 document.addEventListener('keydown', e => {
+  const enUnCampo = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)
+    || document.activeElement?.isContentEditable;
+  if (e.key === '/' && !enUnCampo && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const q = $('#q-rapida');
+    if (q) { e.preventDefault(); q.focus(); q.select(); }
+    return;
+  }
+  if (e.key === 'Escape' && document.activeElement === $('#q-rapida')) {
+    $('#q-rapida').blur();
+    return;
+  }
   if (!location.hash.startsWith('#/cola') || e.target.tagName === 'INPUT') return;
   const f = colaEstado.filas[colaEstado.foco];
   if (e.key === 'j' || e.key === 'ArrowDown') {

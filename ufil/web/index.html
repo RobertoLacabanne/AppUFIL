@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UFIL · Análisis documental</title>
-<meta name="theme-color" content="#1C3557" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#011E3F" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B1119" media="(prefers-color-scheme: dark)">
 <!-- Ícono de pestaña embebido: sin llamada de red (restricción 1). Es el mismo
      monograma que la barra lateral —una foja con su lomo y un filete dorado—, para
      que la pestaña y la aplicación se reconozcan entre sí. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231C3557'/%3E%3Crect x='7' y='6' width='18' height='20' rx='1.5' fill='none' stroke='%23F2F6FA' stroke-width='1.6'/%3E%3Cline x1='11.5' y1='6' x2='11.5' y2='26' stroke='%23F2F6FA' stroke-width='1.3'/%3E%3Cline x1='15' y1='12' x2='21.5' y2='12' stroke='%23D7B46A' stroke-width='2.2'/%3E%3Cline x1='15' y1='16.5' x2='21.5' y2='16.5' stroke='%23F2F6FA' stroke-width='1.4'/%3E%3Cline x1='15' y1='21' x2='19' y2='21' stroke='%23F2F6FA' stroke-width='1.4'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23011E3F'/%3E%3Crect x='7' y='6' width='18' height='20' rx='1.5' fill='none' stroke='%23F2F6FA' stroke-width='1.6'/%3E%3Cline x1='11.5' y1='6' x2='11.5' y2='26' stroke='%23F2F6FA' stroke-width='1.3'/%3E%3Cline x1='15' y1='12' x2='21.5' y2='12' stroke='%23D7B46A' stroke-width='2.2'/%3E%3Cline x1='15' y1='16.5' x2='21.5' y2='16.5' stroke='%23F2F6FA' stroke-width='1.4'/%3E%3Cline x1='15' y1='21' x2='19' y2='21' stroke='%23F2F6FA' stroke-width='1.4'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/estatico/estilo.css">
 </head>
 <body>
@@ -109,8 +109,13 @@
     </a>
 
     <div class="techo-medio">
+      <!-- El lote es una PROPIEDAD del legajo, no un par suyo. Iba al lado del
+           número de legajo con el mismo peso, y los dos se leían como dos
+           identificadores compitiendo: «LEGAJO 87.933» y «LOTE demostracion». Ahora va
+           con el tratamiento de la marginalia —versalitas y tinta apagada— que es lo
+           que es. -->
       <span class="techo-dato" id="t-lote" hidden>
-        <span class="etq">Lote</span> <span id="f-lote"></span>
+        <span class="etq">Lote</span> <span id="f-lote" class="mono"></span>
       </span>
       <span id="sello-estado" class="estado"></span>
     </div>
@@ -122,7 +127,7 @@
         <path d="M10.4 10.4L14 14" stroke="currentColor" stroke-width="1.6"
               stroke-linecap="round"/>
       </svg>
-      <input id="q-rapida" type="search" placeholder="Buscar nombre, documento, monto…"
+      <input id="q-rapida" type="search" placeholder="Buscar nombre, documento, monto…   /"
              autocomplete="off">
     </form>
   </header>

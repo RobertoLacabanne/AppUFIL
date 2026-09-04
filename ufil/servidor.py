@@ -289,6 +289,12 @@ def api_panel(cx) -> dict:
         "a_revisar": uno(f"SELECT COUNT(*) FROM campo WHERE estado IN ({cf.SQL_PENDIENTES})"),
         "conflictos": uno("SELECT COUNT(*) FROM conflicto WHERE estado='abierto'"),
         "verificados": uno(f"SELECT COUNT(*) FROM campo WHERE estado IN ({cf.SQL_HUMANOS})"),
+        # Quiénes ya revisaron algo en esta base. Sirve para no obligar a nadie a
+        # escribir su nombre de nuevo cada vez, y sobre todo para que dos personas no
+        # queden anotadas como «Perez» y «perez, j» sobre el mismo legajo.
+        "quienes": [r[0] for r in cx.execute(
+            "SELECT quien, COUNT(*) n FROM revision_humana GROUP BY quien "
+            "ORDER BY n DESC LIMIT 12")],
         "fusiones": uno("SELECT COUNT(*) FROM fusion_propuesta WHERE estado='pendiente'"),
         "excepciones": uno("SELECT COUNT(*) FROM excepcion WHERE estado='abierta'"),
         "personas": uno("SELECT COUNT(*) FROM persona"),
