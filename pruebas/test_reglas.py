@@ -328,7 +328,10 @@ class DeshacerUnaRevision(BaseTemporal):
         cid = self._campo(valor="$ 100,00")
         aplicar(self.cx, cid, "corregir", "$ 250,00", "quien.sea")
         c = self.cx.execute("SELECT * FROM campo WHERE id=?", (cid,)).fetchone()
-        self.assertEqual(c["valor_literal"], "$ 250,00")
+        # Con el formato de la casa: lo cargado a mano se guarda escrito como se
+        # escribe acá. Lo que la máquina había leído no se toca —abajo se verifica
+        # que «deshacer» lo devuelve tal cual—.
+        self.assertEqual(c["valor_literal"], "$250,00")
         self.assertEqual(c["estado"], "corregido")
         self.assertEqual(c["valor_auto"], "$ 100,00", "tiene que guardar lo que había")
 

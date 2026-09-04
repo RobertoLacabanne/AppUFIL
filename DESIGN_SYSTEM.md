@@ -486,7 +486,7 @@ Medido con la cola de 42 campos abierta:
 | | la página | adentro |
 |---|---|---|
 | 1440×900 claro y oscuro | no se desplaza | `#cola` (3483 > 593) |
-| 1366×768 claro | no se desplaza | `#cola` (3492 > 461) |
+| 1366×768 claro | no se desplaza | `#cola` (filtros plegados: 474 px de paneles y el pie a la vista) |
 | 1024×768 claro y oscuro | no se desplaza | `#cola` (5583 > 451) |
 | 390×844 claro | se desplaza | nada |
 
@@ -536,6 +536,58 @@ Vive en `ufil/castellano.py` y en las funciones de formato de `app.js`.
 
 `pruebas/test_castellano.py` verifica todo esto, incluido que no vuelva a aparecer un
 `(s)`.
+
+---
+
+## 7 ter. Que el recorte SIRVA, no que exista
+
+Con el corpus sintético todas las cajas de campo salen bien. Con documentos reales
+aparecen tres que tienen coordenadas y no muestran nada, y las tres pasaban el guardián
+de la restricción 5 porque `x0` no era `null`:
+
+| | qué se ve | regla |
+|---|---|---|
+| **degenerada** | dos letras sueltas contra el borde | menos de 8×5 pt |
+| **enorme** | la hoja entera como una estampilla | más de media hoja |
+| **fuera del papel** | el encuadre corrido entero | la caja cae afuera de `ancho_pt`×`alto_pt` |
+
+Las tres caen en `sin-anclaje`, con el motivo **y sus números**: si alguna vez rechaza
+una caja que estaba bien, quien lo vea puede decir exactamente cuál era. Y el aumento
+tiene **piso además de techo** —nunca por debajo del tamaño del escaneo—: si con el
+piso no entra, la lupa recorta y se ve el principio, que es mejor que encogerlo hasta
+la ilegibilidad.
+
+Sin recorte útil, **una miniatura de la hoja no cuenta como haber visto**: en un panel
+de 340 px no se lee un importe. Los controles quedan apagados hasta que se abre la foja
+entera en el visor —a pantalla completa, al tamaño del escaneo, con el recuadro del
+campo dibujado encima aunque esté mal, porque ver dónde CREE el sistema que está el
+campo es la mitad de entender por qué falló—.
+
+---
+
+## 7 quater. 1366×768, que es la pantalla de la oficina
+
+Cuatro cosas aparecieron recién ahí, y ninguna se veía en 1440:
+
+- **Los filtros de la cola, apilados**, 179 px de alto para decir tres veces «todos».
+  Un `<details>` con `display:flex` NO acomoda su contenido en fila: el navegador mete
+  todo lo que sigue al `<summary>` en una caja de bloque anónima. Los controles van
+  adentro de un `<div>`, y los filtros van plegados salvo que haya alguno puesto.
+- **La prosa que explica la pantalla**, cobrando dos renglones todos los días. Se lee
+  una vez por sesión (`explicarUnaVez`).
+- **El alto repartido por posición.** `grid-template-rows: … minmax(0,1fr) …` dice «la
+  cuarta fila crece», y la cuarta fila es la que vos creés sólo si están todos los
+  hijos: con el aviso de «otros revisaron» oculto, el `1fr` se lo llevaba el pie y la
+  barra de deshacer quedaba abajo del borde. En columna, un hijo escondido no corre
+  nada.
+- **Un ítem del menú cortado al ras.** `scroll-snap-type:y proximity` en la
+  navegación, y en pantallas de menos de 820 px de alto el membrete de los fiscales
+  cede el lugar.
+
+Y dos reglas de tabla que valen para todas: **el rótulo de una columna de números se
+alinea a la derecha como su dato** —el rótulo a la izquierda y el número a
+cuatrocientos píxeles no se conectan— y **el ancho que sobra se lo lleva una sola
+columna**, la última que no sea de números.
 
 ---
 

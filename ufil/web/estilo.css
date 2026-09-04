@@ -420,12 +420,30 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    suspensivos —un apellido a medias en un membrete institucional es peor que un
    renglón de más—, así que bajan de línea. */
 .identidad-fiscales{margin:9px 0 0; display:flex; flex-direction:column; gap:1px}
+
+/* En una pantalla baja —1366×768 es la de la oficina— el bloque de identidad le come
+   a la navegación el lugar que necesita para no cortar un ítem. Los fiscales son un
+   membrete, no una herramienta: se van, y siguen estando en «Acerca del sistema».
+   Va acá abajo y no arriba: la regla de al lado declara `display:flex`, y a igual
+   especificidad gana la última. Escrito antes, esto no hacía nada. */
+@media (max-height:820px){
+  .identidad{padding:12px 16px 10px}
+  .identidad-fiscales{display:none}
+  .identidad-organismo{margin-top:8px}
+}
 .rotulo-fiscales{font-size:11px; font-weight:600; letter-spacing:.13em;
   text-transform:uppercase; color:var(--barra-txt-2); margin-bottom:2px}
 .nombre-fiscal{font-size:11px; line-height:1.35; color:var(--barra-txt-2)}
 
+/* Ningún ítem partido por la mitad. La lista se desplaza cuando no entra —el pie
+   queda anclado abajo, que ya estaba— y en el borde de arriba quedaba media letra de
+   «Cargar escaneos» asomando: un menú cortado así se lee como un error de dibujo.
+   Con el ajuste por ítem, el desplazamiento se detiene donde empieza uno: o entra
+   entero o no se ve. */
 .nav-lateral{flex:1; overflow-y:auto; padding:10px 8px 16px; display:flex;
-             flex-direction:column; gap:1px}
+             flex-direction:column; gap:1px; scroll-snap-type:y proximity;
+             overscroll-behavior:contain}
+.nav-lateral .grupo, .nav-lateral > a{scroll-snap-align:start}
 .nav-lateral .grupo{margin-top:2px}
 .nav-lateral .cabeza{
   display:flex; align-items:center; gap:9px; width:100%; text-align:left;
@@ -506,11 +524,17 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
                    text-transform:uppercase; color:var(--tinta-3); flex:none}
 .techo-legajo b{font-size:15px; font-weight:650; font-variant-numeric:tabular-nums;
                 letter-spacing:-.01em; flex:none}
+/* La carátula NO es un dato leído de un papel: es el nombre de la causa, y va en la
+   tipografía de la aplicación. Con un poco de aire contra el número, que sí es un
+   dato: pegados se leían como una sola cadena. */
 .techo-legajo .caratula{font-size:12px; color:var(--tinta-2); overflow:hidden;
-                        text-overflow:ellipsis; white-space:nowrap}
+                        text-overflow:ellipsis; white-space:nowrap; margin-left:3px}
 .techo-medio{display:flex; align-items:center; gap:10px; margin-left:auto; flex:none}
 .techo-dato{font-size:11px; color:var(--tinta-3); white-space:nowrap}
-.techo-dato .mono{font-size:11px; color:var(--tinta-2)}
+/* El lote tampoco es un dato leído: es una etiqueta que puso una persona al cargar el
+   material. En monoespaciada se veía como algo salido de un documento, y al lado de la
+   carátula parecía parte de ella. */
+.techo-dato #f-lote{font-size:11px; color:var(--tinta-2)}
 .techo-dato .etq{font-size:11px; font-weight:600; letter-spacing:.13em;
                  text-transform:uppercase; color:var(--tinta-3)}
 .techo-buscar{position:relative; flex:none; width:min(272px,30vw)}
@@ -879,6 +903,14 @@ tbody tr + tr td{border-top:1px solid color-mix(in srgb, var(--filete) 55%, tran
 tbody tr:hover{background:var(--realce)}
 tbody tr.clic{cursor:pointer}
 .num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+/* El rótulo se alinea como su dato. Con el rótulo a la izquierda y el número a la
+   derecha, en una tabla ancha quedan a cuatrocientos píxeles y el ojo no los conecta:
+   parece que el número es de otra columna. */
+thead th.num{text-align:right}
+/* Y el ancho que sobra se lo lleva UNA columna, no se reparte entre todas: cuatro
+   valores cortos estirados sobre 900 px se leen peor que los mismos cuatro juntos a
+   la izquierda. Ver `claseCol` en app.js. */
+th.crece, td.crece{width:100%}
 .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
 /* ── Nada leído de un papel se parte en dos renglones ──────────────────────
    El nombre de archivo ya estaba resuelto; el resto no. Al agregar la columna de
@@ -1471,8 +1503,20 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
    mesa de trabajo. Pero necesita igual el plano de adelante —el mismo `--folio` de
    todo lo demás—, porque si no, el fondo de la mesa se ve por debajo del listado y la
    pantalla donde se pasan las horas queda siendo la única sin superficie. */
-.taller{height:100%; display:grid; background:var(--folio);
-        grid-template-rows:auto auto auto minmax(0,1fr) auto; min-height:0}
+/* Columna, y no una grilla de cinco filas fijas. La grilla decía «la CUARTA fila se
+   lleva el alto que sobra», y la cuarta fila es la de los paneles sólo si están los
+   cinco hijos. El aviso de «otros revisaron» está oculto casi siempre —es lo normal,
+   trabajando solo—, así que había cuatro hijos: los paneles caían en una fila `auto`
+   y crecían sin tope, y el `1fr` se lo llevaba el PIE, que quedaba en 0 px y fuera de
+   la pantalla. Medido en 1366×768: el pie en 768→806, o sea la barra de «deshacer»
+   abajo del borde justo después de decidir, que es cuando hace falta.
+
+   En columna, un hijo escondido no corre nada: el que se lleva el alto que sobra está
+   dicho en el propio elemento y no en su posición. */
+.taller{height:100%; min-height:0; display:flex; flex-direction:column;
+        background:var(--folio)}
+.taller > *{flex:none}
+.taller > .taller-cuerpo{flex:1 1 auto; min-height:0}
 .taller-cabeza{
   display:flex; align-items:flex-start; gap:24px; justify-content:space-between;
   padding:16px 24px 10px; border-bottom:1px solid var(--filete-2);
@@ -1494,14 +1538,19 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 .avance .donde{font-size:15px}
 .avance .donde strong{font-size:18px; letter-spacing:-.01em}
 
-.taller-filtros{display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;
-  padding:11px 24px; background:var(--realce);
+/* Los filtros van plegados en todas las pantallas, y el `<details>` es de bloque:
+   los controles se acomodan en fila adentro de `.filtros-fila` y no acá. Un
+   `<details>` con `display:flex` no acomoda su contenido —el navegador lo mete en una
+   caja de bloque anónima— y los tres selectores terminaban apilados, 179 px de alto
+   en una pantalla de 768. */
+.taller-filtros{display:block; padding:0 24px; background:var(--realce);
   border-bottom:1px solid var(--filete-2)}
-/* Es un `<details>`: en el escritorio va abierto y se ve igual que antes —el resumen
-   se esconde—, y en el teléfono va plegado. El navegador se encarga de abrirlo y
-   cerrarlo, sin JavaScript que mantener. */
-.taller-filtros > summary{display:none}
-.taller-filtros[open]{display:flex}
+.taller-filtros > summary{display:flex; gap:9px; align-items:baseline; cursor:pointer;
+  padding:11px 0; font-size:var(--t-13); font-weight:600; color:var(--tinta-2)}
+.taller-filtros > summary:hover{color:var(--tinta)}
+.taller-filtros[open] > summary{border-bottom:1px solid var(--filete-2)}
+.filtros-fila{display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+  padding:11px 0}
 
 /* Lo que revisaron los demás mientras esta pantalla estaba abierta. Es una faja más
    del taller y ocupa alto sólo cuando tiene algo que decir: `hidden` la saca de la
@@ -1517,13 +1566,19 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 /* La única cosa que se desplaza en toda la pantalla. */
 .taller-cuerpo .cola{overflow-y:auto; min-height:0; padding:0 4px 24px 24px;
   border:none; border-radius:0; background:transparent; scrollbar-gutter:stable}
+/* Columna, no grilla de filas fijas. Con la grilla, el alto que sobra se lo llevaba
+   la fila que el template decía, y el template no sabe cuál de los dos paneles está
+   a la vista: cuando el campo no tiene recorte útil, lo que hay que agrandar es la
+   HOJA y lo que hay que achicar es la lupa vacía. Medido en 1366×768 antes de esto:
+   una lupa vacía de 132 px que decía «sin recuadro» arriba de una hoja entera
+   reducida a una estampilla, que es exactamente lo que se reportó desde la oficina. */
 .taller-cuerpo .folio-lado{
-  min-height:0; overflow:hidden; display:grid;
-  /* El recorte se lleva el alto que sobra. Antes lo tenía la hoja entera, que a esa
-     escala no se lee, y el recorte quedaba clavado en 132 px. */
-  grid-template-rows:minmax(0,1fr) auto auto auto; gap:8px;
+  min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:8px;
   border-left:1px solid var(--filete-2); background:var(--realce); padding:14px 20px 16px;
 }
+/* El que está a la vista se lleva el alto que sobra; el otro no ocupa nada. */
+.taller-cuerpo .lupa{flex:1 1 0}
+.taller-cuerpo .lupa.sin-anclaje{flex:0 0 auto; min-height:26px}
 /* La foja entra entera, escalada al alto que quede: sin esto el panel de la derecha
    se hacía largo y aparecía la segunda barra de desplazamiento que esto vino a sacar.
 
@@ -1533,8 +1588,8 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
    lugar equivocado —señalando un renglón que no es el del campo, que es peor que no
    señalar nada—. Por eso `justify-self:center`: en una grilla eso achica el elemento
    hasta su contenido en vez de estirarlo. */
-.taller-cuerpo .lienzo{min-height:0; height:100%; width:auto; overflow:hidden;
-  background:#fff; justify-self:center; align-self:stretch}
+.taller-cuerpo .lienzo{flex:1 1 0; min-height:0; height:auto; width:auto;
+  overflow:hidden; background:#fff; align-self:center}
 .taller-cuerpo .lienzo img{height:100%; width:auto; max-width:100%; display:block}
 
 .taller-pie{
@@ -1630,13 +1685,12 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
     border-color:var(--verde); background:var(--sello-suave)}
   .taller-cuerpo .acc .tecla.secundaria{border-style:dashed; background:transparent}
 
-  /* Los filtros, plegados. El `<summary>` vuelve a verse y la caja se cierra. */
-  .taller-filtros{display:block; padding:0}
-  .taller-filtros > summary{display:flex; gap:9px; align-items:baseline; cursor:pointer;
-    padding:12px 16px; min-height:44px; font-weight:600; font-size:13px}
-  .taller-filtros[open]{display:block; padding-bottom:12px}
-  .taller-filtros[open] > summary{margin-bottom:4px}
-  .taller-filtros > label, .taller-filtros > .boton{margin:0 16px 10px}
+  /* En el teléfono, los mismos filtros plegados pero a lo ancho: un selector por
+     renglón, con el rótulo arriba, que es lo único que entra en 390 px. */
+  .taller-filtros{padding:0 16px}
+  .taller-filtros > summary{padding:12px 0; min-height:44px}
+  .filtros-fila{display:block; padding-bottom:10px}
+  .filtros-fila label{display:grid; gap:3px; margin-bottom:10px}
 
   /* La prosa explicativa, sólo en el escritorio. Dice cómo funciona la pantalla y se
      lee UNA vez; en un teléfono cuesta dos renglones cada vez que se entra. */
@@ -1672,6 +1726,32 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
   border-radius:0 var(--radio) var(--radio) 0}
 .mismo-papel strong{font-style:normal; color:var(--tinta)}
 .mismo-papel a{font-family:var(--mono); font-style:normal; font-size:var(--t-12)}
+
+/* ── La foja entera, a pantalla completa ───────────────────────────────────
+   El escaneo al tamaño en que se hizo —200 DPI— y con desplazamiento en los dos ejes.
+   Nada de encogerlo para que «entre»: encogerlo es exactamente lo que hace que no se
+   lea, que es el problema que este visor viene a resolver. */
+#visor{position:fixed; inset:0; z-index:60; display:flex; flex-direction:column;
+  background:var(--fondo)}
+.visor-barra{flex:none; display:flex; align-items:center; justify-content:space-between;
+  gap:12px; padding:10px 16px; background:var(--barra); color:var(--barra-txt);
+  border-bottom:1px solid var(--barra-filete)}
+.visor-barra .mono{font-size:var(--t-12); min-width:0; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap}
+.visor-barra .boton{border-color:var(--barra-txt-2); color:var(--barra-txt);
+  background:transparent; flex:none}
+.visor-barra .boton:hover{background:var(--barra-txt); color:var(--barra)}
+.visor-hoja{flex:1; min-height:0; overflow:auto; padding:16px; display:flex;
+  justify-content:center; align-items:flex-start}
+.visor-lienzo{position:relative; flex:none; background:#fff;
+  box-shadow:var(--sombra-alta)}
+#visor-img{display:block; max-width:none}
+/* El recuadro que el sistema le puso al campo, dibujado sobre la hoja. Va también
+   cuando está mal: ver dónde CREE que está el campo es la mitad de entender el error. */
+#visor-marco{position:absolute; border:2px solid var(--lapiz);
+  border-radius:var(--radio-folio);
+  box-shadow:0 0 0 9999px rgba(15,23,42,.28); pointer-events:none}
+body.con-visor{overflow:hidden}
 
 /* ── No se decide sin ver ──────────────────────────────────────────────────
    Cuando el recorte no está o no cargó, los controles no se esconden —esconderlos
@@ -2011,8 +2091,10 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 /* ── Filtros y posición en la cola ────────────────────────────────────────
    «Cola de revisión» sin número no dice si faltan tres o trescientos, y sin saber eso
    nadie puede decidir si lo termina hoy. */
-.taller-filtros label{display:grid; gap:3px; font-size:11px; font-weight:600;
-  letter-spacing:.1em; text-transform:uppercase; color:var(--tinta-3)}
+/* El rótulo AL LADO del selector, no arriba: arriba son tres renglones más, y en una
+   pantalla de 768 px cada renglón de cromo es medio campo menos para trabajar. */
+.taller-filtros label{display:flex; align-items:center; gap:7px; font-size:11px;
+  font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--tinta-3)}
 .taller-filtros select{font:inherit; font-size:12px; padding:5px 8px;
   border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta);
   min-height:32px; max-width:220px}
@@ -2036,8 +2118,6 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 .mas-cola span{display:block; font-size:11px; color:var(--tinta-3); margin-top:2px}
 
 @media (max-width:720px){
-  .taller-filtros{gap:9px}
-  .taller-filtros label{flex:1 1 45%}
   .taller-filtros select{width:100%; max-width:none; min-height:44px}
 }
 

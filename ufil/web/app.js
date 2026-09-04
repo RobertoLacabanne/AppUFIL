@@ -322,11 +322,36 @@ function bloque(folio, rotulo, html) {
     <div class="cuerpo">${html}</div></section>`;
 }
 
+/* La clase de una celda, y cuál de las columnas se lleva el ancho que sobra.
+
+   Dos cosas que faltaban y se veían las dos en la misma pantalla. Una columna de
+   números iba alineada a la derecha y su rótulo a la izquierda: en «Trabajo del
+   equipo» el rótulo CAMPOS REVISADOS quedaba a un extremo y su `1` al otro, a
+   cuatrocientos píxeles, y el ojo no los conecta —parece que el 1 es de otra cosa—.
+   El rótulo se alinea como su dato, y para eso el `<th>` tiene que llevar la misma
+   clase que el `<td>`.
+
+   Y la tabla repartía el ancho sobrante entre todas: cuatro valores cortos estirados
+   sobre 900 px se leen peor que los mismos cuatro juntos a la izquierda. Ahora el
+   sobrante se lo lleva UNA columna —la última que no sea de números, porque estirar
+   una de números aleja el número de su rótulo otra vez— y las demás miden lo que
+   mide su contenido. */
+function claseCol(cols, c, i) {
+  const propias = c.c || '';
+  let crece = -1;
+  for (let n = 0; n < cols.length; n++) {
+    if (!/(^|\s)num(\s|$)/.test(cols[n].c || '')) crece = n;
+  }
+  return (propias + (i === crece ? ' crece' : '')).trim();
+}
+
 function tabla(cols, filas, opts = {}) {
   if (!filas.length) return `<div class="tabla-env"><div class="vacio">Sin resultados.</div></div>`;
-  const th = cols.map(c => `<th>${esc(c.t)}</th>`).join('');
+  const th = cols.map((c, i) => `<th class="${claseCol(cols, c, i)}">${
+    esc(c.t)}</th>`).join('');
   const tr = filas.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}" data-i="${i}">${
-    cols.map(c => `<td class="${c.c || ''}">${c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
+    cols.map((c, i) => `<td class="${claseCol(cols, c, i)}">${
+      c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
   }</tr>`).join('');
   // `lista` marca QUÉ muestra esta tabla. Hace falta cuando una pantalla tiene más de
   // una: enganchar el clic por «la última tabla» funcionaba hasta que se agregó otra
@@ -516,12 +541,13 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
     const tanda = v.slice(0, estado.mostradas);
     const th = cols.map((c, i) => {
       const act = estado.orden === i ? (estado.desc ? ' desc' : ' asc') : '';
-      return `<th class="ord${act}" data-col="${i}" title="ordenar por ${esc(c.t)}"
-                >${esc(c.t)}</th>`;
+      return `<th class="ord${act} ${claseCol(cols, c, i)}" data-col="${i}"
+                title="ordenar por ${esc(c.t)}">${esc(c.t)}</th>`;
     }).join('');
     const tr = tanda.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}"
         data-i="${filas.indexOf(f)}">${
-      cols.map(c => `<td class="${c.c || ''}">${c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
+      cols.map((c, i) => `<td class="${claseCol(cols, c, i)}">${
+        c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
     }</tr>`).join('');
 
     destino.innerHTML = `
@@ -1671,6 +1697,19 @@ async function vDocumento(id) {
 
    Y abajo, quiénes. Son varios los que trabajan la misma causa: que el avance sea del
    equipo y no de cada uno por su lado es la mitad de por qué esto se comparte. */
+/* La prosa que explica cómo funciona una pantalla se lee UNA vez. Después es un
+   renglón fijo que cuesta lo mismo todos los días: en 768 px de alto, los dos
+   renglones de la cola son la mitad de una fila de trabajo. Se recuerda por sesión y
+   no para siempre: al día siguiente, o en otra máquina, vuelve a explicarse. */
+function explicarUnaVez(pantalla) {
+  try {
+    const clave = 'ufil.explicado.' + pantalla;
+    if (sessionStorage.getItem(clave)) return false;
+    sessionStorage.setItem(clave, '1');
+    return true;
+  } catch (e) { return true; }   // sin sessionStorage, se explica siempre
+}
+
 function avanceCola(r) {
   const hechos = r.revisados || 0;
   const universo = hechos + (r.total_sin_filtro || 0);
@@ -1828,8 +1867,9 @@ async function vCola(campoId) {
                cuentas de lo mismo contradiciéndose en la misma pantalla. El número
                vive en la barra de avance de abajo y en el «1 de N» de la derecha, que
                son los dos que sí se actualizan. -->
-          <p class="taller-sub">Ordenados por lo que más daño hace si queda mal.
-            <strong>El folio está a la vista</strong>: no hace falta salir de acá.</p>
+          ${explicarUnaVez('cola') ? `<p class="taller-sub">Ordenados por lo que más
+            daño hace si queda mal. <strong>El folio está a la vista</strong>: no hace
+            falta salir de acá.</p>` : ''}
           ${avanceCola(r)}
         </div>
       </header>
@@ -1840,21 +1880,34 @@ async function vCola(campoId) {
            renglones de 44 px que hay que pasar CADA VEZ que se entra, y en el caso
            normal —sin filtro— no dicen nada. Abiertos si hay alguno puesto: un filtro
            activo escondido es peor que tres selectores de más. -->
-      <details class="taller-filtros" id="filtros-cola"${
-          hayFiltro || !esTelefono() ? ' open' : ''}>
+      <!-- Plegados salvo que haya alguno puesto, en TODAS las pantallas y no sólo en
+           el teléfono. Medido en 1366×768, que es la pantalla de la oficina: abiertos
+           se llevaban 179 px, la quinta parte del alto útil, para decir tres veces
+           «todos». Un filtro activo escondido sí sería peor, y por eso se abren solos
+           cuando hay uno puesto.
+
+           Y los controles van adentro de un DIV, no sueltos en el DETAILS. Un
+           DETAILS con display:flex NO acomoda su contenido en fila: el navegador mete
+           todo lo que sigue al SUMMARY adentro de una caja de bloque anónima, y ahí
+           los tres selectores se apilan. Es lo que pasó cuando esto se volvió
+           plegable por el teléfono, y en la oficina se veía como una columna de
+           179 px de alto. -->
+      <details class="taller-filtros" id="filtros-cola"${hayFiltro ? ' open' : ''}>
         <summary>Filtros${hayFiltro ? ' · activos' : ''}
           <span class="rotulo">${plural(r.total_sin_filtro, 'campo', 'campos')}</span></summary>
-        <label>Documento
-          <select id="f-familia"><option value="">todos (${todas.length})</option>
-            ${opciones('familia', v => FAMILIA_DOC[v] || 'sin clasificar')}</select></label>
-        <label>Campo
-          <select id="f-campo"><option value="">todos</option>
-            ${opciones('campo', v => rotularCampo(v))}</select></label>
-        <label>Motivo
-          <select id="f-clase"><option value="">todos</option>
-            ${opciones('clase', v => CLASE_COLA[v] || v)}</select></label>
-        ${filtroCola.familia || filtroCola.campo || filtroCola.clase
-          ? `<button class="boton gris" id="f-limpiar">Quitar los filtros</button>` : ''}
+        <div class="filtros-fila">
+          <label>Documento
+            <select id="f-familia"><option value="">todos (${todas.length})</option>
+              ${opciones('familia', v => FAMILIA_DOC[v] || 'sin clasificar')}</select></label>
+          <label>Campo
+            <select id="f-campo"><option value="">todos</option>
+              ${opciones('campo', v => rotularCampo(v))}</select></label>
+          <label>Motivo
+            <select id="f-clase"><option value="">todos</option>
+              ${opciones('clase', v => CLASE_COLA[v] || v)}</select></label>
+          ${filtroCola.familia || filtroCola.campo || filtroCola.clase
+            ? `<button class="boton gris" id="f-limpiar">Quitar los filtros</button>` : ''}
+        </div>
       </details>
 
       <div class="taller-cuerpo">
@@ -1884,7 +1937,8 @@ async function vCola(campoId) {
             <img id="folio-cola" alt="">
             <div class="recuadro" id="recuadro-cola" hidden></div>
           </div>
-          <a class="boton" id="ir-doc" href="#/panel">Ver el documento completo</a>
+          <button class="boton" id="abrir-foja" type="button">Abrir la foja entera</button>
+          <a class="boton gris" id="ir-doc" href="#/panel">Ver el documento completo</a>
         </aside>
       </div>
 
@@ -1906,6 +1960,9 @@ async function vCola(campoId) {
 
   engancharFilasCola();
   ponerModoCola(modoCola);
+  $('#abrir-foja').onclick = () => abrirFoja(colaEstado.filas[colaEstado.foco]);
+  $('#visor-cerrar').onclick = cerrarVisor;
+  $('#visor').onclick = e => { if (e.target.id === 'visor') cerrarVisor(); };
   $('#ficha-antes').onclick = () => moverFicha(-1);
   $('#ficha-despues').onclick = () => moverFicha(+1);
   $('#ficha-lista').onclick = () => ponerModoCola(modoCola === 'ficha' ? 'lista' : 'ficha');
@@ -2178,12 +2235,18 @@ function pintarSinVer(motivo) {
   aviso.textContent = motivo;
 }
 
+/* Campos cuya foja el operador ya abrió entera. Sin recorte que sirva, una página
+   completa metida en un panel de 340 px no es «ver»: no se lee un importe ahí, y dar
+   por cumplida la regla con esa estampilla era el agujero más grande que le quedaba.
+   Abrirla en el visor sí es ver, y eso se recuerda por campo mientras dure la sesión
+   de la pantalla. */
+const fojasMiradas = new Set();
+
 function vigilarVista(f) {
   const lupa = $('#lupa'), recorte = $('#lupa-img'), hoja = $('#folio-cola');
   if (!lupa) return;
-  // Con anclaje se mira el recorte; sin anclaje, la hoja entera, que es lo único con
-  // lo que se puede encontrar el campo a mano.
-  const mira = lupa.classList.contains('sin-anclaje') ? hoja : recorte;
+  const sinRecorteUtil = lupa.classList.contains('sin-anclaje');
+  const mira = sinRecorteUtil ? hoja : recorte;
   const juzgar = () => {
     if (!mira || !mira.getAttribute('src')) {
       return pintarSinVer(f && f.pagina_nro == null
@@ -2192,10 +2255,146 @@ function vigilarVista(f) {
     }
     if (!mira.complete) return pintarSinVer('cargando la foja…');
     if (!mira.naturalWidth) return pintarSinVer('no se pudo cargar la imagen de la foja');
+    // Con recorte alcanza con que haya cargado. Sin recorte NO alcanza: la hoja
+    // entera achicada no muestra el dato, así que hay que abrirla.
+    if (sinRecorteUtil && !fojasMiradas.has(String(f.campo_id))) {
+      return pintarSinVer('abrí la foja entera para poder decidir: así como está ' +
+                          'no se lee el dato');
+    }
     pintarSinVer('');
   };
   if (mira) { mira.onload = juzgar; mira.onerror = juzgar; }
   juzgar();
+}
+
+/* ── La foja entera, para leerla de verdad ─────────────────────────────────
+   Se abre a pantalla completa, al tamaño del escaneo y con desplazamiento. Es el
+   destino que faltaba: la miniatura del costado sirve para ver que la hoja existe, no
+   para leer un importe. Y es la única manera honesta de habilitar la decisión cuando
+   el recorte no sirve —el operador miró el papel—.
+
+   Si el campo tiene coordenadas, aunque sean malas, se dibuja el recuadro igual: ver
+   dónde CREE el sistema que está el campo es la mitad de entender por qué falló. */
+function fojaDe(f) {
+  // La foja del campo; si el sistema no lo encontró en ninguna, la primera del
+  // documento. Sin este respaldo, justo los campos sin anclaje —que son los que
+  // NECESITAN que se abra la hoja— dejaban el visor sin abrir y la decisión trabada
+  // para siempre.
+  return f && (f.pagina_nro || (f.pagina_respaldo && f.pagina_respaldo.nro)) || null;
+}
+
+function abrirFoja(f) {
+  const nro = fojaDe(f);
+  if (!nro) return;
+  const visor = $('#visor'), img = $('#visor-img'), marco = $('#visor-marco');
+  if (!visor) return;
+  img.src = `/pagina?doc=${f.documento_id}&nro=${nro}`;
+  $('#visor-rotulo').textContent =
+    `${f.archivo || 'documento'} · f. ${nro} · ${rotularCampo(f.campo, f.familia)}`;
+  const pag = f.pagina || f.pagina_respaldo;
+  const hayCaja = pag && pag.ancho_pt && f.x0 != null && f.x1 != null;
+  marco.hidden = !hayCaja;
+  if (hayCaja) {
+    marco.style.left = (100 * f.x0 / pag.ancho_pt) + '%';
+    marco.style.top = (100 * f.y0 / pag.alto_pt) + '%';
+    marco.style.width = (100 * Math.max(f.x1 - f.x0, 2) / pag.ancho_pt) + '%';
+    marco.style.height = (100 * Math.max(f.y1 - f.y0, 2) / pag.alto_pt) + '%';
+  }
+  visor.hidden = false;
+  document.body.classList.add('con-visor');
+  fojasMiradas.add(String(f.campo_id));
+  $('#visor-cerrar').focus();
+}
+
+function cerrarVisor() {
+  const visor = $('#visor');
+  if (!visor || visor.hidden) return;
+  visor.hidden = true;
+  document.body.classList.remove('con-visor');
+  // Al volver, el campo ya fue mirado: los controles se encienden solos.
+  const f = colaEstado.filas[colaEstado.foco];
+  if (f) vigilarVista(f);
+}
+
+/* Encuadra el campo en la lupa: la foja entera a la derecha se ve chica, y lo que hace
+   falta para decidir es leer ESE renglón. */
+/* ── ¿Este recuadro sirve para mirar? ──────────────────────────────────────
+   Que el campo tenga coordenadas no quiere decir que se pueda ver. Con material real
+   —no con el corpus sintético, donde todas las cajas salen bien— aparecen tres cosas
+   que pasan el control de «tiene anclaje» y dejan al operador decidiendo sobre nada:
+
+     · la caja DEGENERADA, con x1 y x0 casi iguales. Es lo que devuelve el
+       reconocimiento cuando no logró delimitar un manuscrito. El código de antes la
+       estiraba a 8 puntos con un `Math.max`, la ampliación se iba al tope, y en la
+       lupa entraban dos letras sueltas contra el borde;
+     · la caja ENORME, del tamaño de media hoja. La ampliación se desploma y entra la
+       página entera, ilegible, del tamaño de una estampilla;
+     · la caja FUERA DE LA HOJA. Si las coordenadas no están en la misma unidad que
+       `ancho_pt` para ese escaneo, el encuadre se corre entero aunque la caja esté
+       perfectamente bien medida. Se nota porque la caja cae afuera del papel.
+
+   Las tres se tratan igual y como lo que son: no hay recorte. Cae en `sin-anclaje`,
+   que ya está resuelto —apaga los botones, dice por qué, y muestra la hoja entera
+   para poder cargarlo a mano—. El guardián «no se decide sin ver» verificaba que el
+   recorte EXISTIERA; esto verifica que SIRVA, que es lo que hacía falta.
+
+   Los números salen en el motivo a propósito: si alguna vez esto rechaza una caja que
+   estaba bien, quien lo vea puede decir exactamente cuál era. */
+const CAJA_MINIMA = {ancho: 8, alto: 5};   // puntos; menos que esto no es un renglón
+const CAJA_MAXIMA_HOJA = 0.5;              // más de media hoja no es un campo
+const CAJA_MAS_ALTA_QUE_ANCHA = 4;         // un renglón de texto no es una torre
+
+function cajaUtil(f, pag) {
+  const w = f.x1 - f.x0, h = f.y1 - f.y0;
+  const medidas = `${Math.round(w)}×${Math.round(h)} pt en una hoja de ` +
+                  `${Math.round(pag.ancho_pt)}×${Math.round(pag.alto_pt)}`;
+  if (!(w > 0) || !(h > 0) || w < CAJA_MINIMA.ancho || h < CAJA_MINIMA.alto) {
+    return `el recuadro del campo quedó demasiado chico para mostrarlo (${medidas})`;
+  }
+  if (h > w * CAJA_MAS_ALTA_QUE_ANCHA) {
+    return `el recuadro del campo tiene una forma imposible para un renglón (${medidas})`;
+  }
+  if (pag.ancho_pt && pag.alto_pt &&
+      w * h > CAJA_MAXIMA_HOJA * pag.ancho_pt * pag.alto_pt) {
+    return `el recuadro del campo abarca media hoja: no señala nada (${medidas})`;
+  }
+  // Fuera del papel. Con media línea de tolerancia, porque un recuadro pegado al
+  // margen puede pasarse por redondeo y eso no es un error.
+  const fuera = f.x0 < -2 || f.y0 < -2 ||
+                (pag.ancho_pt && f.x1 > pag.ancho_pt + 2) ||
+                (pag.alto_pt && f.y1 > pag.alto_pt + 2);
+  if (fuera) {
+    return `el recuadro del campo cae afuera de la hoja (${medidas})`;
+  }
+  return '';
+}
+
+/* Cuando no hay recorte que sirva: la hoja entera, los botones apagados y el motivo.
+   Es el mismo camino para «el sistema no encontró el campo» y para «lo encontró pero
+   lo que marcó no se puede mirar»: desde donde está el operador son la misma cosa. */
+function sinRecorte(f, motivo, comoSeguir) {
+  const lupa = $('#lupa'), img = $('#lupa-img');
+  lupa.classList.add('sin-anclaje');
+  img.removeAttribute('src');
+  $('#lupa-campo').textContent = motivo;
+  $('#lupa-xy').textContent = comoSeguir;
+  // La hoja entera SÍ va: es lo único con lo que se puede encontrar el campo a mano,
+  // que es lo que el cartel de arriba está pidiendo que se haga.
+  const resp = f.pagina_respaldo;
+  const hoja = $('#lienzo-cola'), folio0 = $('#folio-cola'), rec0 = $('#recuadro-cola');
+  rec0.style.display = 'none';
+  // Si el campo dice de qué foja salió, se muestra ESA. El respaldo —la primera del
+  // documento— es para cuando no hay ni eso.
+  const nro = f.pagina_nro || (resp && resp.nro);
+  if (nro) {
+    const src0 = `/pagina?doc=${f.documento_id}&nro=${nro}`;
+    if (folio0.getAttribute('src') !== src0) folio0.src = src0;
+    hoja.hidden = false;
+  } else {
+    folio0.removeAttribute('src');
+    hoja.hidden = true;
+  }
+  vigilarVista(f);
 }
 
 /* Encuadra el campo en la lupa: la foja entera a la derecha se ve chica, y lo que hace
@@ -2204,43 +2403,35 @@ function encuadrar(f) {
   const lupa = $('#lupa'), img = $('#lupa-img');
   if (!lupa || !img) return;
   const pag = f.pagina;
-  if (!pag || f.x0 == null) {
-    // Sin recuadro no hay lupa, pero el folio igual sirve: es lo que hay que mirar
-    // para cargar el valor a mano.
-    lupa.classList.add('sin-anclaje');
-    img.removeAttribute('src');
-    $('#lupa-campo').textContent = 'el sistema no encontró este campo en la foja';
-    $('#lupa-xy').textContent = 'mirá el folio y cargalo a mano';
-    // Sin anclaje la hoja entera SÍ va: es lo único con lo que se puede encontrar el
-    // campo a mano, que es lo que el cartel de arriba está pidiendo que se haga.
-    const resp = f.pagina_respaldo;
-    const hoja = $('#lienzo-cola'), folio0 = $('#folio-cola'), rec0 = $('#recuadro-cola');
-    rec0.style.display = 'none';
-    if (resp && resp.nro) {
-      const src0 = `/pagina?doc=${f.documento_id}&nro=${resp.nro}`;
-      if (folio0.getAttribute('src') !== src0) folio0.src = src0;
-      hoja.hidden = false;
-    } else {
-      folio0.removeAttribute('src');
-      hoja.hidden = true;
-    }
-    vigilarVista(f);
-    return;
+  if (!pag || f.x0 == null || f.x1 == null) {
+    return sinRecorte(f, 'el sistema no encontró este campo en la foja',
+                      'mirá el folio y cargalo a mano');
   }
+  const roto = cajaUtil(f, pag);
+  if (roto) {
+    return sinRecorte(f, roto, 'mirá el folio entero y cargalo a mano');
+  }
+
   lupa.classList.remove('sin-anclaje');
   const src = `/pagina?doc=${f.documento_id}&nro=${f.pagina_nro}`;
   if (img.getAttribute('src') !== src) img.src = src;
 
-  const caja = {w: Math.max(f.x1 - f.x0, 8), h: Math.max(f.y1 - f.y0, 8)};
+  const caja = {w: f.x1 - f.x0, h: f.y1 - f.y0};
   const r = lupa.getBoundingClientRect();
   const aire = 1.5;
-  // px mostrados por punto, acotado para no ampliar más allá de lo que el escaneo tiene
-  const escala = Math.min(r.width / (caja.w * aire), r.height / (caja.h * aire * 2.2), 7);
+  // px mostrados por punto. Con techo, para no ampliar más allá de lo que el escaneo
+  // tiene adentro, y con PISO: mostrar el renglón más chico que el propio escaneo es
+  // dar por bueno que no se lea. Si con el piso no entra, se desborda y se ve el
+  // principio —la lupa recorta— en vez de encogerse hasta la ilegibilidad.
+  const natural = 200 / 72;                    // px por punto del escaneo (DPI_RENDER)
+  const cabe = Math.min(r.width / (caja.w * aire), r.height / (caja.h * aire * 2.2));
+  const escala = Math.max(Math.min(cabe, natural * 2.5), natural);
   img.style.width = (pag.ancho_pt * escala) + 'px';
   img.style.left = -(f.x0 * escala - (r.width - caja.w * escala) / 2) + 'px';
   img.style.top = -(f.y0 * escala - (r.height - caja.h * escala) / 2) + 'px';
-  $('#lupa-campo').textContent = `${f.campo}${f.ruta ? ' · ruta ' + f.ruta : ''}`;
-  $('#lupa-xy').textContent = `f.${f.pagina_nro} · ${(escala / (200 / 72)).toFixed(1)}×`;
+  $('#lupa-campo').textContent = `${rotularCampo(f.campo, f.familia)}${
+    f.ruta ? ' · ruta ' + f.ruta : ''}`;
+  $('#lupa-xy').textContent = `f.${f.pagina_nro} · ${(escala / natural).toFixed(1)}×`;
 
   // Con recorte, la hoja entera se apaga: el anclaje ya lo dice el pie —foja y
   // aumento— y una página de 250 px en la que no se lee una palabra sólo ocupa lugar.
@@ -2266,6 +2457,11 @@ function pintarFoco() {
     encuadrar(f);
     const ir = $('#ir-doc');
     if (ir) ir.href = '#/documento/' + f.documento_id;
+    const abrir = $('#abrir-foja');
+    if (abrir) {
+      abrir.disabled = !fojaDe(f);
+      abrir.title = fojaDe(f) ? '' : 'este campo no tiene foja escaneada';
+    }
     // De dónde sale: documento, foja y campo, en una línea y en mono.
     const proc = $('#ficha-procedencia');
     // El NOMBRE DEL ARCHIVO va primero, y no la familia. La familia es «Contrato» en
@@ -2438,6 +2634,12 @@ function mostrarDeshacer() {
    No se dispara si ya se está escribiendo en algún lado: dentro de un campo, «/» es
    una barra y tiene que seguir siéndolo. */
 document.addEventListener('keydown', e => {
+  // El visor primero: mientras la foja está abierta a pantalla completa, `Esc` la
+  // cierra y ninguna otra tecla decide nada.
+  if (!$('#visor')?.hidden) {
+    if (e.key === 'Escape') { e.preventDefault(); cerrarVisor(); }
+    return;
+  }
   const enUnCampo = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)
     || document.activeElement?.isContentEditable;
   if (e.key === '/' && !enUnCampo && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -3084,7 +3286,7 @@ async function vEquipo() {
         ve el resto enseguida. <strong>${plural(a.total, 'decisión tomada a mano',
         'decisiones tomadas a mano')}</strong> en este legajo.</p>
       ${tabla([
-        {t:'Quién', r:f => `<b>${esc(f.quien)}</b>` +
+        {t:'Quién', c:'nowrap', r:f => `<b>${esc(f.quien)}</b>` +
           (f.quien === yo ? ' <span class="apagado">— sos vos</span>' : '')},
         {t:'Campos revisados', c:'num', r:f => fmtNum.format(f.decisiones)},
         {t:'Empezó', c:'mono', r:f => esc(cuando(f.primera))},
@@ -3097,8 +3299,8 @@ async function vEquipo() {
         documento, para poder mirar el folio.</p>
       ${tabla([
         {t:'Cuándo', c:'mono', r:f => esc(cuando(f.cuando))},
-        {t:'Quién', r:f => esc(f.quien)},
-        {t:'Campo', r:f => esc(rotularCampo(f.campo))},
+        {t:'Quién', c:'nowrap', r:f => esc(f.quien)},
+        {t:'Campo', c:'nowrap', r:f => esc(rotularCampo(f.campo))},
         {t:'Qué hizo', r:f => {
           const [tono, texto] = ACCION_EQUIPO[f.accion] || ['neutro', f.accion];
           return sello(tono, texto);
@@ -3527,6 +3729,21 @@ function avisarSiHayVersionNueva(version) {
    y la otra mitad no. Ahora todas hacen lo mismo y lo dicen: `vistaSinLegajo` explica
    cuál es el paso que falta y ofrece el botón para darlo. Devuelve siempre false; se
    conserva la firma porque quien la llama todavía mira el valor. */
+/* Las comillas de la carátula, en castellano.
+
+   La carátula la escribe una persona al crear el legajo y suele venir con comillas
+   rectas —`"NN S/ PECULADO"`—, que es lo que tipea cualquier teclado. Rectas y pegadas
+   al número de legajo, la línea del techo se lee como salida de una terminal y no como
+   el nombre de una causa. Las comillas latinas son las que corresponden en castellano
+   y además separan la carátula del número sin agregar ningún adorno.
+
+   Es SÓLO para mostrar: en la base la carátula queda como la escribieron. Cambiarla
+   ahí sería tocar un dato que alguien cargó, y esto es tipografía. */
+function comillasLatinas(s) {
+  let n = 0;
+  return String(s || '').replace(/"/g, () => (n++ % 2 ? '»' : '«'));
+}
+
 function pintarLegajo(p) {
   const l = p.legajo;
   HAY_LEGAJO = !!l;
@@ -3534,7 +3751,7 @@ function pintarLegajo(p) {
   document.body.classList.toggle('con-legajo', !!l);
   document.body.classList.toggle('sin-legajo', sinLegajo());
   $('#l-numero').textContent = l ? l.numero : '—';
-  $('#l-caratula').textContent = l ? l.caratula : 'Ninguno abierto';
+  $('#l-caratula').textContent = l ? comillasLatinas(l.caratula) : 'Ninguno abierto';
   $('#t-legajo').title = l
     ? `Legajo ${l.numero} — ${l.caratula}` + (l.fiscal ? ` · Fiscal: ${l.fiscal}` : '')
       + '\nTocá para cambiar de legajo'

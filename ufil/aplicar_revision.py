@@ -14,6 +14,7 @@ from .capa2_campos import PARSERS   # OJO: no volver a importarlo dentro de `apl
                                    # rompe las ramas que lo usan antes.
 from . import config
 from . import confianza as cf
+from .castellano import fecha, pesos
 from .db import ahora
 
 ACCIONES = ("verificar", "corregir", "ilegible", "ausente", "ambiguo", "revertir")
@@ -26,6 +27,36 @@ def _tipo_de(cx, campo_id: int) -> str:
     nombre = cx.execute("SELECT nombre FROM campo WHERE id=?", (campo_id,)).fetchone()["nombre"]
     return {"monto": "monto", "documento": "documento",
             "fecha_inicio": "fecha", "fecha_fin": "fecha", "nombre": "nombre"}.get(nombre, "texto")
+
+
+def _canonico(tipo: str, literal: str, norm) -> str:
+    """
+    Un valor cargado a mano se guarda escrito como se escribe acá.
+
+    Alguien tipea `6000` en un importe y en la pantalla quedaba `6000`, al lado de
+    importes leídos que dicen `$ 164.900,00`. No es cosmético: el valor normalizado
+    —los centavos— entra igual en las sumas, así que en la planilla suma bien y en la
+    pantalla se ve distinto, y esa diferencia sin explicación es la que hace dudar de
+    todo lo demás. Peor todavía en un `.rtf` que se pega en un escrito.
+
+    Se normaliza al GUARDAR y no al mostrar, para que lo que hay en la base sea una
+    sola cosa: la pantalla, la planilla, el informe y quien abra la base con otra
+    herramienta ven lo mismo. Lo que la máquina había leído no se pierde: sigue en
+    `valor_auto`, que es lo que restituye «deshacer».
+
+    Sólo importes y fechas. Un nombre o un CUIL se guardan como los escribió la
+    persona: ahí el formato de la casa no existe, y reescribirlos sería tocar el dato.
+    """
+    if norm is None:
+        return literal
+    if tipo == "monto":
+        try:
+            return pesos(int(norm))
+        except (TypeError, ValueError):
+            return literal
+    if tipo == "fecha":
+        return fecha(norm)
+    return literal
 
 
 def _anclaje_de_pagina(cx, campo_id: int):
@@ -159,6 +190,8 @@ def aplicar(cx: sqlite3.Connection, campo_id: int, accion: str, valor, quien: st
             raise ValueError(f"el valor cargado no se puede interpretar como {tipo}: {motivo}")
         nro, x0, y0, x1, y1 = ((c["pagina_nro"], c["x0"], c["y0"], c["x1"], c["y1"])
                                if c["x0"] is not None else _anclaje_de_pagina(cx, campo_id))
+        # Escrito como se escribe acá: `6000` se guarda `$ 6.000,00`. Ver `_canonico`.
+        literal = _canonico(tipo, literal, norm)
         cx.execute("""UPDATE campo SET valor_literal=?, nulo_motivo=NULL, estado=?,
                              confianza=1.0, ruta='humano', pagina_nro=?, x0=?, y0=?, x1=?, y1=?,
                              revisado_por=?, revisado_en=? WHERE id=?""",

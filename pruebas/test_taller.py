@@ -103,14 +103,30 @@ class UnaSolaBarraDeDesplazamiento(unittest.TestCase):
         sobre el renglón equivocado y firma el error.
         """
         c = cuerpo(".taller-cuerpo .lienzo")
-        self.assertIn("justify-self:center", c,
+        # `align-self:center` en una columna flex hace lo mismo que hacía
+        # `justify-self:center` en la grilla: achica la caja hasta la imagen en vez de
+        # estirarla. El panel pasó a ser columna porque el alto que sobra tiene que
+        # llevárselo el que esté a la vista —la lupa o la hoja—, y una grilla de filas
+        # fijas no sabe cuál de los dos es.
+        self.assertIn("align-self:center", c,
                       "el lienzo se estira y el recuadro deja de coincidir con la foja")
         self.assertIn("width:auto", c)
 
     def test_las_tres_fajas_quietas_estan_declaradas(self):
+        """
+        Y el alto que sobra se lo llevan LOS PANELES, dicho en el propio elemento.
+        Estaba dicho por posición —«la cuarta fila»— y la cuarta fila era la de los
+        paneles sólo si estaban los cinco hijos: con el aviso de «otros revisaron»
+        oculto, que es lo normal, el `1fr` se lo llevaba el pie y la barra de deshacer
+        terminaba abajo del borde de la pantalla.
+        """
         c = cuerpo(".taller")
-        self.assertIn("grid-template-rows:auto auto auto minmax(0,1fr) auto", c,
-                      "el taller dejó de ser cabeza + filtros + aviso + paneles + pie")
+        self.assertIn("flex-direction:column", c,
+                      "el taller volvió a repartir el alto por posición")
+        self.assertIn("flex:1 1 auto", cuerpo(".taller > .taller-cuerpo"),
+                      "los paneles dejaron de llevarse el alto que sobra")
+        self.assertIn("flex:none", cuerpo(".taller > *"),
+                      "sin esto, la cabeza y el pie se estiran y se comen los paneles")
 
     def test_al_salir_de_la_cola_se_devuelve_el_desplazamiento(self):
         """
@@ -258,11 +274,34 @@ class EnUnTelefonoSeEmpiezaATrabajarEnSeguida(unittest.TestCase):
         """Tres selectores de 44 px que en el caso normal —sin filtro— no dicen nada."""
         _hay(self, '<details class="taller-filtros"', APP,
              "los filtros dejaron de poder plegarse")
-        _hay(self, "hayFiltro || !esTelefono()", APP,
+        _hay(self, "${hayFiltro ? ' open' : ''}", APP,
              "los filtros dejaron de abrirse solos cuando hay uno puesto: un filtro "
              "activo escondido es peor que tres selectores de más")
-        self.assertIn("display:flex", self._regla(".taller-filtros > summary", self._movil()),
-                      "el resumen plegable no se ve en el teléfono")
+        # Y plegados EN TODAS las pantallas, no sólo en el teléfono: medido en
+        # 1366×768, abiertos se llevaban 179 px para decir tres veces «todos».
+        self.assertIn("display:flex", self._regla(".taller-filtros > summary", CSS),
+                      "el resumen plegable no se ve")
+        self.assertNotIn("!esTelefono()", APP.split("details class=\"taller-filtros")[1][:400],
+                         "los filtros vuelven a abrirse solos en el escritorio")
+
+    def test_los_controles_del_filtro_van_en_fila_y_no_apilados(self):
+        """
+        Un `<details>` con `display:flex` NO acomoda su contenido: el navegador mete
+        todo lo que sigue al `<summary>` en una caja de bloque anónima. Medido en
+        1366×768 cuando esto se volvió plegable por el teléfono: los tres selectores
+        apilados, 179 px de alto, la quinta parte de la pantalla.
+        """
+        _hay(self, 'class="filtros-fila"', APP,
+             "los controles volvieron a colgar sueltos del <details>")
+        self.assertIn("display:flex", self._regla(".filtros-fila", CSS),
+                      "la fila de filtros dejó de ser una fila")
+        # Y el rótulo al lado del selector, no arriba: arriba son tres renglones más.
+        import re
+        cuerpo = re.search(r"\.taller-filtros label\{([^{}]*)\}",
+                           re.sub(r"/\*.*?\*/", "", CSS, flags=re.S))
+        self.assertIsNotNone(cuerpo)
+        self.assertIn("display:flex", cuerpo.group(1).replace(" ", ""),
+                      "el rótulo del filtro volvió arriba del selector")
 
     def test_la_prosa_explicativa_no_va_en_el_telefono(self):
         """Dice cómo funciona la pantalla y se lee una vez; cuesta dos renglones cada
@@ -445,6 +484,123 @@ class NoSeDecideSinVer(unittest.TestCase):
         cuerpo = cuerpo[:cuerpo.index("\n}\n")]
         self.assertIn("if (!hayQueMirar) return;", cuerpo,
                       "«decidir» decide sin comprobar que haya papel a la vista")
+
+    def test_un_recuadro_que_existe_pero_no_sirve_tambien_apaga(self):
+        """
+        El agujero que quedaba, y el que apareció con documentos de verdad: el
+        guardián comprobaba que el recorte EXISTIERA, no que SIRVIERA. Una caja
+        degenerada —x1 y x0 casi iguales, que es lo que devuelve el reconocimiento
+        cuando no delimitó un manuscrito— tiene `x0` distinto de `null`, así que
+        pasaba el control, los botones se encendían y alguien decidía mirando dos
+        letras sueltas contra el borde de la lupa.
+
+        Los tres casos que ahora caen en «sin recorte» están escritos en `cajaUtil`,
+        y cada uno con su número: si alguna vez rechaza una caja que estaba bien,
+        quien lo vea puede decir exactamente cuál era.
+        """
+        _hay(self, "function cajaUtil", APP,
+             "volvió a alcanzar con que el recuadro exista")
+        for constante, que in (
+                ("CAJA_MINIMA", "la caja degenerada, de dos puntos de lado"),
+                ("CAJA_MAXIMA_HOJA", "la caja del tamaño de media hoja"),
+                ("CAJA_MAS_ALTA_QUE_ANCHA", "la caja con forma imposible")):
+            _hay(self, constante, APP, f"dejó de mirarse {que}")
+        # Y la caja fuera del papel, que es como se nota que las coordenadas y el
+        # ancho de la hoja no están en la misma unidad para ese escaneo.
+        _hay(self, "cae afuera de la hoja", APP,
+             "una caja fuera del papel corre el encuadre entero y no se detecta")
+        # Los tres caminos terminan en el mismo lugar: sin recorte.
+        _hay(self, "const roto = cajaUtil(f, pag);", APP,
+             "el encuadre dejó de preguntar si la caja sirve")
+        _hay(self, "if (roto) {", APP, "se calcula si la caja sirve y no se usa")
+
+    def test_la_caja_se_juzga_de_verdad_y_no_por_su_nombre(self):
+        """
+        Esto CORRE la función con cajas de prueba, en vez de buscar palabras en el
+        archivo. Buscar palabras no alcanzó: renombrando la constante y dejando el uso
+        como estaba —que es lo que pasa cuando alguien refactoriza a medias— el texto
+        seguía ahí y la función se rompía al ejecutarse.
+
+        Los casos son los tres que aparecieron con documentos reales, más uno bueno
+        para que la prueba no pase por prohibirlo todo.
+        """
+        import json
+        import shutil
+        import subprocess
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("sin node: la parte que se ejecuta no se puede correr acá")
+        i = APP.index("const CAJA_MINIMA")
+        j = APP.index("/* Cuando no hay recorte")
+        fuente = APP[i:j]
+        pag = {"ancho_pt": 595, "alto_pt": 842}
+        casos = {
+            "buena":      {"x0": 60, "y0": 120, "x1": 300, "y1": 145},
+            "degenerada": {"x0": 60, "y0": 120, "x1": 62,  "y1": 124},
+            "enorme":     {"x0": 10, "y0": 10,  "x1": 580, "y1": 700},
+            "torre":      {"x0": 60, "y0": 100, "x1": 80,  "y1": 400},
+            "afuera":     {"x0": 60, "y0": 120, "x1": 900, "y1": 145},
+        }
+        guion = fuente + "\nconst casos = " + json.dumps(casos) + ";\n" + \
+            "const pag = " + json.dumps(pag) + ";\n" + \
+            "const out = {}; for (const k in casos) out[k] = cajaUtil(casos[k], pag);\n" + \
+            "console.log(JSON.stringify(out));"
+        r = subprocess.run([node, "-e", guion], capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.returncode, 0, "cajaUtil no corre:\n" + r.stderr[-600:])
+        salida = json.loads(r.stdout)
+        self.assertEqual(salida["buena"], "",
+                         "rechaza una caja normal: así no se puede revisar nada")
+        for malo in ("degenerada", "enorme", "torre", "afuera"):
+            self.assertTrue(salida[malo],
+                            f"la caja «{malo}» pasa el control y no se puede mirar")
+            # Y el motivo trae los números, para poder discutirlo si alguna vez se
+            # equivoca.
+            self.assertRegex(salida[malo], r"\d+×\d+ pt",
+                             f"el motivo de «{malo}» no dice cuánto medía la caja")
+
+    def test_el_aumento_tiene_piso_y_no_solo_techo(self):
+        """
+        Sin piso, una caja grande hacía que la escala se desplomara y entrara la
+        página entera del tamaño de una estampilla. Mostrar el renglón más chico que
+        el propio escaneo es dar por bueno que no se lea: si con el piso no entra, la
+        lupa recorta y se ve el principio.
+        """
+        _hay(self, "Math.max(Math.min(cabe,", APP,
+             "el aumento volvió a tener sólo techo")
+        _hay(self, "const natural = 200 / 72;", APP,
+             "el piso tiene que ser el tamaño del escaneo, no un número inventado")
+
+    def test_una_estampilla_no_cuenta_como_haber_visto(self):
+        """
+        Sin recorte útil queda la hoja entera en un panel de 340 px, donde no se lee
+        un importe. Darla por buena era el agujero más grande que quedaba: había que
+        abrirla de verdad.
+        """
+        _hay(self, "const fojasMiradas = new Set();", APP,
+             "no se recuerda qué fojas se abrieron de verdad")
+        _hay(self, "sinRecorteUtil && !fojasMiradas.has(String(f.campo_id))", APP,
+             "la miniatura de la hoja volvió a contar como haber visto el campo")
+        _hay(self, "function abrirFoja", APP, "no hay manera de abrir la foja entera")
+        _hay(self, "fojasMiradas.add(String(f.campo_id))", APP,
+             "abrir la foja no habilita la decisión: quedaría trabada para siempre")
+        # Y el visor muestra la hoja al tamaño del escaneo, no encogida.
+        self.assertIn("max-width:none", CSS[CSS.index("#visor-img"):CSS.index("#visor-img") + 120],
+                      "el visor encoge la hoja, que es justo lo que impide leerla")
+
+    def test_el_visor_abre_tambien_los_campos_sin_foja_propia(self):
+        """
+        La trampa que casi se va con esto puesto: los campos SIN anclaje son los que
+        necesitan que se abra la hoja, y son justamente los que no tienen
+        `pagina_nro`. Con el visor mirando sólo ese campo, el botón no hacía nada, los
+        controles quedaban apagados y la decisión trabada para siempre. Se vio
+        abriéndolo en el navegador, no leyendo el código.
+        """
+        _hay(self, "function fojaDe", APP,
+             "el visor volvió a depender de que el campo tenga foja propia")
+        _hay(self, "f.pagina_respaldo && f.pagina_respaldo.nro", APP,
+             "sin la foja de respaldo, los campos sin anclaje no se pueden abrir")
+        _hay(self, "abrir.disabled = !fojaDe(f)", APP,
+             "un botón que no hace nada es peor que un botón apagado")
 
     def test_el_aviso_se_ve_sin_color(self):
         cuerpo = re.findall(r"\.aviso-sin-ver\{([^{}]*)\}", CSS)

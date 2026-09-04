@@ -94,7 +94,7 @@ class DosRevisoresNoSePisan(UnCampoEnLaCola):
         """
         aplicar(self.cx, self.campo, "verificar", None, "perez.ana")
         aplicar(self.cx, self.campo, "corregir", "$ 5.000.000", "gomez.luis")
-        self.assertEqual(self._estado()["valor_literal"], "$ 5.000.000")
+        self.assertEqual(self._estado()["valor_literal"], "$5.000.000,00")
 
     def test_el_que_llega_al_dia_si_puede_decidir(self):
         """Enterarse no es quedar bloqueado: con el estado actual, la decisión entra."""
@@ -102,7 +102,7 @@ class DosRevisoresNoSePisan(UnCampoEnLaCola):
                 estado_esperado=cf.PENDIENTE_BAJA)
         aplicar(self.cx, self.campo, "corregir", "$ 9.999.999", "gomez.luis",
                 estado_esperado=cf.VERIFICADO)
-        self.assertEqual(self._estado()["valor_literal"], "$ 9.999.999")
+        self.assertEqual(self._estado()["valor_literal"], "$9.999.999,00")
 
 
 class DeshacerNoBorra(UnCampoEnLaCola):
@@ -115,7 +115,10 @@ class DeshacerNoBorra(UnCampoEnLaCola):
         r = self._rastro()
         self.assertEqual([x["accion"] for x in r], ["corregir", "revertir"],
                          "deshacer borró la decisión anterior en vez de anotarse")
-        self.assertEqual(r[0]["valor_nuevo"], "$ 5.000.000",
+        # Con el formato de la casa: lo cargado a mano se guarda escrito como se
+        # escribe acá, para que no se vea distinto de un importe leído. Ver
+        # `LoCargadoAManoSeGuardaComoSeEscribeAca`.
+        self.assertEqual(r[0]["valor_nuevo"], "$5.000.000,00",
                          "la decisión original tiene que seguir legible en el rastro")
         self.assertEqual(r[1]["observacion"], "deshecho desde la cola")
 
@@ -138,7 +141,7 @@ class DeshacerNoBorra(UnCampoEnLaCola):
                             (self.campo,)).fetchone()
         self.assertEqual(c["valor_auto"], "$ 4.850.000",
                          "se perdió lo que había leído el sistema")
-        self.assertEqual(c["valor_literal"], "$ 5.000.000")
+        self.assertEqual(c["valor_literal"], "$5.000.000,00")
 
 
 class ElRastroSeSeparaPorDocumento(UnCampoEnLaCola):
@@ -165,8 +168,8 @@ class ElRastroSeSeparaPorDocumento(UnCampoEnLaCola):
 
         uno = api_auditoria(self.cx, self.campo)
         dos = api_auditoria(self.cx, campo2)
-        self.assertEqual([x["valor_nuevo"] for x in uno], ["$ 5.000.000"])
-        self.assertEqual([x["valor_nuevo"] for x in dos], ["$ 2.000.000"])
+        self.assertEqual([x["valor_nuevo"] for x in uno], ["$5.000.000,00"])
+        self.assertEqual([x["valor_nuevo"] for x in dos], ["$2.000.000,00"])
 
 
 class LaColaNoEscondeTrabajo(UnCampoEnLaCola):
@@ -664,3 +667,83 @@ class ElMismoPapelDosVecesSeAvisaMientrasSeRevisa(UnCampoEnLaCola):
         self.assertIn("italic", cuerpo.group(1),
                       "una sospecha con el aspecto de un dato leído es lo que la "
                       "regla de los dos carriles existe para impedir")
+
+
+class LoCargadoAManoSeGuardaComoSeEscribeAca(UnCampoEnLaCola):
+    """
+    Alguien tipea `6000` en un importe y en la pantalla quedaba `6000`, al lado de
+    importes leídos que dicen `$ 164.900,00`.
+
+    No es cosmético. El valor normalizado —los centavos— entra igual en las sumas, así
+    que la planilla suma bien y la pantalla muestra otra cosa; esa diferencia sin
+    explicación es la que hace dudar de todo lo demás. Y en un `.rtf` que se pega en un
+    escrito, un importe escrito de dos maneras distintas en el mismo documento es una
+    pregunta que no hay que darle a la defensa.
+
+    Se normaliza al GUARDAR y no al mostrar: lo que hay en la base es una sola cosa, y
+    la ve igual la pantalla, la planilla, el informe y cualquiera que abra el archivo
+    con otra herramienta.
+    """
+
+    def _valor(self):
+        r = self.cx.execute("""SELECT c.valor_literal, n.valor_norm
+                                 FROM campo c LEFT JOIN normalizacion n ON n.campo_id=c.id
+                                WHERE c.id=?""", (self.campo,)).fetchone()
+        return r["valor_literal"], r["valor_norm"]
+
+    def test_un_importe_tipeado_sin_formato_sale_formateado(self):
+        from ufil.castellano import pesos
+        aplicar(self.cx, self.campo, "corregir", "6000", "escribiente")
+        literal, norm = self._valor()
+        self.assertEqual(norm, "600000", "los centavos se guardaron mal")
+        self.assertEqual(literal, pesos(600000),
+                         "el importe cargado a mano quedó como texto crudo: en la "
+                         "pantalla se ve distinto de uno leído y nadie sabe por qué")
+
+    def test_ida_y_vuelta_contra_uno_leido(self):
+        """
+        Se carga `6000` a mano y se lo compara con `$ 6.000,00` leído del papel. Los
+        dos tienen que valer lo mismo para el sistema y verse igual en lo que sale.
+        """
+        from ufil.capa2_campos import PARSERS
+        from ufil.castellano import pesos
+        aplicar(self.cx, self.campo, "corregir", "6000", "escribiente")
+        _, norm_mano = self._valor()
+        _, norm_leido, _ = PARSERS["monto"]("$ 6.000,00")
+        self.assertEqual(norm_mano, str(norm_leido),
+                         "el mismo importe entra distinto según quién lo haya puesto")
+        # Y lo que sale impreso es lo mismo para los dos.
+        self.assertEqual(pesos(int(norm_mano)), pesos(int(norm_leido)))
+
+    def test_una_fecha_tipeada_a_la_criolla_sale_como_se_escribe_aca(self):
+        self.cx.execute("UPDATE campo SET nombre='fecha_inicio' WHERE id=?", (self.campo,))
+        self.cx.execute("DELETE FROM normalizacion WHERE campo_id=?", (self.campo,))
+        self.cx.commit()
+        aplicar(self.cx, self.campo, "corregir", "1/3/2023", "escribiente")
+        literal, norm = self._valor()
+        self.assertEqual(norm, "2023-03-01", "la fecha se guardó mal normalizada")
+        self.assertEqual(literal, "01/03/2023",
+                         "la fecha cargada a mano quedó como se tipeó y no como se "
+                         "escribe en el resto del sistema")
+
+    def test_un_nombre_no_se_toca(self):
+        """
+        Acá el formato de la casa no existe: reescribir un apellido sería tocar el
+        dato, que es lo único que este sistema no hace.
+        """
+        self.cx.execute("UPDATE campo SET nombre='nombre' WHERE id=?", (self.campo,))
+        self.cx.execute("DELETE FROM normalizacion WHERE campo_id=?", (self.campo,))
+        self.cx.commit()
+        aplicar(self.cx, self.campo, "corregir", "PEREZ ROMERO, Ana Laura", "escribiente")
+        self.assertEqual(self._valor()[0], "PEREZ ROMERO, Ana Laura")
+
+    def test_lo_que_habia_leido_la_maquina_no_se_pierde(self):
+        """Formatear al guardar no puede costar el «deshacer»."""
+        antes = self.cx.execute("SELECT valor_literal FROM campo WHERE id=?",
+                                (self.campo,)).fetchone()["valor_literal"]
+        aplicar(self.cx, self.campo, "corregir", "6000", "escribiente")
+        self.assertEqual(self.cx.execute("SELECT valor_auto FROM campo WHERE id=?",
+                                         (self.campo,)).fetchone()["valor_auto"], antes)
+        aplicar(self.cx, self.campo, "revertir", None, "escribiente")
+        self.assertEqual(self._valor()[0], antes,
+                         "deshacer no devolvió lo que había leído la máquina")

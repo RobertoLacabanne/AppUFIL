@@ -126,7 +126,7 @@
            con el tratamiento de la marginalia —versalitas y tinta apagada— que es lo
            que es. -->
       <span class="techo-dato" id="t-lote" hidden>
-        <span class="etq">Lote</span> <span id="f-lote" class="mono"></span>
+        <span class="etq">Lote</span> <span id="f-lote"></span>
       </span>
       <span id="sello-estado" class="estado"></span>
     </div>
@@ -157,6 +157,24 @@
     <div class="membrete-emision">
       <span id="membrete-legajo"></span>
       <span id="membrete-fecha"></span>
+    </div>
+  </div>
+
+  <!-- ── La foja entera, a pantalla completa ──────────────────────────────
+       La miniatura del costado sirve para ver que la hoja existe; no para leer un
+       importe. Acá la foja va al tamaño del escaneo, con desplazamiento, y con el
+       recuadro del campo dibujado encima si el sistema le puso alguno —ver dónde CREE
+       que está el campo es la mitad de entender por qué falló—. -->
+  <div id="visor" hidden role="dialog" aria-modal="true" aria-labelledby="visor-rotulo">
+    <div class="visor-barra">
+      <span id="visor-rotulo" class="mono"></span>
+      <button class="boton gris" id="visor-cerrar" type="button">Cerrar</button>
+    </div>
+    <div class="visor-hoja">
+      <div class="visor-lienzo">
+        <img id="visor-img" alt="">
+        <div id="visor-marco" hidden></div>
+      </div>
     </div>
   </div>
 
