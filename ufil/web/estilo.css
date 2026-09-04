@@ -1371,12 +1371,25 @@ a.destacado-fila:hover{background:var(--realce)}
    repetirla arriba de cada folio sería decir dos veces lo mismo. */
 #membrete{display:none}
 
+/* Sin `@page`: los márgenes los pone el navegador. Se probó fijarlos —14 mm, y 18 a
+   la izquierda para el perforado— y con eso la tabla de contratos, que ya venía
+   justa, quedaba CORTADA a la derecha: se perdía la columna de confianza. Un margen
+   más lindo no vale una columna menos, y el que imprime puede ajustarlos en el
+   diálogo de impresión si le hace falta. */
+
 @media print{
   /* ── El membrete de la hoja impresa ──────────────────────────────────────
      Una hoja que sale de este sistema y termina agregada a un legajo tiene que decir
      de dónde salió sin depender de que alguien se acuerde de escribirlo: el
      organismo, la unidad, el legajo y cuándo se emitió. El isotipo entra si está
      puesto —`/marca` lo sirve— y si no, el membrete se sostiene con el texto. */
+  /* Se intentó repetirlo en todas las hojas —fijo, metido en el margen que reserva
+     `@page`— y Chrome lo dibuja al pie de las hojas siguientes en vez de arriba. Un
+     membrete a mitad de camino es peor que uno solo en la primera hoja, así que
+     queda como estaba: en la primera. Las hojas se imprimen juntas y se archivan
+     juntas. Si alguna vez hace falta de verdad en todas, la manera que funciona es
+     armar el documento como una tabla con `<thead>`, y eso es rehacer la impresión
+     entera. */
   #membrete{display:flex; align-items:flex-start; gap:14px;
     padding:0 0 10px; margin:0 0 4px; border-bottom:2px solid #000}
   #membrete-marca{max-height:46px; max-width:130px}
@@ -1406,8 +1419,27 @@ a.destacado-fila:hover{background:var(--realce)}
          min-height:0; display:block}
   .techo-legajo{padding:0; margin:0}
   main{padding:0}
-  .bloque{break-inside:avoid; page-break-inside:avoid; margin-top:18px}
-  .tabla-env, .cifras, .carriles, .cronologia, .interp{break-inside:avoid}
+  /* ── Lo que se puede partir entre hojas y lo que no ─────────────────────
+     Decía «ningún bloque se parte», y con una tabla de cincuenta y una filas —que es
+     más alta que una hoja— el navegador hace lo único que puede: empieza el bloque en
+     la página siguiente y lo parte igual. Medido imprimiendo la pantalla de
+     contratos: la PRIMERA HOJA salía vacía, con el membrete y nada más, y la tabla
+     empezaba en la segunda. Una hoja desperdiciada en cada impresión, y la primera
+     hoja de algo que se agrega a un legajo en blanco.
+
+     Lo que no se parte es lo CHICO —una baldosa de cifras, un carril, una barra de
+     cronología, una tarjeta de interpretación— y el RENGLÓN de una tabla. Lo grande
+     fluye, que es lo que hace cualquier tabla impresa. */
+  .bloque{break-inside:auto; margin-top:18px}
+  .cifras, .carriles, .cronologia, .interp{break-inside:avoid}
+  .tabla-env{break-inside:auto; overflow:visible}
+  tbody tr{break-inside:avoid}
+  /* El encabezado se repite en cada hoja. Una tabla partida sin encabezado obliga a
+     volver a la hoja anterior para saber qué columna es cuál. */
+  thead{display:table-header-group}
+  thead th{position:static}
+  /* Y un título no se queda solo al pie de una hoja. */
+  h2, h3{break-after:avoid}
   a{color:#000; text-decoration:none}
   thead th{position:static}
   .visor{grid-template-columns:1fr}

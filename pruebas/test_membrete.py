@@ -124,6 +124,67 @@ class ElCunoDeDemostracionNoSePuedePerder(unittest.TestCase):
                         "el cuño volvió a llevar el párrafo entero adentro")
 
 
+class UnaTablaImpresaNoDesperdiciaLaPrimeraHoja(unittest.TestCase):
+    """
+    Medido imprimiendo la pantalla de contratos —51 filas— a A4: salían **cinco
+    hojas y la primera en blanco**, con el membrete y nada más, y la tabla empezaba en
+    la segunda.
+
+    La causa: «ningún bloque se parte». Con una tabla más alta que una hoja el
+    navegador hace lo único que puede —empezarla en la página siguiente y partirla
+    igual—, así que la regla no evitaba nada y costaba una hoja en cada impresión. Y
+    la primera hoja de algo que se agrega a un legajo, en blanco.
+
+    Lo que no se parte es lo CHICO y el RENGLÓN de una tabla. Lo grande fluye, que es
+    lo que hace cualquier tabla impresa desde que existen.
+
+    Después del cambio: tres hojas, contenido desde el primer renglón.
+    """
+
+    def setUp(self):
+        self.papel = _bloque_impresion()
+
+    def _regla(self, selector):
+        m = re.search(re.escape(selector) + r"\{([^{}]*)\}", self.papel)
+        self.assertIsNotNone(m, f"se perdió la regla «{selector}» de impresión")
+        return m.group(1).replace(" ", "").replace("\n", "")
+
+    def test_un_bloque_grande_puede_partirse(self):
+        self.assertIn("break-inside:auto", self._regla(".bloque"),
+                      "volvió «ningún bloque se parte»: con una tabla más alta que "
+                      "una hoja eso no evita nada y desperdicia la primera")
+        self.assertNotIn("page-break-inside:avoid", self._regla(".bloque"))
+
+    def test_pero_un_renglon_no_se_parte_por_la_mitad(self):
+        self.assertIn("break-inside:avoid", self._regla("tbody tr"),
+                      "un renglón partido entre dos hojas deja media fila de datos "
+                      "en cada una")
+
+    def test_el_encabezado_se_repite_en_cada_hoja(self):
+        """Una tabla partida sin encabezado obliga a volver a la hoja anterior para
+        saber qué columna es cuál."""
+        self.assertIn("display:table-header-group", self._regla("thead"))
+
+    def test_lo_chico_sigue_entero(self):
+        c = self._regla(".cifras, .carriles, .cronologia, .interp")
+        self.assertIn("break-inside:avoid", c,
+                      "una baldosa de cifras o una tarjeta de interpretación partida "
+                      "entre dos hojas no se lee")
+
+    def test_un_titulo_no_se_queda_solo_al_pie(self):
+        self.assertIn("break-after:avoid", self._regla("h2, h3"))
+
+    def test_no_se_fijan_los_margenes_de_la_hoja(self):
+        """
+        Se probó fijarlos —14 mm, 18 a la izquierda para el perforado— y la tabla de
+        contratos, que ya venía justa, quedaba CORTADA a la derecha: se perdía la
+        columna de confianza. Un margen más lindo no vale una columna menos.
+        """
+        self.assertNotIn("@page{", CSS.replace(" ", ""),
+                         "volvieron los márgenes fijos: la tabla de contratos se "
+                         "corta a la derecha")
+
+
 class LaMarcaEnLoQueSeExporta(unittest.TestCase):
     """
     El `.rtf` y el `.xlsx` que salen del sistema son lo que después se pega en un
