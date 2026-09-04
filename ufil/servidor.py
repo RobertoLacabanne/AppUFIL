@@ -241,8 +241,6 @@ def api_cuentas(cx) -> dict:
         # y hay que recargar. Sin esto, quien deja la pestaña abierta sigue usando la
         # versión anterior sin enterarse.
         "version": version_interfaz(),
-        "marca": any((config.MARCA / n).exists()
-                     for n in ("logo.svg", "logo.png", "logo.jpg", "logo.webp")),
     }
 
 
@@ -313,8 +311,6 @@ def api_panel(cx) -> dict:
         # acá, la interfaz no puede distinguir «no hay lote» de «el lote se llama —».
         "lote": (cx.execute("SELECT lote FROM procedencia LIMIT 1").fetchone() or [None])[0],
         "demostracion": es_demostracion(cx),
-        "marca": any((config.MARCA / n).exists()
-                     for n in ("logo.svg", "logo.png", "logo.jpg", "logo.webp")),
         # Los tres hallazgos más grandes, para que el panel abra con lo que encontró y
         # no con una grilla de números que hay que interpretar.
         "destacados": [dict(r) for r in cx.execute("""
@@ -1014,8 +1010,18 @@ class Manejador(BaseHTTPRequestHandler):
                 oscuro = "prefers-color-scheme: dark" in (
                     self.headers.get("Sec-CH-Prefers-Color-Scheme") or "") \
                     or q.get("tema", [""])[0] == "oscuro"
-                nombres = (("logo-oscuro.svg", "logo-oscuro.png") if oscuro else ()) + \
-                          ("logo.svg", "logo.png", "logo.jpg", "logo.webp")
+                # El ícono de la pestaña y el del acceso directo del teléfono salen
+                # del mismo lugar y por la misma puerta: son la misma marca en otro
+                # formato, y tener tres rutas para lo mismo es cómo se termina con
+                # una que quedó apuntando a un archivo que ya no está.
+                que = q.get("que", [""])[0]
+                if que == "icono":
+                    nombres = ("icono-32.png", "icono.svg", "icono-512.png")
+                elif que == "tactil":
+                    nombres = ("icono-tactil.png", "icono-512.png", "icono.svg")
+                else:
+                    nombres = (("logo-oscuro.svg", "logo-oscuro.png") if oscuro else ()) + \
+                              ("logo.svg", "logo.png", "logo.jpg", "logo.webp")
                 for nombre in nombres:
                     archivo = config.MARCA / nombre
                     if archivo.exists():

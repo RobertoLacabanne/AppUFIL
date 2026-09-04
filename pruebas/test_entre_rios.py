@@ -1,24 +1,25 @@
 """
 Entre Ríos en la pantalla, y el rojo que no puede escaparse.
 
-La provincia entra por dos símbolos verificables, no por decoración inventada:
+Antes la provincia entraba por dos símbolos dibujados a mano —dos líneas por el Paraná
+y el Uruguay, y la franja de Artigas cruzándolas en diagonal—. Llegó el isotipo oficial
+del organismo y esa marca de la casa se fue: eran tres maneras apiladas de decir de
+quién es esto, y a 13 px de alto la diagonal roja se leía como un tachado.
 
-  · los DOS RÍOS que le dan el nombre —el Paraná y el Uruguay—, dibujados como dos
-    líneas en `--rio`, que es el token que en esta paleta ya se llamaba así;
-  · la FRANJA de la bandera que diseñó Artigas en 1814, en diagonal de arriba a la
-    izquierda a abajo a la derecha, en el rojo del federalismo de la Liga de los
-    Pueblos Libres.
+Lo que NO se fue es la regla que aquella marca obligó a escribir, y que ahora hay que
+sostener contra un archivo en vez de contra dos reglas de CSS.
 
-Y ahí está el problema que esta prueba existe para vigilar. La paleta tiene UNA regla
-que no se negocia: el punzó es el único rojo, y significa error, conflicto o algo que
-destruye. Un rojo que además sirve para «importante» o para «lindo» es un rojo que ya
-no alarma a nadie, y el día que aparezca una alarma de verdad va a parecer una más.
+**Acá el color significa estado.** El verde quiere decir «dato firme». El punzó quiere
+decir «las dos lecturas no coinciden». El isotipo trae adentro un celeste, un verde y
+un rojo institucionales; si alguno se convierte en color de interfaz, en la misma
+pantalla van a convivir dos verdes —o dos rojos— que quieren decir cosas distintas, y
+el operador va a tener que aprender cuál es cuál a las tres de la mañana.
 
-`--federal` contra `--lapiz` da 1,45:1: como color NO se distinguen, y no hay número
-que arregle eso, porque dos rojos son dos rojos. Lo que los separa es el lugar y la
-forma —una diagonal de 3,5 px arriba de todo, al lado del nombre del organismo, donde
-no hay ningún dato que pudiera estar en conflicto— y esa separación no la sostiene el
-buen criterio de nadie a las tres de la mañana: la sostiene esto.
+Entonces los colores de la marca viven adentro del isotipo, que es un archivo, y no
+entran a la hoja de estilos. Esta prueba los lee del archivo instalado —no de una
+lista escrita acá, que envejece el día que cambie el logotipo— y verifica que ninguno
+aparezca en `estilo.css`. Lo único que sí se alinea es el marino, porque no lleva
+estado: es cromo.
 """
 from __future__ import annotations
 
@@ -39,33 +40,26 @@ LIMPIO = _sin_comentarios(CSS)
 HTML = (RAIZ / "ufil/web/index.html").read_text(encoding="utf-8")
 APP = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
 
-# La única regla del sistema autorizada a usar el rojo de la bandera.
-UNICO_LUGAR = ".marca-provincia i"
+ISOTIPO = RAIZ / "assets/marca/logo.svg"
 
 
-class ElRojoFederalNoSeEscapa(unittest.TestCase):
+class ElSegundoRojoNoVolvio(unittest.TestCase):
+    """
+    `--federal` era el rojo de la franja de Artigas, y existía para una sola regla.
+    Con el isotipo oficial esa regla se borró y el token quedó sin uso, así que se
+    fue con ella. Que no vuelva: contra el punzó da 1,45:1 —dos rojos son dos rojos,
+    y no hay número que arregle eso— y lo único que los separaba era el lugar.
+    """
 
-    def _reglas_con(self, token: str) -> list[str]:
-        """Los selectores de toda regla que menciona `var(--token)`."""
-        fuera = []
-        for regla in re.finditer(r"([^{}]+)\{([^{}]*)\}", LIMPIO):
-            if f"var(--{token})" in regla.group(2):
-                fuera.append(regla.group(1).strip())
-        return fuera
-
-    def test_vive_en_un_solo_lugar(self):
-        usos = self._reglas_con("federal")
+    def test_el_token_no_esta_en_la_hoja(self):
+        usos = [n for n, linea in enumerate(LIMPIO.splitlines(), 1)
+                if "--federal" in linea]
         self.assertEqual(
-            usos, [UNICO_LUGAR],
-            "el rojo de la bandera se usa fuera del bloque de identidad.\n"
-            "  No es un color de la paleta: no puede tocar un dato, un sello, un "
-            "filete ni un botón.\n"
-            f"  Reglas que lo usan: {usos}")
-
-    def test_el_token_existe_en_los_dos_temas(self):
-        for nombre, tema in (("claro", CLARO), ("oscuro", OSCURO)):
-            self.assertIn("federal", tema,
-                          f"falta --federal en el tema {nombre}")
+            usos, [],
+            f"volvió --federal a estilo.css (líneas {usos}).\n"
+            "  El rojo de la bandera vive adentro del isotipo, que es un archivo.\n"
+            "  Un segundo rojo en la hoja vuelve a poner al operador a distinguir\n"
+            "  cuál de los dos quiere decir «conflicto».")
 
     def test_el_punzo_sigue_siendo_el_rojo_del_error(self):
         """
@@ -76,21 +70,6 @@ class ElRojoFederalNoSeEscapa(unittest.TestCase):
             self.assertRegex(
                 LIMPIO, re.escape(clase) + r"\s*\{[^{}]*var\(--lapiz\)",
                 f"«{clase}» dejó de usar el punzó: el rojo del error se movió")
-
-    def test_la_franja_va_inclinada_como_en_la_bandera(self):
-        """
-        De arriba a la izquierda a abajo a la derecha. Un rectángulo vertical girado en
-        contra de las agujas del reloj —ángulo negativo— deja el extremo de arriba a la
-        izquierda, que es la inclinación del pabellón. Con el signo al revés queda la
-        diagonal espejada, que es la bandera de otra provincia.
-        """
-        m = re.search(r"\.marca-provincia i\{([^{}]*)\}", LIMPIO)
-        self.assertIsNotNone(m, "se perdió la franja de la marca provincial")
-        giro = re.search(r"rotate\((-?[\d.]+)deg\)", m.group(1))
-        self.assertIsNotNone(giro, "la franja dejó de estar inclinada")
-        self.assertLess(float(giro.group(1)), 0,
-                        "la franja quedó espejada: va de arriba a la izquierda a "
-                        "abajo a la derecha, como en la bandera de Entre Ríos")
 
 
 class LaPaletaInstitucionalNoSeVuelvePaletaDeInterfaz(unittest.TestCase):
@@ -113,13 +92,24 @@ class LaPaletaInstitucionalNoSeVuelvePaletaDeInterfaz(unittest.TestCase):
     logotipo. Los colores viven adentro del isotipo —un archivo— y no en la hoja.
     """
 
-    # Muestreados del logotipo oficial. El marino queda afuera de la lista: ese sí
-    # entra, y está medido en la tabla de pares.
-    FUERA_DE_LA_HOJA = {
-        "#009DDD": "celeste institucional",
-        "#1C8F80": "verde institucional",
-        "#EA3F3F": "rojo del logotipo",
-    }
+    def _colores_de_la_marca(self) -> set[str]:
+        """
+        Los colores se leen DEL ARCHIVO instalado, no de una lista escrita acá.
+
+        Escritos a mano, la lista queda vieja el día que cambie el logotipo —y una
+        prueba que vigila colores que ya no existen no vigila nada—. El blanco queda
+        afuera: es el ojo del isotipo, y prohibir el blanco en una hoja de estilos no
+        tiene sentido.
+        """
+        svg = ISOTIPO.read_text(encoding="utf-8")
+        return {c.upper() for c in re.findall(r"#[0-9a-fA-F]{6}", svg)} - {"#FFFFFF"}
+
+    def test_la_marca_trae_los_colores_que_hay_que_vigilar(self):
+        """Si el archivo dejara de traer colores, la prueba de abajo pasaría sola."""
+        self.assertGreaterEqual(
+            len(self._colores_de_la_marca()), 3,
+            "el isotipo tiene que traer sus colores adentro; si no, la prueba que "
+            "los mantiene fuera de la hoja de estilos no está probando nada")
 
     def test_ninguno_aparece_en_la_hoja_de_estilos(self):
         # Sin los comentarios: el motivo por el que estos tres NO entran está escrito
@@ -129,9 +119,9 @@ class LaPaletaInstitucionalNoSeVuelvePaletaDeInterfaz(unittest.TestCase):
                         lambda m: "\n" * m.group(0).count("\n"), CSS, flags=re.S)
         intrusos = []
         for n, linea in enumerate(limpio.splitlines(), 1):
-            for color, que in self.FUERA_DE_LA_HOJA.items():
+            for color in self._colores_de_la_marca():
                 if color.lower() in linea.lower():
-                    intrusos.append(f"  estilo.css:{n} — {color} ({que})")
+                    intrusos.append(f"  estilo.css:{n} — {color}, que es de la marca")
         self.assertEqual(
             intrusos, [],
             "\nun color de la paleta institucional se volvió color de interfaz.\n"
@@ -160,23 +150,94 @@ class LaPaletaInstitucionalNoSeVuelvePaletaDeInterfaz(unittest.TestCase):
                 f"alinear con la marca no puede costar contraste")
 
 
-class LosDosRiosVanEnElTokenDelRio(unittest.TestCase):
+class ElIsotipoOficialEsElQueManda(unittest.TestCase):
+    """
+    Reemplazó al ícono genérico de documento y a la marca provincial dibujada a mano.
+    Lo que esta clase cuida son las cuatro maneras de arruinarlo:
 
-    def test_las_lineas_son_del_color_del_rio(self):
-        m = re.search(r"\.marca-provincia\{([^{}]*)\}", LIMPIO)
-        self.assertIsNotNone(m, "se perdió la marca provincial")
-        # Cada línea es un degradado plano de `--rio` a `--rio`, así que el token
-        # aparece dos veces por línea: se cuentan los degradados, no las menciones.
-        lineas = m.group(1).count("linear-gradient(var(--rio),var(--rio))")
-        self.assertEqual(lineas, 2,
-                         "tienen que ser DOS líneas —el Paraná y el Uruguay— y las dos "
-                         f"en --rio; encontré {lineas}")
+      · usar el logotipo entero, con el nombre adentro, sobre la barra marina —donde
+        el wordmark, que también es marino, desaparece—;
+      · recolorearlo para que se vea, que es intervenir una marca institucional;
+      · aplastarlo dándole ancho y alto a la vez;
+      · achicarlo abajo del tamaño donde los anillos concéntricos se funden.
 
-    def test_no_lleva_informacion_para_el_lector_de_pantalla(self):
-        """Es adorno. El nombre de la provincia está escrito abajo, en palabras."""
-        self.assertRegex(
-            HTML, r'<div class="marca-provincia" aria-hidden="true">',
-            "la marca provincial tiene que estar marcada como decorativa")
+    Y la quinta, que es la que ya pasó una vez: que se apilen tres maneras de decir
+    de quién es esto y ninguna lo diga bien.
+    """
+
+    def test_el_archivo_esta_y_es_vectorial(self):
+        self.assertTrue(ISOTIPO.is_file(),
+                        "falta assets/marca/logo.svg; ver el LEEME de esa carpeta")
+        self.assertIn("<svg", ISOTIPO.read_text(encoding="utf-8")[:400])
+
+    def test_es_el_isotipo_y_no_el_logotipo_con_el_texto(self):
+        """
+        El logotipo completo lleva el nombre en marino y sobre la barra marina no se
+        ve. Si alguna vez alguien copia `logotipo.svg` encima de `logo.svg`, esto lo
+        agarra: el isotipo no tiene ni una letra adentro.
+        """
+        svg = ISOTIPO.read_text(encoding="utf-8")
+        for marca, que in (("<text", "un bloque de texto"),
+                           ("font-family", "una tipografía"),
+                           ("<tspan", "un renglón de texto")):
+            self.assertNotIn(marca, svg,
+                             f"el archivo de la barra trae {que}: es el logotipo "
+                             f"completo, no el isotipo. El nombre va al lado, "
+                             f"compuesto en la tipografía de la aplicación.")
+
+    def test_el_alto_alcanza_para_que_se_lean_los_anillos(self):
+        """
+        Medido sobre el marino: a 28 px los anillos concéntricos se funden en una
+        mancha, a 36 es marginal, a 48 se lee entero. El piso es 40.
+        """
+        m = re.search(r"\.isotipo\{([^{}]*)\}", LIMPIO)
+        self.assertIsNotNone(m, "se perdió la regla del isotipo")
+        alto = re.search(r"height:(\d+)px", m.group(1))
+        self.assertIsNotNone(alto, "el isotipo tiene que tener un alto declarado")
+        self.assertGreaterEqual(
+            int(alto.group(1)), 40,
+            "abajo de 40 px los anillos del isotipo se funden en una mancha. "
+            "Si no entra en el ancho de la barra, la salida no es achicarlo.")
+
+    def test_no_se_deforma(self):
+        """
+        Alto fijo y ancho automático. Con los dos puestos, cualquier cambio del
+        archivo lo estira, y estirar una marca institucional no se hace.
+        """
+        m = re.search(r"\.isotipo\{([^{}]*)\}", LIMPIO)
+        cuerpo = m.group(1)
+        self.assertIn("width:auto", cuerpo.replace(" ", ""),
+                      "sin `width:auto` el flex de al lado le come el ancho y lo aplasta")
+        self.assertIn("flex:none", cuerpo.replace(" ", ""),
+                      "sin `flex:none` el isotipo se encoge cuando el nombre no entra")
+
+    def test_la_marca_dibujada_a_mano_se_fue_entera(self):
+        """
+        No alcanza con sacarla del HTML: el CSS huérfano y el comentario que la
+        explicaba envejecen peor que el código, porque el próximo que los lea los va
+        a tomar por especificación.
+        """
+        for nombre, texto in (("estilo.css", CSS), ("index.html", HTML),
+                              ("app.js", APP)):
+            self.assertNotIn("marca-provincia", texto,
+                             f"quedó rastro de la marca provincial en {nombre}")
+
+    def test_el_monograma_sigue_de_respaldo(self):
+        """
+        El isotipo es material del organismo y no todas las instalaciones lo van a
+        tener. Sin archivo, la barra tiene que seguir teniendo cara: manda el
+        monograma, que está dibujado adentro del HTML y no depende de nada.
+        """
+        self.assertIn('id="monograma"', HTML)
+        for evento in ("'load'", "'error'"):
+            self.assertIn(f"addEventListener({evento}", APP,
+                          f"nadie escucha {evento} sobre el isotipo")
+        # Y una decisión inmediata además de los eventos: app.js se carga al final del
+        # cuerpo, así que la imagen puede haber terminado antes de que nadie escuche.
+        # Sólo con los eventos, el isotipo no aparecía nunca en una máquina rápida.
+        self.assertIn("naturalWidth", APP,
+                      "sin mirar la imagen ya cargada, el `load` puede haber pasado "
+                      "antes de que app.js llegue a escucharlo")
 
 
 class ElAnilloDeFocoSeVeEnLaBarra(unittest.TestCase):
@@ -264,3 +325,84 @@ class LosFiscalesSalenDeUnSoloLugar(unittest.TestCase):
         self.assertEqual(
             identidad.firma(d),
             "Fiscales: Gonzalo A. Badano y Juan Francisco Ramírez Montrull")
+
+
+class LaMarcaSaleDelServidorPorUnaSolaPuerta(unittest.TestCase):
+    """
+    El isotipo, el ícono de la pestaña y el del acceso directo del teléfono son la
+    misma marca en tres formatos, y salen todos por `/marca`. Tres rutas distintas
+    para lo mismo es cómo se termina con una apuntando a un archivo que ya no está.
+
+    Y las tres tienen que contestar 404 —no 500, no una página en blanco— cuando la
+    marca no está puesta: hay instalaciones que no la van a tener, y ahí manda el
+    monograma.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import tempfile
+        import threading
+        from http.server import ThreadingHTTPServer
+        from ufil import config, db, servidor
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls._datos, cls._marca = config.DATOS, config.MARCA
+        config.DATOS = Path(cls.tmp.name)
+        config.activar_legajo(None)
+        db.abrir(Path(cls.tmp.name) / "ufil.sqlite").close()
+        servidor.RUTA_BASE = None
+        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), servidor.Manejador)
+        cls.puerto = cls.srv.server_address[1]
+        cls.hilo = threading.Thread(target=cls.srv.serve_forever, daemon=True)
+        cls.hilo.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        from ufil import config
+        cls.srv.shutdown(); cls.srv.server_close(); cls.hilo.join(timeout=5)
+        config.DATOS, config.MARCA = cls._datos, cls._marca
+        cls.tmp.cleanup()
+
+    def _pedir(self, ruta):
+        import urllib.error
+        import urllib.request
+        try:
+            with urllib.request.urlopen(
+                    f"http://127.0.0.1:{self.puerto}{ruta}", timeout=10) as r:
+                return r.status, r.headers.get("Content-Type", ""), r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.headers.get("Content-Type", ""), e.read()
+
+    def test_las_tres_puertas_entregan_el_archivo(self):
+        from ufil import config
+        config.MARCA = RAIZ / "assets/marca"
+        try:
+            for ruta, esperado in (("/marca", b"<?xml"),
+                                   ("/marca?que=icono", b"\x89PNG"),
+                                   ("/marca?que=tactil", b"\x89PNG")):
+                estado, tipo, cuerpo = self._pedir(ruta)
+                self.assertEqual(estado, 200, f"«{ruta}» no entregó la marca")
+                self.assertTrue(cuerpo.startswith(esperado),
+                                f"«{ruta}» entregó otra cosa: {cuerpo[:16]!r}")
+                self.assertNotIn("json", tipo,
+                                 f"«{ruta}» contestó un JSON en vez de una imagen")
+        finally:
+            config.MARCA = self._marca
+
+    def test_sin_marca_puesta_contesta_404_y_no_se_cae(self):
+        import tempfile
+        from ufil import config
+        config.MARCA = Path(tempfile.mkdtemp())
+        try:
+            for ruta in ("/marca", "/marca?que=icono", "/marca?que=tactil"):
+                estado, _, _ = self._pedir(ruta)
+                self.assertEqual(estado, 404,
+                                 f"«{ruta}» sin archivo tiene que contestar 404: la "
+                                 f"pantalla se entera así de que manda el monograma")
+        finally:
+            config.MARCA = self._marca
+
+    def test_la_pantalla_pide_por_esas_mismas_puertas(self):
+        """Una ruta que nadie pide y una pantalla que pide una ruta que no existe."""
+        self.assertIn('src="/marca"', HTML, "la barra dejó de pedir el isotipo")
+        self.assertIn('href="/marca?que=tactil"', HTML)
+        self.assertIn("'/marca?que=icono'", APP)

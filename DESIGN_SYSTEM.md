@@ -575,16 +575,30 @@ pantalla de acceso, el título de la pestaña, el pie de los informes. Cambiar d
 significaba buscarlos todos, y el que quedaba sin cambiar era el que después aparecía
 impreso en una presentación.
 
-### El monograma, y el escudo oficial
+### El isotipo oficial, y el monograma de respaldo
 
-El monograma es una **foja con su lomo y un filete dorado**: SVG en línea, 2 kB, nítido
-en cualquier tamaño, cambia de color con el tema. Nada de mazos, balanzas, columnas
-grecorromanas ni escudos inventados.
+Arriba de la barra va el **isotipo** del organismo —la bandera con la banda federal y
+los anillos del río—, en `assets/marca/logo.svg`. Reemplazó a un ícono genérico de
+documento y a una marca provincial dibujada a mano que estaban apilados debajo: eran
+tres maneras de decir de quién es esto y ninguna lo decía bien.
 
-El **archivo oficial** del organismo se deja caer en `assets/marca/logo.svg` (o `.png`) y
-la barra lateral lo muestra sola. No viaja en el repositorio: es material institucional
-del organismo, no del proyecto, y un emblema oficial redibujado de memoria queda mal y
-no corresponde usarlo así. Ver `assets/marca/LEEME.md`.
+Tres reglas, y las tres tienen prueba:
+
+- **El isotipo, nunca el logotipo con el texto.** El wordmark oficial está en marino y
+  sobre la barra marina desaparece; recolorearlo sería intervenir la marca. El nombre
+  va al lado, compuesto en la tipografía de la aplicación.
+- **Mínimo 40 px de alto.** Medido sobre el marino: a 28 px los anillos concéntricos se
+  funden en una mancha, a 36 es marginal, a 48 se lee entero. Alto fijo y `width:auto`:
+  una marca institucional no se estira.
+- **Sus colores no son la paleta.** El celeste, el verde y el rojo viven adentro del
+  archivo. Acá el color significa estado, y un segundo verde en pantalla obliga a
+  aprender cuál de los dos quiere decir «dato firme». Lo único que se alinea es el
+  marino del cromo, que no lleva estado.
+
+Si el archivo no está, manda el **monograma**: una foja con su lomo y un filete dorado,
+SVG en línea, 2 kB, que cambia de color con el tema. Nada de mazos, balanzas ni columnas
+grecorromanas. Lo elige el navegador cargando la imagen, no el servidor contestando si
+existe. Ver `assets/marca/LEEME.md`.
 
 ### El membrete en lo que se exporta
 

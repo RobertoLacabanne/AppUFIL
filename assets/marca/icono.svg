@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Ícono de aplicación del Ministerio Público Fiscal de Entre Ríos</title>
+  <desc id="desc">Ícono cuadrado institucional basado en el símbolo rediseñado.</desc>
+  <rect width="1024" height="1024" fill="#17324D"/>
+  <rect x="34" y="34" width="956" height="956" rx="176" fill="none" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="4"/>
+  <g transform="translate(160 244) scale(2.04)">
+    <path fill="#20B8E2" d="M0 34h151l-31 58H0z"/>
+    <path fill="#20B8E2" d="M0 188h120l31 58H0z"/>
+    <path fill="#F05252" d="M22 48h42l78 184h-42z"/>
+    <g transform="translate(138 0)">
+      <circle cx="111" cy="134" r="96" fill="none" stroke="#6DD0BA" stroke-width="9"/>
+      <circle cx="111" cy="148" r="76" fill="none" stroke="#6DD0BA" stroke-width="9"/>
+      <circle cx="111" cy="162" r="56" fill="none" stroke="#6DD0BA" stroke-width="9"/>
+      <circle cx="124" cy="188" r="53" fill="#6DD0BA"/>
+      <ellipse cx="125" cy="166" rx="17" ry="22" fill="#FFFFFF"/>
+    </g>
+  </g>
+</svg>

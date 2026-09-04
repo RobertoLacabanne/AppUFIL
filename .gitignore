@@ -11,9 +11,6 @@ derivados/
 *.sqlite-wal
 *.sqlite-shm
 
-# Marca institucional: es del organismo, se agrega en la instalación.
-assets/marca/logo.*
-
 # Modelos y pesos: viajan en disco externo, no en git.
 modelos/
 *.gguf

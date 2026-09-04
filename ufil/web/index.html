@@ -10,6 +10,11 @@
      monograma que la barra lateral —una foja con su lomo y un filete dorado—, para
      que la pestaña y la aplicación se reconozcan entre sí. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23011E3F'/%3E%3Crect x='7' y='6' width='18' height='20' rx='1.5' fill='none' stroke='%23F2F6FA' stroke-width='1.6'/%3E%3Cline x1='11.5' y1='6' x2='11.5' y2='26' stroke='%23F2F6FA' stroke-width='1.3'/%3E%3Cline x1='15' y1='12' x2='21.5' y2='12' stroke='%23D7B46A' stroke-width='2.2'/%3E%3Cline x1='15' y1='16.5' x2='21.5' y2='16.5' stroke='%23F2F6FA' stroke-width='1.4'/%3E%3Cline x1='15' y1='21' x2='19' y2='21' stroke='%23F2F6FA' stroke-width='1.4'/%3E%3C/svg%3E">
+<!-- El ícono oficial, si está puesto. No se declara acá con un `<link>` porque
+     entonces, sin el archivo, la pestaña se queda sin ningún ícono: lo pone app.js
+     recién cuando comprueba que carga, y mientras tanto manda el monograma de
+     arriba, que está embebido y no depende de nada. -->
+<link rel="apple-touch-icon" href="/marca?que=tactil">
 <link rel="stylesheet" href="/estatico/estilo.css">
 </head>
 <body>
@@ -19,8 +24,8 @@
 <a class="saltar" href="#vista">Saltar al contenido</a>
 
 <!-- ── La barra lateral ────────────────────────────────────────────────────
-     Azul tribunal macizo. Arriba la marca, con la jerarquía completa de la casa y la
-     marca provincial; en el medio las secciones; abajo lo que casi nunca se toca.
+     Azul tribunal macizo. Arriba el isotipo oficial con la jerarquía completa de la
+     casa; en el medio las secciones; abajo lo que casi nunca se toca.
      Decía «verde institucional» y hacía rato que no era cierto: la paleta pasó al azul
      porque el token del cromo y el del estado «firme» eran el mismo verde, así que el
      color que decía «el sistema afirma que este dato es firme» era el mismo que decía
@@ -30,7 +35,7 @@
 <aside id="lateral" aria-label="Secciones del sistema">
   <div class="identidad">
     <a class="identidad-enlace" href="#/panel">
-      <span class="monograma" aria-hidden="true">
+      <span class="monograma" id="monograma" aria-hidden="true">
         <svg viewBox="0 0 32 32" width="30" height="30">
           <rect x="5" y="4" width="22" height="24" rx="2" fill="none"
                 stroke="currentColor" stroke-width="1.7"/>
@@ -40,24 +45,30 @@
           <line x1="14" y1="22" x2="20" y2="22" stroke="currentColor" stroke-width="1.4"/>
         </svg>
       </span>
+      <!-- El isotipo oficial del organismo (ver assets/marca/LEEME.md). Va en el
+           lugar del monograma, no abajo: son dos maneras de decir lo mismo y una
+           sola tiene que quedar. Se elige sola —si el archivo carga, manda el
+           isotipo; si no está, manda el monograma— y por eso el `hidden` arranca
+           acá y lo saca el navegador, no una consulta al servidor: así también
+           anda en el índice de legajos, donde no hay panel que preguntar.
+
+           Va el ISOTIPO, no el logotipo con el texto: el wordmark oficial está en
+           marino y sobre la barra marina desaparece. Recolorearlo a blanco sería
+           intervenir la marca, que es justo lo que no corresponde hacerle a un
+           logotipo institucional. El nombre va al lado, compuesto en la tipografía
+           de la aplicación. -->
+      <img id="identidad-oficial" class="isotipo" src="/marca" alt="" hidden>
       <span class="identidad-texto">
         <b class="identidad-unidad" id="m-unidad">UFIL Paraná</b>
         <span class="identidad-area" id="m-area">Área Anticorrupción</span>
       </span>
     </a>
-    <!-- El archivo oficial del organismo, si está puesto (ver assets/marca/LEEME.md).
-         Mientras no esté, manda el monograma y la línea de texto de abajo. -->
-    <img id="identidad-oficial" class="identidad-oficial" src="/marca" alt="" hidden>
-    <!-- Entre Ríos, dicho con la geometría de sus dos símbolos.
-         Las dos líneas son los dos ríos que le dan el nombre a la provincia —el Paraná
-         y el Uruguay—, y van en `--rio`, que es el token que en esta paleta ya se
-         llamaba así. La diagonal que las cruza es la franja de la bandera que diseñó
-         Artigas en 1814: va de arriba a la izquierda a abajo a la derecha, como en el
-         pabellón, y su rojo es el del federalismo de la Liga de los Pueblos Libres.
-         Es adorno declarado: no informa nada, así que va marcado como decorativo para
-         quien usa lector de pantalla —el nombre de la provincia está escrito abajo, en
-         palabras, que es donde tiene que estar—. -->
-    <div class="marca-provincia" aria-hidden="true"><i></i></div>
+    <!-- Acá estaba la marca provincial dibujada a mano: dos líneas por los ríos y
+         una diagonal por la franja de Artigas. Se fue cuando llegó el isotipo
+         oficial, y está bien que se haya ido: eran tres maneras apiladas de decir de
+         quién es esto —un ícono genérico, un dibujo propio y una línea de texto— y a
+         13 px de alto la diagonal roja se leía como un tachado. Ahora lo dice el
+         isotipo, una sola vez y con la marca de verdad. -->
     <p class="identidad-organismo" id="m-organismo"></p>
     <!-- Quién firma. Viene de ufil/identidad.py y no escrito acá: cambiar de fiscal no
          puede obligar a tocar seis archivos. -->

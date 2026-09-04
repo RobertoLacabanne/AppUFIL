@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="300" viewBox="0 0 340 300" role="img" aria-labelledby="title desc">
+  <title id="title">Símbolo del Ministerio Público Fiscal de Entre Ríos</title>
+  <desc id="desc">Versión compacta y transparente del símbolo institucional rediseñado.</desc>
+  <g transform="translate(18 10)">
+    <path fill="#12A8D3" d="M0 34h151l-31 58H0z"/>
+    <path fill="#12A8D3" d="M0 188h120l31 58H0z"/>
+    <path fill="#E84545" d="M22 48h42l78 184h-42z"/>
+    <g transform="translate(138 0)">
+      <circle cx="111" cy="134" r="96" fill="none" stroke="#3E9F8C" stroke-width="9"/>
+      <circle cx="111" cy="148" r="76" fill="none" stroke="#3E9F8C" stroke-width="9"/>
+      <circle cx="111" cy="162" r="56" fill="none" stroke="#3E9F8C" stroke-width="9"/>
+      <circle cx="124" cy="188" r="53" fill="#3E9F8C"/>
+      <ellipse cx="125" cy="166" rx="17" ry="22" fill="#FFFFFF"/>
+    </g>
+  </g>
+</svg>

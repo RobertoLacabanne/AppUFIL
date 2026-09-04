@@ -296,7 +296,7 @@ class RevisarNoPuedeCostarUnaEsperaPorCampo(UnCampoEnLaCola):
         from ufil.servidor import api_cuentas
         c = api_cuentas(self.cx)
         for clave in ("legajo", "hay_legajos", "documentos", "a_revisar", "fusiones",
-                      "afuera", "lote", "demostracion", "marca"):
+                      "afuera", "lote", "demostracion"):
             self.assertIn(clave, c, f"la barra usa «{clave}» y las cuentas no lo traen")
 
     def test_las_cuentas_no_corren_las_consultas_de_analisis(self):

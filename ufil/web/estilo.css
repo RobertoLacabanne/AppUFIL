@@ -113,20 +113,12 @@
      encima: el mismo expediente de siempre, pero con un objeto que mirar. */
   --fondo:#F0EFE7;
   --folio:#FFFDF8;
-  /* El rojo de la franja de Artigas. NO es un quinto color de la paleta y no
-     significa nada sobre ningún dato: es la bandera de la provincia, y vive
-     exclusivamente adentro del bloque de identidad de la barra lateral.
-
-     Hay que decir por qué existe, porque a primera vista contradice la regla de que
-     el punzó es el único rojo. Contra el punzó da 1,45:1, o sea que como COLOR no se
-     distingue —dos rojos son dos rojos—. Lo que los separa no es el tono: es el lugar
-     y la forma. El punzó aparece sobre un dato, relleno, en un sello o un filete que
-     dice «acá hay un conflicto». Éste aparece una sola vez en toda la aplicación,
-     como una diagonal de 3 px cruzando dos líneas, arriba de todo, al lado del nombre
-     del organismo, donde no hay ningún dato que pudiera estar en conflicto.
-     Esa separación no la sostiene la vista de nadie: la sostiene una prueba
-     (test_entre_rios.py). Si alguna vez este token aparece en otra regla, falla. */
-  --federal:#D52B1E;
+  /* Acá vivía `--federal`, el rojo de la franja de Artigas, para la marca provincial
+     dibujada a mano. Se fue con ella cuando llegó el isotipo oficial, y tiene que
+     seguir afuera: el rojo de la bandera existe ahora adentro del archivo del
+     isotipo, que es donde corresponde. Un segundo rojo en la hoja de estilos vuelve
+     a poner al operador a distinguir cuál de los dos quiere decir «conflicto».
+     Lo sostiene test_entre_rios.py. */
   /* Un azul apenas, para lo que la vista tiene que agarrar sin leer: el encabezado
      de una tabla, la fila bajo el puntero, la baldosa de una cifra. Es fondo y nunca
      texto: no informa nada por sí solo. */
@@ -232,7 +224,6 @@
      metía el fondo en la zona donde el texto claro florece —los bordes de las letras
      se desparraman— y eso lo mira alguien ocho horas seguidas. */
   --fondo:#0B1119; --folio:#141E2B; --realce:#1E2B3C;
-  --federal:#E8564A;
   /* En el oscuro la altura la da la superficie, que sube de luminosidad, y no la
      sombra: sobre un fondo casi negro una sombra negra no se ve. Quedan igual, en tres
      capas, para el borde superior del objeto. */
@@ -274,7 +265,6 @@
      metía el fondo en la zona donde el texto claro florece —los bordes de las letras
      se desparraman— y eso lo mira alguien ocho horas seguidas. */
   --fondo:#0B1119; --folio:#141E2B; --realce:#1E2B3C;
-  --federal:#E8564A;
   /* En el oscuro la altura la da la superficie, que sube de luminosidad, y no la
      sombra: sobre un fondo casi negro una sombra negra no se ve. Quedan igual, en tres
      capas, para el borde superior del objeto. */
@@ -402,35 +392,28 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
 .identidad-unidad{font-size:15px; font-weight:700; letter-spacing:-.01em; line-height:1.15}
 .identidad-area{font-size:11px; letter-spacing:.06em; color:var(--barra-txt-2);
             margin-top:2px}
-/* El dorado no dice nada acá: subraya lo que ya dice la palabra de al lado. */
-/* ── Entre Ríos ────────────────────────────────────────────────────────────
-   Dos líneas y una diagonal, y nada más. La tentación acá es poner el escudo
-   provincial entero —óvalo, laureles, manos entrelazadas, estrella—, y a 200 px de
-   ancho un escudo se convierte en una mancha: se pierde el dibujo y se gana ruido
-   arriba de todo, que es el peor lugar para tenerlo.
-   Con la geometría alcanza. Las dos líneas son los dos ríos que le dan el nombre a la
-   provincia y van en `--rio`. La diagonal es la franja de Artigas, en el rojo del
-   federalismo, y va de arriba a la izquierda a abajo a la derecha como en la bandera.
-   Es el único lugar de la aplicación donde vive ese rojo. */
-.marca-provincia{position:relative; height:13px; margin:13px 0 0; overflow:hidden;
-  border-radius:var(--radio);
-  background:
-    linear-gradient(var(--rio),var(--rio)) 0 4px  / 100% 1.5px no-repeat,
-    linear-gradient(var(--rio),var(--rio)) 0 8.5px / 100% 1.5px no-repeat;
-  opacity:.85}
-/* La franja. Un rectángulo vertical girado en contra de las agujas del reloj deja el
-   extremo de arriba a la izquierda y el de abajo a la derecha, que es la inclinación
-   del pabellón. */
-.marca-provincia i{position:absolute; left:13px; top:-5px; width:3.5px; height:24px;
-  background:var(--federal); transform:rotate(-34deg); transform-origin:center}
+/* ── El isotipo oficial ────────────────────────────────────────────────────
+   La bandera con la banda federal y los anillos del río, en el lugar donde antes
+   había un ícono genérico de documento. Los colores de la marca —el celeste, el
+   verde, el rojo— viven adentro del archivo y NO son tokens de la aplicación: acá
+   el color significa estado, y un segundo verde en pantalla obligaría al operador a
+   aprender cuál de los dos quiere decir «dato firme».
 
-/* Sin el filete dorado que tenía arriba. Ese filete separaba la unidad del organismo,
-   y ahora ese trabajo lo hace la marca provincial, que separa igual y además dice algo.
-   Dos rayas horizontales seguidas es la clase de ruido que este sistema evita en todas
-   las otras pantallas: son dos objetos compitiendo para hacer un solo trabajo. */
-.identidad-organismo{margin:9px 0 0; font-size:11px; line-height:1.4;
+   El alto está medido sobre el marino: a 28 px los anillos concéntricos se funden en
+   una mancha, a 36 es marginal, a 48 se lee entero. 44 px es el piso que entra en el
+   ancho de la barra dejándole lugar al nombre de la unidad. Por eso hace falta el
+   SVG y no alcanza un PNG rasterizado.
+
+   `width:auto` y `flex:none` no son adorno: sin eso el flex de al lado le come el
+   ancho al isotipo y lo deja aplastado, que es deformar la marca. */
+.isotipo{flex:none; display:block; height:44px; width:auto}
+
+/* Sin filete arriba. Un filete separaría la unidad del organismo, y ese trabajo ya
+   lo hace el aire: dos rayas horizontales seguidas son dos objetos compitiendo para
+   hacer un solo trabajo, que es la clase de ruido que este sistema evita en todas
+   las otras pantallas. */
+.identidad-organismo{margin:11px 0 0; font-size:11px; line-height:1.4;
                  color:var(--barra-txt-2); max-width:26ch}
-.identidad-oficial{display:block; max-width:150px; max-height:44px; margin:12px 0 0}
 
 /* Quién firma. Va abajo del organismo, en cuerpo menor y con el rótulo en versalitas:
    es un membrete, no un dato de la pantalla. Los nombres NO se cortan con puntos
@@ -1377,8 +1360,12 @@ a.destacado-fila:hover{background:var(--realce)}
     background:#fff !important; color:#000 !important; border-color:#000 !important;
     box-shadow:0 0 0 2px #fff, 0 0 0 3.5px #000 !important}
 
+  /* La mesa y la hoja también van a blanco. Faltaban las dos, y el resultado era una
+     banda beige atravesando el membrete —la única parte de la hoja donde se veía el
+     fondo de la aplicación— y tinta gastada en pintar de color el papel. */
   :root{--papel:#fff; --papel-2:#fff; --tinta:#000; --tinta-2:#333; --tinta-3:#555;
-        --filete:#999; --filete-2:#ccc; --interp:#f2f4f7}
+        --filete:#999; --filete-2:#ccc; --interp:#f2f4f7;
+        --fondo:#fff; --folio:#fff}
   #lateral, #velo, .saltar, .boton, .acc, .ancla, .esqueleto, .opcion-suelta,
   .techo-buscar, .techo-menu{display:none !important}
   body{font-size:10.5pt; display:block}
@@ -1671,9 +1658,9 @@ td.fol .nombre-doc{max-width:230px; justify-content:flex-start}
   color:var(--tinta-3); padding:1px 6px; cursor:pointer; margin-left:4px}
 .deshacer:hover{border-color:var(--lapiz); color:var(--lapiz)}
 
-/* Escudo institucional, si lo cargaron en assets/marca/ (ver el LEEME de esa
-   carpeta). Sin archivo manda el monograma, y la barra funciona igual. */
-@media print{.identidad-oficial{max-height:56px}}
+/* Impreso, el isotipo va más grande: el papel no tiene 232 px de ancho de barra y
+   una hoja que se agrega a un legajo se mira de más lejos que una pantalla. */
+@media print{.isotipo{height:56px}}
 
 /* Estado del sistema. La primera columna es un sello, no un ícono de color: la
    diferencia entre "ok" y "falta" tiene que leerse también en blanco y negro y para

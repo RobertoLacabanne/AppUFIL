@@ -3397,9 +3397,6 @@ async function refrescarCuentas() {
     // lugar que algo útil y no dice nada.
     $('#f-lote').textContent = p.lote || '';
     $('#t-lote').hidden = !p.lote;
-    const marca = document.getElementById('identidad-oficial');
-    if (marca) marca.hidden = !p.marca;
-
     ULTIMO_PANEL = p;
     pintarEstadoTecho();
     mirarSiTrabajoElOtro(p);
@@ -3710,6 +3707,44 @@ async function pintarIdentidad() {
   } catch (e) { /* la barra ya trae los valores de la casa escritos en el HTML */ }
 }
 let IDENTIDAD = null;
+
+/* ── El isotipo oficial, y el ícono de la pestaña ──────────────────────────
+   Quién decide si están: el navegador, cargándolos. No el servidor contestando «hay
+   marca» en cada consulta del panel —eran cuatro `stat()` por sondeo para responder
+   algo que no cambia— ni una comprobación al abrir un legajo, porque entonces el
+   índice de legajos, que no tiene panel, se quedaba con el monograma mientras el
+   resto de la aplicación mostraba el isotipo.
+
+   Si el archivo está, el isotipo entra y el monograma se va: son dos maneras de
+   decir lo mismo y una sola tiene que quedar. Si no está, no pasa nada y la barra
+   funciona igual, que es la condición de todo esto. */
+(function marcaInstitucional() {
+  const iso = document.getElementById('identidad-oficial');
+  const mono = document.getElementById('monograma');
+  if (iso) {
+    const decidir = () => {
+      const hay = iso.complete && iso.naturalWidth > 0;
+      iso.hidden = !hay;
+      if (mono) mono.hidden = hay;
+    };
+    // Los dos eventos Y una decisión ahora mismo: app.js se carga al final del cuerpo,
+    // así que cuando llega acá la imagen puede estar cargada hace rato y el `load` ya
+    // pasó. Escuchando solamente, el isotipo no aparecía nunca —y lo peor es que
+    // aparecía en la máquina lenta, que es donde uno prueba—.
+    iso.addEventListener('load', decidir);
+    iso.addEventListener('error', decidir);
+    decidir();
+  }
+  // El ícono de pestaña no se declara en el HTML: sin archivo, ese `<link>` dejaría
+  // la pestaña sin ningún ícono. Se prueba primero y se pone después; mientras
+  // tanto manda el monograma embebido, que no depende de nada.
+  const prueba = new Image();
+  prueba.addEventListener('load', () => {
+    const l = document.querySelector('link[rel="icon"]');
+    if (l) l.href = '/marca?que=icono';
+  });
+  prueba.src = '/marca?que=icono';
+})();
 
 /* El orden importa. Antes se pintaba la pantalla y DESPUÉS se preguntaba qué legajo
    había: sobre una instalación recién puesta eso mostraba el panel entero en cero y
