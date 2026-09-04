@@ -1661,6 +1661,18 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 .folio-lado .lienzo img{width:100%; display:block}
 .folio-lado .chip{align-self:flex-start}
 
+/* Otro documento con el mismo contratado, período e importe. Es una SOSPECHA y se ve
+   como tal: va en el carril de interpretación —serif en bastardilla, sobre su propio
+   fondo, con su filete al costado— y no con el tratamiento de un dato leído. Dos
+   contratos con los mismos datos también pueden ser dos contratos reales, así que el
+   sistema lo pregunta y no borra ni fusiona nada. */
+.mismo-papel{margin:7px 0 0; padding:7px 10px; font-family:var(--serif);
+  font-style:italic; font-size:var(--t-13); line-height:1.45; color:var(--tinta-2);
+  background:var(--interp); border-left:2px solid var(--interp-filete);
+  border-radius:0 var(--radio) var(--radio) 0}
+.mismo-papel strong{font-style:normal; color:var(--tinta)}
+.mismo-papel a{font-family:var(--mono); font-style:normal; font-size:var(--t-12)}
+
 /* ── No se decide sin ver ──────────────────────────────────────────────────
    Cuando el recorte no está o no cargó, los controles no se esconden —esconderlos
    haría creer que el campo no se puede trabajar, y no es eso lo que pasa— sino que

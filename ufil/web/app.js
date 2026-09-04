@@ -1770,6 +1770,12 @@ async function vCola(campoId) {
   colaEstado = {filas, foco: pedido >= 0 ? pedido : 0,
                 total: r.total, total_sin_filtro: r.total_sin_filtro,
                 revisados: r.revisados || 0, revisores: r.revisores || [],
+                // Cuántas filas nos entregó el servidor, que NO es lo mismo que
+                // cuántas estamos mostrando: si una llega repetida se descarta, y la
+                // próxima página igual tiene que pedirse más adelante. Contando por
+                // las mostradas, una página entera de repetidas volvía a pedir la
+                // misma página para siempre.
+                traidas: filas.length,
                 opciones: r.opciones, cargando: false};
   if (!r.total_sin_filtro) {
     vista.innerHTML = bloque('f. 0006', 'Cola', `<h2>Cola de revisión</h2>
@@ -1918,26 +1924,34 @@ async function vCola(campoId) {
 /* Trae la página siguiente y la agrega abajo, sin repintar lo que ya está. Repintar
    perdería el lugar donde estabas, que es lo único que la cola tiene que respetar. */
 async function traerMasCola() {
-  if (colaEstado.cargando || colaEstado.filas.length >= colaEstado.total) return;
+  if (colaEstado.cargando || colaEstado.traidas >= colaEstado.total) return;
   colaEstado.cargando = true;
   const boton = $('#mas-cola');
   if (boton) boton.textContent = 'buscando…';
   try {
-    const p = new URLSearchParams({desde: String(colaEstado.filas.length),
+    const p = new URLSearchParams({desde: String(colaEstado.traidas),
                                    limite: String(POR_PAGINA)});
     for (const k of ['familia', 'campo', 'clase']) if (filtroCola[k]) p.set(k, filtroCola[k]);
     const r = await api('/api/cola?' + p);
+    // Sin repetir lo que ya está. La página siguiente se pide por posición
+    // (`desde`), y la posición se corre cuando alguien decide un campo —el propio o
+    // el de otra persona trabajando la misma causa—: ahí una fila puede volver a
+    // caer adentro de la página que llega. Que la cuenta dé bien no alcanza; el
+    // mismo campo dos veces en la pantalla obliga a decidirlo dos veces.
+    const yaEstan = new Set(colaEstado.filas.map(x => String(x.campo_id)));
+    const frescas = r.filas.filter(x => !yaEstan.has(String(x.campo_id)));
+    colaEstado.traidas += r.filas.length;
     const desde = colaEstado.filas.length;
-    colaEstado.filas = colaEstado.filas.concat(r.filas);
+    colaEstado.filas = colaEstado.filas.concat(frescas);
     colaEstado.total = r.total;
     const cola = $('#cola');
-    const nuevas = r.filas.map((f, i) => filaCola(f, desde + i)).join('');
+    const nuevas = frescas.map((f, i) => filaCola(f, desde + i)).join('');
     if (boton) boton.remove();
     cola.insertAdjacentHTML('beforeend', nuevas);
-    if (colaEstado.filas.length < r.total) {
+    if (colaEstado.traidas < r.total) {
       cola.insertAdjacentHTML('beforeend', `<button class="mas-cola" id="mas-cola">Traer
-        ${plural(Math.min(POR_PAGINA, r.total - colaEstado.filas.length), 'campo más', 'campos más')}
-        <span>quedan ${fmtNum.format(r.total - colaEstado.filas.length)}</span></button>`);
+        ${plural(Math.min(POR_PAGINA, r.total - colaEstado.traidas), 'campo más', 'campos más')}
+        <span>quedan ${fmtNum.format(r.total - colaEstado.traidas)}</span></button>`);
       $('#mas-cola').onclick = () => traerMasCola();
     }
     engancharFilasCola();
@@ -2043,6 +2057,22 @@ function filaCola(f, i) {
         : `<span class="nulo">${esc(MOTIVO_NULO[f.motivo] || f.motivo)}</span>`
       } ${barraConf(f.confianza)}</div>`;
 
+  /* Cuando otro documento tiene el mismo contratado, el mismo período y el mismo
+     importe. Es una SOSPECHA y está dicha como tal: dos contratos con los mismos datos
+     también pueden ser dos contratos reales, y el sistema no borra ni fusiona nada.
+     Pero quien está revisando tiene que enterarse ahí, no después. */
+  const mp = f.mismo_papel;
+  const repetido = (mp && mp.otros && mp.otros.length)
+    ? `<p class="mismo-papel">${mp.seguro
+        ? `Otro documento tiene el mismo contratado, período <strong>e importe</strong>:
+           puede ser el mismo papel cargado dos veces.`
+        : `Otro documento tiene el mismo contratado y el mismo período.
+           <strong>Si el importe también coincide, es el mismo papel cargado dos
+           veces</strong>; si no coincide, son dos contratos que se pisan.`}
+         ${mp.otros.map(o => `<a href="#/documento/${o.documento_id}"
+             >${esc(o.archivo || 'documento ' + o.documento_id)}</a>`).join(', ')}</p>`
+    : '';
+
   const propuesta = (f.propuesta && f.propuesta.ilegible)
     ? `<div class="propuesta ilegible">
          <span class="de-donde">propuesta · ${esc(f.propuesta.modelo)}</span>
@@ -2071,6 +2101,7 @@ function filaCola(f, i) {
           ? `<span class="porque">${esc(FAMILIA_DOC[f.familia])}</span>` : ''}
       </div>
       ${cuerpo}
+      ${repetido}
       ${propuesta}
     </div>
     <div class="acc">${acciones.map(boton).join('')}</div>
@@ -2237,7 +2268,12 @@ function pintarFoco() {
     if (ir) ir.href = '#/documento/' + f.documento_id;
     // De dónde sale: documento, foja y campo, en una línea y en mono.
     const proc = $('#ficha-procedencia');
-    if (proc) proc.textContent = [FAMILIA_DOC[f.familia] || 'Documento',
+    // El NOMBRE DEL ARCHIVO va primero, y no la familia. La familia es «Contrato» en
+    // las cuarenta y dos filas de la cola: no distingue nada. Lo que distingue es de
+    // qué papel salió esto, y sin eso dos campos del mismo tipo se ven idénticos —tres
+    // contratos de la misma persona con el mismo importe son tres pantallas iguales— y
+    // parece que el sistema muestra el mismo campo una y otra vez.
+    if (proc) proc.textContent = [f.archivo || 'Documento',
                                   f.pagina_nro != null ? 'f. ' + f.pagina_nro : '',
                                   rotularCampo(f.campo, f.familia)]
                                  .filter(Boolean).join(' · ');
@@ -2356,6 +2392,10 @@ function sacarDeLaCola(campoId) {
   const i = colaEstado.filas.findIndex(f => String(f.campo_id) === String(campoId));
   if (i < 0) return;
   colaEstado.filas.splice(i, 1);
+  // También sale de la lista del servidor, así que la posición desde la que hay que
+  // pedir la página siguiente retrocede una. Sin esto se saltearía un campo por cada
+  // decisión tomada, y son campos que nadie volvería a ver.
+  colaEstado.traidas = Math.max(0, (colaEstado.traidas || 0) - 1);
   colaEstado.total = Math.max(0, colaEstado.total - 1);
   colaEstado.total_sin_filtro = Math.max(0, colaEstado.total_sin_filtro - 1);
   const filas = [...vista.querySelectorAll('.fila')];

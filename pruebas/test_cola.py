@@ -438,3 +438,229 @@ class ElAvanceDeLaColaNoMiente(unittest.TestCase):
         self.assertEqual([(x["quien"], x["n"]) for x in r["revisores"]], [("ana", 1)])
         self.assertEqual(sum(x["n"] for x in r["revisores"]), r["revisados"],
                          "el reparto por persona no suma el total")
+
+
+class NingunCampoSePideDosVeces(LaColaNoEscondeTrabajo):
+    """
+    «A veces aparece lo mismo para corregir más de una vez», dicho por quien la usa.
+
+    La cola se pide por páginas y la página se pide por POSICIÓN (`desde`). La posición
+    se corre sola cuando alguien decide un campo: el campo sale de la cola, la lista del
+    servidor se acorta, y todo lo que venía atrás sube un lugar. Si la pantalla sigue
+    pidiendo desde donde pidió antes, la fila que subió al hueco vuelve a llegar y hay
+    que decidirla dos veces; y si descuenta de más, se saltea un campo que nadie va a
+    ver nunca —que es peor, porque no se nota—.
+
+    Estas pruebas recorren la cola entera decidiendo campos por el medio, que es lo que
+    pasa de verdad, y verifican las dos cosas: ninguno repetido, ninguno perdido.
+    """
+
+    def _decidir(self, campo_id):
+        aplicar(self.cx, campo_id, "verificar", None, "escribiente")
+
+    def test_la_consulta_nunca_devuelve_dos_veces_el_mismo_campo(self):
+        """Antes de paginar: la cola de una sola página no puede traer repetidos."""
+        from ufil.servidor import api_cola
+        self._muchos(120)
+        r = api_cola(self.cx, limite=500)
+        ids = [f["campo_id"] for f in r["filas"]]
+        self.assertEqual(len(ids), len(set(ids)),
+                         "la consulta de la cola devuelve el mismo campo más de una vez")
+
+    def test_paginar_decidiendo_por_el_medio_no_repite_ni_pierde(self):
+        """
+        Se imita lo que hace la pantalla: pedir una página, decidir algunos campos de
+        esa página, y pedir la siguiente desde la posición que corresponde. La cuenta
+        que lleva la pantalla es `traidas` —cuántas entregó el servidor— menos una por
+        cada campo que salió de la cola.
+        """
+        from ufil.servidor import api_cola
+        self._muchos(120)                                  # 121 con el de setUp
+        vistos, decididos, traidas, total = [], set(), 0, 121
+        # Se para donde para la pantalla: cuando lo entregado alcanza el total. Si la
+        # posición se lleva mal, acá es donde se pierden campos —la cola dice que no
+        # queda nada y quedaba—, y por eso el corte tiene que ser el mismo.
+        for vuelta in range(40):
+            if traidas >= total:
+                break
+            r = api_cola(self.cx, desde=traidas, limite=20)
+            if not r["filas"]:
+                break
+            total = r["total"]
+            traidas += len(r["filas"])
+            for f in r["filas"]:
+                vistos.append(f["campo_id"])
+            # Se deciden dos de cada página, uno del medio y el último.
+            for f in (r["filas"][len(r["filas"]) // 2], r["filas"][-1]):
+                if f["campo_id"] not in decididos:
+                    self._decidir(f["campo_id"])
+                    decididos.add(f["campo_id"])
+                    traidas -= 1
+        self.assertEqual(len(vistos), len(set(vistos)),
+                         "un campo llegó dos veces mientras se paginaba y se decidía: "
+                         f"repetidos {len(vistos) - len(set(vistos))}")
+        # Y no se perdió ninguno. La pantalla dejó de pedir porque cree que ya tiene
+        # la cola entera: entonces TODO lo que sigue esperando revisión tiene que
+        # haber pasado por ella. Un campo que sigue en la cola y nunca se mostró es
+        # trabajo que el sistema esconde —el botón de «traer más» ya no está— y nadie
+        # se entera, que es peor que verlo dos veces.
+        quedan = {f["campo_id"] for f in api_cola(self.cx, limite=500)["filas"]}
+        escondidos = quedan - set(vistos)
+        self.assertEqual(
+            escondidos, set(),
+            f"{len(escondidos)} campos siguen en la cola y nunca se mostraron: la "
+            "pantalla dejó de pedir creyendo que ya los tenía")
+
+    def test_la_pantalla_no_agrega_dos_veces_la_misma_fila(self):
+        """
+        Y aunque el servidor llegara a mandar una repetida —porque otra persona decidió
+        algo mientras tanto—, la pantalla no la dibuja dos veces.
+        """
+        app = (Path(__file__).resolve().parent.parent
+               / "ufil/web/app.js").read_text(encoding="utf-8")
+        for aguja, queja in (
+                ("const yaEstan = new Set(colaEstado.filas.map", "no se comparan los ids"),
+                ("!yaEstan.has(String(x.campo_id))", "no se filtran las repetidas"),
+                ("colaEstado.traidas += r.filas.length",
+                 "la posición se lleva por las filas MOSTRADAS: una página entera de "
+                 "repetidas volvería a pedir la misma página para siempre"),
+                ("colaEstado.traidas = Math.max(0, (colaEstado.traidas || 0) - 1)",
+                 "al sacar un campo de la cola no retrocede la posición: se saltea uno")):
+            self.assertIn(aguja, app, queja)
+
+
+class ElMismoPapelDosVecesSeAvisaMientrasSeRevisa(UnCampoEnLaCola):
+    """
+    El mismo contrato entrando dos veces desde archivos distintos ya lo detecta la
+    consulta 08... mirando sólo los campos FIRMES, o sea después de revisar. Mientras
+    se revisa —que es cuando alguien dice «esto ya lo vi»— no lo ve nadie, porque los
+    valores que lo delatarían son justamente los que están esperando en la cola.
+
+    Acá se avisa con los valores provisionales, con la misma definición: mismo
+    contratado, mismo período y mismo importe. Es una SOSPECHA y así se dice: dos
+    contratos con los mismos datos también pueden ser dos contratos reales, y el
+    sistema no borra ni fusiona nada.
+    """
+
+    def _papel(self, sha, cuil, desde, hasta, monto, estado=None):
+        """Un contrato completo, con sus campos y su normalización."""
+        estado = estado or cf.PENDIENTE_BAJA
+        self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,
+                                                paginas,ingerido_en)
+                           VALUES (?,?,?,1,1,?)""",
+                        (sha, f"/x/{sha}.pdf", f"{sha}.pdf", ahora()))
+        self.cx.execute("INSERT INTO pagina (sha256,nro,ancho_pt,alto_pt) VALUES (?,1,595,842)",
+                        (sha,))
+        d = self.cx.execute("""INSERT INTO documento (sha256,orden,pagina_desde,
+                                                      pagina_hasta,tipo,perfil)
+                               VALUES (?,1,1,1,'contrato_obra','p')""", (sha,)).lastrowid
+        for nombre, literal, norm in (("documento", cuil, cuil),
+                                      ("fecha_inicio", desde, desde),
+                                      ("fecha_fin", hasta, hasta),
+                                      ("monto", f"$ {monto}", str(monto))):
+            c = self.cx.execute("""INSERT INTO campo (documento_id,nombre,valor_literal,
+                                                      pagina_nro,x0,y0,x1,y1,confianza,estado)
+                                   VALUES (?,?,?,1,10,10,90,30,0.4,?)""",
+                                (d, nombre, literal, estado)).lastrowid
+            self.cx.execute("INSERT INTO normalizacion (campo_id,tipo,valor_norm) VALUES (?,?,?)",
+                            (c, nombre, norm))
+        self.cx.commit()
+        return d
+
+    def test_avisa_cuando_los_cuatro_datos_coinciden(self):
+        from ufil.servidor import api_cola
+        a = self._papel("aa" * 32, "20-11111111-1", "2023-01-01", "2023-06-30", 210000)
+        b = self._papel("bb" * 32, "20-11111111-1", "2023-01-01", "2023-06-30", 210000)
+        filas = api_cola(self.cx, limite=500)["filas"]
+        de_a = [f for f in filas if f["documento_id"] == a]
+        self.assertTrue(de_a, "el documento no llegó a la cola")
+        for f in de_a:
+            aviso = f.get("mismo_papel") or {}
+            self.assertEqual([o["documento_id"] for o in aviso.get("otros", [])], [b],
+                             "no avisa que el mismo papel está cargado dos veces")
+            self.assertTrue(aviso.get("seguro"),
+                            "con los cuatro datos leídos y coincidiendo, el aviso no "
+                            "tiene por qué andar con vueltas")
+        # Y el aviso es recíproco: mirando el otro también tiene que decirlo.
+        for f in [f for f in filas if f["documento_id"] == b]:
+            self.assertEqual([o["documento_id"] for o in f["mismo_papel"]["otros"]], [a])
+
+    def test_no_marca_a_quien_tiene_varios_contratos(self):
+        """
+        El campo «documento» de un contrato es el CUIL del contratado, no un número de
+        contrato. Agrupar sólo por ahí marcaría como repetido al que tiene cinco
+        contratos, que es exactamente lo que esta causa investiga: sería el sistema
+        tapando el hallazgo con un cartel de error.
+        """
+        from ufil.servidor import api_cola
+        self._papel("cc" * 32, "20-22222222-2", "2023-01-01", "2023-06-30", 210000)
+        self._papel("dd" * 32, "20-22222222-2", "2023-07-01", "2023-12-31", 260000)
+        for f in api_cola(self.cx, limite=500)["filas"]:
+            self.assertFalse(f.get("mismo_papel"),
+                             "marcó como papel repetido a dos contratos distintos de "
+                             "la misma persona, que es el hallazgo de la causa")
+
+    def test_con_el_importe_sin_leer_avisa_pero_no_afirma(self):
+        """
+        Es el caso NORMAL mientras se revisa: el importe es justo lo que está en la
+        cola esperando. Requiriendo los cuatro datos, el aviso no aparecía nunca en el
+        único momento en que sirve. Con tres, aparece —y dice qué falta comprobar.
+        """
+        from ufil.servidor import api_cola
+        a = self._papel("ee" * 32, "20-33333333-3", "2023-01-01", "2023-06-30", 0)
+        b = self._papel("ff" * 32, "20-33333333-3", "2023-01-01", "2023-06-30", 0)
+        # Se les borra el importe a los dos, como si nadie lo hubiera podido leer.
+        self.cx.execute("""DELETE FROM normalizacion WHERE campo_id IN
+                             (SELECT id FROM campo WHERE nombre='monto'
+                               AND documento_id IN (?,?))""", (a, b))
+        self.cx.commit()
+        avisos = [f for f in api_cola(self.cx, limite=500)["filas"]
+                  if f["documento_id"] in (a, b) and f.get("mismo_papel")]
+        self.assertTrue(avisos, "sin el importe leído dejó de avisar, que es justo "
+                                "cuando hace falta: el importe está en la cola")
+        for f in avisos:
+            self.assertFalse(f["mismo_papel"]["seguro"],
+                             "afirma que es el mismo papel sin haber comparado el "
+                             "importe, que es lo único que lo distingue de dos "
+                             "contratos que se pisan")
+
+    def test_dos_contratos_que_se_pisan_no_son_un_papel_repetido(self):
+        """
+        Mismo contratado, mismo período, importes DISTINTOS: eso no es un papel
+        cargado dos veces, es el hallazgo que esta causa busca. Marcarlo como error
+        del sistema sería taparlo.
+        """
+        from ufil.servidor import api_cola
+        a = self._papel("1a" * 32, "20-44444444-4", "2023-01-01", "2023-06-30", 210000)
+        b = self._papel("1b" * 32, "20-44444444-4", "2023-01-01", "2023-06-30", 380000)
+        for f in api_cola(self.cx, limite=500)["filas"]:
+            if f["documento_id"] in (a, b):
+                self.assertFalse(f.get("mismo_papel"),
+                                 "llamó «papel repetido» a dos contratos que se pisan "
+                                 "por importes distintos: eso es el hallazgo, no un error")
+
+    def test_sin_datos_suficientes_no_inventa(self):
+        """Con un solo campo leído no hay con qué comparar, y no se dice nada."""
+        from ufil.servidor import api_cola
+        for f in api_cola(self.cx, limite=500)["filas"]:
+            self.assertFalse(f.get("mismo_papel"))
+
+    def test_la_pantalla_lo_dice_como_sospecha_y_no_como_dato(self):
+        """
+        Va en el carril de interpretación —§5 del pliego—: dos contratos con los mismos
+        datos también pueden ser dos contratos reales.
+        """
+        raiz = Path(__file__).resolve().parent.parent
+        app = (raiz / "ufil/web/app.js").read_text(encoding="utf-8")
+        css = (raiz / "ufil/web/estilo.css").read_text(encoding="utf-8")
+        self.assertIn("puede ser el mismo papel cargado dos veces", app,
+                      "el aviso afirma en vez de preguntar, o no está")
+        self.assertIn("Si el importe también coincide", app,
+                      "sin el importe leído el aviso tiene que decir qué falta "
+                      "comprobar, no afirmar")
+        import re
+        cuerpo = re.search(r"\.mismo-papel\{([^{}]*)\}", css)
+        self.assertIsNotNone(cuerpo, "el aviso no tiene tratamiento propio")
+        self.assertIn("italic", cuerpo.group(1),
+                      "una sospecha con el aspecto de un dato leído es lo que la "
+                      "regla de los dos carriles existe para impedir")

@@ -664,6 +664,63 @@ def api_cola(cx, filtros=None, desde=0, limite=POR_PAGINA) -> dict:
         if r:
             f["propuesta"] = dict(r)
 
+    # ── ¿Este papel ya está en la cola? ───────────────────────────────────
+    #
+    # El mismo contrato entrando dos veces desde archivos distintos es lo que detecta
+    # la consulta 08... pero mirando SÓLO los campos firmes, o sea después de revisar.
+    # Mientras se revisa —que es justo cuando alguien se pregunta «¿este no lo vi ya?»—
+    # no lo ve nadie, porque los valores que lo delatarían son los que están en la cola.
+    #
+    # Acá se usa la MISMA definición de la consulta 08 —mismo contratado, mismo período
+    # y mismo importe— pero sobre los valores provisionales. Es una sospecha, no un
+    # dato: dos contratos con los mismos datos también pueden ser dos contratos reales,
+    # y por eso la pantalla lo dice como pregunta y el sistema no borra ni fusiona nada.
+    #
+    # Ojo con lo que NO alcanza: el campo «documento» de un contrato es el CUIL del
+    # contratado, no un número de contrato. Agrupar sólo por ahí marcaría como repetido
+    # al que tiene cinco contratos, que es exactamente el caso que esta causa investiga.
+    firma = {}
+    for r in cx.execute("""
+            SELECT c.documento_id AS did,
+                   MAX(CASE WHEN c.nombre='documento'    THEN n.valor_norm END) AS quien,
+                   MAX(CASE WHEN c.nombre='fecha_inicio' THEN n.valor_norm END) AS desde,
+                   MAX(CASE WHEN c.nombre='fecha_fin'    THEN n.valor_norm END) AS hasta,
+                   MAX(CASE WHEN c.nombre='monto'        THEN n.valor_norm END) AS cuanto
+              FROM campo c
+              LEFT JOIN normalizacion n ON n.campo_id = c.id
+             GROUP BY c.documento_id"""):
+        clave = (r["quien"], r["desde"], r["hasta"])
+        if all(x is not None for x in clave):
+            firma.setdefault(clave, []).append((r["did"], r["cuanto"]))
+    mismo_papel = {}
+    for grupo in firma.values():
+        if len(grupo) < 2:
+            continue
+        # El importe es lo que separa las dos cosas que se ven igual:
+        #   · mismo contratado, mismo período, MISMO importe → el mismo papel dos veces;
+        #   · mismo contratado, mismo período, OTRO importe  → dos contratos de verdad
+        #     pisándose, que es el hallazgo que esta causa busca. Marcarlo como
+        #     «repetido» sería el sistema tapando el hallazgo con un cartel de error.
+        importes = {c for _, c in grupo if c is not None}
+        if len(importes) > 1:
+            continue
+        # Y si el importe todavía no se leyó en ninguno —que es lo normal mientras se
+        # revisa, porque es justo lo que está en la cola— no se afirma: se dice lo que
+        # se sabe y lo que falta comprobar. La pantalla cambia la frase con esto.
+        seguro = len(importes) == 1 and all(c is not None for _, c in grupo)
+        for d, _ in grupo:
+            mismo_papel[d] = {"otros": [x for x, _ in grupo if x != d], "seguro": seguro}
+    if mismo_papel:
+        nombres = {r["documento_id"]: r["archivo"] for r in cx.execute(
+            "SELECT documento_id, archivo FROM v_documento_todo")}
+        for f in filas:
+            aviso = mismo_papel.get(f["documento_id"])
+            if aviso:
+                f["mismo_papel"] = {
+                    "seguro": aviso["seguro"],
+                    "otros": [{"documento_id": d, "archivo": nombres.get(d)}
+                              for d in aviso["otros"]]}
+
     for f in filas:
         if f["clase"] == "conflicto":
             k = cx.execute("""SELECT id FROM conflicto WHERE documento_id=? AND campo_nombre=?
