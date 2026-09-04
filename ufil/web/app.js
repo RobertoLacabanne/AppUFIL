@@ -139,11 +139,14 @@ const CLASE_COLA = {conflicto:'Dos lecturas distintas', nulo:'No se pudo leer',
    es. Decía «Ø ausente, firme»: la Ø es notación interna del sistema y «firme» es
    vocabulario del modelo de confianza. Nada de eso le dice a alguien qué está por
    afirmar. */
+/* El botón dice la ACCIÓN; el diagnóstico ya está arriba, en el lugar del valor.
+   Decía «está escrito a mano y no se lee» abajo de un «está escrito a mano»: el mismo
+   motivo dos veces en la misma tarjeta, y en un teléfono uno abajo del otro. */
 const TEXTO_CIERRE = {
-  ausente: 'no está en el documento',
-  ilegible: 'está impreso pero no se lee',
-  ambiguo: 'no se puede saber cuál es',
-  manuscrito: 'está escrito a mano y no se lee',
+  ausente: 'confirmar que no está',
+  ilegible: 'confirmar que no se lee',
+  ambiguo: 'confirmar que no se puede saber cuál es',
+  manuscrito: 'confirmar que no se lee',
 };
 
 const MOTIVO_NULO = {
@@ -1713,9 +1716,18 @@ function tripasAvance(hechos, universo, revisores, donde, cuantos) {
   const posicion = cuantos
     ? `<span class="donde">Campo <strong>${fmtNum.format(donde + 1)}</strong> de
         ${fmtNum.format(cuantos)}</span> · ` : '';
+  /* Y el total, una sola vez. «Campo 1 de 78 · 0 de 78 campos revisados» pone el 78
+     dos veces en el mismo renglón, que en un teléfono es el renglón entero. Cuando
+     los dos totales son el mismo número —o sea, sin filtro puesto— alcanza con
+     «0 revisados». Con un filtro puesto NO son el mismo número y los dos hacen falta:
+     uno es lo que estás recorriendo y el otro es el legajo. */
+  const repetido = posicion && universo === cuantos;
+  const cuenta = repetido
+    ? `<strong>${fmtNum.format(hechos)}</strong> ${hechos === 1 ? 'revisado' : 'revisados'}`
+    : `<strong>${fmtNum.format(hechos)}</strong> de ${fmtNum.format(universo)} ${
+        universo === 1 ? 'campo revisado' : 'campos revisados'}`;
   return `<div class="riel"><i style="width:${pct}%"></i></div>
-    <p>${posicion}<strong>${fmtNum.format(hechos)}</strong> de ${fmtNum.format(universo)}
-      ${universo === 1 ? 'campo revisado' : 'campos revisados'}${detalle}.</p>`;
+    <p>${posicion}${cuenta}${detalle}.</p>`;
 }
 
 /* Vuelve a pintar el avance con lo que la pantalla ya sabe, sin ir al servidor. */
@@ -1795,7 +1807,15 @@ async function vCola(campoId) {
     <div class="taller">
       <header class="taller-cabeza">
         <div>
-          <h2>Cola de revisión</h2>
+          <!-- El título y «ver la lista» en el mismo renglón. La lista es OTRA manera
+               de mirar lo mismo, así que va donde dice qué se está mirando; abajo, al
+               lado de los botones de avanzar, le comía a la decisión los píxeles que
+               necesita para entrar en la misma pantalla que el recorte. -->
+          <div class="cabeza-fila">
+            <h2>Cola de revisión</h2>
+            <button class="boton gris ficha-lista" id="ficha-lista" type="button"
+                    >Ver la lista</button>
+          </div>
           <!-- Sin el número acá. Este subtítulo se pinta una sola vez, cuando se
                abre la cola, y la cola baja con cada decisión: a los cinco campos
                revisados decía «6 campos esperan revisión» arriba de un «1 de 4», dos
@@ -1832,7 +1852,8 @@ async function vCola(campoId) {
       </details>
 
       <div class="taller-cuerpo">
-        <div class="cola" id="cola">${
+        <div class="cola" id="cola"><p class="lista-ayuda">Tocá un campo para ver la
+          foja y decidir.</p>${
           !filas.length ? vacio('Ningún campo entra en ese filtro',
             'Hay ' + plural(todas.length, 'campo esperando revisión',
                             'campos esperando revisión') +
@@ -1841,6 +1862,10 @@ async function vCola(campoId) {
             ${plural(Math.min(POR_PAGINA, r.total - filas.length), 'campo más', 'campos más')}
             <span>quedan ${fmtNum.format(r.total - filas.length)}</span></button>` : ''}</div>
         <aside class="folio-lado" id="folio-lado">
+          <!-- De dónde sale lo que estás por decidir. Primero y chiquito, y sólo en
+               el teléfono: en el escritorio eso ya lo dice la marginalia de la fila,
+               a la izquierda del campo. -->
+          <p class="ficha-procedencia mono" id="ficha-procedencia"></p>
           <div class="lupa" id="lupa"><img id="lupa-img" alt=""></div>
           <div class="pie-lamina"><span id="lupa-campo"></span><span id="lupa-xy"></span></div>
           <!-- La hoja entera va OCULTA mientras haya recorte.
@@ -1858,6 +1883,15 @@ async function vCola(campoId) {
       </div>
 
       <footer class="taller-pie">
+        <!-- Avanzar, en la zona del pulgar y sólo en el teléfono. En el escritorio se
+             baja por la lista con J y K y esto no hace falta. -->
+        <div class="ficha-avanzar">
+          <button class="tecla ficha-mover" id="ficha-antes" type="button"
+                  aria-label="Campo anterior">‹</button>
+          <span class="ficha-donde" id="ficha-donde"></span>
+          <button class="tecla ficha-mover" id="ficha-despues" type="button"
+                  aria-label="Campo siguiente">›</button>
+        </div>
         <span class="solo-teclado"><kbd>J</kbd>/<kbd>K</kbd> para moverse; las teclas de
           cada fila para decidir. <strong>Ninguna acción es «aceptar todo».</strong></span>
         <div class="deshacer-barra" id="deshacer-barra" hidden></div>
@@ -1865,6 +1899,10 @@ async function vCola(campoId) {
     </div>`;
 
   engancharFilasCola();
+  ponerModoCola(modoCola);
+  $('#ficha-antes').onclick = () => moverFicha(-1);
+  $('#ficha-despues').onclick = () => moverFicha(+1);
+  $('#ficha-lista').onclick = () => ponerModoCola(modoCola === 'ficha' ? 'lista' : 'ficha');
   [['f-familia','familia'], ['f-campo','campo'], ['f-clase','clase']].forEach(([id, clave]) => {
     const sel = $('#' + id);
     sel.value = filtroCola[clave];
@@ -1917,7 +1955,11 @@ function engancharFilasCola() {
   });
   vista.querySelectorAll('.fila').forEach(f => f.onclick = e => {
     if (e.target.closest('[data-accion]')) return;
-    colaEstado.foco = +f.dataset.i; pintarFoco();
+    colaEstado.foco = +f.dataset.i;
+    // En el teléfono la lista existe para SALTAR a un campo, no para trabajar adentro
+    // de ella: tocar una fila vuelve a la ficha, que es donde se ve el papel.
+    if (modoCola === 'lista' && esTelefono()) return ponerModoCola('ficha');
+    pintarFoco();
   });
 }
 
@@ -1963,8 +2005,11 @@ function filaCola(f, i) {
     f.variantes.forEach((v, n) => acciones.push({
       tecla: String(n + 1), valor: v.valor, de: v.ruta,
       accion: 'corregir', dato: v.valor}));
-    acciones.push({tecla: 'N', texto: 'ninguna de las dos', accion: 'ambiguo',
-                   dato: '', clase: 'secundaria'});
+    // «Ninguna de las dos» con tres variantes en pantalla es falso, y lo que está
+    // mal escrito en un botón lo lee alguien que está decidiendo sobre un legajo.
+    acciones.push({tecla: 'N', accion: 'ambiguo', dato: '', clase: 'secundaria',
+                   texto: f.variantes.length === 2 ? 'ninguna de las dos'
+                                                   : 'ninguna de esas'});
   } else if (f.motivo === 'manuscrito') {
     // Confirmar la propuesta es UNA tecla, y queda registrado como corrección humana:
     // el dato entra porque una persona lo miró contra el recorte, no porque lo dijo
@@ -1979,7 +2024,7 @@ function filaCola(f, i) {
                    accion: 'verificar', dato: '', clase: 'secundaria'});
   } else if (f.motivo) {
     acciones.push({tecla: 'C', texto: 'escribirlo a mano', accion: 'pedir', dato: ''});
-    acciones.push({tecla: 'X', texto: TEXTO_CIERRE[f.motivo] || `${f.motivo}, y queda así`,
+    acciones.push({tecla: 'X', texto: TEXTO_CIERRE[f.motivo] || 'confirmarlo y cerrarlo',
                    accion: 'verificar', dato: '', clase: 'secundaria'});
   } else {
     acciones.push({tecla: 'V', texto: 'es correcto', accion: 'verificar', dato: '',
@@ -2032,6 +2077,96 @@ function filaCola(f, i) {
   </div>`;
 }
 
+/* ── Un campo por pantalla ─────────────────────────────────────────────────
+   En el escritorio la cola es lista + panel del papel al costado, y funciona. En un
+   teléfono ese modelo no existe, porque no hay costado: el panel es uno solo y la
+   lista tiene setenta y ocho filas, así que el recorte del campo que hay que decidir
+   nunca puede estar al lado de su decisión. Acomodar el panel no alcanza —arriba de
+   la lista tapa la lista, abajo de la lista queda a setenta y ocho tarjetas de
+   distancia—: lo que cambia es la unidad de trabajo.
+
+   Modo «ficha»: un campo por pantalla, con el recorte grande arriba y la decisión en
+   la zona del pulgar. La lista completa sigue existiendo detrás de «Ver la lista»,
+   para saltar a un campo puntual y para filtrar. En el teléfono no se recorre: se
+   decide.
+
+   Es una clase en el contenedor y nada más: las filas, los botones, las teclas y
+   `decidir` son los mismos. Dos maneras de dibujar el mismo trabajo, no dos colas. */
+let modoCola = 'ficha';
+
+/* La ficha existe SÓLO en el teléfono. En el escritorio hay lista y panel al costado,
+   y ahí `modoCola` no significa nada: preguntar sólo por el modo dejaba al escritorio
+   sin `scrollIntoView`, o sea que bajar con J y K dejaba de mover la lista y el foco
+   se iba abajo del borde sin que nada se moviera. */
+const enFicha = () => modoCola === 'ficha' && esTelefono();
+
+function ponerModoCola(modo) {
+  modoCola = modo;
+  const t = vista.querySelector('.taller');
+  if (!t) return;
+  t.classList.toggle('modo-ficha', modo === 'ficha');
+  t.classList.toggle('modo-lista', modo === 'lista');
+  const b = $('#ficha-lista');
+  if (b) b.textContent = modo === 'ficha' ? 'Ver la lista' : 'Volver a la ficha';
+  // Al volver de la lista, arriba de todo: la ficha empieza por el recorte.
+  if (modo === 'ficha' && esTelefono()) window.scrollTo({top: 0});
+  pintarFoco();
+}
+
+function moverFicha(paso) {
+  colaEstado.foco = Math.max(0, Math.min(colaEstado.foco + paso,
+                                         colaEstado.filas.length - 1));
+  pintarFoco();
+}
+
+/* ── No se decide sin ver ──────────────────────────────────────────────────
+   La regla del README, cumplida acá: un control de decisión no existe si el recorte
+   del campo no está a la vista al mismo tiempo. No es una preferencia de diseño; es
+   la restricción 4 —todo dato anclado a su origen— del lado de quien decide. Un
+   «es correcto» apretado sin mirar el papel es una afirmación sin fundamento con la
+   firma de una persona encima, y eso es lo único que este sistema no puede permitir.
+
+   Se aplica sobre lo que el navegador REALMENTE cargó, no sobre lo que la base dice
+   que hay: una imagen que no llegó deja la pantalla igual de ciega que un campo sin
+   anclaje. */
+let hayQueMirar = false;
+
+function pintarSinVer(motivo) {
+  hayQueMirar = !motivo;
+  const fila = vista.querySelector('.fila.foco');
+  if (!fila) return;
+  fila.querySelectorAll('[data-accion]').forEach(b => { b.disabled = !!motivo; });
+  fila.classList.toggle('sin-ver', !!motivo);
+  let aviso = fila.querySelector('.aviso-sin-ver');
+  if (!motivo) { if (aviso) aviso.remove(); return; }
+  if (!aviso) {
+    aviso = document.createElement('p');
+    aviso.className = 'aviso-sin-ver';
+    (fila.querySelector('.acc') || fila).prepend(aviso);
+  }
+  aviso.textContent = motivo;
+}
+
+function vigilarVista(f) {
+  const lupa = $('#lupa'), recorte = $('#lupa-img'), hoja = $('#folio-cola');
+  if (!lupa) return;
+  // Con anclaje se mira el recorte; sin anclaje, la hoja entera, que es lo único con
+  // lo que se puede encontrar el campo a mano.
+  const mira = lupa.classList.contains('sin-anclaje') ? hoja : recorte;
+  const juzgar = () => {
+    if (!mira || !mira.getAttribute('src')) {
+      return pintarSinVer(f && f.pagina_nro == null
+        ? 'este campo no tiene foja escaneada: no hay con qué verificarlo'
+        : 'no hay imagen de la foja para mirar');
+    }
+    if (!mira.complete) return pintarSinVer('cargando la foja…');
+    if (!mira.naturalWidth) return pintarSinVer('no se pudo cargar la imagen de la foja');
+    pintarSinVer('');
+  };
+  if (mira) { mira.onload = juzgar; mira.onerror = juzgar; }
+  juzgar();
+}
+
 /* Encuadra el campo en la lupa: la foja entera a la derecha se ve chica, y lo que hace
    falta para decidir es leer ESE renglón. */
 function encuadrar(f) {
@@ -2058,6 +2193,7 @@ function encuadrar(f) {
       folio0.removeAttribute('src');
       hoja.hidden = true;
     }
+    vigilarVista(f);
     return;
   }
   lupa.classList.remove('sin-anclaje');
@@ -2078,6 +2214,7 @@ function encuadrar(f) {
   // Con recorte, la hoja entera se apaga: el anclaje ya lo dice el pie —foja y
   // aumento— y una página de 250 px en la que no se lee una palabra sólo ocupa lugar.
   $('#lienzo-cola').hidden = true;
+  vigilarVista(f);
 }
 
 function pintarFoco() {
@@ -2085,7 +2222,10 @@ function pintarFoco() {
   if (!filas.length) return;
   colaEstado.foco = Math.max(0, Math.min(colaEstado.foco, filas.length - 1));
   filas.forEach((f, i) => f.classList.toggle('foco', i === colaEstado.foco));
-  filas[colaEstado.foco].scrollIntoView({block: 'nearest'});
+  // En modo ficha no se desplaza nada: hay UN campo en pantalla y arriba de él está el
+  // recorte. Traer la fila «a la vista» empujaba el recorte fuera de la pantalla, que
+  // es exactamente lo que este modo existe para impedir.
+  if (!enFicha()) filas[colaEstado.foco].scrollIntoView({block: 'nearest'});
   const actual = colaEstado.filas[colaEstado.foco];
   if (actual && location.hash !== '#/cola/' + actual.campo_id) {
     history.replaceState(null, '', '#/cola/' + actual.campo_id);
@@ -2095,6 +2235,15 @@ function pintarFoco() {
     encuadrar(f);
     const ir = $('#ir-doc');
     if (ir) ir.href = '#/documento/' + f.documento_id;
+    // De dónde sale: documento, foja y campo, en una línea y en mono.
+    const proc = $('#ficha-procedencia');
+    if (proc) proc.textContent = [FAMILIA_DOC[f.familia] || 'Documento',
+                                  f.pagina_nro != null ? 'f. ' + f.pagina_nro : '',
+                                  rotularCampo(f.campo, f.familia)]
+                                 .filter(Boolean).join(' · ');
+    const donde = $('#ficha-donde');
+    if (donde) donde.textContent = `Campo ${fmtNum.format(colaEstado.foco + 1)} de ${
+      fmtNum.format(colaEstado.total || colaEstado.filas.length)}`;
   }
   // Dónde estás. «Cola de revisión» sin número no dice si faltan tres o trescientos, y
   // sin saber eso nadie puede decidir si lo termina hoy.
@@ -2148,6 +2297,10 @@ async function verRastro(campoId) {
 }
 
 async function decidir(campoId, accion, valor) {
+  // No se decide sin ver. El botón ya sale `disabled`, pero una tecla, un lector de
+  // pantalla o un `click()` disparado por otro lado no pasan por el botón: la regla
+  // se cumple también acá, que es por donde pasan todos los caminos.
+  if (!hayQueMirar) return;
   // Se pide el nombre ANTES de tocar nada. Preguntarlo después sería perder la
   // decisión que la persona acaba de tomar, y el servidor la rechaza igual sin él.
   const quien = await conRevisor();

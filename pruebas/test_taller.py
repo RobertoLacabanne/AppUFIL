@@ -217,7 +217,14 @@ class EnUnTelefonoSeEmpiezaATrabajarEnSeguida(unittest.TestCase):
     arrancaba cerca de los **1.300 px**: tres pantallas de desplazamiento cada vez que
     se entra, sólo para empezar.
 
-    Medido después del cambio: 226 px.
+    El primer arreglo bajó eso a 226 px mandando el recorte DESPUÉS de la lista, y fue
+    peor: se llegaba en seguida a una decisión que no se podía tomar, porque el papel
+    quedaba abajo de setenta y ocho tarjetas. Empezar rápido a decidir a ciegas no es
+    una mejora.
+
+    Ahora la unidad de trabajo es otra —un campo por pantalla, ver `ElTelefonoEsUnCampo
+    PorPantalla`— y lo que esta clase cuida es lo que sigue valiendo de aquel arreglo:
+    la prosa y los filtros no le comen la pantalla a la ficha.
     """
 
     def _movil(self):
@@ -247,18 +254,6 @@ class EnUnTelefonoSeEmpiezaATrabajarEnSeguida(unittest.TestCase):
         self.assertTrue(cuerpos, f"se perdió la regla «{selector}» del teléfono")
         return " ".join(cuerpos).replace(" ", "")
 
-    def test_el_recorte_de_la_foja_va_despues_de_la_lista(self):
-        """
-        En el escritorio va al costado y se mira de reojo. En el teléfono el orden
-        natural es ver qué hay que decidir y DESPUÉS mirar el papel; iba con
-        `order:-1`, o sea primero, empujando la lista una pantalla para abajo.
-        """
-        cuerpo = self._regla(".taller-cuerpo .folio-lado", self._movil())
-        self.assertIn("order:1", cuerpo,
-                      "el recorte de la foja volvió a ponerse arriba de la lista")
-        self.assertIn("position:static", cuerpo,
-                      "sigue pegado arriba: ocupa pantalla antes de la primera fila")
-
     def test_los_filtros_van_plegados(self):
         """Tres selectores de 44 px que en el caso normal —sin filtro— no dicen nada."""
         _hay(self, '<details class="taller-filtros"', APP,
@@ -273,6 +268,189 @@ class EnUnTelefonoSeEmpiezaATrabajarEnSeguida(unittest.TestCase):
         """Dice cómo funciona la pantalla y se lee una vez; cuesta dos renglones cada
         vez que se entra."""
         self.assertIn("display:none", self._regla(".taller-sub", self._movil()))
+
+
+class ElTelefonoEsUnCampoPorPantalla(unittest.TestCase):
+    """
+    La regla que esta clase existe para sostener está escrita en el README y es la
+    quinta de la casa: **no se decide sin ver**. Un control de decisión no puede
+    existir en pantalla si el recorte del campo no está a la vista al mismo tiempo.
+
+    Lo que pasó, y por lo que hace falta una prueba: por debajo de 720 px el panel del
+    recorte se mandó DESPUÉS de la lista. En un teléfono quedaban setenta y ocho
+    tarjetas de decisión, cada una con sus botones, y el papel abajo de las setenta y
+    ocho. Se podía decidir sin ver, que es lo único que este sistema no puede
+    permitir. Y la propia pantalla prometía en su subtítulo «el folio está a la vista:
+    no hace falta salir de acá».
+
+    El error no era de implementación: un panel único no puede servir a una lista de
+    setenta y ocho filas en una pantalla donde no entran los dos a la vez. Por eso en
+    el teléfono la cola deja de ser una lista y pasa a ser una ficha.
+    """
+
+    def _movil(self):
+        return EnUnTelefonoSeEmpiezaATrabajarEnSeguida._movil(self)
+
+    def _regla(self, selector, donde):
+        return EnUnTelefonoSeEmpiezaATrabajarEnSeguida._regla(self, selector, donde)
+
+    def test_el_recorte_va_antes_que_la_decision(self):
+        """
+        Si vuelve a `order:1`, el papel vuelve a quedar abajo de la lista entera.
+        """
+        cuerpo = self._regla(".taller-cuerpo .folio-lado", self._movil())
+        self.assertIn("order:-1", cuerpo,
+                      "el recorte de la foja quedó DESPUÉS de la lista: en un teléfono "
+                      "eso es decidir sin ver el papel")
+        # Y pegado arriba: un campo con cinco opciones no entra entero abajo del
+        # recorte, y bajar para llegar al último botón es volver a decidir sin ver.
+        self.assertIn("position:sticky", cuerpo,
+                      "el recorte se despega al bajar: con un conflicto de cinco "
+                      "opciones, el último botón queda sin papel a la vista")
+
+    def test_se_dibuja_un_campo_y_no_setenta_y_ocho(self):
+        movil = self._movil()
+        _hay(self, ".modo-ficha .taller-cuerpo .cola .fila:not(.foco)", movil,
+             "la ficha volvió a dibujar la lista entera: con setenta y ocho tarjetas "
+             "el recorte no puede estar al lado de su decisión")
+        self.assertIn("display:none",
+                      self._regla(".modo-ficha .taller-cuerpo .cola .fila:not(.foco)",
+                                  movil))
+
+    def test_el_recorte_es_el_elemento_mas_grande(self):
+        """
+        Es la razón por la que existe la pantalla. Estaba clavado en 132 px, que para
+        un importe manuscrito no alcanza.
+        """
+        cuerpo = self._regla(".lupa", self._movil())
+        alto = re.search(r"min-height:(\d+)vh", cuerpo)
+        self.assertIsNotNone(alto, "el recorte dejó de medirse contra la pantalla")
+        self.assertGreaterEqual(int(alto.group(1)), 30,
+                                "el recorte se achicó: abajo de 30 vh un manuscrito no "
+                                "se lee y la decisión se toma a ciegas")
+        self.assertIn("pinch-zoom", cuerpo,
+                      "sin pellizco para acercar, un manuscrito chico no se lee de una")
+
+    def test_la_lista_sigue_existiendo_para_saltar_a_un_campo(self):
+        """
+        La ficha no puede ser una cárcel: filtrar y saltar a un campo puntual siguen
+        haciendo falta. Lo que cambia es que dejan de ser la pantalla de entrada.
+        """
+        _hay(self, 'id="ficha-lista"', APP, "no hay manera de ver la lista completa")
+        _hay(self, "ponerModoCola(", APP, "el botón de la lista no cambia el modo")
+        _hay(self, "'ficha' ? 'lista' : 'ficha'", APP,
+             "el botón de la lista no alterna entre los dos modos")
+        _hay(self, "modoCola === 'lista' && esTelefono()", APP,
+             "tocar una fila de la lista tiene que volver a la ficha de ese campo: "
+             "adentro de la lista no se puede ver el papel")
+        # Y adentro de la lista no hay con qué decidir: no se ve el papel.
+        self.assertIn("display:none",
+                      self._regla(".modo-lista .taller-cuerpo .fila .acc", self._movil()),
+                      "la lista dejó los botones de decidir puestos, y ahí no hay "
+                      "recorte a la vista: es decidir a ciegas otra vez")
+
+    def test_se_avanza_sin_recorrer(self):
+        movil = self._movil()
+        for id_ in ('ficha-antes', 'ficha-despues', 'ficha-donde'):
+            _hay(self, f'id="{id_}"', APP, f"falta «{id_}» para avanzar en el teléfono")
+        _hay(self, "moverFicha(-1)", APP, "no se puede volver al campo anterior")
+        _hay(self, "moverFicha(+1)", APP, "no se puede pasar al campo siguiente")
+        # En la zona del pulgar: pegada abajo y con controles de 44 px.
+        pie = self._regla(".taller-pie", movil)
+        # Fija y no `sticky`: `sticky` con `bottom` no despega si el elemento es lo
+        # último de su contenedor, que es justo el caso. Medido: quedaba en 756→885
+        # sobre una pantalla de 844, o sea abajo del borde.
+        self.assertIn("position:fixed", pie,
+                      "la barra de avanzar tiene que estar SIEMPRE a la vista")
+        self.assertIn("bottom:0", pie)
+        self.assertIn("padding-bottom:72px", self._regla(".taller-cuerpo", movil),
+                      "sin hueco abajo, la barra fija tapa la última decisión")
+        self.assertIn("min-height:44px", self._regla(".ficha-mover", movil))
+
+    def test_los_dos_caminos_no_se_ven_iguales(self):
+        """
+        Uno escribe un dato en el legajo y el otro cierra el campo sin valor. Y la
+        diferencia no puede ser sólo el color: es la regla de la casa.
+        """
+        movil = self._movil()
+        produce = self._regla(".taller-cuerpo .acc .tecla.opcion, "
+                              ".taller-cuerpo .acc .tecla.principal", movil)
+        descarta = self._regla(".taller-cuerpo .acc .tecla.secundaria", movil)
+        self.assertIn("border-color:var(--verde)", produce)
+        self.assertIn("border-style:dashed", descarta,
+                      "los dos caminos se distinguen sólo por el color: hace falta una "
+                      "diferencia que se vea en blanco y negro")
+
+    def test_la_ficha_no_se_mete_en_el_escritorio(self):
+        """
+        `modoCola` arranca en «ficha» siempre, pero la ficha sólo existe abajo de
+        720 px. Preguntando sólo por el modo, el escritorio se quedaba sin
+        `scrollIntoView`: bajar con J y K dejaba de mover la lista y el foco se iba
+        abajo del borde sin que nada se moviera.
+        """
+        _hay(self, "modoCola === 'ficha' && esTelefono()", APP,
+             "la ficha tiene que preguntar TAMBIÉN por el ancho: en el escritorio "
+             "hay lista y panel al costado, y el modo no significa nada")
+        _hay(self, "if (!enFicha()) filas[colaEstado.foco].scrollIntoView", APP,
+             "el escritorio perdió el desplazamiento al foco")
+
+    def test_la_procedencia_va_primero_y_en_mono(self):
+        _hay(self, 'id="ficha-procedencia"', APP,
+             "la ficha no dice de dónde sale lo que se está por decidir")
+        _hay(self, 'class="ficha-procedencia mono"', APP,
+             "la procedencia va en mono: es un dato leído del documento")
+
+
+class NoSeDecideSinVer(unittest.TestCase):
+    """
+    La quinta restricción de la casa, del lado de quien decide. Un «es correcto»
+    apretado sin mirar el papel es una afirmación sin fundamento con la firma de una
+    persona encima.
+
+    Se juzga sobre lo que el navegador REALMENTE cargó, no sobre lo que la base dice
+    que hay: una imagen que no llegó deja la pantalla igual de ciega que un campo sin
+    anclaje.
+    """
+
+    def test_la_regla_esta_escrita_donde_van_las_reglas(self):
+        readme = (RAIZ / "README.md").read_text(encoding="utf-8")
+        self.assertIn("No se decide sin ver", readme,
+                      "la regla tiene que estar en el README, con las otras cuatro: "
+                      "una regla que sólo vive en el CSS se pierde en el próximo "
+                      "cambio de layout")
+
+    def test_sin_recorte_los_controles_se_apagan(self):
+        _hay(self, "function pintarSinVer", APP,
+             "se perdió la regla: sin recorte, los controles se apagan")
+        _hay(self, "b.disabled = !!motivo", APP,
+             "los controles de decisión tienen que apagarse cuando no hay qué mirar")
+        _hay(self, "aviso-sin-ver", APP,
+             "apagarlos sin decir por qué deja a la persona sin saber qué hacer")
+
+    def test_se_mira_la_imagen_y_no_la_base(self):
+        _hay(self, "mira.complete", APP,
+             "hay que esperar a que la imagen termine de cargar")
+        _hay(self, "mira.naturalWidth", APP,
+             "hay que mirar si la imagen CARGÓ: una que no llegó deja la pantalla "
+             "igual de ciega que un campo sin anclaje")
+        _hay(self, "mira.onerror = juzgar", APP,
+             "una imagen que falla tiene que apagar los controles, no dejarlos vivos")
+
+    def test_la_regla_tambien_vale_para_las_teclas(self):
+        """
+        El botón sale `disabled`, pero una tecla no pasa por el botón. La regla se
+        cumple en `decidir`, que es por donde pasan todos los caminos.
+        """
+        cuerpo = APP[APP.index("async function decidir("):]
+        cuerpo = cuerpo[:cuerpo.index("\n}\n")]
+        self.assertIn("if (!hayQueMirar) return;", cuerpo,
+                      "«decidir» decide sin comprobar que haya papel a la vista")
+
+    def test_el_aviso_se_ve_sin_color(self):
+        cuerpo = re.findall(r"\.aviso-sin-ver\{([^{}]*)\}", CSS)
+        self.assertTrue(cuerpo, "se perdió el estilo del aviso")
+        self.assertIn("border-left", cuerpo[0].replace(" ", ""),
+                      "el aviso se dice sólo con color")
 
 
 class UnSoloContadorYNoDos(unittest.TestCase):

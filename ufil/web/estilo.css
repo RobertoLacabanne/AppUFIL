@@ -1567,23 +1567,70 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 }
 @media (max-width:720px){
   .taller-cabeza, .taller-filtros, .taller-pie{padding-left:16px; padding-right:16px}
-  .taller-cuerpo .folio-lado .lienzo{display:none}
   .taller-cabeza{flex-direction:column; gap:8px}
-  
-  /* ── Empezar a trabajar sin bajar tres pantallas ────────────────────────
-     Contado en un teléfono de 390×844: antes de la primera fila que hay que decidir
-     había el techo, el título, dos renglones de prosa, la barra de avance, tres
-     selectores a ancho completo y el recorte de la foja con su botón. La primera
-     fila arrancaba cerca de los 1.300 px: tres pantallas de desplazamiento cada vez
-     que se entra, para empezar. */
 
-  /* 1. El recorte de la foja, DESPUÉS de la lista y no antes. En el escritorio va al
-        costado y se mira de reojo; en el teléfono el orden natural es ver qué hay que
-        decidir y después mirar el papel. Iba con `order:-1`, o sea primero. */
-  .taller-cuerpo .folio-lado{order:1; position:static; padding:10px 16px 12px;
-    border-top:1px solid var(--filete); border-bottom:none}
+  /* ── Un campo por pantalla ──────────────────────────────────────────────
+     Acá estaba el intento anterior, y estaba mal: se apagó la miniatura ilegible
+     —eso estuvo bien— y se mandó el panel del recorte DESPUÉS de la lista, con
+     `order:1` y sin `sticky`. Resultado medido en un teléfono de 390×844: setenta y
+     ocho tarjetas de decisión, cada una con sus botones, y el recorte del campo
+     abajo de las setenta y ocho. Se podía decidir sin ver el papel, que es
+     exactamente lo que este sistema existe para impedir.
 
-  /* 2. Los filtros, plegados. El `<summary>` vuelve a verse y la caja se cierra. */
+     El error no era de implementación: un panel único no puede servir a una lista de
+     setenta y ocho filas en una pantalla donde no entran los dos a la vez. Lo que
+     cambia es la unidad de trabajo. En el teléfono la cola deja de ser una lista y
+     pasa a ser una ficha: un campo, su recorte grande arriba, y su decisión en la
+     zona del pulgar. La lista sigue existiendo detrás de «Ver la lista».
+
+     De arriba abajo: procedencia · recorte · lo que leyó la máquina · la decisión ·
+     avanzar. */
+  /* Pegado arriba, no sólo primero. Un campo con cinco opciones —un conflicto con
+     variantes— no entra entero abajo del recorte en 844 px de alto: medido, la
+     decisión terminaba 45 px más abajo del borde. Con el recorte pegado arriba, lo
+     que se desplaza son los botones y el papel se queda; sin eso, bajar para llegar
+     al último botón es volver a decidir sin ver, que es lo que esto vino a arreglar. */
+  .taller-cuerpo .folio-lado{order:-1; position:sticky; top:var(--y-contenido);
+    z-index:18; background:var(--folio); padding:8px 16px 10px;
+    border-top:none; border-bottom:1px solid var(--filete)}
+  /* La hoja entera no va de miniatura: a 250 px no se lee una palabra. Es un destino
+     —«ver el documento completo»— y no un adorno al costado. Se enciende sola en el
+     único caso donde hace falta: cuando el sistema no encontró el campo en la foja. */
+  .taller-cuerpo .folio-lado .lienzo{max-height:38vh}
+
+  /* Modo ficha: un campo. Los demás siguen en el DOM —las teclas, el foco y el
+     contador cuentan sobre la lista entera— pero no se dibujan. */
+  .modo-ficha .taller-cuerpo .cola .fila:not(.foco){display:none}
+  .modo-ficha .taller-cuerpo .cola{padding:0}
+  .lista-ayuda{margin:0; padding:10px 16px 0; font-size:var(--t-12); color:var(--tinta-3)}
+  .modo-ficha .taller-cuerpo .fila{border:none; padding:10px 16px 4px}
+  .modo-ficha .taller-cuerpo .fila .marginalia{display:none}
+  .modo-ficha .mas-cola{display:none}
+  /* Los filtros son de la lista, no de la ficha: filtrar es recorrer, y en la ficha
+     no se recorre. Van con ella. */
+  .modo-ficha .taller-filtros{display:none}
+  .modo-ficha .taller-sub{display:none}
+  /* En la lista, la ficha de al lado no tiene sentido: se está eligiendo a cuál ir. */
+  .modo-lista .folio-lado{display:none}
+  /* Y sin el papel a la vista NO se decide, así que en la lista no hay con qué:
+     los controles no están. La lista sirve para SALTAR a un campo —se toca la fila y
+     se abre su ficha, que es donde está el recorte—. Dejarlos ahí sería dejar puesta
+     otra vez la manera de decidir a ciegas, que es lo que esto vino a sacar. */
+  .modo-lista .taller-cuerpo .fila .acc{display:none}
+  .modo-lista .lista-ayuda{display:block}
+
+  /* Los dos caminos de la decisión, distinguidos. Uno escribe un dato en el legajo y
+     el otro cierra el campo sin valor: no pueden ser dos rectángulos iguales. La
+     diferencia no la lleva el color solo —regla de la casa, DESIGN_SYSTEM.md §3— sino
+     el borde: entero el que produce un valor, punteado el que lo descarta. */
+  .taller-cuerpo .acc{gap:8px}
+  .taller-cuerpo .acc .tecla{border-color:var(--filete); padding:9px 12px;
+    font-size:13px}
+  .taller-cuerpo .acc .tecla.opcion, .taller-cuerpo .acc .tecla.principal{
+    border-color:var(--verde); background:var(--sello-suave)}
+  .taller-cuerpo .acc .tecla.secundaria{border-style:dashed; background:transparent}
+
+  /* Los filtros, plegados. El `<summary>` vuelve a verse y la caja se cierra. */
   .taller-filtros{display:block; padding:0}
   .taller-filtros > summary{display:flex; gap:9px; align-items:baseline; cursor:pointer;
     padding:12px 16px; min-height:44px; font-weight:600; font-size:13px}
@@ -1591,10 +1638,16 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
   .taller-filtros[open] > summary{margin-bottom:4px}
   .taller-filtros > label, .taller-filtros > .boton{margin:0 16px 10px}
 
-  /* 3. La prosa explicativa, sólo en el escritorio. Dice cómo funciona la pantalla y
-        se lee UNA vez; en un teléfono cuesta dos renglones cada vez que se entra. */
+  /* La prosa explicativa, sólo en el escritorio. Dice cómo funciona la pantalla y se
+     lee UNA vez; en un teléfono cuesta dos renglones cada vez que se entra. */
   .taller-sub{display:none}
 }
+
+/* La ficha y su barra de avanzar no existen en el escritorio: ahí hay lista y panel
+   al costado, y se baja con J y K. */
+.ficha-procedencia{display:none; margin:0 0 6px; font-size:11px; letter-spacing:.02em;
+  color:var(--tinta-3)}
+.ficha-avanzar, .ficha-lista, .lista-ayuda{display:none}
 
 /* La lupa: el renglón del campo, ampliado. Es lo que hace falta para decidir. */
 .lupa{position:relative; overflow:hidden; min-height:132px; background:#fff;
@@ -1607,6 +1660,16 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
 .folio-lado .lienzo{background:#fff}
 .folio-lado .lienzo img{width:100%; display:block}
 .folio-lado .chip{align-self:flex-start}
+
+/* ── No se decide sin ver ──────────────────────────────────────────────────
+   Cuando el recorte no está o no cargó, los controles no se esconden —esconderlos
+   haría creer que el campo no se puede trabajar, y no es eso lo que pasa— sino que
+   se apagan y dicen por qué. Es la regla del README puesta en pantalla: un control
+   de decisión no puede existir si el papel no está a la vista al mismo tiempo. */
+.acc .tecla:disabled{opacity:.45; cursor:not-allowed}
+.acc .tecla:disabled:hover{background:none; border-color:transparent; color:var(--tinta-2)}
+.aviso-sin-ver{margin:0 0 8px; font-size:12px; line-height:1.45; color:var(--ambar);
+  border-left:2px solid var(--ambar); padding-left:8px}
 
 /* En la cola partida las filas son más compactas: la acción está a la derecha. */
 /* 124 px es lo que entra un nombre de archivo típico en una sola línea. Los más largos
@@ -1729,20 +1792,79 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
 }
 
 /* ── La cola de revisión en un teléfono ────────────────────────────────────
-   Es la pantalla donde se trabaja, así que es la que más importa que ande. La
-   regla que la sostiene es la misma que en el escritorio: la foja tiene que estar
-   a la vista al mismo tiempo que el campo. Si hay que ir y volver, con cuarenta y
-   dos campos son ochenta y cuatro saltos y nadie lo hace.
+   Es la pantalla donde se trabaja, así que es la que más importa que ande, y la
+   regla que la sostiene es la quinta del README: **no se decide sin ver**. El
+   recorte del campo y su decisión tienen que entrar en la MISMA pantalla, sin
+   desplazarse. Todo lo de acá abajo es presupuesto de píxeles para que eso pase en
+   844 de alto, que es el teléfono más común.
 
-   Acá la lupa se clava arriba y la lista corre por debajo. La foja entera no
-   entra en una pantalla de teléfono y tampoco hace falta: para decidir alcanza
-   con leer ESE renglón, que es justo lo que la lupa muestra. */
+   Va en un bloque aparte, después de las reglas de escritorio, porque varias de
+   estas las pisan —`.lupa` está clavada en 132 px cien líneas más abajo— y a igual
+   especificidad gana la última. Escrito arriba, el recorte se quedaba en 132 px y la
+   procedencia no aparecía nunca. */
 @media (max-width:720px){
-  .folio-lado .lupa{max-height:104px}
-  /* El pie y el enlace, en un renglón: cada píxel que ocupa la lupa es un píxel que
-     le falta a la lista de abajo. */
+  /* El recorte es la razón por la que existe la pantalla, así que es el elemento más
+     grande de ella. 132 px para un importe manuscrito no alcanza. `touch-action`
+     deja el pellizco: un manuscrito chico es justo el caso donde no se lee de una. */
+  .folio-lado .lupa{min-height:30vh; max-height:34vh; touch-action:pinch-zoom}
+  /* Sin recuadro no hay nada que ampliar, y una caja vacía de 30 vh que dice «sin
+     recuadro» le come la pantalla a lo único que sirve en ese caso, que es la hoja
+     entera de abajo. Queda como un renglón. */
+  .folio-lado .lupa.sin-anclaje{min-height:30px; max-height:30px}
+  /* La hoja entera, cuando la hay, es un ASOMO y no el lugar donde se lee: para eso
+     está «ver el documento completo», que la abre a pantalla entera. Acá alcanza con
+     que se vea que existe y con poder acercarla con el pellizco. Más grande que esto
+     le come la pantalla a la decisión, que tiene que entrar sin desplazarse. */
+  .taller-cuerpo .folio-lado .lienzo{max-height:26vh; touch-action:pinch-zoom}
+  /* Y nada se esconde atrás de la barra de avanzar, que está pegada abajo. */
+  .modo-ficha .taller-cuerpo .cola{padding-bottom:12px}
+  .ficha-procedencia{display:block}
+  /* El pie y el enlace, en un renglón: cada píxel de más acá es un píxel que le falta
+     a la decisión de abajo, y la decisión tiene que entrar en la misma pantalla. */
   .folio-lado .pie-lamina{display:flex; gap:10px; flex-wrap:wrap; font-size:11px}
   .folio-lado .chip{min-height:34px; font-size:11px}
+  #ir-doc{min-height:38px; font-size:12px; padding:0 12px}
+  /* El encabezado, compacto: el título y la barra de avance no pueden costar la
+     mitad de lo que mide el recorte. */
+  .taller-cabeza{padding-top:10px; padding-bottom:8px}
+  .taller-cabeza h2{font-size:var(--t-18)}
+
+  /* Avanzar, en la zona del pulgar y pegado abajo. El `‹ ›` a los costados y el
+     «Campo 1 de 42» en el medio, que es el dato que dice si esto se termina hoy. */
+  /* Fija y no `sticky`: `sticky` con `bottom` sólo despega al elemento si su
+     contenedor sigue abajo, y acá el pie es lo último que hay adentro del taller, así
+     que no tenía de dónde levantarse y se quedaba abajo de todo. Medido: aparecía en
+     756→885 sobre una pantalla de 844. Fija, y el cuerpo le deja el hueco. */
+  .taller-pie{position:fixed; left:0; right:0; bottom:0; z-index:19;
+    background:var(--folio); border-top:1px solid var(--filete);
+    padding:8px 16px calc(8px + env(safe-area-inset-bottom))}
+  .taller-cuerpo{padding-bottom:72px}
+  .ficha-avanzar{display:flex; align-items:center; gap:10px}
+  /* `width:auto` a propósito: `.tecla` trae `width:100%`, y con eso las dos flechas
+     pedían el ancho entero de la barra cada una. La de la derecha quedaba empujada
+     fuera de la pantalla —medido: no aparecía— y el «Campo 2 de 42» del medio partido
+     en dos renglones. */
+  .ficha-mover{flex:0 0 auto; width:auto; min-width:52px; min-height:44px;
+    justify-content:center; font-size:var(--t-18); line-height:1}
+  .ficha-donde{flex:1; text-align:center; font-size:var(--t-13); color:var(--tinta-2);
+    white-space:nowrap}
+  .cabeza-fila{display:flex; align-items:center; justify-content:space-between;
+    gap:12px}
+  .ficha-lista{display:inline-flex; flex:none; min-height:38px; font-size:var(--t-12);
+    padding:0 12px}
+  /* El cuño de demostración vive pegado abajo a la derecha, que ahora es donde está
+     la barra de avanzar: se corre arriba de ella en vez de taparla. Un aviso de
+     seguridad no puede esconder un control, y un control no puede esconder el aviso. */
+  body.taller-abierto #aviso-demo{bottom:calc(74px + env(safe-area-inset-bottom))}
+  /* Y se le hace lugar, en vez de dejar que se apoye encima del último botón. El cuño
+     no se puede cerrar ni tapar —es lo que impide que una hoja con contratos
+     inventados se confunda con una de la causa— así que lo que se corre es el resto.
+     Sólo en un legajo de demostración: en uno de verdad no existe. */
+  body.con-demo .modo-ficha .taller-cuerpo{padding-bottom:126px}
+  /* Y adentro del taller va en su versión corta: el renglón explicativo lo repite el
+     `title`, y en 390 px cada palabra de más es un pedazo más de la decisión tapado.
+     El sello con el texto «Datos de demostración» se queda: eso es lo que avisa. */
+  body.taller-abierto #aviso-demo > span:not(.estado){display:none}
 
   .taller-cuerpo .fila{grid-template-columns:1fr; padding:2px 0 0}
   /* El nombre del archivo y la foja SÍ sirven acá: son lo que ubica el campo. */

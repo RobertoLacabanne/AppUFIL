@@ -539,6 +539,46 @@ Vive en `ufil/castellano.py` y en las funciones de formato de `app.js`.
 
 ---
 
+## 7 bis. La cola de revisión en un teléfono
+
+**No se decide sin ver** (restricción 5 del README). Un control de decisión no existe
+en pantalla si el recorte del campo no está a la vista al mismo tiempo. En el
+escritorio eso sale gratis —lista a la izquierda, papel al costado— y en un teléfono
+no sale de ninguna manera: no hay costado, el panel es uno solo y la lista tiene
+setenta y ocho filas.
+
+Acomodar el panel no alcanza. Arriba de la lista la tapa; abajo de la lista queda a
+setenta y ocho tarjetas de distancia, que fue lo que pasó y por lo que existe esta
+sección. Lo que cambia por debajo de 720 px es **la unidad de trabajo**:
+
+| | escritorio | teléfono |
+|---|---|---|
+| unidad | la lista | **un campo** |
+| el papel | panel fijo al costado | arriba, pegado, 30 vh mínimo |
+| avanzar | `J` / `K` | `‹ ›` fijos abajo, con «Campo 1 de 78» |
+| la lista | es la pantalla | detrás de «Ver la lista», para saltar y filtrar |
+
+De arriba abajo en la ficha: **procedencia** (mono, una línea) · **recorte** (el
+elemento más grande de la pantalla, con pellizco para acercar) · **lo que leyó la
+máquina, o el motivo** · **la decisión** (44 px cada control, en la zona del pulgar) ·
+**avanzar**.
+
+Tres cosas que la prueba sostiene y conviene no deshacer:
+
+- El recorte va `sticky` arriba, no sólo primero: un conflicto con cinco opciones no
+  entra entero abajo del recorte en 844 px, y bajar para llegar al último botón sin el
+  papel a la vista es volver a decidir a ciegas.
+- En la lista **no hay controles de decisión**. Se toca una fila y se abre su ficha.
+- Los dos caminos de la decisión se distinguen por el **borde** —entero el que produce
+  un valor, punteado el que lo descarta—, no por el color: uno escribe un dato en el
+  legajo y el otro cierra el campo sin valor.
+
+Y si el recorte no está o no cargó, los controles salen `disabled` con el motivo a la
+vista. Se juzga sobre lo que el navegador cargó de verdad, no sobre lo que la base dice
+que hay.
+
+---
+
 ## 8. Impresión
 
 Se imprime, y se imprime en blanco y negro. `@media print` quita la navegación y los

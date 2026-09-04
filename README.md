@@ -93,7 +93,7 @@ Instalación en la máquina de la fiscalía, paso por paso: [`INSTALAR.md`](INST
 
 ---
 
-## Las cuatro restricciones que gobiernan todo
+## Las cinco restricciones que gobiernan todo
 
 1. **Offline total.** Ninguna llamada de red en tiempo de ejecución. Nada por CDN,
    fuentes tipográficas incluidas. Sin Node ni paso de compilación en la máquina de
@@ -107,9 +107,21 @@ Instalación en la máquina de la fiscalía, paso por paso: [`INSTALAR.md`](INST
 4. **Todo dato numérico o de fecha está anclado a su origen:** archivo, página y
    coordenadas del recuadro. **Un valor sin coordenadas no entra en la base**, por otro
    `CHECK`.
+5. **No se decide sin ver.** Un control de decisión no existe en pantalla si el recorte
+   del campo no está a la vista **al mismo tiempo**. Vale para todos los anchos, los dos
+   temas y todas las rutas. Si el recorte no está o no cargó, los controles se apagan y
+   dicen por qué.
 
-`python3 -m ufil.cli verificar` comprueba las cuatro después de cada corrida, y devuelve
-error si alguna falla.
+Las primeras cuatro son del lado del dato; la quinta es del lado de quien lo decide, y
+existe por lo mismo: un «es correcto» apretado sin mirar el papel es una afirmación sin
+fundamento con la firma de una persona encima. Se escribió después de encontrar que en
+un teléfono se podía hacer exactamente eso —el recorte había quedado abajo de setenta y
+ocho tarjetas de decisión—, y la pantalla mientras tanto prometía «el folio está a la
+vista».
+
+`python3 -m ufil.cli verificar` comprueba las primeras cuatro después de cada corrida, y
+devuelve error si alguna falla. La quinta la sostiene `pruebas/test_taller.py`, porque
+vive en la pantalla y no en la base.
 
 ## Cuánto tarda
 
