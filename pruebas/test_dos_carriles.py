@@ -37,6 +37,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_accesibilidad import (  # noqa: E402
     CLARO, OSCURO, CSS, relacion, _resolver, _sin_comentarios)
 
+APP = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
+
 SEPARACION_MINIMA = 1.10
 LIMPIO = _sin_comentarios(CSS)
 
@@ -156,3 +158,42 @@ class LoQueFaltaSeDiceComoFalta(unittest.TestCase):
                       "la columna «Contratado/a» dejó de marcar el nulo")
         self.assertIn('class="nulo"', cuerpo,
                       "el nulo se escribe sin el componente que lo distingue de un dato")
+
+
+class LaMonoespaciadaSignificaUnaSolaCosa(unittest.TestCase):
+    """
+    §5 dice que la monoespaciada es la etiqueta de procedencia: esto salió de un papel.
+    Si algo que escribió una persona sale en mono, la etiqueta miente, y miente en el
+    lugar donde el sistema pide que se confíe.
+
+    El diálogo «¿Quién está trabajando?» lo hacía dos veces: el campo entero iba en
+    mono, y el marcador de posición era `lacabanne.r` —un usuario perfectamente
+    posible—, así que en gris y en el lugar del valor se leía como un dato ya cargado.
+    Alguien puede apretar «Listo» creyendo que ya está.
+    """
+
+    def _regla(self, selector):
+        m = re.search(re.escape(selector) + r"\{([^{}]*)\}", CSS)
+        self.assertIsNotNone(m, f"se perdió la regla «{selector}»")
+        return m.group(1).replace(" ", "")
+
+    def test_el_nombre_del_que_revisa_no_va_en_monoespaciada(self):
+        cuerpo = self._regla(".dialogo input")
+        self.assertIn("font-family:var(--sans)", cuerpo,
+                      "el nombre que escribe una persona vuelve a decir «esto salió "
+                      "de un papel»")
+        self.assertNotIn("var(--mono)", cuerpo)
+
+    def test_tampoco_los_que_ya_trabajaron(self):
+        self.assertIn("font-family:var(--sans)", self._regla("#quienes-ya .chip"),
+                      "los nombres de quienes ya trabajaron siguen en mono")
+
+    def test_el_marcador_dice_el_formato_y_no_un_nombre(self):
+        # Sin comentarios: el que cuenta la historia nombra el marcador viejo.
+        codigo = re.sub(r"<!--.*?-->", " ", APP, flags=re.S)
+        codigo = re.sub(r"/\*.*?\*/", " ", codigo, flags=re.S)
+        self.assertNotRegex(codigo, r'placeholder="[a-z]+\.[a-z]"',
+                            "el marcador volvió a ser un usuario posible, que se lee "
+                            "como un dato ya cargado")
+        self.assertIn('placeholder="apellido.nombre"', APP,
+                      "el campo dejó de decir con qué forma se escribe")

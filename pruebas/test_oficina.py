@@ -65,8 +65,10 @@ class UnaColumnaDeNumerosSeAlineaConSuRotulo(unittest.TestCase):
 
     def test_no_crece_una_columna_de_numeros(self):
         """Estirar una columna de números vuelve a alejar el número de su rótulo."""
-        i = APP.index("function cualCrece")
-        self.assertIn("num", APP[i:i + 700],
+        # Sin los comentarios: si no, la prueba depende de cuánto se explicó arriba, y
+        # falla porque alguien escribió tres renglones más de por qué.
+        codigo = re.sub(r"//[^\n]*", "", APP[APP.index("function cualCrece"):])
+        self.assertIn("num", codigo[:400],
                       "la columna que crece se elige sin mirar si es de números")
 
     def test_crece_la_columna_de_texto_mas_largo(self):

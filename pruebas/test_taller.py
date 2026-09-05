@@ -775,3 +775,54 @@ class UnSoloContadorYNoDos(unittest.TestCase):
         """Un contador que sólo se actualiza al recargar es peor que no tenerlo."""
         _hay(self, "colaEstado.foco, colaEstado.total", APP,
              "el renglón dejó de recibir la posición al repintarse")
+
+
+class CadaBotonDiceQueHaceYNoElMismoQueElDeAlLado(unittest.TestCase):
+    """
+    Debajo de la lupa había «Abrir la foja entera» y «Ver el documento completo». Por
+    el nombre eran el mismo botón dos veces, y no lo son: uno abre EL PAPEL de esta
+    foja a pantalla completa y se vuelve con Escape; el otro se va de la cola a la
+    pantalla del documento, donde están todos sus campos leídos.
+    """
+
+    def test_los_dos_botones_no_dicen_lo_mismo(self):
+        self.assertIn(">Abrir la foja entera</button>", APP)
+        self.assertIn(">Ver todos los campos del documento</a>", APP,
+                      "el segundo botón volvió a decir «el documento completo», que "
+                      "es lo mismo que dice el primero")
+
+    def test_uno_habla_del_papel_y_el_otro_de_los_datos(self):
+        """La distinción tiene que estar en las palabras, no en el orden."""
+        i = APP.index(">Abrir la foja entera</button>")
+        j = APP.index(">Ver todos los campos del documento</a>")
+        self.assertLess(abs(i - j), 900, "los dos botones dejaron de estar juntos")
+        self.assertNotIn("Ver el documento completo", APP)
+
+
+class ElMotivoSeDiceUnaSolaVezPorFila(unittest.TestCase):
+    """
+    Cada fila de la cola decía `No se pudo leer` como texto y `NO ESTÁ EN EL DOCUMENTO`
+    como chip, al lado. Es la misma cosa dicha dos veces por fila, y con sesenta y dos
+    filas en la pantalla, sesenta y dos veces. Queda la precisa —el chip, que además
+    tiene el color del estado—; se va la general.
+
+    En un conflicto y en una lectura floja no hay repetición: ahí arriba está lo único
+    que se dice, porque los valores viven en los botones.
+    """
+
+    def test_un_campo_vacio_no_repite_el_motivo(self):
+        _hay(self, "const porque = (f.clase === 'nulo'", APP,
+             "volvió el motivo general arriba del motivo preciso")
+        i = APP.index("const porque = (f.clase === 'nulo'")
+        self.assertIn("MOTIVO_NULO[f.motivo]", APP[i:i + 220],
+                      "la frase general se calla sin comprobar que la precisa esté")
+
+    def test_pero_el_conflicto_lo_sigue_diciendo(self):
+        i = APP.index("const porque = (f.clase === 'nulo'")
+        self.assertIn("CLASE_COLA[f.clase]", APP[i:i + 320],
+                      "se fue también donde era lo único que se decía: un conflicto "
+                      "quedaría sin decir por qué está en la cola")
+
+    def test_y_la_fila_usa_lo_que_se_calculo(self):
+        self.assertIn("${porque}", APP,
+                      "se calcula si el motivo se repite y después se pinta igual")

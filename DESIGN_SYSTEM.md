@@ -24,6 +24,13 @@ Si un dato leído de un escaneo aparece en sans, la pantalla está mintiendo sob
 dónde salió. Es el error más caro que se puede cometer en este sistema, y por eso la
 familia tipográfica —y no un ícono ni un color— es la que lo dice.
 
+**Y al revés vale igual.** Lo que escribió una persona no va en monoespaciada, porque
+ahí la etiqueta miente para el otro lado. Pasaba en «¿Quién está trabajando?»: el campo
+del nombre iba en mono y su marcador era `lacabanne.r` —un usuario perfectamente
+posible—, así que en gris y en el lugar del valor se leía como un dato ya cargado, y
+alguien podía apretar «Listo» creyendo que ya estaba. El marcador dice **el formato**
+(`apellido.nombre`), nunca un nombre.
+
 Las tres se sirven **desde disco** (`assets/fuentes/`). Ninguna llamada de red: el
 sistema tiene que andar en una máquina desconectada, y una tipografía que llega de un
 CDN también le cuenta a alguien que este equipo está mirando este legajo.
@@ -429,6 +436,16 @@ id, los escuchadores y el lugar en el orden de tabulación.
 El sello viejo, cuadrado y con doble filete. Sigue existiendo donde hace falta un cuño y
 no un estado: la portada de un informe, el rótulo de un bloque impreso.
 
+**Un aviso que no se puede cerrar va en la chapa, nunca flotando.** El cuño de datos de
+demostración estuvo fijo abajo a la derecha, y medido en once pantallas por tres tamaños
+tapaba un control en cuatro: «Ver el documento completo» en la cola, «son la misma
+persona» y «son distintas» en Identidad —las dos decisiones de esa pantalla—, «confirmar
+que no está» en el teléfono. Guardarle el rincón no alcanza: sobre una pantalla que se
+desplaza, lo que hay debajo del rincón cambia al bajar la página. Vive en la banda de
+arriba, que es chapa —nada pasa por debajo— y está en todas las pantallas, la cola
+incluida, que es donde se decide. En una banda angosta el aviso se dice **más corto**, no
+más chico ni cortado.
+
 ### Diálogo de confirmación — `.dialogo`
 `<dialog>` del navegador y no un `div` propio: trae solo el foco atrapado adentro,
 Escape para cerrar, y el resto de la página marcado como inerte para quien navega con
@@ -463,6 +480,13 @@ muestran igual.
 Cinco muescas. Verde ≥ 0,85, ámbar ≥ 0,5, rojo abajo. Va **además** del estado escrito,
 nunca en lugar de él.
 
+### Barra de avance — `.riel`
+Carril en `--papel-3` con filete `--filete`, relleno en `--rio`. El carril tiene que
+verse **vacío**: con un gris más flojo, al 0 % no se lee como una barra que todavía no
+avanzó sino como un renglón sucio. No lleva medida de lectura —no es prosa: se mira de
+reojo— así que ocupa el ancho de su columna; la medida de 64ch se queda en el párrafo
+que la acompaña.
+
 ### Tabla — `tabla(cols, filas, opts)`
 Siempre adentro de `.tabla-env`, que tiene `overflow-x:auto`: **el cuerpo de la página
 nunca se desplaza de costado**, la tabla sí.
@@ -491,6 +515,14 @@ misma ventana con seis columnas entra y con nueve no—:
 
 Una vez que una tabla pidió la hoja entera se la queda mientras esté en pantalla; al
 cambiar de pantalla se vuelve a medir de cero.
+
+**Ningún dato se parte, tampoco un nombre propio.** Ya estaba resuelto para el CUIL, la
+fecha y el nombre de archivo, que son UN token y llevan `nowrap`. Faltaba la persona:
+salía «BENÍTEZ, Marcelo» en un renglón y «A» en el siguiente, y esa «A» suelta no se lee
+como la inicial de nadie. La clase `nombre` quiere decir «un nombre de persona leído de
+un papel» y de ahí sale que no se parta; lo que antes lo hacía imposible era el ancho, y
+ahora si no entra la tabla se despliega. Desplegada sí puede bajar de renglón **entre
+palabras**, que es lo único que queda cuando no hay columna.
 
 Debajo de todo eso quedan las cuatro capas de fondo de `.tabla-env` como red: dos tapas
 del color del folio ancladas al **contenido** (`local`) y dos sombras ancladas al

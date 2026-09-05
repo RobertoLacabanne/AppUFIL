@@ -243,8 +243,12 @@ function pedirRevisor(yaEstan = []) {
           ).join('')}</div>` : ''}
         <label for="n-revisor">${otros.length ? 'O escribí el tuyo'
                                               : 'Apellido y nombre, o usuario'}</label>
+        <!-- El marcador dice el FORMATO, no un nombre. Decía «lacabanne.r», que es un
+             usuario perfectamente posible: en gris y en el mismo lugar donde después va
+             el valor, se lee como un dato ya cargado, y alguien puede apretar «Listo»
+             creyendo que ya está. -->
         <input id="n-revisor" autocomplete="off" spellcheck="false"
-               placeholder="lacabanne.r" value="${esc(REVISOR || '')}">
+               placeholder="apellido.nombre" value="${esc(REVISOR || '')}">
         <div class="botonera">
           <button class="boton gris" value="no" type="submit">Ahora no</button>
           <button class="boton lleno" id="b-soy" type="button">Listo</button>
@@ -353,12 +357,15 @@ function cualCrece(cols, filas) {
   let cual = -1, largo = -1, ultimaSuelta = -1;
   const sinEtiquetas = h => String(h).replace(/<[^>]*>/g, '');
   const muestra = (filas || []).slice(0, 40);
-  // Las que nunca se parten no compiten: un CUIL, una fecha, un nombre de archivo o
-  // un importe son UN token y llevan `nowrap`, así que el ancho de más no les cambia
-  // nada y se lo sacan a la que sí se estaba partiendo. Medido en la tabla de
-  // contratos: el sobrante se lo llevaba «Archivo» —19 caracteres que no se cortan—
-  // mientras «Contratado/a» partía los apellidos en dos renglones.
-  const noSeParte = c => /(^|\s)(num|mono|fol|nowrap)(\s|$)/.test(c.c || '');
+  // Las que nunca se parten no compiten: un CUIL, una fecha, un nombre de archivo, un
+  // importe o el nombre de una persona son UN token y no bajan de renglón, así que el
+  // ancho de más no les cambia nada y se lo sacan a la que sí se estaría partiendo.
+  // Medido en la tabla de contratos: el sobrante se lo llevaba «Archivo» —19
+  // caracteres que no se cortan— mientras «Contratado/a» partía los apellidos en dos
+  // renglones. Hoy «Contratado/a» tampoco se parte —lleva la clase `nombre`— así que
+  // también queda afuera del reparto, y el sobrante va a la columna que de verdad lo
+  // necesita.
+  const noSeParte = c => /(^|\s)(num|mono|fol|nowrap|nombre)(\s|$)/.test(c.c || '');
   cols.forEach((c, i) => {
     if (/(^|\s)num(\s|$)/.test(c.c || '')) return;
     ultimaSuelta = i;
@@ -1431,7 +1438,7 @@ async function vContratos() {
       {t:'Doc', k:'documento_id', c:'fol'},
       {t:'Archivo', k:'archivo', c:'fol'},
       {t:'Cámara', b:f => camaraTexto(f.camara), r:f => esc(camaraTexto(f.camara))},
-      {t:'Contratado/a', b:f => f.nombre_literal,
+      {t:'Contratado/a', c:'nombre', b:f => f.nombre_literal,
        r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo">Ø sin dato</span>'},
       {t:'Documento', c:'mono', b:f => f.documento_literal,
        r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo">Ø sin dato</span>'},
@@ -1529,7 +1536,7 @@ async function vCruce() {
       y no se puede comparar contra lo pactado como si fuera el total.</p>`);
 
   tablaBuscable($('#tabla-cruce'), [
-      {t:'Contratado/a', b:f => f.contratado,
+      {t:'Contratado/a', c:'nombre', b:f => f.contratado,
        r:f => `<a href="#/persona/${f.persona_id}">${esc(f.contratado)}</a>`},
       {t:'Documento', k:'documento', c:'mono'},
       {t:'Contratos', c:'num', k:'contratos'},
@@ -1630,7 +1637,7 @@ async function vSuperposiciones() {
          fechas se quedan donde se leen. */
       {t:'Folios', c:'fol', r:f =>
         `${nombreArchivo(f.archivo_a)}${nombreArchivo(f.archivo_b)}`},
-      {t:'Contratado/a', r:f => f.contratado ? esc(f.contratado)
+      {t:'Contratado/a', c:'nombre', r:f => f.contratado ? esc(f.contratado)
           : '<span class="nulo">Ø sin nombre</span>'},
       {t:'Documento', c:'mono', r:f => f.documento ? esc(f.documento)
           : '<span class="nulo">Ø sin dato</span>'},
@@ -2082,8 +2089,14 @@ async function vCola(campoId) {
             <img id="folio-cola" alt="">
             <div class="recuadro" id="recuadro-cola" hidden></div>
           </div>
+          <!-- Los dos botones decían casi lo mismo: «Abrir la foja entera» y «Ver el
+               documento completo». Por el nombre eran el mismo botón dos veces. Y no
+               lo son: uno abre EL PAPEL de esta foja a pantalla completa y se vuelve
+               con Escape; el otro se va de la cola a la pantalla del documento, donde
+               están todos sus campos leídos. Ahora cada uno dice cuál de las dos cosas
+               hace, y con eso también dice dónde queda uno después de apretarlo. -->
           <button class="boton" id="abrir-foja" type="button">Abrir la foja entera</button>
-          <a class="boton gris" id="ir-doc" href="#/panel">Ver el documento completo</a>
+          <a class="boton gris" id="ir-doc" href="#/panel">Ver todos los campos del documento</a>
         </aside>
       </div>
 
@@ -2280,6 +2293,16 @@ function filaCola(f, i) {
          ${f.propuesta.nota ? `<span class="nota">${esc(f.propuesta.nota)}</span>` : ''}
        </div>` : '';
 
+  /* Por qué está esperando este campo, UNA vez. En un campo vacío el motivo ya está
+     dicho abajo con tratamiento de estado —«no está en el documento»— y arriba se
+     repetía en general: «No se pudo leer» arriba y «no se puede leer» abajo, la misma
+     cosa dos veces por fila y sesenta y dos veces en la pantalla. Se va la frase
+     general y queda la precisa, que además es la que tiene el color del estado.
+     En un conflicto y en una lectura floja no hay repetición: ahí arriba está lo
+     único que se dice, porque los valores viven en los botones. */
+  const porque = (f.clase === 'nulo' && (MOTIVO_NULO[f.motivo] || f.motivo)) ? ''
+    : `<span class="porque">${esc(CLASE_COLA[f.clase] || f.clase)}</span>`;
+
   const boton = o => `<button class="tecla ${o.clase || ''} ${o.valor ? 'opcion' : ''}"
       data-campo="${f.campo_id}" data-accion="${o.accion}" data-valor="${esc(o.dato)}">
       <kbd>${o.tecla}</kbd>
@@ -2296,7 +2319,7 @@ function filaCola(f, i) {
       <div class="cabeza-campo">
         <span class="etiqueta-campo ${f.clase === 'conflicto' ? 'alerta' : ''}"
           >${esc(rotularCampo(f.campo, f.familia))}</span>
-        <span class="porque">${esc(CLASE_COLA[f.clase] || f.clase)}</span>
+        ${porque}
         ${f.familia && f.familia !== 'contrato'
           ? `<span class="porque">${esc(FAMILIA_DOC[f.familia])}</span>` : ''}
       </div>
@@ -3042,7 +3065,7 @@ function resultadosHTML(r) {
         {t:'Archivo', k:'archivo', c:'fol'},
         {t:'Campo', k:'campo'},
         {t:'Valor leído', c:'mono', r:f => esc(f.valor_literal)},
-        {t:'Contratado/a', r:f => esc(f.nombre_literal || '—')},
+        {t:'Contratado/a', c:'nombre', r:f => esc(f.nombre_literal || '—')},
         {t:'Período', c:'mono', r:f => f.inicio
             ? `${esc(fmtFecha(f.inicio))} → ${f.fin ? esc(fmtFecha(f.fin)) : '?'}` : '—'},
         {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '—' : esc(fmtPesos(f.monto_centavos))},
@@ -3072,7 +3095,7 @@ async function vPersonas() {
       sistema no los junta solo, y eso es a propósito.</p>
     <div id="tabla-personas"></div>`);
   tablaBuscable($('#tabla-personas'), [
-      {t:'Contratado/a', k:'contratado'},
+      {t:'Contratado/a', c:'nombre', k:'contratado'},
       {t:'Documento', c:'mono', b:f => f.documento,
        r:f => f.documento ? esc(f.documento) : '<span class="nulo">Ø sin dato</span>'},
       {t:'Contratos', k:'contratos', c:'num'},
@@ -3499,7 +3522,7 @@ async function vEquipo() {
         ve el resto enseguida. <strong>${plural(a.total, 'decisión tomada a mano',
         'decisiones tomadas a mano')}</strong> en este legajo.</p>
       ${tabla([
-        {t:'Quién', c:'nowrap', r:f => `<b>${esc(f.quien)}</b>` +
+        {t:'Quién', c:'nombre', r:f => `<b>${esc(f.quien)}</b>` +
           (f.quien === yo ? ' <span class="apagado">— sos vos</span>' : '')},
         {t:'Campos revisados', c:'num', r:f => fmtNum.format(f.decisiones)},
         {t:'Empezó', c:'mono', r:f => esc(cuando(f.primera))},
@@ -3512,7 +3535,7 @@ async function vEquipo() {
         documento, para poder mirar el folio.</p>
       ${tabla([
         {t:'Cuándo', c:'mono', r:f => esc(cuando(f.cuando))},
-        {t:'Quién', c:'nowrap', r:f => esc(f.quien)},
+        {t:'Quién', c:'nombre', r:f => esc(f.quien)},
         {t:'Campo', c:'nowrap', r:f => esc(rotularCampo(f.campo))},
         {t:'Qué hizo', r:f => {
           const [tono, texto] = ACCION_EQUIPO[f.accion] || ['neutro', f.accion];

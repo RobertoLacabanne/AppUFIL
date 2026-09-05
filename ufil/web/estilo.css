@@ -548,7 +548,12 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    dato: pegados se leían como una sola cadena. */
 .techo-legajo .caratula{font-size:12px; color:var(--tinta-2); overflow:hidden;
                         text-overflow:ellipsis; white-space:nowrap; margin-left:3px}
-.techo-medio{display:flex; align-items:center; gap:10px; margin-left:auto; flex:none}
+/* El lote es una PROPIEDAD del legajo, no otro identificador, y con la carátula larga
+   los dos quedaban pegados: «…Contratos Legislatura LOTE camara-A-2024» se lee como si
+   el lote fuera la cola del nombre de la causa. Un filete y aire lo separan: a la
+   izquierda del filete, qué causa; a la derecha, en qué estado está el trabajo. */
+.techo-medio{display:flex; align-items:center; gap:10px; margin-left:auto; flex:none;
+  padding-left:16px; border-left:1px solid var(--filete)}
 .techo-dato{font-size:11px; color:var(--tinta-3); white-space:nowrap}
 /* El lote tampoco es un dato leído: es una etiqueta que puso una persona al cargar el
    material. En monoespaciada se veía como algo salido de un documento, y al lado de la
@@ -1007,6 +1012,21 @@ th.crece, td.crece{width:100%}
    parta una PALABRA en cualquier lado; entre palabras sí puede bajar de renglón, que
    es lo que hace un apellido largo sin perder ninguna letra. */
 .nowrap{white-space:nowrap}
+/* ── Un nombre propio no se parte ──────────────────────────────────────────
+   Ya estaba resuelto caso por caso: el CUIL, la fecha y el nombre de archivo llevan
+   `nowrap` porque son UN token y bajarlos de renglón los destruye. Faltaba el nombre
+   de la persona, que es el dato que más se cita: en «Superposición temporal» salía
+   «BENÍTEZ, Marcelo» en un renglón y «A» en el siguiente, y esa «A» suelta no se lee
+   como la inicial de nadie.
+   Que sea una clase con nombre propio y no un tercer parche: `nombre` quiere decir
+   «un nombre de persona leído de un papel», y de ahí sale que no se parta. Lo que
+   antes lo hacía posible era el ancho —un nombre entero podía no entrar—; ahora, si
+   no entra, la tabla se despliega, así que no hay nada que ceder. */
+td.nombre, th.nombre{white-space:nowrap}
+/* Desplegada la fila ya no hay columna que apretar, y un nombre larguísimo en un
+   teléfono angosto tiene que poder bajar de renglón antes que salirse de la pantalla.
+   Entre palabras, nunca adentro de una: eso lo impide `word-break:normal`. */
+.tabla-env[data-corte="si"] td.nombre{white-space:normal}
 td.mono, td.num, td.fol, td .mono{white-space:nowrap}
 table td{overflow-wrap:normal; word-break:normal; hyphens:none}
 .fol{font-family:var(--mono); font-size:11px; color:var(--tinta-3); white-space:nowrap}
@@ -1052,6 +1072,10 @@ table td{overflow-wrap:normal; word-break:normal; hyphens:none}
       border:1px solid var(--interp-filete); color:var(--tinta-2); background:transparent;
       cursor:pointer; text-decoration:none}
 .chip:hover{background:var(--sello-suave); color:var(--tinta)}
+/* Los nombres de quienes ya trabajaron en el legajo no salieron de ningún papel: los
+   escribió una persona. En monoespaciada decían lo contrario, al lado de un campo que
+   acaba de dejar de decirlo. */
+#quienes-ya .chip{font-family:var(--sans); font-size:12px; padding:3px 9px}
 /* La consulta que se está mirando. Estaba escrito a mano en el JavaScript y quedó
    pisado por un segundo atributo `class`, así que directamente no se veía cuál era. */
 .chip.activa{background:var(--sello); border-color:var(--sello); color:var(--papel)}
@@ -1180,7 +1204,12 @@ td.acciones .mini + .mini{margin-left:5px}
 .dialogo h3{margin:0 0 4px; font-size:18px}
 .dialogo .prosa{font-size:13px; margin-bottom:12px}
 .dialogo label{display:block; font-size:12px; color:var(--tinta-2); margin-bottom:6px}
-.dialogo input{width:100%; font-family:var(--mono); font-size:18px; padding:8px 10px;
+/* Un nombre que escribe una persona NO va en monoespaciada. En este sistema la
+   monoespaciada significa una sola cosa —esto salió de un papel— y §5 la sostiene en
+   todas las pantallas; el nombre del que revisa no salió de ningún papel. Y de paso
+   arregla el marcador, que en mono y en el lugar del valor se leía como un dato ya
+   cargado. */
+.dialogo input{width:100%; font-family:var(--sans); font-size:18px; padding:8px 10px;
   border:1px solid var(--borde-control); border-radius:var(--radio);
   background:var(--papel-2); color:var(--tinta)}
 .dialogo input:focus{outline:none; border-color:var(--tribunal-txt);
@@ -1262,7 +1291,11 @@ pre.sql{font-family:var(--mono); font-size:12px; margin:0; padding:12px 14px;
 tr.chequeo-mal td{background:var(--ambar-suave)}
 tr.chequeo-mal td:first-child{box-shadow:inset 3px 0 0 var(--ambar)}
 
-.riel{height:8px; background:var(--realce); border:1px solid var(--filete-2);
+/* El carril tiene que verse VACÍO. Con `--realce` de fondo y `--filete-2` de borde,
+   sobre el folio, al 0 % no se distinguía de una raya rota: no se leía como «una barra
+   que todavía no avanzó» sino como un renglón sucio. El carril va en `--papel-3`, que
+   es el gris de papel del sistema, con el filete normal. */
+.riel{height:8px; background:var(--papel-3); border:1px solid var(--filete);
       border-radius:var(--radio-pildora); overflow:hidden}
 .riel i{display:block; height:100%; background:var(--rio); transition:width .4s ease}
 @media (prefers-reduced-motion:reduce){.riel i{transition:none}}
@@ -1699,9 +1732,13 @@ body.con-visor{background-color:var(--fondo)}
 
 /* El avance va debajo del subtítulo y NO al lado del «1 de 42»: son dos cosas
    distintas —dónde está el cursor y cuánto se lleva hecho— y juntas se confunden. */
-.avance{margin-top:11px; max-width:64ch}
-.avance .riel{height:6px}
-.avance p{margin:6px 0 0; font-size:12px; color:var(--tinta-2)}
+/* El riel medía 64ch —unos 500 px— porque compartía la medida con la prosa de abajo.
+   Una barra de avance no es prosa: no se lee renglón a renglón, se mira de reojo, y
+   cortada a media columna parece que le falta un pedazo. La medida de lectura se queda
+   donde corresponde, en el párrafo. */
+.avance{margin-top:11px}
+.avance .riel{height:7px}
+.avance p{margin:6px 0 0; font-size:12px; color:var(--tinta-2); max-width:64ch}
 .avance p strong{color:var(--tinta); font-variant-numeric:tabular-nums}
 /* Dónde estás, al principio del renglón: es lo que se mira de reojo cada treinta
    segundos, así que va primero y con algo más de cuerpo. */
