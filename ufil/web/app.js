@@ -2606,6 +2606,23 @@ function encuadrar(f) {
   const src = `/pagina?doc=${f.documento_id}&nro=${f.pagina_nro}`;
   if (img.getAttribute('src') !== src) img.src = src;
 
+  /* La hoja entera se apaga ACÁ, ANTES de medir la lupa, y no al final. Con recorte no
+     hace falta —el anclaje lo dice el pie, foja y aumento, y una página de 250 px en la
+     que no se lee una palabra sólo ocupa lugar—, pero el orden importa: la lupa es
+     `flex:1 1 0` y crece cuando la hoja se va. Apagándola después, `r` quedaba medido
+     sobre la lupa chica y todo lo que sale de `r` quedaba mal.
+     Medido en 1366 con un campo de verdad: la lupa medía 176 px cuando se hizo la
+     cuenta y 383 cuando terminó de acomodarse, así que el importe quedaba a 73 px del
+     borde de arriba y a 280 del de abajo. Centrado en el ancho —que no cambia— y
+     pegado arriba en el alto. Con el orden dado vuelta, la cuenta se hace sobre el
+     tamaño final. */
+  $('#lienzo-cola').hidden = true;
+  /* Y el pie también se escribe antes de medir, por lo mismo: «Monto mensual · ruta
+     …» ocupa dos renglones donde «Monto mensual» ocupa uno, y ese renglón sale del
+     alto de la lupa. Eran los 25 px que faltaban para que el centrado cerrara. */
+  $('#lupa-campo').textContent = `${rotularCampo(f.campo, f.familia)}${
+    f.ruta ? ' · ruta ' + f.ruta : ''}`;
+
   const caja = {w: f.x1 - f.x0, h: f.y1 - f.y0};
   const r = lupa.getBoundingClientRect();
   const aire = 1.5;
@@ -2630,13 +2647,8 @@ function encuadrar(f) {
     marco.style.width = (caja.w * escala) + 'px';
     marco.style.height = (caja.h * escala) + 'px';
   }
-  $('#lupa-campo').textContent = `${rotularCampo(f.campo, f.familia)}${
-    f.ruta ? ' · ruta ' + f.ruta : ''}`;
   $('#lupa-xy').textContent = `f.${f.pagina_nro} · ${(escala / natural).toFixed(1)}×`;
 
-  // Con recorte, la hoja entera se apaga: el anclaje ya lo dice el pie —foja y
-  // aumento— y una página de 250 px en la que no se lee una palabra sólo ocupa lugar.
-  $('#lienzo-cola').hidden = true;
   vigilarVista(f);
 }
 

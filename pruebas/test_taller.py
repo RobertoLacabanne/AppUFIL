@@ -644,6 +644,43 @@ class NoSeDecideSinVer(unittest.TestCase):
             self.assertRegex(salida[malo], r"\d+×\d+ pt",
                              f"el motivo de «{malo}» no dice cuánto medía la caja")
 
+    def test_la_lupa_se_mide_despues_de_acomodar_y_no_antes(self):
+        """
+        El recorte encuadraba bien de ancho y quedaba pegado arriba: medido en 1366 con
+        un campo de verdad, el importe quedaba a 73 px del borde de arriba y a 280 del
+        de abajo. La cuenta que centra estaba bien; lo que estaba mal era CUÁNDO se
+        hacía.
+
+        `#lupa` es `flex:1 1 0`: crece cuando se apaga la hoja entera de al lado, y se
+        achica un renglón cuando el pie pasa de «Monto mensual» a «Monto mensual · ruta
+        …». Las dos cosas se hacían DESPUÉS de leer `getBoundingClientRect()`, así que
+        la cuenta se hacía sobre una lupa de 176 px y el resultado se aplicaba sobre una
+        de 383.
+
+        No hay nada que arreglar en la aritmética: alcanza con acomodar primero y medir
+        después. Medido de nuevo: 178 px arriba y 176 abajo, 69 y 67 a los costados.
+        """
+        i = APP.index("function encuadrar(f)")
+        fin = APP.index("function pintarFoco()")
+        cuerpo = APP[i:fin]
+        medir = cuerpo.index("lupa.getBoundingClientRect()")
+        for antes, que in (
+                ("$('#lienzo-cola').hidden = true;", "apagar la hoja entera de al lado"),
+                ("$('#lupa-campo').textContent", "escribir el pie")):
+            self.assertIn(antes, cuerpo, f"se perdió {que}")
+            self.assertLess(cuerpo.index(antes), medir,
+                            f"{que} cambia el alto de la lupa y quedó DESPUÉS de "
+                            "medirla: el recorte vuelve a salir descentrado")
+
+    def test_y_lo_que_no_cambia_el_alto_puede_ir_despues(self):
+        """El aumento no se puede escribir antes: sale de la cuenta que necesita la
+        medida. Que quede dicho, para que nadie lo suba «por prolijidad»."""
+        i = APP.index("function encuadrar(f)")
+        cuerpo = APP[i:APP.index("function pintarFoco()")]
+        self.assertGreater(cuerpo.index("$('#lupa-xy').textContent"),
+                           cuerpo.index("const escala ="),
+                           "el aumento se escribe antes de calcularlo")
+
     def test_el_campo_esta_marcado_adentro_del_recorte(self):
         """
         La lupa muestra el renglón Y lo que lo rodea, y eso hace falta: es lo que
