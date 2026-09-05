@@ -471,3 +471,51 @@ class LaCronologiaTieneAnchoParaLeerse(unittest.TestCase):
         self.assertIn("td.fol .nombre-doc{max-width", css,
                       "sin techo AL ELEMENTO la elisión no hace nada: en una celda de "
                       "tabla el `td` se dimensiona al contenido")
+
+class ElNumeroDeDiasVaAlLadoDeSuGrafico(unittest.TestCase):
+    """
+    «Se pisan 232 días» es la frase que después se escribe en un requerimiento. Estaba
+    en una columna aparte, y en la pantalla de la oficina —1366 px— esa columna caía
+    fuera del borde derecho junto con «Suma» y «Conf.»: había que arrastrar la tabla
+    de costado para ver el número que ES el hallazgo.
+
+    Ahora va debajo del gráfico, en la misma celda. El gráfico dice la forma —dónde se
+    pisan, cuánto de cada contrato— y el número dice el dato.
+    """
+
+    def _app(self):
+        return (Path(__file__).resolve().parent.parent
+                / "ufil/web/app.js").read_text(encoding="utf-8")
+
+    def _css(self):
+        return (Path(__file__).resolve().parent.parent
+                / "ufil/web/estilo.css").read_text(encoding="utf-8")
+
+    def test_el_numero_esta_en_la_celda_del_grafico(self):
+        app = self._app()
+        self.assertIn('class="pista-dias"', app,
+                      "el número de días volvió a una columna aparte")
+        self.assertNotIn("{t:'Días', k:'dias_solapados'", app,
+                         "quedaron los dos: el número dos veces en la misma fila")
+
+    def test_no_se_dibuja_si_los_periodos_no_se_tocan(self):
+        """Sin tramo pisado no hay días que decir, y un «0 días» al lado de un gráfico
+        vacío es ruido."""
+        app = self._app()
+        i = app.index('class="pista-dias"')
+        self.assertIn("hayPisado ?", app[i - 200:i],
+                      "el número sale también cuando no hay nada pisado")
+
+    def test_el_grafico_no_se_achico_para_hacerle_lugar(self):
+        """
+        Por debajo de 200 px los dos contratos y el tramo pisado se funden en una
+        mancha. El número va DEBAJO por eso: al lado le comía ancho a la pista.
+        """
+        css = self._css()
+        cuerpo = re.search(r"td\.pista \.pista-par\{([^{}]*)\}", css)
+        self.assertIsNotNone(cuerpo)
+        ancho = re.search(r"min-width:(\d+)px", cuerpo.group(1))
+        self.assertGreaterEqual(int(ancho.group(1)), 200)
+        self.assertIn("flex-direction:column",
+                      re.search(r"\.pista-caja\{([^{}]*)\}", css).group(1),
+                      "el número volvió al lado del gráfico y le come el ancho")

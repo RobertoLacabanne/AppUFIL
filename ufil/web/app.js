@@ -1521,9 +1521,18 @@ function pistaSolape(f) {
         new Date(pf).toISOString().slice(0, 10))}.`
     : 'Los dos períodos no se tocan.';
 
-  return `<div class="pista-par" role="img" aria-label="${esc(rotulo)}">
-    ${barra('carril-a', ia, fa)}${barra('carril-b', ib, fb)}
-    ${hayPisado ? barra('pisa-a', pi, pf) + barra('pisa-b', pi, pf) : ''}
+  /* El número al lado del gráfico y no en una columna aparte. «Se pisan 232 días» es
+     la frase que después se escribe en un requerimiento, y en la pantalla de la
+     oficina —1366 px— la columna «Días» quedaba fuera del borde derecho junto con
+     «Suma» y «Conf.»: había que arrastrar la tabla de costado para ver el número que
+     es el hallazgo. El gráfico dice la forma; el número dice el dato, y van juntos. */
+  return `<div class="pista-caja">
+    <div class="pista-par" role="img" aria-label="${esc(rotulo)}">
+      ${barra('carril-a', ia, fa)}${barra('carril-b', ib, fb)}
+      ${hayPisado ? barra('pisa-a', pi, pf) + barra('pisa-b', pi, pf) : ''}
+    </div>
+    ${hayPisado ? `<b class="pista-dias">${fmtNum.format(dias)} ${
+      dias === 1 ? 'día' : 'días'}</b>` : ''}
   </div>`;
 }
 
@@ -1560,10 +1569,9 @@ async function vSuperposiciones() {
         `${esc(fmtFecha(f.inicio_a))} → ${esc(fmtFecha(f.fin_a))}<br
          >${esc(fmtFecha(f.inicio_b))} → ${esc(fmtFecha(f.fin_b))}`},
       {t:'Cuánto se pisan', c:'pista', r:f => pistaSolape(f)},
-      {t:'Días', k:'dias_solapados', c:'num'},
       {t:'Suma', c:'num', r:f => esc(fmtPesos(f.suma_centavos))},
       {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
-    ], r.filas, {alClic:true})}`);
+    ], r.filas, {alClic:true, lista:'superposiciones'})}`);
   vista.querySelectorAll('tbody tr').forEach(tr =>
     tr.onclick = () => location.hash = '#/documento/' + r.filas[+tr.dataset.i].doc_a);
 }

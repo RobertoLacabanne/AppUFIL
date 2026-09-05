@@ -1221,7 +1221,27 @@ mark{background:var(--sello-suave); color:var(--tinta); padding:0 2px; font-weig
    con dos carriles finos y pegados, los dos contratos y el tramo pisado se funden en
    una mancha, y por eso el gráfico no se veía. */
 td.pista{vertical-align:middle}
-td.pista .pista-par{min-width:240px}
+/* El gráfico y su número, juntos. El gráfico dice la forma —dónde se pisan, cuánto
+   de cada contrato— y el número dice el dato, que es lo que después se escribe en un
+   requerimiento. Estaban en dos columnas y en la pantalla de la oficina el número
+   quedaba fuera del borde derecho: había que arrastrar la tabla de costado para ver
+   el hallazgo. */
+/* El número DEBAJO del gráfico y no al lado. Al lado le comía ancho a la pista, y la
+   pista tiene un piso medido: por debajo de 200 px los dos contratos y el tramo
+   pisado se funden en una mancha (ver test_familias.py). Debajo no cuesta ancho —la
+   celda ya mide dos renglones por la columna de períodos— y queda pegado a lo que
+   explica. */
+.pista-caja{display:flex; flex-direction:column; gap:2px}
+.pista-dias{font-family:var(--mono); font-size:var(--t-11);
+  font-variant-numeric:tabular-nums; white-space:nowrap; color:var(--tinta-2)}
+td.pista .pista-par{min-width:200px}
+/* Ocho columnas, y la última —la confianza— quedaba cortada contra el borde derecho
+   en 1366 px, que es la pantalla de la oficina. Medido: la tabla pedía 1.025 px y el
+   folio da 1.002. Tres píxeles menos de aire a cada lado de cada celda alcanzan, y
+   son menos costosos que esconder una columna o achicar la pista, que tiene un piso
+   medido. Sólo en esta tabla: es la única con ocho columnas y un gráfico adentro. */
+table[data-lista="superposiciones"] th,
+table[data-lista="superposiciones"] td{padding-left:8px; padding-right:8px}
 @media (max-width:720px){ td.pista .pista-par{min-width:120px} }
 /* En papel no hay color: el segundo carril se distingue por trama. Impreso en escala
    de grises los dos azules son el mismo gris, y entonces el gráfico deja de decir que
