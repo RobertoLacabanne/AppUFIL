@@ -236,3 +236,66 @@ class ElAnchoNoCambiaAlCambiarDePantalla(unittest.TestCase):
             self.assertNotIn(regla, plano,
                              "con el atajo se pierde la textura del papel: va "
                              "`background-color`")
+
+
+class UnaTablaCortadaLoDice(unittest.TestCase):
+    """
+    Nueve columnas de contratos piden 957 px y en 1366×768 la hoja les da 875. La
+    tabla se corta: «Conf.» queda entera afuera y de «Monto» se ve `$74.200,0`.
+
+    Correrla de costado siempre se pudo —`overflow-x:auto`—, pero la barra que lo
+    dice está al pie de cincuenta y un renglones. Y el problema no es la incomodidad:
+    un importe cortado a la mitad no se ve cortado. Se lee como un número entero que
+    no es el que dice el papel, que es justo lo que el sistema no puede hacer.
+
+    La sombra aparece sola del lado donde hay más tabla y se va sola cuando no la hay.
+    Medido en 1366: sin correr, sombra a la derecha y nada a la izquierda; corrida
+    hasta el final, al revés; en el medio, las dos; y en una tabla que entra —«Trabajo
+    del equipo»— ninguna.
+    """
+
+    def cuatro_capas(self):
+        return cuerpo(self, ".tabla-env")
+
+    def test_las_tapas_viajan_con_el_contenido(self):
+        """
+        Ancladas al contenido (`local`), las tapas del color del folio llegan al borde
+        justo cuando se acabó la tabla, y ahí tapan la sombra. Sin esto la sombra
+        queda prendida siempre y deja de significar «hay más».
+        """
+        capas = self.cuatro_capas()
+        self.assertEqual(capas.count("no-repeatlocal"), 2,
+                         "faltan las dos tapas ancladas al contenido: la sombra se "
+                         "queda prendida aunque no haya más tabla")
+        self.assertEqual(capas.count("var(--folio)"), 2,
+                         "las tapas tienen que ser del color del folio, que es lo que "
+                         "hay abajo de la tabla")
+
+    def test_las_sombras_se_quedan_quietas_contra_el_marco(self):
+        capas = self.cuatro_capas()
+        self.assertEqual(capas.count("no-repeatscroll"), 2,
+                         "las sombras se anclaron al contenido: se van de viaje con "
+                         "la tabla en vez de quedarse en el borde")
+        self.assertEqual(capas.count("var(--corte)"), 2,
+                         "quedó una sola sombra: el lado que se corta cuando uno ya "
+                         "corrió la tabla no avisa nada")
+
+    def test_hay_una_de_cada_lado(self):
+        capas = self.cuatro_capas()
+        for lado in ("toright", "toleft"):
+            self.assertEqual(capas.count(lado), 2, f"falta una capa hacia {lado}")
+
+    def test_el_color_del_corte_existe_en_los_dos_temas(self):
+        """Sobre el folio oscuro una sombra clara no se ve, y al revés tampoco."""
+        self.assertIn("--corte:", CSS)
+        i = CSS.index('[data-tema="oscuro"]')
+        self.assertIn("--corte:", CSS[i:],
+                      "el oscuro se quedó con la sombra del tema claro")
+
+    def test_en_papel_no_hay_nada_que_correr(self):
+        """La tabla impresa entra entera: dos manchas de tinta en los bordes serían
+        una señal de algo que en papel no puede pasar."""
+        m = re.search(r"\.tabla-env\{(break-inside[^{}]*)\}", LIMPIO)
+        self.assertIsNotNone(m, "se perdió la regla de impresión de la tabla")
+        self.assertIn("background:none", m.group(1).replace(" ", ""),
+                      "las sombras de «sigue más allá» se imprimen")

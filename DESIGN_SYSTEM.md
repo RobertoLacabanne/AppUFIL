@@ -471,6 +471,20 @@ nunca se desplaza de costado**, la tabla sí.
 una: enganchar el clic por «la última tabla» funcionaba hasta que se agregó otra debajo,
 y entonces cada fila abría el documento equivocado.
 
+**Y cuando se corta, lo dice.** Medido en 1366×768: la tabla de contratos pide 957 px
+y tiene 875, el detalle por documento del panel se corta 453 px y una consulta guardada,
+1016. Correrla de costado siempre se pudo, pero la barra que lo dice está al pie de
+cincuenta y un renglones. El problema no es la incomodidad: un importe cortado a la
+mitad —`$74.200,0`— **no se ve cortado**, se lee como un número entero que no es el que
+dice el papel.
+
+`.tabla-env` lleva cuatro capas de fondo y hacen falta las cuatro: dos tapas del color
+del folio ancladas al **contenido** (`local`), que viajan con el scroll, y dos sombras
+ancladas al **marco** (`scroll`), que se quedan quietas contra el borde. En cada extremo
+la tapa se le pone encima a la sombra y la apaga. Así la sombra aparece sola del lado
+donde hay más tabla y se va sola cuando no la hay, sin una línea de JavaScript. En papel
+la tabla entra entera y las sombras se apagan.
+
 ### Taller — `.taller` (la cola de revisión)
 La cola no es una página: es un **puesto de trabajo**. Ocupa el alto entero de la
 ventana y se parte en cuatro fajas —encabezado con el «1 de N», filtros, los dos paneles,

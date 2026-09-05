@@ -123,6 +123,9 @@
      de una tabla, la fila bajo el puntero, la baldosa de una cifra. Es fondo y nunca
      texto: no informa nada por sí solo. */
   --realce:#E9F0F8;
+  /* La sombra del borde de una tabla que sigue más allá de lo que se ve. No es
+     decoración: es lo único que distingue «$74.200,0» cortado de «$74.200,0». */
+  --corte:rgba(15,23,42,.16);
 
   /* ── La escala tipográfica ───────────────────────────────────────────────
      Siete pasos y ninguno intermedio. `docs/01-identidad-visual.md` la declaraba
@@ -224,6 +227,7 @@
      metía el fondo en la zona donde el texto claro florece —los bordes de las letras
      se desparraman— y eso lo mira alguien ocho horas seguidas. */
   --fondo:#0B1119; --folio:#141E2B; --realce:#1E2B3C;
+  --corte:rgba(0,0,0,.55);
   /* En el oscuro la altura la da la superficie, que sube de luminosidad, y no la
      sombra: sobre un fondo casi negro una sombra negra no se ve. Quedan igual, en tres
      capas, para el borde superior del objeto. */
@@ -265,6 +269,7 @@
      metía el fondo en la zona donde el texto claro florece —los bordes de las letras
      se desparraman— y eso lo mira alguien ocho horas seguidas. */
   --fondo:#0B1119; --folio:#141E2B; --realce:#1E2B3C;
+  --corte:rgba(0,0,0,.55);
   /* En el oscuro la altura la da la superficie, que sube de luminosidad, y no la
      sombra: sobre un fondo casi negro una sombra negra no se ve. Quedan igual, en tres
      capas, para el borde superior del objeto. */
@@ -886,7 +891,26 @@ h3.menor{font-size:13px}
    pantalla se vea genérica: son doce rectángulos compitiendo por atención, ninguno de
    los cuales dice nada. Lo que separa una tabla de lo de al lado es el aire, y lo que
    separa un renglón del siguiente es un filete finito. Nada más hace falta. */
-.tabla-env{overflow-x:auto; background:transparent; margin:0 -4px}
+/* ── Cuando la tabla sigue más allá del borde ──────────────────────────────
+   Nueve columnas de contratos piden 957 px y en la pantalla de la oficina hay 875:
+   la tabla se corta y «Conf.» y parte de «Monto» quedan afuera. Se puede correr de
+   costado, pero la barra que lo dice está al pie de cincuenta y un renglones, o sea
+   en ningún lado. Y un importe cortado a la mitad —`$74.200,0`— NO SE VE cortado:
+   se lee como un número entero que no es el que dice el papel. Eso es exactamente lo
+   que el sistema no puede hacer.
+   Las cuatro capas son el truco de siempre y hacen falta las cuatro: dos tapas del
+   color del folio ancladas al CONTENIDO (`local`), que viajan con el scroll, y dos
+   sombras ancladas al MARCO (`scroll`), que se quedan quietas contra el borde. En
+   cada extremo la tapa se le pone encima a la sombra y la apaga; en el medio la
+   sombra queda a la vista. Así la sombra aparece sola del lado que hay más tabla y
+   se va sola cuando no la hay, sin una línea de JavaScript ni un `resize` que medir.
+   Va en el atajo `background` porque las cuatro capas son una sola declaración. */
+.tabla-env{overflow-x:auto; margin:0 -4px;
+  background:
+    linear-gradient(to right, var(--folio) 42%, transparent) left  / 34px 100% no-repeat local,
+    linear-gradient(to left,  var(--folio) 42%, transparent) right / 34px 100% no-repeat local,
+    linear-gradient(to right, var(--corte), transparent)     left  / 14px 100% no-repeat scroll,
+    linear-gradient(to left,  var(--corte), transparent)     right / 14px 100% no-repeat scroll}
 table{border-collapse:collapse; width:100%; font-size:12px}
 /* El encabezado de columna va en `--tinta-2` y no en `--tinta-3`. `--tinta-3` está
    pensado para marginalia —el folio al costado, la fecha chica— y se le exige 3:1
@@ -1466,7 +1490,9 @@ a.destacado-fila:hover{background:var(--realce)}
      fluye, que es lo que hace cualquier tabla impresa. */
   .bloque{break-inside:auto; margin-top:18px}
   .cifras, .carriles, .cronologia, .interp{break-inside:avoid}
-  .tabla-env{break-inside:auto; overflow:visible}
+  /* En papel no hay nada que correr de costado: la tabla entra entera y las
+     sombras de «sigue más allá» serían dos manchas de tinta sin sentido. */
+  .tabla-env{break-inside:auto; overflow:visible; background:none}
   tbody tr{break-inside:avoid}
   /* El encabezado se repite en cada hoja. Una tabla partida sin encabezado obliga a
      volver a la hoja anterior para saber qué columna es cuál. */
