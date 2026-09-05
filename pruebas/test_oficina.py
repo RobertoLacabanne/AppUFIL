@@ -173,3 +173,66 @@ class ElTechoNoSeLeeComoUnaTerminal(unittest.TestCase):
         self.assertNotIn('id="f-lote" class="mono"', HTML,
                          "el lote volvió a la monoespaciada de los datos leídos")
         self.assertIn('<span id="f-lote">', HTML)
+
+
+class ElAnchoNoCambiaAlCambiarDePantalla(unittest.TestCase):
+    """
+    Esto era lo que se veía como «se rompe, como que se hace un zoom».
+
+    La página entera scrollea con la barra del navegador. El panel es largo y la barra
+    aparece; «Trabajo del equipo» entra en una pantalla y la barra se va. En 1366×768,
+    medido: la columna de contenido pasaba de 1119 px a 1134 y volvía a 1119 en cada
+    salto de pantalla. Quince píxeles, pero se los lleva TODO —la caja de búsqueda de
+    arriba, el ancho de la hoja, el reparto de columnas de cada tabla—, así que ir de
+    una pantalla a otra hacía correr el contenido de costado y reacomodarse.
+
+    Reservar el lugar de la barra siempre lo deja en 1119 en las diez pantallas,
+    incluso con la foja abierta o la cola adentro, que apagan el scroll de la página.
+    """
+
+    def test_el_lugar_de_la_barra_esta_siempre_reservado(self):
+        self.assertIn("scrollbar-gutter:stable", cuerpo(self, "html"),
+                      "sin esto el ancho de la hoja cambia según la pantalla tenga "
+                      "barra de scroll o no")
+
+    def test_y_es_una_regla_de_base_y_no_de_una_pantalla_sola(self):
+        """
+        Adentro de un `@media` arregla una pantalla y deja saltando a las demás, que
+        es exactamente el problema.
+        """
+        antes = LIMPIO[:LIMPIO.index("html{scrollbar-gutter:stable}")]
+        self.assertEqual(antes.count("{") - antes.count("}"), 0,
+                         "la reserva quedó adentro de un @media: arregla una pantalla "
+                         "y deja saltando a las demás")
+
+    def test_la_franja_que_sobra_se_pinta_del_papel_que_tiene_al_lado(self):
+        """
+        La cola es la única pantalla que pinta de lado a lado, y de las que no
+        scrollean: ahí los 15 px reservados quedan a la vista. El lienzo de la ventana
+        lo pinta el `body`, así que del mismo papel la franja no se ve.
+        """
+        self.assertIn("body.taller-abierto{background-color:var(--folio)}",
+                      LIMPIO.replace(" ", ""),
+                      "la franja reservada vuelve a verse como una costura contra el "
+                      "papel del taller")
+
+    def test_con_la_foja_abierta_la_franja_acompaña_al_visor(self):
+        plano = LIMPIO.replace(" ", "")
+        self.assertIn("body.con-visor{background-color:var(--fondo)}", plano)
+        # A igual peso gana la última: escrita antes de la del taller no haría nada
+        # justo en el caso que importa, que es abrir la foja desde la cola.
+        self.assertGreater(plano.index("body.con-visor{background-color"),
+                           plano.index("body.taller-abierto{background-color"),
+                           "la regla del visor está antes que la del taller: con la "
+                           "foja abierta desde la cola no tiene efecto")
+
+    def test_se_pinta_el_color_y_no_el_atajo(self):
+        """
+        Con el atajo `background` se va la textura de papel del fondo, que está en una
+        regla aparte y en `background-image`.
+        """
+        plano = LIMPIO.replace(" ", "")
+        for regla in ("body.taller-abierto{background:", "body.con-visor{background:"):
+            self.assertNotIn(regla, plano,
+                             "con el atajo se pierde la textura del papel: va "
+                             "`background-color`")

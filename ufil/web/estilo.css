@@ -278,6 +278,20 @@
 
 *{box-sizing:border-box}
 html,body{margin:0}
+/* ── El ancho no cambia al cambiar de pantalla ─────────────────────────────
+   La página entera scrollea con la barra del navegador. El panel es largo y la
+   barra aparece; «Trabajo del equipo» entra en una pantalla y la barra desaparece.
+   Cada vez que la barra aparecía o se iba, la ventana se ensanchaba o se angostaba
+   15 px, y con ella TODO: la caja de búsqueda de arriba, el ancho de la hoja, las
+   columnas de cada tabla. Ir de una pantalla a otra hacía saltar el contenido de
+   costado y reacomodarse —de lejos parece que la pantalla se agranda sola.
+   `stable` reserva el lugar de la barra siempre, esté o no. Sobran 15 px pintados
+   del mismo papel (el fondo del `body` pinta toda la ventana), y a cambio la hoja
+   mide lo mismo en las diez pantallas. También sostiene el ancho cuando se abre la
+   foja o la cola, que apagan el scroll de la página: sin esto, abrir el visor movía
+   de lugar lo que estaba atrás.
+   En el teléfono no cambia nada: ahí la barra se dibuja encima y nunca ocupó ancho. */
+html{scrollbar-gutter:stable}
 /* ── La mesa: un color no, un papel ────────────────────────────────────────
    Un crema uniforme es un color; un papel tiene fibra. Es un `feTurbulence` en SVG
    incrustado, en escala de grises, al 5,5 % — 400 bytes, sin red y sin archivo. Se
@@ -1567,6 +1581,16 @@ body.taller-abierto main{flex:1; min-height:0; padding:0; overflow:hidden}
    dicho en el propio elemento y no en su posición. */
 .taller{height:100%; min-height:0; display:flex; flex-direction:column;
         background:var(--folio)}
+/* La cola es la única pantalla que pinta de lado a lado, y es de las que no
+   scrollean: ahí los 15 px reservados para la barra quedan a la vista, y contra el
+   papel del taller se veían como una costura. El lienzo de la ventana lo pinta el
+   `background` del `body` —no el de `html`—, así que pintándolo del mismo papel la
+   franja deja de leerse como un borde y pasa a ser hoja. */
+body.taller-abierto{background-color:var(--folio)}
+/* Y con la foja abierta encima, la franja es vecina del papel del visor, no del
+   taller: por eso vuelve al fondo de la mesa. Va después, que a igual peso gana la
+   última. */
+body.con-visor{background-color:var(--fondo)}
 .taller > *{flex:none}
 .taller > .taller-cuerpo{flex:1 1 auto; min-height:0}
 .taller-cabeza{

@@ -337,6 +337,26 @@ Con la barra al costado el alto de arriba es uno solo y ya no depende del ancho.
 sigue midiendo con `medirTecho` —el aviso de datos de demostración aparece y
 desaparece— pero ahora hay **una sola cosa que medir**.
 
+**Y el ancho tampoco depende de la pantalla en la que uno esté.** La página entera
+scrollea con la barra del navegador: el panel es largo y la barra aparece, «Trabajo del
+equipo» entra en una pantalla y la barra se va. Medido en 1366×768, la columna de
+contenido iba de 1119 px a 1134 y volvía a 1119 en cada salto de pantalla. Son quince
+píxeles, pero se los lleva todo —la caja de búsqueda de arriba, el ancho de la hoja, el
+reparto de columnas de cada tabla—, así que ir de una pantalla a otra hacía correr el
+contenido de costado y reacomodarse: de lejos parece que la pantalla se agranda sola.
+
+    html{scrollbar-gutter:stable}
+
+El lugar de la barra queda reservado siempre, esté o no. Sostiene el ancho también con
+la foja abierta y en la cola, que apagan el scroll de la página. En el teléfono no
+cambia nada: ahí la barra se dibuja encima y nunca ocupó ancho.
+
+Los 15 px reservados los pinta el `background` del `body` —el lienzo de la ventana lo
+pinta el `body`, no el `html`—. En casi todas las pantallas no se ven, porque el
+contenido no llega al borde; la cola sí pinta de lado a lado, así que con el taller
+abierto el `body` se pinta del mismo papel (`--folio`), y con la foja abierta encima,
+del fondo de la mesa (`--fondo`), que es el papel del visor.
+
 ---
 
 ## 5. Navegación
