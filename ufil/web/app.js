@@ -382,8 +382,12 @@ function tabla(cols, filas, opts = {}) {
   if (!filas.length) return `<div class="tabla-env"><div class="vacio">Sin resultados.</div></div>`;
   const th = cols.map((c, i) => `<th class="${claseCol(cols, c, i, filas)}">${
     esc(c.t)}</th>`).join('');
+  // `data-rotulo` en cada celda: cuando la tabla no entra y la fila se despliega, el
+  // encabezado de columna deja de estar arriba y cada valor tiene que decir de qué
+  // columna es. Es el mismo texto del `<th>`, así que no hay dos rótulos que
+  // mantener sincronizados.
   const tr = filas.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}" data-i="${i}">${
-    cols.map((c, i) => `<td class="${claseCol(cols, c, i, filas)}">${
+    cols.map((c, i) => `<td class="${claseCol(cols, c, i, filas)}" data-rotulo="${esc(c.t)}">${
       c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
   }</tr>`).join('');
   // `lista` marca QUÉ muestra esta tabla. Hace falta cuando una pantalla tiene más de
@@ -391,6 +395,73 @@ function tabla(cols, filas, opts = {}) {
   // debajo, y entonces cada fila abría el documento equivocado.
   const marca = opts.lista ? ` data-lista="${esc(opts.lista)}"` : '';
   return `<div class="tabla-env"><table${marca}><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div>`;
+}
+
+/* ── Ninguna tabla muestra un dato cortado ─────────────────────────────────
+   `overflow-x:auto` dejaba correr la tabla de costado, y eso alcanzaba mientras lo
+   que quedaba afuera fuera una columna que se recupera mirando la fila. No es el
+   caso. Medido en 1366×768, en «Superposición temporal»: la tabla pide 976 px y la
+   hoja le da 875, así que «Conf.» desaparece entera y de «Suma» se ve `$164.` y
+   `$329.`. UN IMPORTE CORTADO NO SE VE CORTADO: `$164.` es un número perfectamente
+   plausible, y el que lo lee no tiene cómo saber que le falta la mitad. El sistema
+   entero está construido para no decir un dato que no está en el papel, y acá lo
+   estaba diciendo mal por una cuestión de ancho.
+
+   Tres cosas, en este orden:
+
+   1. LA MEDIDA, no un punto de corte. Un `@media (max-width: …)` no sabe cuánto
+      ocupa el contenido: la misma pantalla con seis columnas entra y con nueve no.
+      Acá se compara `scrollWidth` contra `clientWidth` del envoltorio, después de
+      pintar, y se vuelve a comparar en cada cambio de tamaño con un `ResizeObserver`.
+   2. PRIMERO, EL ANCHO QUE YA HAY. La hoja reserva 112 px a la canaleta —«f. 0005 /
+      CRUCE»— más el aire del cuerpo: 138 px que la tabla no está usando. Devolvérselos
+      alcanza en la pantalla de la oficina (1366: pedía 976 y pasa a tener 1013) y en
+      1440. Es gratis y la tabla sigue siendo una tabla.
+   3. RECIÉN AHÍ, DESPLEGAR. Por debajo de ~1280 no entra ni con la canaleta devuelta
+      (a 1024 faltan 249 px), y ahí la fila se abre en renglones: cada valor con el
+      rótulo de su columna, nada cortado. Es lo que ya hacían a mano `table.salud` y
+      `.tabla-legajos` en el teléfono, ahora para cualquier tabla y por medida.
+
+   Una vez que una tabla pidió la hoja entera, se la queda mientras esté en pantalla.
+   Devolverle la canaleta al agrandar la ventana obligaría a recordar cuánto medía la
+   canaleta para saber si volvería a entrar, y a arriesgar un ida y vuelta entre los
+   dos estados con el borde justo. Al cambiar de pantalla se vuelve a medir de cero. */
+const _tablasVigiladas = new WeakSet();
+
+function vigilarCortes(raiz) {
+  for (const env of (raiz || document).querySelectorAll('.tabla-env')) {
+    if (_tablasVigiladas.has(env)) continue;
+    // El índice de legajos ya tiene su propia versión desplegada, escrita a mano y con
+    // otra tipografía: dos mecanismos sobre la misma tabla se pisan.
+    if (env.closest('.tabla-legajos')) continue;
+    _tablasVigiladas.add(env);
+    let necesita = 0;                 // cuánto pedía cuando se la vio cortada
+    const mirar = () => {
+      if (env.dataset.corte === 'si') {
+        // Desplegada no se puede medir el ancho que pediría la tabla: se usa el que
+        // se anotó cuando todavía era una tabla.
+        if (necesita && env.clientWidth >= necesita) delete env.dataset.corte;
+        return;
+      }
+      if (env.scrollWidth <= env.clientWidth + 1) return;      // entra: no hay nada que hacer
+      const hoja = env.closest('.bloque');
+      if (hoja && !hoja.classList.contains('ancho')) {
+        hoja.classList.add('ancho');
+        // Y se vuelve a medir ACÁ MISMO. Leer `scrollWidth` después de tocar la clase
+        // obliga al navegador a recalcular la página en el acto, que es justo lo que
+        // hace falta. Esperar a que el `ResizeObserver` avise otra vez parecía más
+        // prolijo y no funcionaba: si otra tabla de la misma hoja ya la había
+        // ensanchado, la clase no cambia nada, no hay cambio de tamaño, no hay aviso,
+        // y la tabla se quedaba cortada para siempre. Pasaba en el panel, que tiene
+        // dos tablas en la misma hoja.
+        if (env.scrollWidth <= env.clientWidth + 1) return;
+      }
+      necesita = env.scrollWidth;
+      env.dataset.corte = 'si';
+    };
+    mirar();
+    new ResizeObserver(mirar).observe(env);
+  }
 }
 
 function interpHTML(i) {
@@ -579,7 +650,7 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
     }).join('');
     const tr = tanda.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}"
         data-i="${filas.indexOf(f)}">${
-      cols.map((c, i) => `<td class="${claseCol(cols, c, i, filas)}">${
+      cols.map((c, i) => `<td class="${claseCol(cols, c, i, filas)}" data-rotulo="${esc(c.t)}">${
         c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
     }</tr>`).join('');
 
@@ -595,7 +666,7 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
         ${estado.q || estado.orden != null
           ? `<button class="boton gris limpiar-tabla">Quitar filtro y orden</button>` : ''}
       </div>
-      ${v.length ? `<div class="tabla-env"><table${opts.lista ? ` data-lista="${esc(opts.lista)}"` : ''}
+      ${v.length ? `<div class="tabla-env" data-ordenable="si"><table${opts.lista ? ` data-lista="${esc(opts.lista)}"` : ''}
           ><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div>`
         : `<div class="tabla-env"><div class="vacio">Ninguna fila dice
              «${esc(estado.q)}».</div></div>`}
@@ -631,6 +702,9 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
     if (mas) mas.onclick = () => { estado.mostradas += POR_TANDA; pintar(); };
     if (opts.alClic) destino.querySelectorAll('tbody tr').forEach(tr =>
       tr.onclick = () => opts.alClic(filas[+tr.dataset.i]));
+    // Cada tanda nueva puede traer un valor más largo que los de arriba y cambiar si
+    // la tabla entra o no: se vuelve a medir en cada pintada.
+    vigilarCortes(destino);
   }
 
   pintar();
@@ -4105,7 +4179,7 @@ async function rutear() {
   for (const [re, fn] of rutas) {
     const m = h.match(re);
     if (m) {
-      try { return await fn(m[1]); }
+      try { const hecho = await fn(m[1]); vigilarCortes(vista); return hecho; }
       catch (e) {
         // Lo que no existe y lo que se rompió no son lo mismo, y no se muestran igual.
         const cuerpo = e.noEncontrado

@@ -891,19 +891,18 @@ h3.menor{font-size:13px}
    pantalla se vea genérica: son doce rectángulos compitiendo por atención, ninguno de
    los cuales dice nada. Lo que separa una tabla de lo de al lado es el aire, y lo que
    separa un renglón del siguiente es un filete finito. Nada más hace falta. */
-/* ── Cuando la tabla sigue más allá del borde ──────────────────────────────
-   Nueve columnas de contratos piden 957 px y en la pantalla de la oficina hay 875:
-   la tabla se corta y «Conf.» y parte de «Monto» quedan afuera. Se puede correr de
-   costado, pero la barra que lo dice está al pie de cincuenta y un renglones, o sea
-   en ningún lado. Y un importe cortado a la mitad —`$74.200,0`— NO SE VE cortado:
-   se lee como un número entero que no es el que dice el papel. Eso es exactamente lo
-   que el sistema no puede hacer.
-   Las cuatro capas son el truco de siempre y hacen falta las cuatro: dos tapas del
-   color del folio ancladas al CONTENIDO (`local`), que viajan con el scroll, y dos
-   sombras ancladas al MARCO (`scroll`), que se quedan quietas contra el borde. En
-   cada extremo la tapa se le pone encima a la sombra y la apaga; en el medio la
-   sombra queda a la vista. Así la sombra aparece sola del lado que hay más tabla y
-   se va sola cuando no la hay, sin una línea de JavaScript ni un `resize` que medir.
+/* ── Si algo queda más allá del borde, se ve que queda ─────────────────────
+   La regla de la casa es que ninguna tabla muestre un dato cortado, y de eso se
+   ocupa `vigilarCortes()`: primero le da la hoja entera y, si aun así no entra,
+   despliega la fila. Estas cuatro capas son la RED DE ABAJO, para lo que ese
+   mecanismo no puede arreglar: un solo valor más ancho que la pantalla —un nombre de
+   archivo largo en un teléfono angosto—, o el índice de legajos, que tiene su propia
+   versión desplegada y queda afuera de la medición.
+   Hacen falta las cuatro: dos tapas del color del folio ancladas al CONTENIDO
+   (`local`), que viajan con el scroll, y dos sombras ancladas al MARCO (`scroll`),
+   que se quedan quietas contra el borde. En cada extremo la tapa se le pone encima a
+   la sombra y la apaga; en el medio la sombra queda a la vista. Así aparece sola del
+   lado que hay más y se va sola cuando no hay, sin una línea de JavaScript.
    Va en el atajo `background` porque las cuatro capas son una sola declaración. */
 .tabla-env{overflow-x:auto; margin:0 -4px;
   background:
@@ -911,6 +910,53 @@ h3.menor{font-size:13px}
     linear-gradient(to left,  var(--folio) 42%, transparent) right / 34px 100% no-repeat local,
     linear-gradient(to right, var(--corte), transparent)     left  / 14px 100% no-repeat scroll,
     linear-gradient(to left,  var(--corte), transparent)     right / 14px 100% no-repeat scroll}
+
+/* ── Y cuando no entra ni con la hoja entera, la fila se abre ──────────────
+   La sombra avisa que sigue; no alcanza cuando lo que queda afuera es plata. Por
+   debajo de ~1280 px la tabla de superposiciones no entra ni devolviéndole la
+   canaleta —a 1024 le faltan 249 px—, así que deja de ser una tabla: cada fila pasa
+   a ser un renglón de valores, cada uno con el rótulo de su columna, y NADA queda
+   cortado. El encabezado se va porque ya no encabeza nada.
+   Lo prende `vigilarCortes()` con `data-corte`, después de medir. No hay un
+   `@media` acá a propósito: la misma pantalla con seis columnas entra y con nueve
+   no, y un punto de corte no sabe cuántas columnas hay. */
+.tabla-env[data-corte="si"] > table,
+.tabla-env[data-corte="si"] tbody{display:block}
+.tabla-env[data-corte="si"] thead{display:none}
+/* Salvo donde el encabezado no es un rótulo sino un CONTROL: en las tablas grandes se
+   ordena tocando la columna. Escondiéndolo se perdía poder ordenar justo en las
+   pantallas chicas, que es donde una lista de cincuenta filas más se necesita. Ahí el
+   encabezado se convierte en una tira de botones que envuelve. */
+.tabla-env[data-corte="si"][data-ordenable] thead{display:block}
+.tabla-env[data-corte="si"][data-ordenable] thead tr{display:flex; flex-wrap:wrap;
+  align-items:baseline; column-gap:16px; row-gap:6px; padding:2px 2px 10px;
+  border-bottom:1px solid var(--filete)}
+.tabla-env[data-corte="si"][data-ordenable] thead tr::before{content:"Ordenar por";
+  font-family:var(--sans); font-size:var(--t-10); font-weight:600; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--tinta-3)}
+.tabla-env[data-corte="si"][data-ordenable] thead th{display:block; padding:0;
+  border:none; text-align:left; min-height:24px}
+.tabla-env[data-corte="si"] tbody tr{display:flex; flex-wrap:wrap;
+  align-items:baseline; column-gap:22px; row-gap:5px; padding:12px 2px;
+  border-bottom:1px solid var(--filete-2)}
+.tabla-env[data-corte="si"] tbody tr:last-child{border-bottom:none}
+.tabla-env[data-corte="si"] td{display:block; max-width:100%; padding:0; border:none}
+/* Alineado a la derecha sólo tiene sentido contra una columna. Suelto en un renglón,
+   un importe alineado a la derecha se separa de su rótulo, que es el defecto que ya
+   se arregló una vez en «Trabajo del equipo». */
+.tabla-env[data-corte="si"] td.num{text-align:left}
+/* Y el `width:100%` con el que una columna se lleva el ancho que sobra: en una
+   tabla reparte el sobrante, suelto en un renglón se come la línea entera y deja el
+   valor solo. Acá no hay columnas que repartir. */
+.tabla-env[data-corte="si"] th.crece,
+.tabla-env[data-corte="si"] td.crece{width:auto}
+.tabla-env[data-corte="si"] td::before{content:attr(data-rotulo) " ";
+  font-family:var(--sans); font-size:var(--t-10); font-weight:600;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--tinta-3)}
+/* Una celda vacía desplegada sería un rótulo suelto sin nada al lado. Lo que está
+   ausente y el sistema lo sabe NO es una celda vacía: es `<span class="nulo">`, que
+   sí se muestra. */
+.tabla-env[data-corte="si"] td:empty{display:none}
 table{border-collapse:collapse; width:100%; font-size:12px}
 /* El encabezado de columna va en `--tinta-2` y no en `--tinta-3`. `--tinta-3` está
    pensado para marginalia —el folio al costado, la fecha chica— y se le exige 3:1
@@ -1170,6 +1216,14 @@ pre.sql{font-family:var(--mono); font-size:12px; margin:0; padding:12px 14px;
     text-align:left; border-right:none; padding:0 0 8px}
   .cuerpo{padding-left:0}
 }
+/* Y lo mismo, sin mirar el ancho de la ventana, cuando la tabla de adentro no entra:
+   la canaleta son 138 px que la tabla no está usando y que evitan cortar un importe.
+   Lo pone `vigilarCortes()` después de medir; acá sólo está dicho cómo se ve. */
+.bloque.ancho{grid-template-columns:minmax(0,1fr)}
+.bloque.ancho > .marginalia{flex-direction:row; gap:10px; align-items:baseline;
+  text-align:left; border-right:none; padding:0 0 8px}
+.bloque.ancho > .cuerpo{padding-left:0}
+.bloque.ancho .cuerpo::before{display:none}
 
 @media (max-width:720px){
   :root{--canaleta:0px}

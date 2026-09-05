@@ -471,19 +471,32 @@ nunca se desplaza de costado**, la tabla sí.
 una: enganchar el clic por «la última tabla» funcionaba hasta que se agregó otra debajo,
 y entonces cada fila abría el documento equivocado.
 
-**Y cuando se corta, lo dice.** Medido en 1366×768: la tabla de contratos pide 957 px
-y tiene 875, el detalle por documento del panel se corta 453 px y una consulta guardada,
-1016. Correrla de costado siempre se pudo, pero la barra que lo dice está al pie de
-cincuenta y un renglones. El problema no es la incomodidad: un importe cortado a la
-mitad —`$74.200,0`— **no se ve cortado**, se lee como un número entero que no es el que
-dice el papel.
+**Ninguna tabla muestra un dato cortado.** Medido en 1366×768: «Superposición
+temporal» pedía 976 px y tenía 875, así que «Conf.» desaparecía y de «Suma» se veía
+`$164.` y `$329.`. Un importe cortado **no se ve cortado**: `$164.` es un número
+perfectamente plausible, y el que lo lee no tiene cómo saber que le falta la mitad.
 
-`.tabla-env` lleva cuatro capas de fondo y hacen falta las cuatro: dos tapas del color
-del folio ancladas al **contenido** (`local`), que viajan con el scroll, y dos sombras
-ancladas al **marco** (`scroll`), que se quedan quietas contra el borde. En cada extremo
-la tapa se le pone encima a la sombra y la apaga. Así la sombra aparece sola del lado
-donde hay más tabla y se va sola cuando no la hay, sin una línea de JavaScript. En papel
-la tabla entra entera y las sombras se apagan.
+`vigilarCortes()` decide en tres pasos, y ninguno es un punto de corte de pantalla —la
+misma ventana con seis columnas entra y con nueve no—:
+
+1. **Mide.** `scrollWidth` contra `clientWidth` del envoltorio, después de pintar y en
+   cada cambio de tamaño (`ResizeObserver`).
+2. **Le da la hoja entera.** `.bloque.ancho` le devuelve a la tabla los 138 px de la
+   canaleta, que no está usando. Alcanza en 1366 (976 → 1013 disponibles) y en 1440, y
+   la tabla sigue siendo una tabla, que se lee mucho mejor que una lista.
+3. **Recién ahí, despliega.** Con `data-corte="si"` la fila deja de ser una fila: cada
+   valor sale con el rótulo de su columna (`data-rotulo`, el mismo texto del `<th>`) y
+   nada queda cortado. El encabezado se va, salvo en las tablas grandes, donde no es un
+   rótulo sino el control con el que se ordena: ahí queda como una tira que envuelve.
+
+Una vez que una tabla pidió la hoja entera se la queda mientras esté en pantalla; al
+cambiar de pantalla se vuelve a medir de cero.
+
+Debajo de todo eso quedan las cuatro capas de fondo de `.tabla-env` como red: dos tapas
+del color del folio ancladas al **contenido** (`local`) y dos sombras ancladas al
+**marco** (`scroll`); en cada extremo la tapa tapa la sombra. Se ven sólo donde el
+mecanismo no puede llegar —un valor más ancho que la pantalla, o el índice de legajos,
+que tiene su propia versión desplegada—. En papel se apagan.
 
 ### Taller — `.taller` (la cola de revisión)
 La cola no es una página: es un **puesto de trabajo**. Ocupa el alto entero de la
