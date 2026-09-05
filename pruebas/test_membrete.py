@@ -86,29 +86,75 @@ class ElCunoDeDemostracionNoSePuedePerder(unittest.TestCase):
         self.assertIsNotNone(m, "se perdió el cuño de demostración")
         return m.group(1).replace(" ", "")
 
-    def test_es_un_cuno_y_no_una_franja(self):
+    def test_sigue_siendo_un_cuno(self):
         cuerpo = self._regla()
-        self.assertIn("position:fixed", cuerpo,
-                      "volvió a ser una franja en el flujo, que se come un renglón de "
-                      "todas las pantallas para siempre")
         self.assertRegex(cuerpo, r"transform:rotate\(-?\d",
                          "el cuño dejó de estar girado y se lee como un cartel más")
+        self.assertIn("box-shadow:0", cuerpo,
+                      "se perdió el doble filete, que es lo que lo hace un sello")
 
-    def test_no_estorba_el_trabajo_pero_no_se_puede_cerrar(self):
+    def test_no_flota_encima_del_trabajo(self):
+        """
+        Fijo abajo a la derecha se apoyaba encima de controles, y no de cualquiera:
+        medido en once pantallas por tres tamaños, tapaba «Ver el documento completo»
+        en la cola, «son la misma persona» y «son distintas» en Identidad —las dos
+        decisiones de esa pantalla— y «confirmar que no está» en el teléfono.
+
+        Guardarle el rincón no alcanza: sobre una pantalla que se desplaza, lo que hay
+        debajo del rincón cambia al bajar la página, así que tarde o temprano hay un
+        control ahí. Por eso ahora vive en la banda de arriba, que es chapa.
+        """
         cuerpo = self._regla()
-        self.assertIn("pointer-events:none", cuerpo,
-                      "el cuño intercepta clics: puesto encima del trabajo, tapa lo "
-                      "que hay debajo")
+        self.assertNotIn("position:fixed", cuerpo,
+                         "el cuño volvió a flotar sobre el trabajo, y ahí termina "
+                         "encima de un control")
+        self.assertNotIn("position:absolute", cuerpo)
+        i = HTML.index('id="aviso-demo"')
+        self.assertIn('class="techo-medio"', HTML[:i],
+                      "el cuño se fue de la banda de arriba: en cualquier otro lado "
+                      "hay contenido que se desplaza por debajo")
+
+    def test_se_ve_tambien_en_la_cola(self):
+        """
+        La cola es la pantalla donde se decide, y ocupa el alto entero: si el aviso
+        viviera adentro de una hoja, ahí no habría ninguna. La banda de arriba está en
+        todas las pantallas.
+        """
+        i = HTML.index('id="aviso-demo"')
+        self.assertLess(HTML.index('<main id="vista"'), len(HTML))
+        self.assertLess(i, HTML.index('<main id="vista"'),
+                        "el cuño quedó adentro de la vista, que en la cola se reemplaza "
+                        "entera")
+
+    def test_no_se_puede_cerrar(self):
         # No se puede cerrar porque no hay con qué: ningún botón en el marcado.
         i = HTML.index('id="aviso-demo"')
         self.assertNotIn("<button", HTML[i:HTML.index("</div>", i)],
                          "le pusieron un botón de cerrar a un aviso de seguridad")
 
+    def test_la_explicacion_se_puede_leer(self):
+        """
+        Llevaba `pointer-events:none` porque flotaba encima del trabajo. Ahí eso era
+        correcto y tenía un costo escondido: sin eventos, el `title` —que es donde
+        está la explicación entera— no se puede leer nunca. Fuera del paso, no hace
+        falta pagarlo.
+        """
+        cuerpo = self._regla()
+        self.assertNotIn("pointer-events:none", cuerpo,
+                         "sin eventos el `title` no se muestra, y la explicación de "
+                         "qué son estos datos queda escrita y sin poder leerse")
+        self.assertIn("cursor:help", cuerpo,
+                      "nada dice que se pueda apoyar el puntero para leer qué es")
+
     def test_en_papel_sale_si_o_si(self):
         impresion = _bloque_impresion()
-        self.assertIn("#aviso-demo{position:static", impresion.replace(" ", ""),
+        self.assertIn("#aviso-demo{transform:rotate", impresion.replace(" ", ""),
                       "el cuño no está resuelto para el papel: una hoja con contratos "
                       "inventados podría salir sin decirlo")
+        self.assertIn("#aviso-demo.largo{display:inline!important}",
+                      impresion.replace(" ", ""),
+                      "en papel el cuño saldría en su versión corta, que dice menos "
+                      "justo donde más se confunde una hoja con otra")
         self.assertNotRegex(
             impresion, r"#aviso-demo\{[^{}]*display:none",
             "el cuño se apaga al imprimir, que es justo cuando más hace falta")

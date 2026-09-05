@@ -125,6 +125,27 @@
            identificadores compitiendo: «LEGAJO 87.933» y «LOTE demostracion». Ahora va
            con el tratamiento de la marginalia —versalitas y tinta apagada— que es lo
            que es. -->
+      <!-- El cuño de demostración va ACÁ, en la banda de arriba, y no flotando en un
+           rincón de la ventana. Fijo abajo a la derecha se apoyaba encima de
+           controles, y no de cualquiera: en la cola tapaba «Ver el documento
+           completo», en «Identidad» tapaba «son la misma persona» y «son distintas»
+           —que son las dos decisiones de esa pantalla— y en el teléfono, «confirmar
+           que no está». Medido en once pantallas por tres tamaños: cuatro pantallas
+           con un control tapado.
+           No alcanzaba con guardarle el rincón: sobre una pantalla que se desplaza,
+           un elemento fijo termina tarde o temprano encima de algo, porque lo que
+           está abajo cambia al bajar la página. La banda de arriba, en cambio, es
+           chapa: nada pasa por debajo, y se ve en todas las pantallas, la cola
+           incluida, que es donde se decide. -->
+      <div id="aviso-demo" hidden
+           title="Ninguno de estos contratos es real. Son documentos generados para probar el sistema: los nombres son inventados y los números de documento no corresponden a ninguna persona.">
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path
+          d="M8 1.6 15 14H1z" fill="none" stroke="currentColor" stroke-width="1.7"
+          stroke-linejoin="round"/><path d="M8 6v3.4M8 11.4v.1" stroke="currentColor"
+          stroke-width="1.7" stroke-linecap="round"/></svg>
+        <span class="largo">Datos de demostración</span>
+        <span class="corto">Demostración</span>
+      </div>
       <span class="techo-dato" id="t-lote" hidden>
         <span class="etq">Lote</span> <span id="f-lote"></span>
       </span>
@@ -158,20 +179,6 @@
       <span id="membrete-legajo"></span>
       <span id="membrete-fecha"></span>
     </div>
-  </div>
-
-  <div id="aviso-demo" hidden
-       title="Ninguno de estos contratos es real. Son documentos generados para probar el sistema: los nombres son inventados y los números de documento no corresponden a ninguna persona.">
-    <span class="estado estado--alerta">
-      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path
-        d="M8 1.6 15 14H1z" fill="none" stroke="currentColor" stroke-width="1.6"
-        stroke-linejoin="round"/><path d="M8 6v3.4M8 11.4v.1" stroke="currentColor"
-        stroke-width="1.6" stroke-linecap="round"/></svg>
-      Datos de demostración
-    </span>
-    <!-- Un cuño es breve o no es un cuño: el párrafo entero adentro lo convertía en un
-         cartel de 240×144 px. La explicación completa vive en el `title`. -->
-    <span>Ningún contrato de acá es real</span>
   </div>
 
   <main id="vista"><div class="esqueleto"><i></i><i></i><i></i></div></main>

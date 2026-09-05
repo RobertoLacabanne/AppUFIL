@@ -1394,31 +1394,40 @@ table[data-lista="superposiciones"] td{padding-left:8px; padding-right:8px}
    depender de que alguien se acuerde de aclararlo. */
 /* El cartel de datos inventados ocupa un renglón y no tres: en una pantalla de 768
    px de alto, cada renglón de acá es un renglón menos de la lista de trabajo. */
-/* ── El aviso de demostración: un cuño, no una franja ──────────────────────
-   Era una franja que cruzaba TODAS las pantallas, siempre, y a los dos días se
-   aprende a no verla — que es lo peor que le puede pasar a un aviso de seguridad.
-   Ahora es el cuño de doble filete que ya existe en el sistema, girado, fijo abajo a
-   la derecha: dice lo mismo, se ve más, y devuelve el renglón que se comía.
-
-   Es un aviso de seguridad, así que: no se puede cerrar, no se puede tapar —va por
-   encima de todo con `z-index` alto y `pointer-events:none` para no estorbar el
-   trabajo— y en impresión sale sí o sí. */
+/* ── El aviso de demostración: un cuño en la chapa ─────────────────────────
+   Empezó siendo una franja arriba de todo, que se comía un renglón de pantalla en
+   todas las pantallas para siempre. Pasó a ser un cuño de doble filete fijo abajo a
+   la derecha, y ahí apareció el problema de verdad: un elemento fijo sobre una
+   pantalla que se desplaza termina encima de algo. Medido en once pantallas por tres
+   tamaños, tapaba un control en cuatro —«Ver el documento completo» en la cola, «son
+   la misma persona» y «son distintas» en Identidad, «confirmar que no está» en el
+   teléfono—. Guardarle el rincón no arregla nada: lo que está abajo del rincón cambia
+   al bajar la página.
+   Así que el cuño se muda a la banda de arriba, que es chapa: nada pasa por debajo,
+   no hay con qué chocar, y se ve en TODAS las pantallas —la cola incluida, que es
+   donde se decide—. Sigue siendo un cuño: doble filete, punzó, versalitas y un par de
+   grados de inclinación, porque un sello derecho no se lee como un sello.
+   Deja de llevar `pointer-events:none`. Lo llevaba porque flotaba encima del trabajo;
+   acá no flota sobre nada, y sin eventos el `title` —que es donde está la explicación
+   entera— no se puede leer. */
 #aviso-demo{
-  position:fixed; right:22px; bottom:20px; z-index:60; pointer-events:none;
-  display:flex; flex-direction:column; gap:2px; align-items:center;
-  padding:9px 15px 10px; max-width:200px;
+  display:flex; align-items:center; gap:5px; flex:none; cursor:help;
+  padding:3px 9px 4px;
   background:var(--lapiz-suave); color:var(--lapiz);
-  border:2px solid var(--lapiz); box-shadow:0 0 0 2px var(--lapiz-suave),
-                                            0 0 0 3.5px var(--lapiz);
-  transform:rotate(-6deg); text-align:center;
-  font-size:11px; line-height:1.3;
+  border:1.5px solid var(--lapiz);
+  box-shadow:0 0 0 1.5px var(--lapiz-suave), 0 0 0 2.5px var(--lapiz);
+  transform:rotate(-2.5deg);
+  font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+  font-stretch:92%; white-space:nowrap;
 }
-#aviso-demo .estado{flex:none; font-weight:700; letter-spacing:.1em;
-  text-transform:uppercase; font-size:12px; font-stretch:92%}
-#aviso-demo > span:last-child{min-width:0; font-size:11px; color:var(--tinta-2)}
-@media (max-width:720px){
-  #aviso-demo{right:10px; bottom:10px; max-width:168px; padding:7px 12px 8px}
-  #aviso-demo > span:last-child{display:none}
+#aviso-demo svg{flex:none}
+/* Dos textos y no uno cortado: en una banda angosta el aviso se dice más corto, no
+   más chico ni a medias. */
+#aviso-demo .corto{display:none}
+@media (max-width:900px){
+  #aviso-demo .largo{display:none}
+  #aviso-demo .corto{display:inline}
+  #aviso-demo{padding:3px 7px 4px; letter-spacing:.06em}
 }
 @media (prefers-reduced-motion:reduce){#aviso-demo{transform:none}}
 
@@ -1512,10 +1521,15 @@ a.destacado-fila:hover{background:var(--realce)}
   .membrete-emision{display:flex; flex-direction:column; gap:2px; text-align:right;
     font-family:var(--mono); font-size:8.5pt; color:#333; flex:none}
   /* Y el cuño de demostración sale SÍ O SÍ: es lo que impide que una hoja con
-     contratos inventados se confunda con una hoja de la causa. */
-  #aviso-demo{position:static; transform:rotate(-4deg); float:right; margin:0 0 8px 12px;
+     contratos inventados se confunda con una hoja de la causa. En papel no hay color
+     que valga —una impresora en blanco y negro convierte el punzó en gris—, así que
+     el doble filete se dibuja en negro. */
+  #aviso-demo{transform:rotate(-4deg);
     background:#fff !important; color:#000 !important; border-color:#000 !important;
     box-shadow:0 0 0 2px #fff, 0 0 0 3.5px #000 !important}
+  /* Y en papel se dice entero, que es donde más se confunde una hoja con otra. */
+  #aviso-demo .largo{display:inline !important}
+  #aviso-demo .corto{display:none !important}
 
   /* La mesa y la hoja también van a blanco. Faltaban las dos, y el resultado era una
      banda beige atravesando el membrete —la única parte de la hoja donde se veía el
@@ -2041,7 +2055,6 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   /* La barra de arriba SÍ se queda pegada: es un renglón, y es lo único que dice
      sobre qué causa se está mirando. */
   main{padding:0 16px 60px}
-  #aviso-demo{padding:8px 16px}
 
   /* El aviso se apila. En una fila, el sello lleva `white-space:nowrap` y se queda
      con dos tercios del ancho; al texto le sobra una tira de cuarenta píxeles y cada
@@ -2120,19 +2133,9 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
     gap:12px}
   .ficha-lista{display:inline-flex; flex:none; min-height:38px; font-size:var(--t-12);
     padding:0 12px}
-  /* El cuño de demostración vive pegado abajo a la derecha, que ahora es donde está
-     la barra de avanzar: se corre arriba de ella en vez de taparla. Un aviso de
-     seguridad no puede esconder un control, y un control no puede esconder el aviso. */
-  body.taller-abierto #aviso-demo{bottom:calc(74px + env(safe-area-inset-bottom))}
-  /* Y se le hace lugar, en vez de dejar que se apoye encima del último botón. El cuño
-     no se puede cerrar ni tapar —es lo que impide que una hoja con contratos
-     inventados se confunda con una de la causa— así que lo que se corre es el resto.
-     Sólo en un legajo de demostración: en uno de verdad no existe. */
-  body.con-demo .modo-ficha .taller-cuerpo{padding-bottom:126px}
-  /* Y adentro del taller va en su versión corta: el renglón explicativo lo repite el
-     `title`, y en 390 px cada palabra de más es un pedazo más de la decisión tapado.
-     El sello con el texto «Datos de demostración» se queda: eso es lo que avisa. */
-  body.taller-abierto #aviso-demo > span:not(.estado){display:none}
+  /* Las tres reglas que le hacían lugar al cuño en la cola —correrlo arriba de la
+     barra de avanzar, achicarlo, y empujar el contenido 126 px— se fueron con él: en
+     la banda de arriba no hay a qué hacerle lugar. */
 
   .taller-cuerpo .fila{grid-template-columns:1fr; padding:2px 0 0}
   /* El nombre del archivo y la foja SÍ sirven acá: son lo que ubica el campo. */
