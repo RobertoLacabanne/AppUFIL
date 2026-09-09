@@ -338,3 +338,97 @@ class ElLoteNoEsElNombreDeLaCausa(unittest.TestCase):
                       "nada separa el nombre de la causa de lo que viene después")
         self.assertIn("padding-left:", cuerpo,
                       "el filete quedó pegado al texto: separa menos que un espacio")
+
+
+class ElCunoTieneSuRinconYNadieSeLoOcupa(unittest.TestCase):
+    """
+    El cuño de demostración ocupa un rincón fijo de la banda de arriba, y ese rincón es
+    suyo: no se achica y nada se le mete adentro. Lo que hay alrededor se acomoda solo.
+
+    Al principio no lo hacía. El cuño entró con `flex:none` —correcto— y la búsqueda
+    también lo era, así que el único que podía ceder era el legajo: medido en 1024, el
+    chip «LEGAJO — Ninguno abierto» pasaba de 181 px a 18 y la carátula a cero. La
+    banda no lo tapaba: lo aplastaba hasta hacerlo desaparecer, que a la vista es lo
+    mismo.
+
+    El orden de quién cede está declarado, y es el de importancia al revés: primero se
+    angosta la búsqueda —que sigue siendo usable angosta y además tiene el atajo «/»—,
+    después se elide la carátula, y el número de legajo y el cuño no ceden nunca.
+    """
+
+    def _regla(self, selector, donde=None):
+        m = re.search(re.escape(selector) + r"\{([^{}]*)\}", donde or CSS)
+        self.assertIsNotNone(m, f"se perdió la regla «{selector}»")
+        return m.group(1).replace(" ", "")
+
+    def test_el_cuno_no_cede_nunca(self):
+        self.assertIn("flex:none", self._regla("#aviso-demo"),
+                      "el cuño se achica cuando la banda se aprieta, y un aviso de "
+                      "seguridad achicado deja de avisar")
+
+    def test_el_legajo_tiene_piso_y_no_se_aplasta(self):
+        cuerpo = self._regla(".techo-legajo")
+        self.assertIn("flex:01auto", cuerpo, "el legajo volvió a ser inflexible")
+        self.assertRegex(cuerpo, r"min-width:1\d\dpx",
+                         "el legajo puede volver a aplastarse hasta desaparecer: es lo "
+                         "único que dice sobre qué causa se está trabajando")
+
+    def test_la_busqueda_es_la_que_cede_primero(self):
+        cuerpo = self._regla(".techo-buscar")
+        self.assertIn("flex:03auto", cuerpo,
+                      "la búsqueda dejó de ceder tres veces más rápido que el legajo, "
+                      "así que vuelven a apretarse los dos por igual")
+        self.assertIn("min-width:150px", cuerpo,
+                      "la búsqueda puede angostarse hasta no decir qué se busca")
+
+    def test_en_el_telefono_el_piso_se_levanta(self):
+        """
+        Ahí la carátula ya no está, el chip es «LEGAJO 87.933» y nada más, y los 132 px
+        reservados se los sacaba a la búsqueda: quedaba en 35 px de ancho.
+        """
+        i = CSS.index("@media (max-width:900px)")
+        bloque = CSS[i:CSS.index("@media (max-width:520px)")]
+        self.assertIn(".techo-legajo{min-width:0}", bloque.replace(" ", ""),
+                      "en el teléfono el legajo se queda con el ancho de la búsqueda")
+
+    def test_con_la_banda_angosta_lo_que_se_va_es_el_lote(self):
+        """
+        Es una PROPIEDAD del legajo —y está entero en el panel, en «Estado del lote»—
+        mientras que la causa, el aviso de demostración y el estado del trabajo no se
+        pueden ir.
+        """
+        i = CSS.index("@media (max-width:1180px)")
+        bloque = CSS[i:CSS.index("@media (max-width:900px)")]
+        self.assertIn(".techo-dato{display:none}", bloque.replace(" ", ""),
+                      "con 196 px de barra lateral el lote sigue comiéndose el ancho "
+                      "que necesita el legajo")
+
+
+class ElNombreDelAreaEsUnRenglon(unittest.TestCase):
+    """
+    Partida en dos —«Área» arriba, «Anticorrupción» abajo— la jerarquía de la marca
+    deja de leerse de un vistazo y el bloque de identidad crece un renglón. Pasaba por
+    dos píxeles: con 196 px de barra y 16 de aire a cada lado quedaban 102 para un
+    nombre que necesita 104.
+    """
+
+    def test_no_se_parte(self):
+        m = re.search(r"\.identidad-area\{([^{}]*)\}", CSS)
+        self.assertIsNotNone(m, "se perdió el nombre del área")
+        cuerpo = m.group(1).replace(" ", "")
+        for pieza in ("white-space:nowrap", "overflow:hidden", "text-overflow:ellipsis"):
+            self.assertIn(pieza, cuerpo,
+                          f"falta «{pieza}»: el área vuelve a caer en dos renglones")
+
+    def test_y_le_alcanza_el_lugar_en_la_barra_angosta(self):
+        i = CSS.index("@media (max-width:1180px)")
+        bloque = CSS[i:CSS.index("@media (max-width:900px)")].replace(" ", "")
+        self.assertIn(".identidad{padding-left:12px;padding-right:12px}", bloque,
+                      "con la barra de 196 px el nombre del área se corta por dos "
+                      "píxeles, en vez de entrar")
+
+    def test_si_no_entra_el_nombre_entero_queda_al_alcance(self):
+        """Un área configurada con un nombre largo se elide; el nombre no se pierde."""
+        self.assertIn("$('#m-area').title = d.area;", APP,
+                      "el área se puede cortar y el nombre entero no queda en ningún "
+                      "lado")

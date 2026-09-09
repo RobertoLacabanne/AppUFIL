@@ -51,18 +51,23 @@ class Hoja {
   get ancho() { return this.base + (this._clases.has('ancho') ? this.canaleta : 0); }
 }
 class Env {
-  constructor(hoja, pide) { this.hoja = hoja; this.pide = pide; this.dataset = {}; }
+  constructor(hoja, pide) { this.hoja = hoja; this.pide = pide; this.dataset = {};
+    this.tabla = {__tabla: true}; }
   get clientWidth() { return this.hoja.ancho; }
   get scrollWidth() { return this.dataset.corte === 'si'
     ? this.clientWidth : Math.max(this.pide, this.clientWidth); }
   closest(sel) { return sel === '.bloque' ? this.hoja : null; }
+  querySelector(sel) { return sel === 'table' ? this.tabla : null; }
 }
-const observadores = [];
+const observadores = [], porContenido = [];
 globalThis.ResizeObserver = class { constructor(fn){ this.fn = fn; }
   observe(el){ observadores.push(() => this.fn()); } };
+globalThis.MutationObserver = class { constructor(fn){ this.fn = fn; }
+  observe(el){ porContenido.push(() => this.fn()); } };
 globalThis.ENVS = [];
 globalThis.document = { querySelectorAll: () => globalThis.ENVS };
-globalThis.Hoja = Hoja; globalThis.Env = Env; globalThis.observadores = observadores;
+globalThis.Hoja = Hoja; globalThis.Env = Env;
+globalThis.observadores = observadores; globalThis.porContenido = porContenido;
 """
 
 
@@ -146,12 +151,83 @@ class LaTablaSeMideYNoSeAdivina(unittest.TestCase):
           const h = new Hoja(727, 0); ENVS = [new Env(h, 976)];
           vigilarCortes();
           const antes = ENVS[0].dataset.corte || 'no';
-          h.base = 1200; observadores.forEach(f => f());
+          h.base = 1200; observadores.forEach(f => f());   // 1200 > 976 + holgura
           console.log(JSON.stringify({antes, despues: ENVS[0].dataset.corte || 'no'}));""")
         self.assertEqual(s["antes"], "si")
         self.assertEqual(s["despues"], "no",
                          "la tabla se quedó desplegada aunque ya entra: en una pantalla "
                          "grande se lee peor que como tabla")
+
+    def test_lo_que_pedia_la_tabla_queda_anotado_en_el_elemento(self):
+        """
+        Desplegada no se puede volver a medir —desplegada siempre entra—, así que ese
+        número es lo único con lo que se decide si ya vuelve a caber. Guardado en una
+        variable de la función se pierde en cuanto algo repinta; en el elemento, además,
+        se puede mirar desde afuera cuando algo no cierra.
+        """
+        s = self.correr("""
+          const h = new Hoja(727, 0); ENVS = [new Env(h, 976)];
+          vigilarCortes();
+          console.log(JSON.stringify({pide: ENVS[0].dataset.pide || null}));""")
+        self.assertEqual(str(s["pide"]), "976",
+                         "el ancho que pedía la tabla no queda anotado en el elemento")
+
+    def test_se_vuelve_a_medir_cuando_cambia_el_contenido(self):
+        """
+        Filtrar la tabla puede dejar afuera justo las filas del nombre más largo, y
+        entonces una tabla desplegada vuelve a entrar; «ver más filas» puede traer un
+        importe de siete cifras y hacer que una que entraba deje de entrar. De eso el
+        `ResizeObserver` no avisa nada: el envoltorio mide lo mismo.
+        """
+        s = self.correr("""
+          const h = new Hoja(727, 0); ENVS = [new Env(h, 976)];
+          vigilarCortes();
+          const antes = {corte: ENVS[0].dataset.corte, pide: ENVS[0].dataset.pide};
+          ENVS[0].pide = 700;                       // se filtró: quedan filas más cortas
+          porContenido.forEach(f => f());
+          console.log(JSON.stringify({antes, corte: ENVS[0].dataset.corte || 'no',
+            pide: ENVS[0].dataset.pide || null}));""")
+        self.assertEqual(s["antes"]["corte"], "si")
+        self.assertEqual(s["corte"], "no",
+                         "la tabla se quedó desplegada con un contenido que ya entra: "
+                         "sólo se remedía al cambiar de tamaño")
+        self.assertIsNone(s["pide"],
+                          "quedó anotado el ancho de las filas de antes, que ya no son "
+                          "las que hay")
+
+    def test_y_al_reves_tambien(self):
+        """Una tabla que entraba y deja de entrar cuando llega una fila más larga."""
+        s = self.correr("""
+          const h = new Hoja(727, 0); ENVS = [new Env(h, 700)];
+          vigilarCortes();
+          const antes = ENVS[0].dataset.corte || 'no';
+          ENVS[0].pide = 1400;                      // «ver más filas»
+          porContenido.forEach(f => f());
+          console.log(JSON.stringify({antes, despues: ENVS[0].dataset.corte || 'no'}));""")
+        self.assertEqual(s["antes"], "no")
+        self.assertEqual(s["despues"], "si",
+                         "llegaron filas más largas y la tabla se quedó cortada")
+
+    def test_hay_holgura_y_no_se_decide_al_pixel(self):
+        """
+        Los anchos vienen redondeados y un borde de medio píxel alcanza para que una
+        tabla que entra justo se declare cortada, se despliegue, y al desplegarse entre
+        —y ahí vuelva a plegarse—. La holgura deja una banda muerta entre los dos
+        estados.
+        """
+        self.assertIn("const HOLGURA_TABLA", APP,
+                      "se volvió a decidir al píxel, y en el borde la tabla parpadea")
+        i = APP.index("function vigilarCortes")
+        cuerpo = APP[i:APP.index("function interpHTML(")]
+        self.assertEqual(cuerpo.count("HOLGURA_TABLA"), 3,
+                         "la holgura no se aplica en los tres lugares donde se compara "
+                         "un ancho contra otro")
+        s = self.correr("""
+          const h = new Hoja(875, 0); ENVS = [new Env(h, 876)];   // pide UN pixel más
+          vigilarCortes();
+          console.log(JSON.stringify({corte: ENVS[0].dataset.corte || 'no'}));""")
+        self.assertEqual(s["corte"], "no",
+                         "un píxel de diferencia despliega la tabla entera")
 
     def test_se_vuelve_a_mirar_cuando_cambia_el_tamaño(self):
         """No es un punto de corte: se remide, y por eso hace falta el observador."""
@@ -198,13 +274,67 @@ class CadaValorDesplegadoDiceDeQueColumnaEs(unittest.TestCase):
         se ordena. Esconderlo al desplegar sacaba el orden justo en las pantallas
         chicas, que es donde una lista de cincuenta filas más falta hace.
         """
-        self.assertIn('<div class="tabla-env" data-ordenable="si">', APP,
+        self.assertIn('<div class="tabla-env" data-ordenable="si"', APP,
                       "la tabla grande dejó de decir que se puede ordenar")
         plano = LIMPIO.replace(" ", "").replace("\n", "")
         self.assertIn('.tabla-env[data-corte="si"][data-ordenable]thead{display:block}',
                       plano, "al desplegarse se pierde poder ordenar")
         self.assertIn('content:"Ordenarpor"', plano,
                       "la tira de columnas queda sin decir para qué está")
+
+    def test_la_tira_de_orden_se_ve_como_un_control(self):
+        """
+        La primera versión dejó los encabezados con el tratamiento del encabezado
+        —versalitas chicas en tinta apagada—, que es EXACTAMENTE el mismo que llevan
+        los rótulos de adentro de cada fila. Dos cosas distintas escritas igual: una
+        que se toca y otra que no.
+        """
+        plano = LIMPIO.replace(" ", "").replace("\n", "")
+        i = plano.index('.tabla-env[data-corte="si"][data-ordenable]theadth{')
+        regla = plano[i:plano.index("}", i)]
+        for pieza, queja in (
+                ("border:1pxsolidvar(--borde-control)", "la pastilla se quedó sin borde"),
+                ("border-radius:var(--radio-pildora)", "dejó de ser una pastilla"),
+                ("font-family:var(--sans)", "volvió a la tipografía del encabezado"),
+                ("text-transform:none", "volvió a las versalitas del rótulo de fila")):
+            self.assertIn(pieza, regla, queja + ": la tira vuelve a parecer un rótulo")
+        self.assertIn('.tabla-env[data-corte="si"][data-ordenable]theadth:hover{', plano,
+                      "nada responde al puntero: no se lee como algo que se toca")
+
+    def test_la_tira_dice_cual_manda_el_orden_y_en_que_sentido(self):
+        """
+        Sin esto la tira ofrece ordenar y no dice cómo está ordenado, que es la mitad
+        que hace falta cuando uno vuelve a la pantalla.
+        """
+        plano = LIMPIO.replace(" ", "").replace("\n", "")
+        self.assertIn('.tabla-env[data-corte="si"][data-ordenable]theadth.asc,'
+                      '.tabla-env[data-corte="si"][data-ordenable]theadth.desc{', plano,
+                      "la columna que manda el orden se ve igual que las otras siete")
+        i = plano.index('theadth.desc{')
+        llena = plano[i:plano.index("}", i)]
+        self.assertIn("background:var(--sello-suave)", llena)
+        self.assertIn("border-color:var(--sello)", llena)
+        # El sentido lo dice la flecha, que es la misma pieza que en la tabla armada.
+        self.assertIn("th.ord.asc::after", CSS)
+        self.assertIn("th.ord.desc::after", CSS)
+        # Y adentro de un `inline-flex` la flecha es otro ítem: sin `gap` sale pegada.
+        self.assertIn("gap:4px", plano[plano.index(
+            '.tabla-env[data-corte="si"][data-ordenable]theadth{'):][:260],
+            "la flecha del sentido sale pegada al nombre de la columna")
+
+    def test_y_el_rotulo_de_la_tira_cambia_con_el_estado(self):
+        plano = LIMPIO.replace(" ", "").replace("\n", "")
+        self.assertIn('content:"Ordenarpor"', plano)
+        self.assertIn('[data-ordenado]theadtr::before{content:"Ordenadopor"}', plano,
+                      "la tira dice siempre «ordenar por», también cuando ya está "
+                      "ordenada")
+        self.assertIn("data-ordenado=\"si\"", APP,
+                      "nadie marca la tabla como ordenada: el rótulo no puede cambiar")
+
+    def test_el_orden_tambien_se_dice_para_quien_no_ve_la_flecha(self):
+        """Una flechita dibujada no la lee ningún lector de pantalla."""
+        self.assertIn('aria-sort="${estado.desc ? \'descending\' : \'ascending\'}"', APP,
+                      "la columna que manda el orden no se anuncia")
 
     def test_una_celda_vacia_no_deja_un_rotulo_suelto(self):
         plano = LIMPIO.replace(" ", "").replace("\n", "")

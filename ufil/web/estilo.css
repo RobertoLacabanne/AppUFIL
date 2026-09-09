@@ -409,8 +409,13 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
 .monograma{flex:none; display:grid; place-items:center; color:var(--barra-txt)}
 .identidad-texto{display:flex; flex-direction:column; min-width:0}
 .identidad-unidad{font-size:15px; font-weight:700; letter-spacing:-.01em; line-height:1.15}
+/* El área es un renglón, no un párrafo: partida en dos —«Área» arriba, «Anticorrupción»
+   abajo— la jerarquía de la marca deja de leerse de un vistazo y el bloque de identidad
+   crece un renglón en todas las pantallas. Si alguna vez se configura un área con un
+   nombre larguísimo, se elide con puntos suspensivos y el nombre entero queda en el
+   `title`: mejor un nombre cortado que una marca de tres renglones. */
 .identidad-area{font-size:11px; letter-spacing:.06em; color:var(--barra-txt-2);
-            margin-top:2px}
+            margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 /* ── El isotipo oficial ────────────────────────────────────────────────────
    La bandera con la banda federal y los anillos del río, en el lugar donde antes
    había un ícono genérico de documento. Los colores de la marca —el celeste, el
@@ -533,10 +538,24 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
 }
 .techo-menu{display:none; flex:none; background:transparent; border:1px solid var(--borde-control);
             border-radius:var(--radio); padding:7px; cursor:pointer; color:var(--tinta)}
+/* ── Quién cede el ancho en la banda de arriba ─────────────────────────────
+   El cuño de demostración ocupa un rincón fijo, y ese rincón es SUYO: no se achica y
+   nada se le mete adentro. Lo que hay alrededor tiene que acomodarse solo.
+   Al principio no lo hacía. El cuño entró con `flex:none` —correcto— y la búsqueda
+   también lo era, así que el único que podía ceder era el legajo: medido en 1024, el
+   chip «LEGAJO — Ninguno abierto» pasaba de 181 px a 18 y la carátula a cero. O sea,
+   la banda no lo tapaba: lo aplastaba hasta hacerlo desaparecer, que a la vista es
+   lo mismo.
+   El orden de quién cede está declarado y es el orden de importancia al revés: primero
+   se angosta la búsqueda —que sigue siendo usable angosta y además tiene el atajo «/»—,
+   después se elide la carátula, y el número de legajo y el cuño no ceden nunca. */
 .techo-legajo{
-  display:flex; align-items:baseline; gap:8px; min-width:0; text-decoration:none;
+  display:flex; align-items:baseline; gap:8px; text-decoration:none;
   color:var(--tinta); padding:5px 9px; margin-left:-9px; border-radius:var(--radio);
   transition:background var(--paso) var(--curva);
+  /* Cede, pero no por debajo de «LEGAJO 87.933»: un legajo que no se lee no ubica a
+     nadie, y es lo único que dice sobre qué causa se está trabajando. */
+  flex:0 1 auto; min-width:132px;
 }
 .techo-legajo:hover{background:var(--realce)}
 .techo-legajo .etq{font-size:11px; font-weight:600; letter-spacing:.13em;
@@ -561,7 +580,10 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
 .techo-dato #f-lote{font-size:11px; color:var(--tinta-2)}
 .techo-dato .etq{font-size:11px; font-weight:600; letter-spacing:.13em;
                  text-transform:uppercase; color:var(--tinta-3)}
-.techo-buscar{position:relative; flex:none; width:min(272px,30vw)}
+/* `flex-shrink:3` contra el 1 del legajo: la búsqueda cede tres veces más rápido, y
+   por eso es la que se angosta primero. No baja de 150 px, que es donde el marcador
+   deja de decir qué se busca. */
+.techo-buscar{position:relative; flex:0 3 auto; width:min(272px,30vw); min-width:150px}
 /* `.icono-buscar` y no `.lupa`: `.lupa` es el panel del renglón ampliado de la cola,
    que mide 132 px de alto y tiene fondo blanco y borde. Puesto en el ícono del campo
    de búsqueda dibujaba una caja blanca de 132 px colgando del techo. Es la segunda
@@ -586,6 +608,16 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    atrás sin querer. */
 @media (max-width:1180px){
   :root{--lateral:196px}
+  /* Con la banda más angosta, lo que se va es el lote: es una PROPIEDAD del legajo
+     —y está entero en el panel, en «Estado del lote»— mientras que la causa, el aviso
+     de demostración y el estado del trabajo no se pueden ir. Son 121 px que le
+     devuelven al legajo su ancho entero. */
+  .techo-dato{display:none}
+  /* Y la identidad de la barra lateral se aprieta un poco: con 196 px de barra y
+     16 de aire a cada lado quedaban 102 para «Área Anticorrupción», que necesita 104,
+     y el nombre del área caía en dos renglones por dos píxeles. */
+  .identidad{padding-left:12px; padding-right:12px}
+  .identidad-enlace{gap:9px}
   /* En una pantalla angosta el ancho se lo tiene que quedar el dato, no el nombre
      del archivo ni los botones. El renglón de la cola se aprieta por los costados:
      con 452 px de columna central, «DOS LECTURAS DISTINTAS» entra en un renglón y
@@ -608,7 +640,12 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
         animation:aparecer var(--paso) var(--curva)}
   .techo-menu{display:block}
   #techo{padding:0 12px; gap:10px}
-  .techo-buscar{width:auto; flex:1; min-width:0}
+  /* En un teléfono el piso del legajo se levanta: acá la carátula ya no está, el chip
+     es «LEGAJO 87.933» y nada más, y los 132 px reservados para él se los estaba
+     sacando a la búsqueda, que quedaba en 35 px de ancho —o sea, inservible—. La
+     búsqueda vuelve a llevarse lo que sobra. */
+  .techo-legajo{min-width:0}
+  .techo-buscar{width:auto; flex:1 1 auto; min-width:0}
   .techo-medio{gap:8px}
   .techo-legajo .caratula, .techo-dato{display:none}
 }
@@ -930,17 +967,43 @@ h3.menor{font-size:13px}
 .tabla-env[data-corte="si"] thead{display:none}
 /* Salvo donde el encabezado no es un rótulo sino un CONTROL: en las tablas grandes se
    ordena tocando la columna. Escondiéndolo se perdía poder ordenar justo en las
-   pantallas chicas, que es donde una lista de cincuenta filas más se necesita. Ahí el
-   encabezado se convierte en una tira de botones que envuelve. */
+   pantallas chicas, que es donde una lista de cincuenta filas más se necesita.
+
+   Y tiene que VERSE que son controles. La primera versión los dejó con el tratamiento
+   del encabezado —versalitas chicas en tinta apagada—, que es exactamente el mismo que
+   llevan los rótulos de adentro de cada fila: dos cosas distintas escritas igual, una
+   que se toca y otra que no. Acá son pastillas con borde, en la tipografía de la
+   aplicación y en caja normal, con la que manda el orden llena y con el sentido
+   dicho. */
 .tabla-env[data-corte="si"][data-ordenable] thead{display:block}
 .tabla-env[data-corte="si"][data-ordenable] thead tr{display:flex; flex-wrap:wrap;
-  align-items:baseline; column-gap:16px; row-gap:6px; padding:2px 2px 10px;
+  align-items:center; column-gap:8px; row-gap:6px; padding:2px 2px 11px;
   border-bottom:1px solid var(--filete)}
+/* Y el rótulo de la tira dice EN QUÉ ESTADO está, no sólo qué se puede hacer: sin eso
+   la tira ofrece ordenar y no dice cómo está ordenado. */
 .tabla-env[data-corte="si"][data-ordenable] thead tr::before{content:"Ordenar por";
   font-family:var(--sans); font-size:var(--t-10); font-weight:600; letter-spacing:.1em;
-  text-transform:uppercase; color:var(--tinta-3)}
-.tabla-env[data-corte="si"][data-ordenable] thead th{display:block; padding:0;
-  border:none; text-align:left; min-height:24px}
+  text-transform:uppercase; color:var(--tinta-3); margin-right:2px}
+.tabla-env[data-corte="si"][data-ordenable][data-ordenado] thead tr::before{
+  content:"Ordenado por"}
+.tabla-env[data-corte="si"][data-ordenable] thead th{
+  /* El `gap` no es decoración: adentro de un `inline-flex` la flecha del sentido es
+     otro ítem y el espacio que trae escrito adelante se pierde. Sin esto sale
+     «Monto↑», pegado. */
+  display:inline-flex; align-items:center; gap:4px; padding:4px 11px;
+  border:1px solid var(--borde-control); border-radius:var(--radio-pildora);
+  background:var(--papel); color:var(--tinta-2);
+  font-family:var(--sans); font-size:var(--t-11); font-weight:500;
+  letter-spacing:0; text-transform:none; text-align:left; min-height:28px}
+.tabla-env[data-corte="si"][data-ordenable] thead th:hover{
+  background:var(--realce); color:var(--tinta); border-color:var(--tribunal-txt)}
+/* La que manda: llena y con más peso, para que se encuentre sin leer la tira entera.
+   La flecha la pone `th.ord.asc/desc`, que es la misma pieza que en la tabla armada:
+   un solo lugar donde está dicho qué quiere decir cada sentido. */
+.tabla-env[data-corte="si"][data-ordenable] thead th.asc,
+.tabla-env[data-corte="si"][data-ordenable] thead th.desc{
+  background:var(--sello-suave); border-color:var(--sello); color:var(--tinta);
+  font-weight:650}
 .tabla-env[data-corte="si"] tbody tr{display:flex; flex-wrap:wrap;
   align-items:baseline; column-gap:22px; row-gap:5px; padding:12px 2px;
   border-bottom:1px solid var(--filete-2)}

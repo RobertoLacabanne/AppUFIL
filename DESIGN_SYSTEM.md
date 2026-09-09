@@ -344,6 +344,15 @@ Con la barra al costado el alto de arriba es uno solo y ya no depende del ancho.
 sigue midiendo con `medirTecho` —el aviso de datos de demostración aparece y
 desaparece— pero ahora hay **una sola cosa que medir**.
 
+**La banda de arriba tiene un orden de prioridad declarado.** El cuño de demostración
+ocupa un rincón fijo que es suyo: no se achica y nada se le mete adentro. Lo que hay
+alrededor se acomoda, y en este orden —el de importancia al revés—: primero se angosta
+la búsqueda (`flex-shrink:3`, piso de 150 px; sigue siendo usable angosta y además tiene
+el atajo «/»), después se elide la carátula, y el número de legajo (`flex-shrink:1`, piso
+de 132 px) y el cuño no ceden nunca. Por debajo de 1180 px, donde la barra lateral baja a
+196, lo que se va de la banda es el **lote**: es una propiedad del legajo y está entero
+en el panel.
+
 **Y el ancho tampoco depende de la pantalla en la que uno esté.** La página entera
 scrollea con la barra del navegador: el panel es largo y la barra aparece, «Trabajo del
 equipo» entra en una pantalla y la barra se va. Medido en 1366×768, la columna de
@@ -513,8 +522,31 @@ misma ventana con seis columnas entra y con nueve no—:
    nada queda cortado. El encabezado se va, salvo en las tablas grandes, donde no es un
    rótulo sino el control con el que se ordena: ahí queda como una tira que envuelve.
 
+Se vuelve a medir por **dos** motivos, y ninguno cubre al otro: cambia el **tamaño**
+—`ResizeObserver`— o cambia el **contenido** —`MutationObserver` sobre la tabla—.
+Filtrar puede dejar afuera justo las filas del nombre más largo y hacer que una tabla
+desplegada vuelva a entrar; «ver más filas» puede traer un importe de siete cifras y
+hacer que una que entraba deje de entrar, y de eso el `ResizeObserver` no avisa nada
+porque el envoltorio mide lo mismo. Al cambiar el contenido, lo anotado deja de valer:
+se borra, se pliega y se mide de cero.
+
+Lo que la tabla pedía queda anotado **en el elemento** (`data-pide`), no en una variable:
+desplegada no se puede volver a medir —desplegada siempre entra— así que ese número es
+lo único con lo que se decide si ya vuelve a caber. Las comparaciones llevan una
+**holgura de 2 px**: los anchos vienen redondeados y sin banda muerta una tabla que
+entra justo parpadea entre los dos estados.
+
 Una vez que una tabla pidió la hoja entera se la queda mientras esté en pantalla; al
-cambiar de pantalla se vuelve a medir de cero.
+cambiar de pantalla se vuelve a medir de cero. Esa traba no se suelta al cambiar el
+contenido: devolverle la canaleta y volver a sacársela con cada tecla de la búsqueda
+haría parpadear la página entera.
+
+**La tira de orden es un control y se ve como un control.** No puede llevar el
+tratamiento del encabezado —versalitas chicas en tinta apagada—, porque es el mismo que
+llevan los rótulos de adentro de cada fila: dos cosas distintas escritas igual, una que
+se toca y otra que no. Son pastillas con borde, en sans y en caja normal; la que manda
+el orden va llena, con la flecha del sentido, y el rótulo de la tira pasa de «Ordenar
+por» a «Ordenado por». Para quien no ve la flecha, `aria-sort` en el `<th>` activo.
 
 **Ningún dato se parte, tampoco un nombre propio.** Ya estaba resuelto para el CUIL, la
 fecha y el nombre de archivo, que son UN token y llevan `nowrap`. Faltaba la persona:

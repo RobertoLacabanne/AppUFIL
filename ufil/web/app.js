@@ -435,6 +435,13 @@ function tabla(cols, filas, opts = {}) {
    dos estados con el borde justo. Al cambiar de pantalla se vuelve a medir de cero. */
 const _tablasVigiladas = new WeakSet();
 
+/* Dos píxeles de holgura, para los dos lados. Los anchos que devuelve el navegador
+   vienen redondeados y un borde de medio píxel alcanza para que una tabla que entra
+   justo se declare cortada, se despliegue, y al desplegarse entre —y ahí vuelva a
+   plegarse—. Con la holgura hay una banda muerta de cuatro píxeles entre los dos
+   estados, y ninguna tabla parpadea en el borde. */
+const HOLGURA_TABLA = 2;
+
 function vigilarCortes(raiz) {
   for (const env of (raiz || document).querySelectorAll('.tabla-env')) {
     if (_tablasVigiladas.has(env)) continue;
@@ -442,15 +449,23 @@ function vigilarCortes(raiz) {
     // otra tipografía: dos mecanismos sobre la misma tabla se pisan.
     if (env.closest('.tabla-legajos')) continue;
     _tablasVigiladas.add(env);
-    let necesita = 0;                 // cuánto pedía cuando se la vio cortada
+
+    /* Cuánto pedía la tabla la última vez que se la vio cortada. Va ANOTADO EN EL
+       ELEMENTO y no en una variable de esta función: desplegada no se puede volver a
+       medir —desplegada siempre entra— así que este número es lo único con lo que se
+       puede decidir si ya vuelve a caber. Guardado afuera del elemento se pierde en
+       cuanto algo repinta, y en el DOM además se puede mirar cuando algo no cierra. */
+    const pide = () => +env.dataset.pide || 0;
+
     const mirar = () => {
       if (env.dataset.corte === 'si') {
-        // Desplegada no se puede medir el ancho que pediría la tabla: se usa el que
-        // se anotó cuando todavía era una tabla.
-        if (necesita && env.clientWidth >= necesita) delete env.dataset.corte;
+        if (pide() && env.clientWidth >= pide() + HOLGURA_TABLA) {
+          delete env.dataset.corte;
+          delete env.dataset.pide;
+        }
         return;
       }
-      if (env.scrollWidth <= env.clientWidth + 1) return;      // entra: no hay nada que hacer
+      if (env.scrollWidth <= env.clientWidth + HOLGURA_TABLA) return;   // entra
       const hoja = env.closest('.bloque');
       if (hoja && !hoja.classList.contains('ancho')) {
         hoja.classList.add('ancho');
@@ -461,11 +476,35 @@ function vigilarCortes(raiz) {
         // ensanchado, la clase no cambia nada, no hay cambio de tamaño, no hay aviso,
         // y la tabla se quedaba cortada para siempre. Pasaba en el panel, que tiene
         // dos tablas en la misma hoja.
-        if (env.scrollWidth <= env.clientWidth + 1) return;
+        if (env.scrollWidth <= env.clientWidth + HOLGURA_TABLA) return;
       }
-      necesita = env.scrollWidth;
+      env.dataset.pide = env.scrollWidth;
       env.dataset.corte = 'si';
     };
+
+    /* Y se vuelve a medir por DOS motivos distintos, que ninguno cubre al otro:
+
+       · cambia el TAMAÑO —se agranda la ventana, se abre la barra lateral—, y de eso
+         avisa el `ResizeObserver`;
+       · cambia el CONTENIDO —se filtra la tabla, se ordena, se piden más filas—, y de
+         eso el `ResizeObserver` no avisa nada, porque el envoltorio mide lo mismo.
+         Filtrar puede dejar afuera justo las filas del nombre más largo, y entonces
+         una tabla desplegada vuelve a entrar; o al revés, «ver más filas» trae un
+         importe de siete cifras y una tabla que entraba deja de entrar.
+
+       Al cambiar el contenido, lo anotado deja de valer: el ancho que pedía era el de
+       las filas de antes. Se borra, se vuelve a plegar y se mide de cero. Lo que NO se
+       toca es la hoja ancha —esa traba se queda—: devolverle la canaleta y volver a
+       sacársela con cada tecla de la búsqueda haría parpadear la página entera. */
+    const tabla = env.querySelector('table');
+    if (tabla) {
+      new MutationObserver(() => {
+        delete env.dataset.corte;
+        delete env.dataset.pide;
+        mirar();
+      }).observe(tabla, {childList: true, subtree: true, characterData: true});
+    }
+
     mirar();
     new ResizeObserver(mirar).observe(env);
   }
@@ -650,9 +689,15 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
   function pintar() {
     const v = visibles();
     const tanda = v.slice(0, estado.mostradas);
+    /* El encabezado de una tabla grande no es un rótulo: es el control con el que se
+       ordena. `aria-sort` es lo que se lo dice a un lector de pantalla —la flechita
+       dibujada no la lee nadie— y es lo único que ahí distingue la columna que manda
+       el orden de las otras siete. */
     const th = cols.map((c, i) => {
       const act = estado.orden === i ? (estado.desc ? ' desc' : ' asc') : '';
-      return `<th class="ord${act} ${claseCol(cols, c, i, filas)}" data-col="${i}"
+      const aria = estado.orden === i
+        ? ` aria-sort="${estado.desc ? 'descending' : 'ascending'}"` : '';
+      return `<th class="ord${act} ${claseCol(cols, c, i, filas)}" data-col="${i}"${aria}
                 title="ordenar por ${esc(c.t)}">${esc(c.t)}</th>`;
     }).join('');
     const tr = tanda.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}"
@@ -673,7 +718,8 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
         ${estado.q || estado.orden != null
           ? `<button class="boton gris limpiar-tabla">Quitar filtro y orden</button>` : ''}
       </div>
-      ${v.length ? `<div class="tabla-env" data-ordenable="si"><table${opts.lista ? ` data-lista="${esc(opts.lista)}"` : ''}
+      ${v.length ? `<div class="tabla-env" data-ordenable="si"${
+          estado.orden != null ? ' data-ordenado="si"' : ''}><table${opts.lista ? ` data-lista="${esc(opts.lista)}"` : ''}
           ><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div>`
         : `<div class="tabla-env"><div class="vacio">Ninguna fila dice
              «${esc(estado.q)}».</div></div>`}
@@ -4329,7 +4375,10 @@ async function pintarIdentidad() {
     const d = await api('/api/identidad');
     IDENTIDAD = d;
     $('#m-unidad').textContent = d.unidad;
+    // El área va en un renglón y no se parte; si el nombre configurado no entra, se
+    // elide, y entonces el nombre entero tiene que quedar en algún lado.
     $('#m-area').textContent = d.area;
+    $('#m-area').title = d.area;
     $('#m-organismo').textContent = d.linea_organismo;
     // El membrete de impresión sale de la misma fuente: cambiar de unidad no puede
     // dejar una hoja impresa con el nombre viejo.
