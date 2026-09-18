@@ -453,11 +453,14 @@ class LasEtapasCorrenPorSeparado(unittest.TestCase):
                 WHERE sha256=?""", (SHA,)).fetchall()
         self.assertEqual([tuple(f) for f in antes], [(7, 1, 3)])
         c2.extraer_campos(self.cx, SHA)
-        # La pieza se retira porque ningún perfil la reconoce, pero en ningún momento
+        # Ningún extractor la reconoce, así que queda `sin_perfil` —un documento que
+        # todavía no sabemos leer sigue siendo un documento— pero en ningún momento
         # aparecieron los tramos que la segmentación habría calculado.
-        self.assertEqual(
-            self.cx.execute("SELECT COUNT(*) FROM documento WHERE sha256=?",
-                            (SHA,)).fetchone()[0], 0)
+        despues = self.cx.execute(
+            """SELECT orden, pagina_desde, pagina_hasta, estado FROM documento
+                WHERE sha256=?""", (SHA,)).fetchall()
+        self.assertEqual([tuple(f) for f in despues], [(7, 1, 3, "sin_perfil")],
+                         "la extracción no puede inventar tramos ni borrar la pieza")
 
 
 class UnaBaseVieja(unittest.TestCase):
