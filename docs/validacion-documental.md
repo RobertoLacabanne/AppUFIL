@@ -188,3 +188,62 @@ imposible saber qué rompió qué. Quedan anotadas acá para que se arreglen apa
    pliego §23 no se puede afirmar ni negar.
 4. Arreglar, en un incremento aparte, el `encoding` de `test_taller.py` y el cierre de
    conexiones en los `tearDown` de Windows.
+
+---
+
+# 6. Fases 1 a 7 — lo medido
+
+Mismo entorno: Windows 11, Python 3.13, Tesseract 5.4.0 con `spa`, PyMuPDF 1.24.14.
+Mismo corpus sintético: 6 contratos, 10 fojas, 200 DPI.
+
+## Suite
+
+| | Commit base | Ahora |
+|---|---|---|
+| Tests | 530 | **628** |
+| Failures | 1 | 1 |
+| Errors | 14 | 14 |
+| Skipped | 1 | 1 |
+
+98 pruebas nuevas, ninguna regresión. El `failure` y los 14 `errors` son los mismos de
+siempre: el `encoding` de `test_taller.py` y los `PermissionError` de `tearDown` en
+Windows. Ninguno se tocó.
+
+## COMPROBADO ejecutando
+
+- **El pipeline sigue dando lo mismo después de partirlo en cuatro**: 6 archivos →
+  6 documentos · 36 campos · 1 conflicto · 7 a revisar · 0 sin perfil, idéntico a antes
+  de la FASE 1.
+- **Reextraer conserva la identidad de la pieza y la clasificación**, y la corrección
+  humana sobrevive (`$999.888,77 · corregido · perez.ana`, 1 reaplicada, 0 a reasociar).
+- **Resegmentar conserva las piezas**: misma identidad, 6 campos conservados, 1 revisión
+  vigente.
+- **Foliatura**: 1 candidata detectada en 10 fojas (confianza 0,72). Las otras 9 quedaron
+  **sin detectar y sin marcar como «sin foliar»**, que es la conducta correcta.
+- **Tablas**: 3 tablas de fechas reconocidas en 10 fojas (3×2, confianza 0,53–0,54), y
+  **ningún contrato en prosa tomado por planilla**.
+- **Cronología**: 10 hechos ordenados por fecha, cada uno con su literal, su foja y su
+  origen (`campo:fecha_inicio`, `campo:fecha_fin`).
+- **Los endpoints contestan** sobre corpus real: `/api/tablas`, `/api/tabla`,
+  `/api/tabla/renglones`, `/api/cronologia`, `/api/foliatura`, más los cinco de la
+  FASE 3 y los tres de la actualización incremental.
+
+## INFERIDO, no medido
+
+- Que la detección de tablas y de foliatura se porte bien sobre escaneos reales. El
+  corpus sintético es limpio; un expediente de verdad trae fotocopias de fotocopias,
+  sellos encima del número y papel amarillo. **Los umbrales van a tener que medirse de
+  nuevo contra material real.**
+- Que la candidata de foliatura detectada (confianza 0,72) sea efectivamente una
+  foliatura: el corpus sintético no tiene una transcripción de referencia contra la cual
+  compararla.
+
+## PENDIENTE
+
+1. Pantallas para tablas, cronología y foliatura. El backend, la persistencia, la línea
+   de comandos, las pruebas y los endpoints están; **la interfaz no**, así que las
+   FASES 4, 5 y 7 no están terminadas según el criterio del pliego §32.
+2. Medir sobre el acervo real y contra `banco-de-prueba/referencia.csv`, que sigue vacío.
+3. Volumen: 500 / 2.000 / 5.000 fojas.
+4. FASE 6 (entidades más allá de personas), 8 (colecciones y consultas guardadas),
+   9 (exportaciones nuevas) y 10 (rendimiento) no se empezaron.
