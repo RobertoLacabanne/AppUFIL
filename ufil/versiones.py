@@ -187,6 +187,10 @@ def _firma_identidad() -> str:
     return _fuente("capa3_identidad.py", "identidad.py")
 
 
+def _firma_entidades() -> str:
+    return _fuente("entidades.py", "relaciones.py")
+
+
 def _firma_cronologia() -> str:
     return _fuente("cronologia.py")
 
@@ -264,6 +268,9 @@ ETAPAS: tuple[Etapa, ...] = (
     Etapa("identidad", "Personas y empresas consolidadas", "legajo", 1, _firma_identidad,
           depende_de=("normalizacion",), caro=False,
           explica="Quién es quién. Las fusiones dudosas se proponen, no se deciden solas."),
+    Etapa("entidades", "Menciones, entidades y relaciones", "legajo", 1, _firma_entidades,
+          depende_de=("indice", "segmentacion"), caro=False,
+          explica="Lo que el papel dice y quién es en realidad, que son dos cosas."),
     Etapa("cronologia", "La línea de tiempo", "legajo", 1, _firma_cronologia,
           depende_de=("normalizacion",), caro=False,
           explica="Qué pasó y cuándo, que no es el orden en que están las fojas."),

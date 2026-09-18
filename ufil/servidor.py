@@ -1393,6 +1393,26 @@ class Manejador(BaseHTTPRequestHandler):
                                 hasta=(q.get("hasta") or [None])[0],
                                 clases=tuple(x for x in (q.get("clase") or []) if x)),
                             "desordenes": cr.desordenes(cx)})
+                    # ── Menciones, entidades y relaciones ──
+                    if ruta == "/api/entidades":
+                        from . import entidades as en
+                        return self._json({
+                            "clases": [{"clave": c, "que_es": en.ETIQUETAS[c]}
+                                       for c in en.CLASES],
+                            "entidades": en.listar(cx, (q.get("clase") or [None])[0]),
+                            "sin_resolver": en.sin_resolver(cx),
+                            "propuestas": en.proponer_fusiones(cx)})
+                    if ruta == "/api/entidad":
+                        from . import entidades as en
+                        return self._json(en.ver(cx, int(q["id"][0])))
+                    if ruta == "/api/relaciones":
+                        from . import relaciones as rl
+                        return self._json({"tipos": rl.tipos_posibles(),
+                                           "pendientes": rl.pendientes(cx)})
+                    if ruta == "/api/relaciones/documento":
+                        from . import relaciones as rl
+                        return self._json({"relaciones": rl.de_documento(
+                            cx, int(q["id"][0]))})
                     if ruta == "/api/foliatura":
                         from . import foliatura as fol
                         return self._json({"fojas": fol.de_archivo(cx, q["sha"][0]),
@@ -1727,6 +1747,27 @@ class Manejador(BaseHTTPRequestHandler):
                 if u.path == "/api/pieza/clasificar":
                     return self._json(piezas.clasificar_a_mano(
                         cx, entero("documento_id"), texto("tipo"), texto("quien")))
+                # ── Entidades y relaciones: todo lo que decide una persona ──
+                if u.path == "/api/entidad/confirmar":
+                    from . import entidades as en
+                    return self._json(en.confirmar_entidad(
+                        cx, texto("clase"), texto("norm"), texto("nombre"),
+                        texto("quien")))
+                if u.path == "/api/entidad/rechazar":
+                    from . import entidades as en
+                    return self._json(en.rechazar_fusion(
+                        cx, texto("clase"), texto("norm"), texto("quien")))
+                if u.path == "/api/relacion/decidir":
+                    from . import relaciones as rl
+                    return self._json(rl.decidir(
+                        cx, entero("id"), bool(cuerpo.get("aceptar")), texto("quien")))
+                if u.path == "/api/relacion/anotar":
+                    from . import relaciones as rl
+                    return self._json(rl.anotar(
+                        cx, texto("tipo"), fuente="humano",
+                        desde_doc=cuerpo.get("desde_doc"), hasta_doc=cuerpo.get("hasta_doc"),
+                        estado=rl.CONFIRMADA, quien=texto("quien"),
+                        nota=cuerpo.get("nota")))
                 if u.path == "/api/pieza/continuar":
                     return self._json(piezas.continuar_en(
                         cx, entero("documento_id"), texto("sha256"),

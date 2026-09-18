@@ -49,7 +49,7 @@ POR_ARCHIVO = ("clasificacion", "foliatura", "cotejo", "segmentacion",
 # —tiene su propia versión— pero se ejecuta con la extracción.
 JUNTAS_POR_ARCHIVO = ("extraccion", "normalizacion")
 # Las que valen para el legajo entero y no por archivo.
-DE_LEGAJO = ("identidad", "cronologia", "indice", "interpretacion")
+DE_LEGAJO = ("identidad", "indice", "entidades", "cronologia", "interpretacion")
 
 
 # ────────────────────────────────────────────────────────────── el sello guardado ──
@@ -143,6 +143,9 @@ def _unidades(cx: sqlite3.Connection, etapa: str) -> list[tuple[str, bool]]:
     if etapa == "identidad":
         return [("", bool(cx.execute(
             "SELECT EXISTS (SELECT 1 FROM documento_persona)").fetchone()[0]))]
+    if etapa == "entidades":
+        return [("", bool(cx.execute(
+            "SELECT EXISTS (SELECT 1 FROM mencion)").fetchone()[0]))]
     if etapa == "cronologia":
         return [("", bool(cx.execute(
             "SELECT EXISTS (SELECT 1 FROM evento)").fetchone()[0]))]
@@ -467,7 +470,7 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
 
     viejas = desactualizadas_por_etapa(cx, forzar=forzar)
     hecho = {"lectura_paginas": 0, "archivos": 0, "identidad": False, "indice": 0,
-             "cronologia": 0,
+             "cronologia": 0, "menciones": 0, "relaciones": 0,
              "interpretacion": 0, "revisiones_reaplicadas": 0,
              "revisiones_a_reasociar": 0, "reutilizado_paginas_ocr": 0,
              "cortado": False, "errores": []}
@@ -605,6 +608,20 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
             detalle = f"{type(e).__name__}: {e}"
             hecho["errores"].append({"etapa": "índice", "detalle": detalle})
             sellar(cx, "indice", estado=vs.FALLIDO, detalle=detalle)
+        cx.commit()
+
+    if "entidades" in viejas and not hecho["cortado"]:
+        _fase("reconociendo menciones y relaciones", 1)
+        try:
+            from . import entidades as en
+            from . import relaciones as rel
+            hecho["menciones"] = en.poblar_desde_documentos(cx)["menciones"]
+            hecho["relaciones"] = rel.proponer_por_comprobante(cx)
+            sellar(cx, "entidades")
+        except Exception as e:
+            detalle = f"{type(e).__name__}: {e}"
+            hecho["errores"].append({"etapa": "entidades", "detalle": detalle})
+            sellar(cx, "entidades", estado=vs.FALLIDO, detalle=detalle)
         cx.commit()
 
     if "interpretacion" in viejas and not hecho["cortado"]:

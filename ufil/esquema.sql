@@ -309,6 +309,96 @@ CREATE TABLE IF NOT EXISTS revision_humana (
 );
 CREATE INDEX IF NOT EXISTS ix_revision_ancla ON revision_humana(sha256, ancla_pagina);
 
+-- ──────────────────────────── LO QUE EL PAPEL DICE Y QUIÉN ES EN REALIDAD ──
+-- Son dos cosas distintas y el sistema no puede confundirlas.
+--
+-- Una MENCIÓN es lo que un documento dice: «VIALIDAD PROVINCIAL», «Vialidad», «D.P.V.».
+-- Una ENTIDAD es el organismo del que se habla. Tres menciones, una entidad —o quizá
+-- dos, si una de ellas resulta ser otra repartición—. Guardar sólo la entidad pierde
+-- cómo lo dice cada papel, que es lo que después hay que poder citar; guardar sólo la
+-- mención obliga a reconstruir a mano quién es quién en cada consulta.
+--
+-- Por eso la mención SIEMPRE existe y apunta a su documento, su foja y su recuadro. La
+-- entidad es opcional: una mención sin entidad asignada no es un error, es una mención
+-- que todavía nadie resolvió.
+CREATE TABLE IF NOT EXISTS entidad (
+  id           INTEGER PRIMARY KEY,
+  clase        TEXT NOT NULL,   -- empresa|organismo|obra|bien|expediente|comprobante|persona
+  -- El identificador que no se discute: CUIT, número de expediente, número de
+  -- comprobante. NULL cuando no hay ninguno, que es lo normal en una obra o un bien.
+  clave_fuerte TEXT,
+  nombre       TEXT NOT NULL,   -- el nombre con el que se la muestra
+  nombre_norm  TEXT NOT NULL,   -- para comparar sin tildes ni mayúsculas
+  nota         TEXT,
+  creado_en    TEXT NOT NULL,
+  -- Quién la creó: NULL = la propuso el sistema a partir de las menciones.
+  quien        TEXT,
+  UNIQUE (clase, clave_fuerte)
+);
+CREATE INDEX IF NOT EXISTS ix_entidad_norm ON entidad(clase, nombre_norm);
+
+CREATE TABLE IF NOT EXISTS mencion (
+  id           INTEGER PRIMARY KEY,
+  clase        TEXT NOT NULL,
+  -- NULL = todavía no se resolvió a quién se refiere. No es un error.
+  entidad_id   INTEGER REFERENCES entidad(id) ON DELETE SET NULL,
+  literal      TEXT NOT NULL,   -- tal como lo dice el papel
+  norm         TEXT NOT NULL,
+  -- Dónde lo dice. Sin esto una mención no se puede citar, y una mención que no se
+  -- puede citar no sirve para nada en un legajo.
+  documento_id INTEGER REFERENCES documento(id) ON DELETE CASCADE,
+  campo_id     INTEGER REFERENCES campo(id) ON DELETE SET NULL,
+  sha256       TEXT, pagina_nro INTEGER,
+  x0 REAL, y0 REAL, x1 REAL, y1 REAL,
+  origen       TEXT NOT NULL,   -- campo:<nombre> | texto | humano
+  confianza    REAL,
+  quien        TEXT, cuando TEXT,
+  UNIQUE (documento_id, clase, norm, origen)
+);
+CREATE INDEX IF NOT EXISTS ix_mencion_entidad ON mencion(entidad_id);
+CREATE INDEX IF NOT EXISTS ix_mencion_norm    ON mencion(clase, norm);
+
+-- ─────────────────────────────── LO QUE UN DOCUMENTO DICE DE OTRO ──
+-- «Esta factura corresponde a aquella orden de compra». «Este decreto aprueba aquel
+-- contrato». Son afirmaciones, y una afirmación sin fuente no vale nada: por eso
+-- `fuente` es obligatoria y dice de dónde salió.
+--
+-- Y por eso tienen estado. El sistema puede PROPONER que dos documentos se refieren al
+-- mismo comprobante porque el número coincide; de ahí a afirmarlo hay una distancia que
+-- la tiene que recorrer una persona.
+CREATE TABLE IF NOT EXISTS relacion (
+  id            INTEGER PRIMARY KEY,
+  tipo          TEXT NOT NULL,
+  desde_doc     INTEGER REFERENCES documento(id) ON DELETE CASCADE,
+  hasta_doc     INTEGER REFERENCES documento(id) ON DELETE CASCADE,
+  desde_entidad INTEGER REFERENCES entidad(id) ON DELETE CASCADE,
+  hasta_entidad INTEGER REFERENCES entidad(id) ON DELETE CASCADE,
+  -- De dónde sale la afirmación: `campo:<nombre>`, `comprobante:<nro>`, `humano`…
+  fuente        TEXT NOT NULL,
+  campo_id      INTEGER REFERENCES campo(id) ON DELETE SET NULL,
+  estado        TEXT NOT NULL DEFAULT 'propuesta',  -- propuesta|confirmada|rechazada
+  confianza     REAL,
+  nota          TEXT,
+  quien         TEXT, cuando TEXT,
+  creado_en     TEXT NOT NULL,
+  UNIQUE (tipo, desde_doc, hasta_doc, desde_entidad, hasta_entidad, fuente)
+);
+CREATE INDEX IF NOT EXISTS ix_relacion_desde ON relacion(desde_doc, estado);
+CREATE INDEX IF NOT EXISTS ix_relacion_hasta ON relacion(hasta_doc, estado);
+
+-- Las fusiones de entidades que una persona ya decidió. Igual que `fusion_decidida`
+-- para personas: sobrevive a que se vuelva a correr todo, porque se indexa por la
+-- identidad y no por ids que se regeneran.
+CREATE TABLE IF NOT EXISTS entidad_fusion (
+  clase    TEXT NOT NULL,
+  ident_a  TEXT NOT NULL,
+  ident_b  TEXT NOT NULL,
+  decision TEXT NOT NULL,          -- aceptada | rechazada
+  quien    TEXT NOT NULL,
+  cuando   TEXT NOT NULL,
+  PRIMARY KEY (clase, ident_a, ident_b)
+);
+
 -- ─────────────────────────────────────────────────────── LA CRONOLOGÍA ──
 -- Un documento no tiene «una fecha»: tiene varias, y son cosas distintas.
 --

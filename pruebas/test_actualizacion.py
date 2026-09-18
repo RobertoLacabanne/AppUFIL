@@ -357,8 +357,13 @@ class LoQueQuedoViejoYLoQueNo(unittest.TestCase):
                                f"{clave} depende de la extracción y tiene que rehacerse")
 
     def test_la_cascada_va_solo_hacia_adelante(self):
-        self.assertEqual(vs.dependientes("indice"), (),
-                         "nada se apoya en el índice: invalidarlo no puede arrastrar nada")
+        # Del índice cuelga el reconocimiento de menciones, que lee el texto ya
+        # indexado. Lo que importa es que rehacer el índice NO arrastre nada caro:
+        # invalidarlo no puede terminar costando un OCR.
+        self.assertNotIn("lectura", vs.dependientes("indice"),
+                         "rehacer el índice no puede costar un OCR")
+        self.assertTrue(all(not vs.POR_CLAVE[c].caro for c in vs.dependientes("indice")),
+                        "de una etapa barata no puede colgar una cara")
         self.assertNotIn("lectura", vs.dependientes("extraccion"))
         self.assertIn("clasificacion", vs.dependientes("lectura"))
         self.assertIn("interpretacion", vs.dependientes("lectura"))
