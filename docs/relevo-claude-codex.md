@@ -230,3 +230,33 @@ un worktree hermano le queda fuera del área autorizada y no puede tocar un arch
 Queda entonces en `_codex/`, adentro, y anotado en `.gitignore`. Sigue siendo un worktree
 de verdad —otra rama, otro directorio de trabajo— así que los dos agentes pueden
 programar a la vez sin pisarse, que es lo único que se le pedía.
+
+---
+
+## Resultado del incremento 1
+
+| | Claude | Codex |
+|---|---|---|
+| Rama | `claude/actualizacion-incremental` | `codex/actualizacion-incremental` |
+| Commits | 11 | 1 (`876b515`) |
+| Qué hizo | esquema y migración, versionado de etapas, invalidación selectiva, actualización incremental, anclaje y reasociación de revisiones humanas, integración del pipeline, línea de comandos, 12 pruebas | los tres endpoints, la pantalla «Actualizar análisis», estilos y 7 pruebas del contrato HTTP |
+
+**Integración:** merge de las dos ramas en `claude/prompt-maestro-documental-dwhk59`,
+**sin conflictos** — el reparto de archivos aguantó.
+
+**Pruebas combinadas después de integrar:** `549 tests · 1 failure · 14 errors · 1 skipped`,
+que es la base de referencia más 19 pruebas nuevas y ninguna regresión.
+
+**Hallazgos de la revisión cruzada:**
+
+- *De Claude sobre Codex:* pedir una etapa inexistente devolvía el mensaje entre
+  comillas. No era de la pantalla: `str()` de un `KeyError` devuelve el `repr` de su
+  argumento, así que las comillas viajaban desde `ufil/versiones.py`. Corregido en
+  `82e7211`, y ahora además dice cuáles son las etapas válidas.
+- *De Codex sobre Claude:* ninguno. Consumió el contrato sin pedir cambios.
+
+**Lo que salió mal en la coordinación, para no repetirlo:** se lanzaron dos tareas de
+Codex apuntando al mismo worktree y las dos escribieron sobre los mismos archivos, así
+que quedaron los tres endpoints duplicados. Lo detectó el propio Codex al ver cambios
+que no había escrito. Se consolidó en una sola pasada suya. **Una tarea por worktree a
+la vez**, y verificar que la anterior terminó antes de lanzar la siguiente.
