@@ -542,6 +542,9 @@ const SECCIONES = [
     {hash: '#/comprobantes',  rotulo: 'Facturas y recibos'},
     {hash: '#/personas',      rotulo: 'Personas'},
     {hash: '#/fojas',         rotulo: 'Fojas del expediente'},
+    {hash: '#/foliatura',     rotulo: 'Foliatura del papel'},
+    {hash: '#/tablas',        rotulo: 'Tablas'},
+    {hash: '#/cronologia',    rotulo: 'Cronolog\u00eda'},
     {hash: '#/buscar',        rotulo: 'Buscar'},
   ], tambien: ['#/documento', '#/persona']},
   {id: 'hallazgos', rotulo: 'Hallazgos', items: [
@@ -4511,6 +4514,9 @@ const TITULOS = {
   '#/acerca': 'Acerca del sistema',
   '#/equipo': 'Trabajo del equipo',
   '#/sin-reconocer':'Todav\u00eda sin reconocer',
+  '#/foliatura':'Foliatura del papel',
+  '#/tablas':'Tablas',
+  '#/cronologia':'Cronolog\u00eda',
   '#/conjuntos':'Conjuntos documentales',
   '#/reasociaciones':'Revisiones desplazadas',
   '#/actualizacion':'Actualizar an\u00e1lisis',
@@ -4757,8 +4763,191 @@ addEventListener('visibilitychange', () => {
   else clearTimeout(LATIDO);
 });
 
+
+/* -- La foliatura del papel, al lado de la pagina del PDF ------------------
+   Las dos numeraciones juntas y nombradas distinto, a proposito. Es la confusion mas
+   cara que tiene este sistema: un escrito que dice "a fojas 47" no habla de la pagina
+   47 del archivo, y contestar con la pagina manda a alguien a mirar otro papel.
+
+   Una foja sin foliatura anotada dice "sin detectar", NUNCA "sin foliar". No son lo
+   mismo: la segunda es una afirmacion sobre el papel y la hace una persona. */
+function selectorArchivo(archivos, sha, base) {
+  return `<label>Archivo
+    <select id="sel-archivo">${archivos.map(a =>
+      `<option value="${esc(a.sha256)}"${a.sha256 === sha ? ' selected' : ''}>
+        ${esc(a.nombre)} (${esc(a.fojas)} fojas)</option>`).join('')}</select></label>`;
+}
+
+function marcaDeOrigen(f) {
+  if (f.origen === 'humano') return `<span class="sello">lo escribi\u00f3 ${esc(f.quien || 'una persona')}</span>`;
+  const c = f.confianza == null ? '' : ` (confianza ${esc(f.confianza)})`;
+  return `<span class="sello atencion">propuesto por el sistema${c}</span>`;
+}
+
+function htmlFoliatura(d) {
+  const conAlgo = d.fojas.filter(h => h.foliaturas.length).length;
+  return `<p class="prosa">La <strong>foliatura</strong> es el n\u00famero que tiene el
+      papel. La <strong>p\u00e1gina</strong> es la posici\u00f3n en el archivo PDF. No son
+      lo mismo y por eso se muestran separadas: un escrito que dice "a fojas 47" habla de
+      la primera.</p>
+    <p class="prosa">${esc(conAlgo)} de ${esc(d.fojas.length)} fojas tienen foliatura
+      anotada. Que una foja no la tenga quiere decir que <em>no se detect\u00f3</em>, no
+      que el papel no est\u00e9 foliado.</p>
+    ${d.saltos.length ? `<h3>Lo que la foliatura muestra</h3>
+      <p class="prosa">Son hechos del expediente, no errores del sistema. Una foja que
+        falta puede ser una foja sacada; dos fojas con el mismo n\u00famero pueden ser un
+        expediente incorporado con su propia numeraci\u00f3n.</p>
+      <ul>${d.saltos.map(x => `<li><span class="sello atencion">${esc(x.clase)}</span>
+        ${esc(x.detalle)}</li>`).join('')}</ul>` : ''}
+    <h3>Foja por foja</h3>
+    <div class="tabla-env"><table><thead><tr>
+      <th>P\u00e1gina del PDF</th><th>Foliatura del papel</th><th>De d\u00f3nde sale</th>
+    </tr></thead><tbody>${d.fojas.map(h => `<tr>
+      <td class="mono">${esc(h.pagina_pdf)}</td>
+      <td>${h.foliaturas.length
+            ? h.foliaturas.map(f => `<span class="mono">${esc(f.literal || f.estado)}</span>${
+                f.serie !== 'principal' ? ` <span class="sello">${esc(f.serie)}</span>` : ''}`).join(' ? ')
+            : '<span class="apagado">sin detectar</span>'}</td>
+      <td>${h.foliaturas.map(marcaDeOrigen).join(' ')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+async function vFoliatura(sha) {
+  const d = await api('/api/archivos');
+  if (location.hash.indexOf('#/foliatura') !== 0) return;
+  const archivos = d.archivos || [];
+  if (!archivos.length) {
+    vista.innerHTML = bloque('', 'Documentos',
+      '<p class="prosa">No hay archivos cargados todav\u00eda.</p>');
+    return;
+  }
+  const elegido = sha || archivos[0].sha256;
+  const f = await api('/api/foliatura?sha=' + encodeURIComponent(elegido));
+  if (location.hash.indexOf('#/foliatura') !== 0) return;
+  vista.innerHTML = bloque('', 'Documentos',
+    selectorArchivo(archivos, elegido) + htmlFoliatura(f));
+  const sel = $('#sel-archivo');
+  if (sel) sel.onchange = () => { location.hash = '#/foliatura/' + sel.value; };
+}
+
+/* -- Las tablas, como tablas y no como texto -------------------------------
+   Una planilla dice lo que dice por renglon. Mostrarla aplanada pierde justamente lo
+   que hace falta para comparar lo pactado con lo entregado y con lo facturado.
+
+   Y la continuidad entre fojas se muestra como lo que es: una propuesta, mientras
+   nadie la haya confirmado. */
+function htmlTabla(t) {
+  const filas = {};
+  t.celdas.forEach(c => { (filas[c.fila] = filas[c.fila] || []).push(c); });
+  const orden = Object.keys(filas).map(Number).sort((a, b) => a - b);
+  const union = t.continua_de
+    ? (t.union_quien
+        ? `<span class="sello">contin\u00faa de otra tabla ? lo confirm\u00f3 ${esc(t.union_quien)}</span>`
+        : `<span class="sello atencion">el sistema propone que contin\u00faa de otra tabla,
+             y nadie lo confirm\u00f3 todav\u00eda</span>`)
+    : '';
+  return `<article class="nucleo-ficha">
+    <h3>Foja ${esc(t.pagina_nro)} ? ${esc(t.filas)} filas \u00d7 ${esc(t.columnas)} columnas</h3>
+    <p>${union} <span class="sello atencion">confianza ${esc(t.confianza)}</span></p>
+    <div class="tabla-env"><table><tbody>${orden.map(i => `<tr>${
+      filas[i].sort((a, b) => a.columna - b.columna).map(c =>
+        c.es_encabezado ? `<th>${esc(c.texto)}</th>` : `<td>${esc(c.texto)}</td>`
+      ).join('')}</tr>`).join('')}</tbody></table>
+    <p><a href="#/tabla-renglones-${esc(t.id)}" data-renglones="${esc(t.id)}">Ver la tabla
+      entera, siguiendo sus continuaciones</a></p>
+    <div data-destino="${esc(t.id)}"></div></article>`;
+}
+
+async function vTablas(sha) {
+  const d = await api('/api/archivos');
+  if (location.hash.indexOf('#/tablas') !== 0) return;
+  const archivos = d.archivos || [];
+  if (!archivos.length) {
+    vista.innerHTML = bloque('', 'Documentos',
+      '<p class="prosa">No hay archivos cargados todav\u00eda.</p>');
+    return;
+  }
+  const elegido = sha || archivos[0].sha256;
+  const t = await api('/api/tablas?sha=' + encodeURIComponent(elegido));
+  if (location.hash.indexOf('#/tablas') !== 0) return;
+  vista.innerHTML = bloque('', 'Documentos', selectorArchivo(archivos, elegido) +
+    (t.tablas.length
+      ? `<p class="prosa">Una planilla dice lo que dice <strong>por rengl\u00f3n</strong>.
+           Cada celda guarda d\u00f3nde est\u00e1 en la foja, para poder ir a verla.</p>`
+        + t.tablas.map(htmlTabla).join('')
+      : `<p class="prosa">No se reconoci\u00f3 ninguna tabla en este archivo. El sistema
+           s\u00f3lo propone una tabla cuando las palabras se alinean en columnas a lo
+           largo de varios renglones y queda un blanco entre columna y columna: un texto
+           en prosa con n\u00fameros adentro no es una planilla.</p>`));
+  const sel = $('#sel-archivo');
+  if (sel) sel.onchange = () => { location.hash = '#/tablas/' + sel.value; };
+  vista.querySelectorAll('[data-renglones]').forEach(a => a.onclick = async e => {
+    e.preventDefault();
+    const id = a.dataset.renglones;
+    const caja = vista.querySelector(`[data-destino="${id}"]`);
+    const r = await api('/api/tabla/renglones?id=' + encodeURIComponent(id));
+    const cols = r.renglones.length ? Object.keys(r.renglones[0].valores) : [];
+    caja.innerHTML = r.renglones.length
+      ? `<div class="tabla-env"><table><thead><tr><th>Foja</th>${cols.map(c =>
+            `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${r.renglones.map(f =>
+            `<tr><td class="mono">${esc(f.pagina_nro)}</td>${cols.map(c =>
+              `<td>${esc(f.valores[c] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+      : '<p class="prosa">Esta tabla no tiene renglones de datos.</p>';
+  });
+}
+
+/* -- La cronologia, que no es el orden de las fojas ------------------------
+   Un expediente se arma por incorporacion: lo que se agrega ultimo puede relatar lo que
+   paso primero. Ordenar por foja y llamarlo cronologia es la forma mas rapida de contar
+   mal una historia.
+
+   Cada fecha dice QUE clase de fecha es, porque un acta que relata un hecho de marzo,
+   firmada en abril y recibida en mayo, apareceria en el lugar equivocado si se las
+   mezclara. */
+function htmlCronologia(d, clase) {
+  return `<p class="prosa">Ordenada por <strong>fecha</strong>, no por el orden en que
+      est\u00e1n las fojas. Un expediente se arma por incorporaci\u00f3n, as\u00ed que lo
+      que se agreg\u00f3 \u00faltimo puede relatar lo que pas\u00f3 primero.</p>
+    <p><label>Clase de fecha
+      <select id="sel-clase"><option value="">todas</option>${d.clases.map(c =>
+        `<option value="${esc(c.clave)}"${c.clave === clase ? ' selected' : ''}>
+          ${esc(c.que_es)}</option>`).join('')}</select></label></p>
+    ${d.desordenes.length ? `<h3>Lo que la cronolog\u00eda muestra</h3>
+      <ul>${d.desordenes.map(x => `<li><span class="sello atencion">${esc(x.clase)}</span>
+        <span class="mono">${esc(x.archivo || '')}</span> ${esc(x.detalle)}</li>`).join('')}</ul>` : ''}
+    ${d.linea.length ? `<div class="tabla-env"><table><thead><tr>
+        <th>Fecha</th><th>Qu\u00e9 es</th><th>En el papel</th><th>D\u00f3nde</th>
+        <th>De d\u00f3nde sale</th></tr></thead><tbody>${d.linea.map(e => `<tr>
+        <td class="mono">${esc(e.fecha)}</td>
+        <td>${esc(e.que_es)}</td>
+        <td class="mono">${esc(e.literal || '')}</td>
+        <td><span class="mono">${esc(e.archivo || '')}</span>${
+          e.pagina_nro ? ` ? foja ${esc(e.pagina_nro)}` : ''}</td>
+        <td>${e.origen === 'humano'
+              ? `<span class="sello">lo carg\u00f3 ${esc(e.quien || 'una persona')}</span>`
+              : `<span class="mono apagado">${esc(e.origen)}</span>`}</td></tr>`).join('')}
+      </tbody></table></div>`
+      : `<p class="prosa">Todav\u00eda no hay fechas en la l\u00ednea de tiempo. Se arman
+           con las fechas ya le\u00eddas de los documentos, y s\u00f3lo entran las que
+           est\u00e1n en estado firme: una fecha dudosa se lee igual que una segura.</p>`}`;
+}
+
+async function vCronologia() {
+  const clase = new URLSearchParams(location.hash.split('?')[1] || '').get('clase') || '';
+  const d = await api('/api/cronologia' + (clase ? '?clase=' + encodeURIComponent(clase) : ''));
+  if (location.hash.indexOf('#/cronologia') !== 0) return;
+  vista.innerHTML = bloque('', 'Documentos', htmlCronologia(d, clase));
+  const sel = $('#sel-clase');
+  if (sel) sel.onchange = () => {
+    location.hash = '#/cronologia' + (sel.value ? '?clase=' + sel.value : '');
+    vCronologia();
+  };
+}
+
 const rutas = [
   [/^#\/sin-reconocer$/, vSinReconocer],
+  [/^#\/foliatura\/?(.*)$/, vFoliatura],
+  [/^#\/tablas\/?(.*)$/, vTablas],
+  [/^#\/cronologia(\?.*)?$/, vCronologia],
   [/^#\/conjuntos$/, vConjuntos],
   [/^#\/legajos$/,               vLegajos],
   [/^#\/panel$/,                 vPanel],
