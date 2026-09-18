@@ -258,11 +258,24 @@ POR_CLAVE: dict[str, Etapa] = {e.clave: e for e in ETAPAS}
 CLAVES: tuple[str, ...] = tuple(e.clave for e in ETAPAS)
 
 
+class EtapaDesconocida(ValueError):
+    """
+    Pidieron rehacer una etapa que no existe.
+
+    Es `ValueError` y no `KeyError` por una razón que se ve del lado de quien lo usa:
+    `str()` de un `KeyError` devuelve el mensaje entre comillas —es el `repr` de su
+    argumento— y eso llega tal cual a la pantalla, que termina mostrando
+    «'etapa desconocida: x'» con comillas de más. El mensaje es para una persona.
+    """
+
+
 def etapa(clave: str) -> Etapa:
     try:
         return POR_CLAVE[clave]
     except KeyError:
-        raise KeyError(f"etapa desconocida: {clave}") from None
+        raise EtapaDesconocida(
+            f"etapa desconocida: {clave}. Las que hay son: "
+            + ", ".join(CLAVES)) from None
 
 
 def dependientes(clave: str) -> tuple[str, ...]:

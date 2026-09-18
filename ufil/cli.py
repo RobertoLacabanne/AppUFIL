@@ -167,12 +167,11 @@ def cmd_actualizar(a):
     from . import actualizacion as ac
     cx = _cx(a)
     forzar = tuple(x.strip() for x in (a.forzar or "").split(",") if x.strip())
+    from . import versiones as vs
     try:
         p = ac.plan(cx, forzar=forzar)
-    except KeyError as e:
+    except vs.EtapaDesconocida as e:
         print(f"  {e}")
-        from . import versiones as vs
-        print(f"  las etapas son: {', '.join(vs.CLAVES)}")
         return 2
 
     if p["vigente"]:
