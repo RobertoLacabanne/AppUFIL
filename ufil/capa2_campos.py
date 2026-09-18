@@ -292,6 +292,27 @@ def monto_en_letras(bruto: str) -> int | None:
     Esta función existe para CONFIRMAR el número escrito en dígitos, y una confirmación
     que se inventa la mitad no confirma nada.
     """
+    # Los centavos a la manera de un acto administrativo: «CON 91/100». Es la forma en
+    # que están escritos TODOS los importes de una resolución o un decreto, y sin esto
+    # la lectura entera devolvía `None` justo en los documentos donde el importe en
+    # letras es el que manda. Se saca acá y se suma al final.
+    # Las dos formas son de uso corriente y hay que entender las dos: en la resolución
+    # 815 dice «CON 91/100» y en el presupuesto de la misma obra, «CON NOVENTA Y UN
+    # CENTAVOS». Es el mismo importe escrito por dos oficinas distintas.
+    centavos = 0
+    m = re.search(r"\bcon\s+(\d{1,2})\s*/\s*100\b", bruto, re.I)
+    if m:
+        centavos = int(m.group(1))
+        bruto = bruto[:m.start()]
+    else:
+        m = re.search(r"\bcon\s+(.{1,60}?)\s+centavos?\b", bruto, re.I | re.S)
+        if m:
+            # Los centavos se leen con la misma tabla, en pesos, y valen como unidades.
+            leidos = monto_en_letras(m.group(1))
+            if leidos is None:
+                return None            # si no se entienden, no se inventa el importe
+            centavos = leidos // 100
+            bruto = bruto[:m.start()]
     limpio = sin_tildes(re.sub(r"[^\w\s]", " ", bruto)).lower()
     palabras = [p for p in limpio.split() if p not in ("y", "pesos", "peso", "con")]
     if not palabras:
@@ -312,7 +333,7 @@ def monto_en_letras(bruto: str) -> int | None:
         else:
             return None                       # una palabra desconocida invalida todo
     valor = total + parcial
-    return valor * 100 if valor else None
+    return valor * 100 + centavos if valor else None
 
 
 def parse_monto_letras(bruto: str):

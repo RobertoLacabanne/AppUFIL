@@ -55,7 +55,12 @@ TIPOS: tuple[Tipo, ...] = (
     Tipo("rendicion", "Rendición",
          ("RENDICION DE CUENTAS", "RENDICION DE GASTOS"), fojas_tipicas=2),
     Tipo("decreto", "Decreto", ("DECRETO N",), fojas_tipicas=2),
-    Tipo("resolucion", "Resolución", ("RESOLUCION N",), fojas_tipicas=2),
+    # Una resolución se identifica por su estructura, no sólo por su título: el
+    # título está arriba a la derecha, que es justo donde se apilan los sellos de
+    # mesa de entradas, y en un expediente fotocopiado ahí no se lee nada. VISTO y
+    # RESUELVE, en cambio, están en el cuerpo y en limpio.
+    Tipo("resolucion", "Resolución",
+         ("RESOLUCION N", "VISTO", "RESUELVE", "ARTICULO 1"), fojas_tipicas=2),
     # Contexto: no arrancan un documento, viajan con el que tienen al lado.
     Tipo("caratula", "Carátula",
          ("PERIODO LEGISLATIVO", "EXPEDIENTE N", "INICIADOR", "ANEXO I", "ANEXO II"),
@@ -63,12 +68,157 @@ TIPOS: tuple[Tipo, ...] = (
     Tipo("nota", "Nota",
          ("ME DIRIJO A USTED", "NOTA DE ELEVACION", "TENGO EL AGRADO"),
          arranca=False, fojas_tipicas=1),
+
+    # ── Lo que trae un expediente de obra pública ─────────────────────────────
+    # Los de arriba salieron del material de la Legislatura, que son formularios. Un
+    # expediente de obra es otra cosa: casi nada de lo que tiene adentro es un
+    # formulario, y sin embargo cada foja ES algo. Medido sobre el expediente
+    # 201.602 —88 fojas, parte 4 de un expediente de más de 850—: pliego de
+    # condiciones, especificaciones técnicas, memoria descriptiva, presupuesto,
+    # planos, croquis, acta de apertura, pólizas de caución, constancias fiscales y
+    # una decena de pases de mesa de entradas.
+    #
+    # Ninguno de estos «arranca» un documento en el sentido de los contratos: un
+    # expediente no es una pila de documentos independientes, es UNA actuación. Por
+    # eso van con `arranca=False`: identifican la foja sin partir el expediente en
+    # pedazos que después habría que volver a pegar.
+    Tipo("pliego", "Pliego de condiciones",
+         ("PLIEGO DE CONDICIONES", "PLIEGO DE ESPECIFICACIONES",
+          "CONDICIONES PARA COTEJO DE PRECIOS"), arranca=False, fojas_tipicas=3),
+    Tipo("especificaciones", "Especificaciones técnicas",
+         ("ESPECIFICACIONES TECNICAS",), arranca=False, fojas_tipicas=4),
+    Tipo("memoria", "Memoria descriptiva",
+         ("MEMORIA DESCRIPTIVA",), arranca=False, fojas_tipicas=2),
+    Tipo("presupuesto", "Presupuesto",
+         ("PRESUPUESTO OFICIAL", "COMPUTO Y PRESUPUESTO",
+          "MATERIALES PARA SISTEMAS"), arranca=False, fojas_tipicas=2),
+    Tipo("plano", "Plano o croquis",
+         ("CROQUIS DE UBICACION", "PLANO DE UBICACION", "PLANO GENERAL"),
+         arranca=False, fojas_tipicas=1),
+    Tipo("acta_apertura", "Acta de apertura",
+         ("ACTA DE APERTURA", "SE PROCEDE A LA APERTURA"),
+         arranca=False, fojas_tipicas=2),
+    Tipo("poliza", "Póliza de caución",
+         ("SEGURO DE CAUCION", "SEGURO CAUCION", "POLIZA DE CAUCION"),
+         arranca=False, fojas_tipicas=3),
+    Tipo("constancia", "Constancia fiscal",
+         ("CONSTANCIA DE INSCRIPCION", "ADMINISTRADORA TRIBUTARIA"),
+         arranca=False, fojas_tipicas=1),
+    # El pase de mesa de entradas es la cinta transportadora del expediente: dice de
+    # qué oficina viene y a cuál va. No es un documento, pero es la única foja que
+    # cuenta el trámite, así que no puede quedar como «sin reconocer».
+    Tipo("pase", "Pase / providencia",
+         ("PASEN LAS ACTUACIONES", "PASE A LA DIRECCION", "PASA A SER FOLIO"),
+         arranca=False, fojas_tipicas=1),
 )
 
 TIPOS_POR_CLAVE = {t.clave: t for t in TIPOS}
 ETIQUETAS = {t.clave: t.etiqueta for t in TIPOS}
 ETIQUETAS["continuacion"] = "Continuación"
 ETIQUETAS["desconocida"] = "Sin reconocer"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LAS FOJAS QUE SE APARTAN
+# ═══════════════════════════════════════════════════════════════════════════
+# No todo lo que entra al escáner es una foja de trabajo, y esto no es un detalle:
+# medido sobre el expediente 201.602, de 88 páginas escaneadas **44 son dorsos en
+# blanco**. La mitad. Si entran a la cola, la mitad de la cola es nada; si cuentan
+# como fojas, todos los números del panel están inflados al doble.
+#
+# Y hay una segunda clase: la foja que TIENE tinta y aun así no se puede leer.
+# Fotocopia de fotocopia de un papel carbónico, un plano escaneado al 30 %, la
+# carátula que alguien apoyó de costado. Ahí el OCR no devuelve nada: devuelve PEOR
+# que nada, porque devuelve fragmentos que parecen palabras. Decir «no se pudo leer»
+# es la única respuesta honesta, y es además la que manda a una persona a mirar el
+# papel, que es lo que hay que hacer con esa foja.
+#
+# Las dos se deciden MIDIENDO, no por frases: una foja en blanco no tiene encabezado
+# que reconocer, y una ilegible tiene uno que no dice nada.
+FOJA_EN_BLANCO = "en_blanco"
+FOJA_SIN_TEXTO = "sin_texto_util"
+APARTADAS = frozenset({FOJA_EN_BLANCO, FOJA_SIN_TEXTO})
+ETIQUETAS[FOJA_EN_BLANCO] = "Hoja en blanco"
+ETIQUETAS[FOJA_SIN_TEXTO] = "No se pudo leer"
+
+# Los dos umbrales salieron de medir el expediente 201.602 entero, no de elegir un
+# número redondo. Están acá arriba y con su medición al lado para que el próximo que
+# los toque sepa contra qué compararlos.
+#
+#   PALABRAS: los 44 dorsos en blanco dieron entre 0 y 9 palabras; los 44 frentes,
+#   entre 174 y 1.356. No hay nada en el medio, así que el corte en 12 no discute
+#   ningún caso real.
+PALABRAS_EN_BLANCO = 12
+#
+#   ÚTILES: la proporción de lo leído que parece una palabra o un número de verdad
+#   —cuatro letras seguidas, o una cifra— sobre el total de lo que devolvió el motor.
+#   La CONFIANZA sola no sirve y conviene decir por qué: el presupuesto de la obra
+#   —una tabla de 31 renglones con todos los importes, la foja más valiosa del
+#   expediente— lee con confianza 0,35, más bajo que varios planos. Una tabla
+#   apretada siempre lee con poca confianza. La proporción de útiles, en cambio,
+#   separa limpio:
+#
+#       plano escaneado al 30 % ............ 3,4 %
+#       fotocopia negra de un carbónico .... 4,1 %
+#       carátula apoyada de costado ........ 4,6 %
+#       ─────────────────────────────────── corte en 8 %
+#       croquis de ubicación (título legible) 11,8 %
+#       presupuesto de 31 renglones ........ 19,8 %
+#       resolución, memoria, pliego ........ 25 a 41 %
+#
+#   Las tres de arriba son exactamente las tres que una persona mirando la pantalla
+#   también llama «no se lee». Las de abajo tienen todas algo que leer.
+UTILES_MINIMOS = 0.08
+
+# Qué cuenta como «útil». Cuatro letras seguidas es una palabra; una cifra con
+# separadores es un número. Los fragmentos de dos caracteres que devuelve el motor
+# sobre una mancha no son ni una cosa ni la otra, y son justamente lo que hay que no
+# contar.
+_PALABRA = re.compile(r"^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{4,}$")
+_NUMERO = re.compile(r"^\$?\d[\d.,]{2,}$")
+
+
+@dataclass(frozen=True)
+class Medida:
+    """Lo que se puede decir de una foja sin entender lo que dice."""
+    palabras: int
+    utiles: int
+
+    @property
+    def proporcion_util(self) -> float:
+        return self.utiles / self.palabras if self.palabras else 0.0
+
+
+def medir(textos) -> Medida:
+    """Cuenta palabras y cuáles de ellas parecen algo. `textos` es lo que leyó el motor."""
+    palabras = 0
+    utiles = 0
+    for t in textos:
+        t = (t or "").strip()
+        if not t:
+            continue
+        palabras += 1
+        if _PALABRA.match(t) or _NUMERO.match(t):
+            utiles += 1
+    return Medida(palabras, utiles)
+
+
+def veredicto(m: Medida | None) -> str | None:
+    """
+    `en_blanco`, `sin_texto_util`, o `None` si la foja se puede leer.
+
+    Va ANTES que las frases: una hoja en blanco no tiene encabezado que reconocer, y
+    una ilegible tiene uno que no dice nada. Clasificarlas por frase las dejaría en
+    «sin reconocer», que es un cajón donde ya no se distingue lo que no se pudo leer
+    de lo que se leyó y no se entendió.
+    """
+    if m is None:
+        return None
+    if m.palabras < PALABRAS_EN_BLANCO:
+        return FOJA_EN_BLANCO
+    if m.proporcion_util < UTILES_MINIMOS:
+        return FOJA_SIN_TEXTO
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -131,19 +281,85 @@ SQL_TIPOS_COMPROBANTE = _sql(TIPOS_COMPROBANTE)
 SQL_TIPOS_CONOCIDOS = _sql(TIPOS_CONTRATO | TIPOS_COMPROBANTE | TIPOS_ACTO)
 
 
+# Cuánto tiene que parecerse la marca a lo que leyó el motor. No es 1,0 y conviene
+# decir por qué, con los casos de verdad al lado: sobre el expediente 201.602 el OCR
+# devolvió «ESPEGIFICACIONES TECNICAS» —una C leída como G—, «MATERIALES PARA SISTE
+# MAS DE ILUMINACION» —una palabra partida al medio— y «PRESU PUESTO». Con búsqueda
+# exacta esas tres fojas quedaban «sin reconocer» teniendo el título impreso en
+# catorce puntos arriba de todo.
+#
+# Que quede claro qué es esto y qué no: acá se está decidiendo A QUÉ SE PARECE una
+# foja, no qué dice. Ningún dato sale de esta comparación —los datos se extraen con
+# anclaje y doble lectura, como siempre—, la clasificación se muestra siempre y una
+# persona la puede cambiar. Aflojar la comparación acá no afloja nada del carril de
+# datos.
+PARECIDO_MINIMO = 0.90
+
+# Y con un ANCLA exacta, que es lo que evita que la tolerancia se vuelva adivinanza.
+# Sin esto, una marca de veinticinco caracteres aceptada al 90 % admite dos letras
+# equivocadas, y en cuatrocientos caracteres de ruido de sellos hay muchas ventanas
+# donde dos letras alcanzan: medido sobre este mismo expediente, un plano salía
+# clasificado «Presupuesto» y una hoja de póliza salía «Resolución». Ahora además
+# tienen que aparecer EXACTOS seis caracteres seguidos de la marca. Una letra mal
+# leída parte la marca en dos pedazos y el más largo casi siempre pasa los seis;
+# el ruido, no.
+ANCLA_EXACTA = 6
+
+
+def _sin_espacios(t: str) -> str:
+    return t.replace(" ", "")
+
+
+def contiene_marca(plano: str, marca: str) -> bool:
+    """
+    ¿Aparece la marca, aunque el motor la haya leído con alguna letra de más o de menos?
+
+    Se comparan las dos sin espacios —eso solo ya recupera la palabra partida al
+    medio— y después se corre la marca por el texto contando cuántos caracteres caen
+    en su lugar.
+    """
+    t = _sin_espacios(plano)
+    m = _sin_espacios(marca)
+    if not m or len(t) < len(m):
+        return False
+    if m in t:
+        return True
+    # El ancla: algún pedazo de la marca tiene que estar TAL CUAL. Si no está, lo que
+    # haya se parece de casualidad.
+    if len(m) > ANCLA_EXACTA and not any(
+            m[i:i + ANCLA_EXACTA] in t for i in range(len(m) - ANCLA_EXACTA + 1)):
+        return False
+    tope = len(m) * PARECIDO_MINIMO
+    for i in range(len(t) - len(m) + 1):
+        iguales = 0
+        for a, b in zip(m, t[i:i + len(m)]):
+            iguales += a == b
+        if iguales >= tope:
+            return True
+    return False
+
+
 def _puntos(plano: str, tipo: Tipo) -> int:
     """Cuántas de sus marcas aparecen. Más marcas, más seguro el tipo."""
-    return sum(1 for m in tipo.marcas if m in plano)
+    return sum(1 for m in tipo.marcas if contiene_marca(plano, m))
 
 
-def clasificar_pagina(texto_plano_normalizado: str) -> tuple[str, int]:
+def clasificar_pagina(texto_plano_normalizado: str,
+                      medida: "Medida | None" = None) -> tuple[str, int]:
     """
     Devuelve (clave del tipo, cuántas marcas coincidieron).
 
-    Se elige el tipo con MÁS marcas coincidentes. El desempate es el orden de la tabla,
+    Primero el veredicto de la MEDIDA —en blanco, o con tinta pero sin nada legible—,
+    porque esas dos no se reconocen por frases y confundirlas con «sin reconocer»
+    pierde la única información que hay sobre ellas.
+
+    Después, el tipo con MÁS marcas coincidentes. El desempate es el orden de la tabla,
     que va de lo más específico a lo más genérico: «CONTRATO DE OBRA» antes que
     «RECIBO», porque un contrato puede mencionar la palabra recibo y no al revés.
     """
+    v = veredicto(medida)
+    if v:
+        return v, 1
     mejor, puntos_mejor = "desconocida", 0
     for t in TIPOS:
         p = _puntos(texto_plano_normalizado, t)
@@ -152,28 +368,44 @@ def clasificar_pagina(texto_plano_normalizado: str) -> tuple[str, int]:
     return mejor, puntos_mejor
 
 
-def clasificar_documento(paginas: list[tuple[int, str]]) -> dict[int, str]:
+def clasificar_documento(paginas, medidas: dict[int, "Medida"] | None = None
+                         ) -> dict[int, str]:
     """
     Clasifica todas las fojas de un archivo.
 
-    `paginas` es [(nro, texto plano normalizado), ...] en orden.
+    `paginas` es [(nro, texto plano normalizado), ...] en orden. `medidas` es opcional
+    y trae, por foja, cuánto leyó el motor: sin eso no se pueden apartar ni las hojas
+    en blanco ni las que no se pudieron leer.
 
     Una foja sin marcas propias hereda `continuacion` si viene detrás de algo; si está
     al principio de todo y no se reconoce, queda `desconocida` y se ve.
     """
+    medidas = medidas or {}
     fuera: dict[int, str] = {}
     ultimo_arranque: str | None = None
     for nro, plano in paginas:
-        clave, puntos = clasificar_pagina(plano)
+        clave, puntos = clasificar_pagina(plano, medidas.get(nro))
+        # Una foja apartada no continúa nada ni arranca nada: es un hueco en la pila.
+        # Heredar `continuacion` sobre un dorso en blanco es lo que hacía que un
+        # documento se tragara las fojas que tenía atrás.
+        if clave in APARTADAS:
+            fuera[nro] = clave
+            continue
         if puntos == 0:
             fuera[nro] = "continuacion" if ultimo_arranque else "desconocida"
             continue
         fuera[nro] = clave
-        if TIPOS_POR_CLAVE[clave].arranca:
-            ultimo_arranque = clave
-        elif ultimo_arranque is None:
-            # Una carátula al principio: lo que venga después empieza documento igual.
-            ultimo_arranque = None
+        # Cualquier foja reconocida deja «algo» atrás, y por eso la siguiente sin
+        # marcas propias es su continuación. Antes esto sólo valía para los tipos que
+        # ARRANCAN un documento —contrato, factura, decreto—, y en un expediente de
+        # obra no arranca ninguno: las fojas de un pliego de cuatro carillas quedaban
+        # todas «sin reconocer» teniendo el título en la primera. Medido sobre el
+        # expediente 201.602: trece fojas.
+        #
+        # Que no se confunda con partir el expediente en documentos: eso lo sigue
+        # decidiendo `arranca`, en `tramos_por_tipo`. Acá sólo se está diciendo que
+        # esta carilla viene atrás de aquella.
+        ultimo_arranque = clave
     return fuera
 
 

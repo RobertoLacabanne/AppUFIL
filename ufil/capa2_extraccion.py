@@ -38,6 +38,7 @@ import pytesseract
 
 from .capa1_texto import Palabra, palabras_de
 from .capa2_campos import PARSERS, normalizar_cotejo
+from . import clasificacion as cl
 from .clasificacion import clasificar_documento, tramos_por_tipo
 from .manuscrito import MOTIVO as MOTIVO_MANUSCRITO, es_manuscrito
 from . import confianza as cf
@@ -625,13 +626,22 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
     # todo lo que viene atrás. Se hace sobre el encabezado, que es donde el documento
     # se identifica, y con la mejor ruta de lectura disponible para cada foja.
     encabezados: dict[int, str] = {}
+    # Y cuánto leyó el motor en cada foja, que es lo que separa un dorso en blanco y
+    # una fotocopia ilegible de una foja de trabajo. Se mide sobre la página ENTERA,
+    # no sobre el encabezado: una hoja en blanco no tiene encabezado, y de eso se
+    # trata. Entre rutas gana la que más cosas legibles encontró, por la misma razón
+    # que el encabezado más largo: si alguna pudo leer, la foja se puede leer.
+    medidas: dict[int, cl.Medida] = {}
     for pgs in por_ruta.values():
         for nro, _, pw in pgs:
             plano = normalizar_cotejo(" ".join(w.texto for w in pw[:120]))
             # Se queda con el encabezado más largo entre rutas: el que más leyó.
             if len(plano) > len(encabezados.get(nro, "")):
                 encabezados[nro] = plano
-    clases = clasificar_documento([(n, encabezados.get(n, "")) for n in todas])
+            m = cl.medir(w.texto for w in pw)
+            if nro not in medidas or m.utiles > medidas[nro].utiles:
+                medidas[nro] = m
+    clases = clasificar_documento([(n, encabezados.get(n, "")) for n in todas], medidas)
     for nro, clase in clases.items():
         cx.execute("UPDATE pagina SET clasificacion=? WHERE sha256=? AND nro=?",
                    (clase, sha, nro))
