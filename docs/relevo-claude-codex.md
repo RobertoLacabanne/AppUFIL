@@ -307,3 +307,32 @@ hallazgos.
 pruebas ya escritas pero sin poder commitear ni informar. Claude verificó el trabajo
 (las diez pruebas pasan), lo commiteó en su rama y siguió con la FASE 4. Se retoma a
 Codex en el próximo incremento.
+
+---
+
+## Incremento 4 — FASE 5 (tablas), FASE 7 (cronología) y las pantallas
+
+| | Claude | Codex |
+|---|---|---|
+| Ramas | `claude/fase5-tablas`, `claude/fase7-cronologia` | — |
+| Qué hizo | `ufil/tablas.py` y `ufil/cronologia.py` con sus etapas versionadas, cinco endpoints de lectura, las tres pantallas que faltaban y 29 pruebas | nada: agotó su cuota tres veces |
+
+**Codex quedó sin cuota** (falla en 5 s, reintento a las 19:51). Según la regla de
+continuidad, Claude siguió solo y tomó las pantallas, que en el reparto son de Codex.
+Queda anotado acá para que no aparezca como sorpresa.
+
+**Suite:** `631 tests · 1 failure · 14 errors · 1 skipped` — la base de referencia.
+
+**Migración verificada de punta a punta.** Se construyó una base con el código del commit
+base (`user_version=16`, 6 archivos, 10 fojas, 20 lecturas, 36 campos, 1 revisión humana),
+se la abrió con el código de ahora y se la actualizó:
+
+- migró a `user_version=21` **sin perder una sola fila**;
+- la revisión aprendió su anclaje (`ancla_pagina=1`, `ancla_tipo=contrato_personal`);
+- las piezas aprendieron su identidad estable;
+- el OCR se adoptó como heredado: **10 fojas reutilizadas, 0 releídas**;
+- y recibió las capacidades nuevas —10 hechos de cronología, 3 tablas, 1 foliatura—
+  **sin volver a subir un archivo**, en 1,3 s, con la corrección humana intacta
+  (`$555.444,33 · corregido · perez.ana`).
+
+Es exactamente lo que pide el §7 del pliego, comprobado y no inferido.
