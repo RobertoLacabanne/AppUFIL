@@ -171,6 +171,10 @@ def _firma_foliatura() -> str:
     return _fuente("foliatura.py")
 
 
+def _firma_tablas() -> str:
+    return _fuente("tablas.py")
+
+
 def _firma_cotejo() -> str:
     return _fuente("cotejo_letras.py", "castellano.py")
 
@@ -241,6 +245,9 @@ ETAPAS: tuple[Etapa, ...] = (
     Etapa("foliatura", "La foliatura que tiene el papel", "archivo", 1, _firma_foliatura,
           depende_de=("lectura",), caro=False,
           explica="El número escrito en la foja, que NO es la página del PDF."),
+    Etapa("tablas", "Las tablas del documento", "archivo", 1, _firma_tablas,
+          depende_de=("lectura", "segmentacion"), caro=False,
+          explica="Filas, columnas y celdas, cada una con su lugar en la foja."),
     Etapa("cotejo", "El número escrito dos veces", "archivo", 1, _firma_cotejo,
           depende_de=("lectura", "clasificacion"), caro=False,
           explica="Letras contra dígitos, sobre el texto de cada foja."),

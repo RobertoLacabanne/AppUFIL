@@ -41,7 +41,7 @@ from .db import ahora
 # Las etapas que se ejecutan por archivo, cada una por su cuenta. El orden importa:
 # es el de dependencia, y es el orden en que se corren.
 POR_ARCHIVO = ("clasificacion", "foliatura", "cotejo", "segmentacion",
-               "extraccion", "normalizacion")
+               "tablas", "extraccion", "normalizacion")
 
 # La normalización sigue pegada a la extracción: la escribe `_guardar_contrato` en la
 # misma pasada, porque normalizar es interpretar el literal que se acaba de leer y
@@ -107,6 +107,14 @@ def _unidades(cx: sqlite3.Connection, etapa: str) -> list[tuple[str, bool]]:
         return [(str(r["id"]), bool(r["leida"])) for r in cx.execute(
             """SELECT p.id, EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id=p.id) AS leida
                  FROM pagina p""")]
+    if etapa == "tablas":
+        # Hay salida si ya se buscaron tablas en el archivo. Que no haya ninguna no
+        # dice que el archivo no tenga tablas: dice que todavía no se miró.
+        return [(r["sha256"], bool(r["hay"])) for r in cx.execute(
+            """SELECT a.sha256,
+                      EXISTS (SELECT 1 FROM resultado_etapa re
+                               WHERE re.etapa='tablas' AND re.alcance_id = a.sha256) AS hay
+                 FROM archivo a""")]
     if etapa == "foliatura":
         # Hay salida si alguna foja del archivo tiene foliatura anotada. Que no la
         # tenga NO dice que el papel no esté foliado: dice que todavía no se miró.
@@ -537,6 +545,10 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
                     seg = c2.segmentar_piezas(cx, sha, perfil, por_ruta=por_ruta)
                     sellar(cx, "segmentacion", sha,
                            detalle="sin perfil que aplique" if seg["sin_perfil"] else None)
+                if "tablas" in pendientes:
+                    from . import tablas as tb
+                    tb.detectar_archivo(cx, sha, por_ruta=por_ruta)
+                    sellar(cx, "tablas", sha)
                 if "extraccion" in pendientes or "normalizacion" in pendientes:
                     r = c2.extraer_campos(cx, sha, perfil, por_ruta=por_ruta)
                     hecho["revisiones_reaplicadas"] += r.get("revisiones_reaplicadas", 0)

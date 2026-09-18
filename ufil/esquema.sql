@@ -309,6 +309,57 @@ CREATE TABLE IF NOT EXISTS revision_humana (
 );
 CREATE INDEX IF NOT EXISTS ix_revision_ancla ON revision_humana(sha256, ancla_pagina);
 
+-- ──────────────────────────────────────────── LAS TABLAS DEL DOCUMENTO ──
+-- Una planilla de obra, un remito o una orden de compra dicen lo que dicen POR RENGLÓN:
+-- artículo, descripción, unidad, cantidad, precio, subtotal. Aplanar eso a texto
+-- corrido pierde justamente lo que hace falta para comparar lo pactado con lo entregado
+-- y con lo facturado, que es la pregunta que trae a alguien a mirar estos papeles.
+--
+-- Se guarda la estructura, no sólo el texto: filas, columnas, celdas, celdas combinadas
+-- y encabezados. Y cada celda con SU recuadro, para poder ir a verla en el original:
+-- una cifra de una planilla que no se puede señalar en la foja no sirve como prueba.
+--
+-- `continua_de` es la tabla que sigue en la página siguiente. Una planilla larga se
+-- corta al pie de la hoja y sigue arriba de la otra, muchas veces repitiendo el
+-- encabezado; son UNA tabla y hay que poder leerlas juntas.
+CREATE TABLE IF NOT EXISTS tabla (
+  id           INTEGER PRIMARY KEY,
+  sha256       TEXT NOT NULL REFERENCES archivo(sha256),
+  pagina_nro   INTEGER NOT NULL,
+  orden        INTEGER NOT NULL DEFAULT 1,   -- 1ª, 2ª tabla de esa foja
+  documento_id INTEGER REFERENCES documento(id),
+  filas        INTEGER NOT NULL DEFAULT 0,
+  columnas     INTEGER NOT NULL DEFAULT 0,
+  x0 REAL, y0 REAL, x1 REAL, y1 REAL,
+  continua_de  INTEGER REFERENCES tabla(id),
+  -- quién dijo que continúa: NULL = lo propuso el sistema y nadie lo confirmó todavía
+  union_quien  TEXT, union_cuando TEXT,
+  origen       TEXT NOT NULL DEFAULT 'ocr',  -- ocr | humano
+  confianza    REAL,
+  creado_en    TEXT NOT NULL,
+  UNIQUE (sha256, pagina_nro, orden)
+);
+CREATE INDEX IF NOT EXISTS ix_tabla_pagina ON tabla(sha256, pagina_nro);
+CREATE INDEX IF NOT EXISTS ix_tabla_documento ON tabla(documento_id);
+
+CREATE TABLE IF NOT EXISTS tabla_celda (
+  id             INTEGER PRIMARY KEY,
+  tabla_id       INTEGER NOT NULL REFERENCES tabla(id) ON DELETE CASCADE,
+  fila           INTEGER NOT NULL,           -- 0 = primera fila de la tabla
+  columna        INTEGER NOT NULL,
+  filas_ocupa    INTEGER NOT NULL DEFAULT 1, -- celdas combinadas
+  columnas_ocupa INTEGER NOT NULL DEFAULT 1,
+  es_encabezado  INTEGER NOT NULL DEFAULT 0,
+  texto          TEXT,
+  -- El recuadro de ESTA celda, no el de la tabla. Es lo que permite mostrar de dónde
+  -- salió cada número sin obligar a nadie a buscarlo en la hoja.
+  x0 REAL, y0 REAL, x1 REAL, y1 REAL,
+  lectura_id     INTEGER REFERENCES lectura(id),
+  confianza      REAL,
+  UNIQUE (tabla_id, fila, columna)
+);
+CREATE INDEX IF NOT EXISTS ix_celda_tabla ON tabla_celda(tabla_id, fila, columna);
+
 -- ───────────────────────────────────── LA FOLIATURA QUE TIENE EL PAPEL ──
 -- Cuatro numeraciones distintas conviven en un expediente y NO son la misma:
 --
