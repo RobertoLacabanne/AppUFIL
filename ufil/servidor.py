@@ -1359,6 +1359,12 @@ class Manejador(BaseHTTPRequestHandler):
                               FROM fusion_propuesta f WHERE f.estado='pendiente' ORDER BY f.score DESC""")])
                     if ruta == "/api/interpretaciones":
                         return self._json(api_interpretaciones(cx))
+                    if ruta == "/api/actualizacion":
+                        from . import actualizacion
+                        return self._json(actualizacion.plan(cx))
+                    if ruta == "/api/reasociaciones":
+                        from . import actualizacion
+                        return self._json({"revisiones": actualizacion.reasociaciones(cx)})
                     if ruta == "/api/trabajo":
                         est = _procesador().estado.como_dict()
                         est["sin_leer"] = cx.execute(
@@ -1463,7 +1469,7 @@ class Manejador(BaseHTTPRequestHandler):
         # La subida manda el PDF crudo en el cuerpo, con los metadatos en la URL. Es a
         # propósito: evita parsear multipart (que salió de la biblioteca estándar) y da
         # progreso archivo por archivo sin esfuerzo.
-        if u.path in ("/api/subir", "/api/procesar"):
+        if u.path in ("/api/subir", "/api/procesar", "/api/actualizar"):
             falta = _falta_abrir_legajo()
             if falta:
                 return self._json({"ok": False, "sin_legajo": True, "error": falta}, 409)
@@ -1657,6 +1663,16 @@ class Manejador(BaseHTTPRequestHandler):
         try:
             if u.path == "/api/detener":
                 return self._json(_procesador().detener())
+            if u.path == "/api/actualizar":
+                from . import versiones
+                forzar = cuerpo.get("forzar", [])
+                if not isinstance(forzar, list) or not all(isinstance(e, str) for e in forzar):
+                    raise ValueError("forzar debe ser una lista de etapas")
+                for clave in forzar:
+                    versiones.etapa(clave)
+                return self._json(_procesador().actualizar(
+                    forzar=forzar, perfil=cuerpo.get("perfil", "auto"),
+                    con_vlm=bool(cuerpo.get("vlm"))))
             if u.path == "/api/procesar":
                 return self._json(_procesador().arrancar(
                     perfil=cuerpo.get("perfil", "auto"),

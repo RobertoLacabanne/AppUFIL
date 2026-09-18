@@ -556,6 +556,7 @@ const SECCIONES = [
     {hash: '#/equipo',    rotulo: 'Trabajo del equipo'},
   ]},
   {id: 'sistema', rotulo: 'Sistema', items: [
+    {hash: '#/actualizacion', rotulo: 'Actualizar an\u00e1lisis'},
     {hash: '#/legajos',       rotulo: 'Legajos'},
     {hash: '#/como-funciona', rotulo: 'Cómo funciona'},
     {hash: '#/salud',         rotulo: 'Estado del sistema'},
@@ -3375,6 +3376,70 @@ function resumenCarga(ar) {
     listos === 1 ? 'listo' : 'listos'}${falta ? ', ' + falta : ''}.`;
 }
 
+
+// El plan es informativo: abrir esta pantalla nunca inicia una actualizacion.
+function htmlActualizacion(plan, revisiones) {
+  const nombres = new Map(plan.etapas.map(e => [e.clave, e.nombre]));
+  const etiqueta = clave => ({paginas_ocr: 'Fojas de OCR', lecturas: 'Lecturas guardadas',
+    indice: '\u00cdndice de b\u00fasqueda', archivos: 'Archivos', documentos: 'Documentos',
+    total: 'Total', preservadas: 'Preservadas',
+    requieren_reasociacion: 'Necesitan reasociaci\u00f3n'}[clave] || clave.replaceAll('_', ' '));
+  const cuentas = datos => `<dl>${Object.entries(datos).map(([k, v]) =>
+    `<div><dt>${esc(etiqueta(k))}</dt><dd>${typeof v === 'boolean' ? (v ? 'S\u00ed' : 'No') : esc(fmtNum.format(v))}</dd></div>`).join('')}</dl>`;
+  const sinMaterial = plan.etapas.filter(e => e.alcance !== 'legajo').every(e => e.total === 0);
+  return `<h2>Actualizar an\u00e1lisis</h2>
+    <p class="prosa">${sinMaterial ? 'No hay material cargado para actualizar.' : plan.vigente
+      ? 'El an\u00e1lisis est\u00e1 vigente. No hay nada que actualizar.'
+      : 'Mir\u00e1 qu\u00e9 se aprovecha y qu\u00e9 hace falta recalcular antes de empezar.'}</p>
+    <div class="actualizacion-cuentas">
+      <section><h3>Se reutiliza</h3>${cuentas(plan.reutiliza)}</section>
+      <section><h3>Se recalcula</h3>${cuentas(plan.recalcula)}</section>
+    </div>
+    <p class="prosa nota">Las cuentas de OCR indican las fojas que se aprovechan y las que se vuelven a leer.
+      Las etapas se registran por separado, pero algunas se ejecutan juntas por archivo.</p>
+    <h3>Etapas</h3><div class="actualizacion-etapas">${plan.etapas.map(e => `<article>
+      <h4>${esc(e.nombre)} <span class="sello ${e.estado === 'desactualizada' || e.estado === 'nunca' ? 'atencion' : 'neutro'}">${esc(e.estado)}</span></h4>
+      ${e.explica ? `<p>${esc(e.explica)}</p>` : ''}
+      ${e.motivo ? `<p>${esc(e.motivo)}</p>` : ''}
+      ${e.estado === 'heredada' || e.heredados > 0 ? '<p>Hay resultados heredados aprovechables: se adopt\u00f3 lo que ya estaba sin volver a leerlo; no se comprob\u00f3 que coincida.</p>' : ''}
+      <p>Aprovechables: ${esc(fmtNum.format(e.vigentes))} &middot; Desactualizados: ${esc(fmtNum.format(e.desactualizados))}
+        &middot; Total: ${esc(fmtNum.format(e.total))} &middot; Costo: ${esc(e.cuesta)}</p>
+    </article>`).join('')}</div>
+    <h3>Trabajo de las personas</h3>${cuentas(plan.revisiones)}
+    <p class="prosa">Las revisiones que necesitan reasociaci\u00f3n se conservan. No se aplican solas porque no es seguro
+      a qu\u00e9 pieza corresponden. Necesitan que una persona las mire; no son trabajo perdido.</p>
+    ${revisiones.map(r => `<article class="actualizacion-revision"><h4 class="mono">${esc(r.archivo)}</h4>
+      <p>${esc(r.campo)}: ${r.valor == null ? 'Sin valor' : esc(r.valor)}</p>
+      <p>${esc(r.quien)} &middot; ${esc(r.cuando)}</p><p>${esc(r.motivo)}</p></article>`).join('')}
+    ${plan.archivos.length ? `<h3>Archivos alcanzados</h3><ul>${plan.archivos.map(a =>
+      `<li><span class="mono">${esc(a.nombre)}</span> &middot; Fojas: ${esc(fmtNum.format(a.paginas))}
+      &middot; ${a.desactualizadas.map(k => esc(nombres.get(k) || k)).join(', ')}</li>`).join('')}</ul>` : ''}
+    ${!plan.vigente && !sinMaterial ? '<button class="boton" id="b-actualizar">Actualizar an\u00e1lisis</button>' : ''}`;
+}
+
+async function vActualizacion() {
+  const [plan, pendientes, t] = await Promise.all([
+    api('/api/actualizacion'), api('/api/reasociaciones'), api('/api/trabajo')]);
+  if (location.hash !== '#/actualizacion') return;
+  vista.innerHTML = bloque('ACT', 'An\u00e1lisis',
+    `<div id="plan-actualizacion">${htmlActualizacion(plan, pendientes.revisiones)}</div><div id="progreso" aria-live="polite"></div>`);
+  const b = $('#b-actualizar');
+  if (b) {
+    b.disabled = t.estado === 'corriendo';
+    b.onclick = async () => {
+      b.disabled = true;
+      try {
+        const r = await api('/api/actualizar', {method: 'POST',
+          headers: {'Content-Type': 'application/json'}, body: '{}'});
+        if (!r.ok) { alert(r.motivo); b.disabled = false; return; }
+        await seguirTrabajo();
+      } catch (e) { alert(e.message); b.disabled = false; }
+    };
+  }
+  pintarTrabajo(t);
+  if (t.estado === 'corriendo') seguirTrabajo();
+}
+
 async function vIngesta() {
   // El control de arriba ya corta la ruta, pero la carga es la única pantalla que
   // ESCRIBE en disco: se chequea de nuevo acá, contra el servidor y no contra lo que
@@ -3645,10 +3710,13 @@ async function seguirTrabajo() {
   pintarTrabajo(t);
   const b = $('#b-procesar');
   if (b) b.disabled = t.estado === 'corriendo' || !t.sin_leer;
+  const actualizar = $('#b-actualizar');
+  if (actualizar) actualizar.disabled = t.estado === 'corriendo';
   if (t.estado === 'corriendo') {
     temporizador = setTimeout(seguirTrabajo, 1500);
   } else {
     refrescarCuentas();
+    if ($('#plan-actualizacion')) await vActualizacion();
   }
 }
 
@@ -4186,6 +4254,7 @@ function vComoFunciona() {
 const TITULOS = {
   '#/acerca': 'Acerca del sistema',
   '#/equipo': 'Trabajo del equipo',
+  '#/actualizacion':'Actualizar an\u00e1lisis',
   '#/panel':'Panel', '#/ingesta':'Cargar escaneos', '#/buscar':'Buscar',
   '#/contratos':'Contratos', '#/personas':'Personas',
   '#/superposiciones':'Superposiciones', '#/cola':'Cola de revisión',
@@ -4432,6 +4501,7 @@ addEventListener('visibilitychange', () => {
 const rutas = [
   [/^#\/legajos$/,               vLegajos],
   [/^#\/panel$/,                 vPanel],
+  [/^#\/actualizacion$/,         vActualizacion],
   [/^#\/ingesta$/,               vIngesta],
   [/^#\/contratos$/,             vContratos],
   [/^#\/comprobantes$/,          vComprobantes],
