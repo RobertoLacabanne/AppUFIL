@@ -309,6 +309,46 @@ CREATE TABLE IF NOT EXISTS revision_humana (
 );
 CREATE INDEX IF NOT EXISTS ix_revision_ancla ON revision_humana(sha256, ancla_pagina);
 
+-- ─────────────────────────────────────────────────────── LA CRONOLOGÍA ──
+-- Un documento no tiene «una fecha»: tiene varias, y son cosas distintas.
+--
+--   documento     — la que el papel lleva arriba, cuando se labró
+--   firma         — cuando se firmó, que puede no ser la misma
+--   recepcion     — el sello de mesa de entradas
+--   notificacion  — cuando se le hizo saber a alguien
+--   hecho         — cuando pasó lo que el documento relata
+--   incorporacion — cuando entró al expediente
+--
+-- Mezclarlas arma una línea de tiempo que no corresponde a nada: un acta que relata
+-- un hecho de marzo, firmada en abril y recibida en mayo aparecería tres veces o, peor,
+-- una sola vez en la fecha equivocada.
+--
+-- El orden cronológico NO es el orden físico del expediente. Un expediente se arma por
+-- incorporación, y lo que se incorpora último puede relatar lo que pasó primero. Por eso
+-- esta tabla existe aparte de `pagina.nro` y de `documento.orden`.
+--
+-- Toda fecha conserva de dónde salió: el campo que la trajo, o quién la cargó a mano.
+CREATE TABLE IF NOT EXISTS evento (
+  id           INTEGER PRIMARY KEY,
+  documento_id INTEGER REFERENCES documento(id) ON DELETE CASCADE,
+  sha256       TEXT REFERENCES archivo(sha256),
+  pagina_nro   INTEGER,
+  clase        TEXT NOT NULL,          -- documento|firma|recepcion|notificacion|hecho|incorporacion
+  fecha        TEXT NOT NULL,          -- ISO, normalizada
+  literal      TEXT,                   -- tal como está en el papel
+  campo_id     INTEGER REFERENCES campo(id) ON DELETE SET NULL,
+  -- De dónde salió: `campo:<nombre>` cuando la trajo la extracción, `humano` cuando la
+  -- cargó una persona. Una fecha sin fuente no entra: es la misma regla que sostiene
+  -- el resto del sistema.
+  origen       TEXT NOT NULL,
+  confianza    REAL,
+  nota         TEXT,
+  quien        TEXT, cuando TEXT,
+  UNIQUE (documento_id, clase, fecha, origen)
+);
+CREATE INDEX IF NOT EXISTS ix_evento_fecha ON evento(fecha);
+CREATE INDEX IF NOT EXISTS ix_evento_doc   ON evento(documento_id, clase);
+
 -- ──────────────────────────────────────────── LAS TABLAS DEL DOCUMENTO ──
 -- Una planilla de obra, un remito o una orden de compra dicen lo que dicen POR RENGLÓN:
 -- artículo, descripción, unidad, cantidad, precio, subtotal. Aplanar eso a texto

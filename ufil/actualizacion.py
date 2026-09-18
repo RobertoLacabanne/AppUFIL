@@ -49,7 +49,7 @@ POR_ARCHIVO = ("clasificacion", "foliatura", "cotejo", "segmentacion",
 # —tiene su propia versión— pero se ejecuta con la extracción.
 JUNTAS_POR_ARCHIVO = ("extraccion", "normalizacion")
 # Las que valen para el legajo entero y no por archivo.
-DE_LEGAJO = ("identidad", "indice", "interpretacion")
+DE_LEGAJO = ("identidad", "cronologia", "indice", "interpretacion")
 
 
 # ────────────────────────────────────────────────────────────── el sello guardado ──
@@ -143,6 +143,9 @@ def _unidades(cx: sqlite3.Connection, etapa: str) -> list[tuple[str, bool]]:
     if etapa == "identidad":
         return [("", bool(cx.execute(
             "SELECT EXISTS (SELECT 1 FROM documento_persona)").fetchone()[0]))]
+    if etapa == "cronologia":
+        return [("", bool(cx.execute(
+            "SELECT EXISTS (SELECT 1 FROM evento)").fetchone()[0]))]
     if etapa == "indice":
         return [("", bool(cx.execute(
             "SELECT EXISTS (SELECT 1 FROM pagina_texto)").fetchone()[0]))]
@@ -464,6 +467,7 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
 
     viejas = desactualizadas_por_etapa(cx, forzar=forzar)
     hecho = {"lectura_paginas": 0, "archivos": 0, "identidad": False, "indice": 0,
+             "cronologia": 0,
              "interpretacion": 0, "revisiones_reaplicadas": 0,
              "revisiones_a_reasociar": 0, "reutilizado_paginas_ocr": 0,
              "cortado": False, "errores": []}
@@ -578,6 +582,18 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
             detalle = f"{type(e).__name__}: {e}"
             hecho["errores"].append({"etapa": "identidad", "detalle": detalle})
             sellar(cx, "identidad", estado=vs.FALLIDO, detalle=detalle)
+        cx.commit()
+
+    if "cronologia" in viejas and not hecho["cortado"]:
+        _fase("armando la cronología", 1)
+        try:
+            from . import cronologia as cr
+            hecho["cronologia"] = cr.poblar_desde_campos(cx)["eventos"]
+            sellar(cx, "cronologia")
+        except Exception as e:
+            detalle = f"{type(e).__name__}: {e}"
+            hecho["errores"].append({"etapa": "cronología", "detalle": detalle})
+            sellar(cx, "cronologia", estado=vs.FALLIDO, detalle=detalle)
         cx.commit()
 
     if "indice" in viejas and not hecho["cortado"]:
