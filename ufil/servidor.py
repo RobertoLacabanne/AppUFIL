@@ -1393,6 +1393,17 @@ class Manejador(BaseHTTPRequestHandler):
                                 hasta=(q.get("hasta") or [None])[0],
                                 clases=tuple(x for x in (q.get("clase") or []) if x)),
                             "desordenes": cr.desordenes(cx)})
+                    # ── Consultas guardadas y colecciones ──
+                    if ruta == "/api/consultas-guardadas":
+                        from . import colecciones as co
+                        return self._json({"consultas": co.consultas(cx)})
+                    if ruta == "/api/colecciones":
+                        from . import colecciones as co
+                        return self._json({"colecciones": co.listar(cx),
+                                           "clases": list(co.CLASES)})
+                    if ruta == "/api/coleccion":
+                        from . import colecciones as co
+                        return self._json(co.ver(cx, int(q["id"][0])))
                     # ── Menciones, entidades y relaciones ──
                     if ruta == "/api/entidades":
                         from . import entidades as en
@@ -1747,6 +1758,28 @@ class Manejador(BaseHTTPRequestHandler):
                 if u.path == "/api/pieza/clasificar":
                     return self._json(piezas.clasificar_a_mano(
                         cx, entero("documento_id"), texto("tipo"), texto("quien")))
+                # ── Consultas guardadas y colecciones ──
+                if u.path == "/api/consulta/guardar":
+                    from . import colecciones as co
+                    return self._json(co.guardar_consulta(
+                        cx, texto("nombre"), texto("consulta"), texto("quien"),
+                        filtros=cuerpo.get("filtros")))
+                if u.path == "/api/consulta/borrar":
+                    from . import colecciones as co
+                    return self._json(co.borrar_consulta(cx, entero("id")))
+                if u.path == "/api/coleccion/crear":
+                    from . import colecciones as co
+                    return self._json(co.crear(cx, texto("nombre"), texto("quien"),
+                                               cuerpo.get("nota")))
+                if u.path == "/api/coleccion/agregar":
+                    from . import colecciones as co
+                    return self._json(co.agregar(
+                        cx, entero("coleccion_id"), texto("clase"),
+                        texto("referencia"), texto("quien"), nota=cuerpo.get("nota")))
+                if u.path == "/api/coleccion/quitar":
+                    from . import colecciones as co
+                    return self._json(co.quitar(
+                        cx, entero("coleccion_id"), texto("clase"), texto("referencia")))
                 # ── Entidades y relaciones: todo lo que decide una persona ──
                 if u.path == "/api/entidad/confirmar":
                     from . import entidades as en

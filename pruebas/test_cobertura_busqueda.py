@@ -199,7 +199,9 @@ class BuscarUnApellidoNoDependeDeLosAcentos(unittest.TestCase):
         self.cx.commit()
 
     def _cuantos(self, q):
-        return len(busqueda.en_campos(self.cx, q))
+        # `en_campos` devuelve ahora la página Y el total: contar la página escondería
+        # justamente lo que la paginación vino a mostrar.
+        return busqueda.en_campos(self.cx, q)["total"]
 
     def test_se_encuentra_con_acento_y_sin_acento(self):
         # Una fila: el apellido está en el campo «nombre» y en ningún otro.

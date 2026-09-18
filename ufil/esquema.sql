@@ -309,6 +309,53 @@ CREATE TABLE IF NOT EXISTS revision_humana (
 );
 CREATE INDEX IF NOT EXISTS ix_revision_ancla ON revision_humana(sha256, ancla_pagina);
 
+-- ─────────────────────────── LO QUE ALGUIEN QUIERE VOLVER A MIRAR ──
+-- Dos cosas que hoy se pierden al cerrar el navegador y que cuestan caro rehacer.
+--
+-- Una CONSULTA GUARDADA es una búsqueda con sus filtros, con nombre. En un legajo que
+-- se trabaja durante meses, «los comprobantes de este proveedor entre marzo y julio» se
+-- vuelve a escribir veinte veces, y cada vez con una variante distinta, así que dos
+-- personas comparando sus resultados no están mirando lo mismo.
+--
+-- Una COLECCIÓN es un conjunto de piezas elegidas A MANO: lo que alguien apartó para
+-- un escrito, para una audiencia, para revisar mañana. No es el resultado de una
+-- consulta —eso cambia cuando cambian los datos— sino una lista que una persona armó y
+-- que tiene que quedar igual hasta que ella la cambie.
+CREATE TABLE IF NOT EXISTS consulta_guardada (
+  id        INTEGER PRIMARY KEY,
+  nombre    TEXT NOT NULL,
+  consulta  TEXT NOT NULL,
+  filtros   TEXT,                   -- JSON: lo que acota la búsqueda
+  quien     TEXT NOT NULL,
+  creado_en TEXT NOT NULL,
+  usada_en  TEXT,
+  veces     INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (nombre)
+);
+
+CREATE TABLE IF NOT EXISTS coleccion (
+  id        INTEGER PRIMARY KEY,
+  nombre    TEXT NOT NULL,
+  nota      TEXT,
+  quien     TEXT NOT NULL,
+  creado_en TEXT NOT NULL,
+  UNIQUE (nombre)
+);
+
+-- Una colección junta piezas, fojas o entidades: lo que alguien necesite apartar. Por
+-- eso la referencia es (clase, referencia) y no una clave foránea a una sola tabla.
+CREATE TABLE IF NOT EXISTS coleccion_item (
+  coleccion_id INTEGER NOT NULL REFERENCES coleccion(id) ON DELETE CASCADE,
+  clase        TEXT NOT NULL,       -- documento | foja | entidad
+  referencia   TEXT NOT NULL,       -- id de la pieza, «sha:foja», id de la entidad
+  nota         TEXT,
+  orden        INTEGER NOT NULL DEFAULT 1,
+  quien        TEXT NOT NULL,
+  cuando       TEXT NOT NULL,
+  PRIMARY KEY (coleccion_id, clase, referencia)
+);
+CREATE INDEX IF NOT EXISTS ix_coleccion_item ON coleccion_item(coleccion_id, orden);
+
 -- ──────────────────────────── LO QUE EL PAPEL DICE Y QUIÉN ES EN REALIDAD ──
 -- Son dos cosas distintas y el sistema no puede confundirlas.
 --

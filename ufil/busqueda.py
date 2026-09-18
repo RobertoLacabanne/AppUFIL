@@ -102,7 +102,8 @@ def plano(texto: str) -> str:
     return texto.lower()
 
 
-def en_campos(cx: sqlite3.Connection, consulta: str, limite: int = 60) -> list[dict]:
+def en_campos(cx: sqlite3.Connection, consulta: str, limite: int = 60,
+              desde: int = 0) -> dict:
     """
     Busca sobre los datos extraídos. Devuelve documentos de cualquier familia.
 
@@ -110,29 +111,51 @@ def en_campos(cx: sqlite3.Connection, consulta: str, limite: int = 60) -> list[d
     tiene que encontrar el contrato Y las facturas de esa persona. Una búsqueda que
     calla la mitad del material es peor que ninguna, porque el que busca concluye que
     no hay nada.
+
+    Devuelve **cuántos hay en total**, no sólo los de esta página. Antes cortaba en
+    sesenta y no lo decía: quien veía sesenta resultados no tenía forma de saber si
+    eran todos o si había cuatrocientos más, y eso convierte un «mirá estos sesenta» en
+    un «no hay más», que es una afirmación que nadie verificó.
     """
     patron = f"%{plano(consulta.strip())}%"
     digitos = re.sub(r"\D", "", consulta)
+    donde = f"""
+         WHERE {_plano_sql("c.valor_literal")} LIKE ?
+            OR (? <> '' AND REPLACE(REPLACE(REPLACE(c.valor_literal,'-',''),'.',''),' ','')
+                            LIKE '%' || ? || '%')"""
+    args = (patron, digitos, digitos)
+    total = cx.execute(f"""
+        SELECT COUNT(*) FROM (SELECT DISTINCT c.documento_id FROM campo c
+          JOIN v_documento_todo v ON v.documento_id = c.documento_id {donde})""",
+        args).fetchone()[0]
     filas = cx.execute(f"""
         SELECT DISTINCT v.documento_id, v.archivo, v.camara, v.persona_id, v.familia,
                v.tipo, v.nombre_literal, v.documento_literal, v.inicio, v.fin,
                v.monto_centavos, c.nombre AS campo, c.valor_literal, c.pagina_nro
           FROM campo c
-          JOIN v_documento_todo v ON v.documento_id = c.documento_id
-         WHERE {_plano_sql("c.valor_literal")} LIKE ?
-            OR (? <> '' AND REPLACE(REPLACE(REPLACE(c.valor_literal,'-',''),'.',''),' ','')
-                            LIKE '%' || ? || '%')
-         ORDER BY v.documento_id LIMIT ?""",
-        (patron, digitos, digitos, limite)).fetchall()
-    return [dict(f) for f in filas]
+          JOIN v_documento_todo v ON v.documento_id = c.documento_id {donde}
+         ORDER BY v.documento_id LIMIT ? OFFSET ?""",
+        args + (limite, desde)).fetchall()
+    return {"items": [dict(f) for f in filas], "total": total,
+            "desde": desde, "limite": limite, "hay_mas": desde + len(filas) < total}
 
 
-def en_paginas(cx: sqlite3.Connection, consulta: str, limite: int = 60) -> list[dict]:
-    """Busca sobre el texto de los folios. Devuelve páginas con el fragmento."""
+def en_paginas(cx: sqlite3.Connection, consulta: str, limite: int = 60,
+               desde: int = 0) -> dict:
+    """
+    Busca sobre el texto de los folios. Devuelve páginas con el fragmento y el total.
+
+    El total sale de una consulta aparte y no de contar lo que se devuelve: pedir
+    sesenta y contar sesenta no dice nada sobre cuántos hay.
+    """
     expr = preparar(consulta)
+    vacio = {"items": [], "total": 0, "desde": desde, "limite": limite, "hay_mas": False}
     if not expr:
-        return []
+        return vacio
     try:
+        total = cx.execute(
+            "SELECT COUNT(*) FROM pagina_texto WHERE pagina_texto MATCH ?",
+            (expr,)).fetchone()[0]
         filas = cx.execute("""
             SELECT t.sha256, t.nro,
                    snippet(pagina_texto, 0, '[[', ']]', '…', 14) AS fragmento,
@@ -141,10 +164,41 @@ def en_paginas(cx: sqlite3.Connection, consulta: str, limite: int = 60) -> list[
               JOIN archivo a ON a.sha256 = t.sha256
               LEFT JOIN documento d ON d.sha256 = t.sha256
              WHERE pagina_texto MATCH ?
-             ORDER BY rank LIMIT ?""", (expr, limite)).fetchall()
+             ORDER BY rank LIMIT ? OFFSET ?""", (expr, limite, desde)).fetchall()
     except sqlite3.OperationalError:
+        return vacio
+    return {"items": [dict(f) for f in filas], "total": total, "desde": desde,
+            "limite": limite, "hay_mas": desde + len(filas) < total}
+
+
+# Lo que el OCR confunde, y en las dos direcciones. Son las confusiones de FORMA de la
+# tipografía —no de este corpus— así que valen para cualquier escaneo: el uno y la ele,
+# el cero y la o, la ese y el cinco.
+CONFUSIONES = (("l", "1"), ("i", "1"), ("o", "0"), ("s", "5"), ("b", "6"),
+               ("g", "9"), ("z", "2"), ("q", "9"), ("rn", "m"), ("ll", "n"))
+
+
+def variantes_de(consulta: str, tope: int = 6) -> list[str]:
+    """
+    Cómo se pudo haber leído mal lo que alguien está buscando.
+
+    No se usan para buscar solas —eso multiplicaría los falsos positivos— sino para
+    OFRECERLAS cuando la búsqueda trae poco: «buscaste BENITEZ; el OCR pudo haber leído
+    BEN1TEZ». Es la diferencia entre «no está» y «no está escrito así».
+
+    Se devuelven pocas y ordenadas: una lista de doscientas variantes no ayuda a nadie.
+    """
+    base = plano(consulta or "")
+    if len(base) < 3:
         return []
-    return [dict(f) for f in filas]
+    salida = []
+    for a, b in CONFUSIONES:
+        for desde_, hasta_ in ((a, b), (b, a)):
+            if desde_ in base:
+                v = base.replace(desde_, hasta_)
+                if v != base and v not in salida:
+                    salida.append(v)
+    return salida[:tope]
 
 
 def cobertura(cx: sqlite3.Connection) -> dict:
@@ -200,16 +254,29 @@ def cobertura(cx: sqlite3.Connection) -> dict:
     }
 
 
-def buscar(cx: sqlite3.Connection, consulta: str) -> dict:
+def buscar(cx: sqlite3.Connection, consulta: str, *, limite: int = 60,
+           desde: int = 0) -> dict:
     consulta = (consulta or "").strip()
+    limite = max(1, min(int(limite or 60), MAX))
+    desde = max(0, int(desde or 0))
     cob = cobertura(cx)
     if len(consulta) < 2:
         return {"consulta": consulta, "campos": [], "paginas": [],
+                "campos_total": 0, "paginas_total": 0, "desde": desde,
+                "limite": limite, "hay_mas": False, "variantes": [],
                 "cobertura": cob, "paginas_indexadas": cob["indexadas"],
                 "aviso": "Escribí al menos dos caracteres."}
-    campos = en_campos(cx, consulta)
-    paginas = en_paginas(cx, consulta)
-    return {"consulta": consulta, "campos": campos, "paginas": paginas,
+    campos = en_campos(cx, consulta, limite=limite, desde=desde)
+    paginas = en_paginas(cx, consulta, limite=limite, desde=desde)
+    return {"consulta": consulta,
+            # Se devuelven las dos formas: la lista, que es lo que la pantalla pinta, y
+            # el total con el desplazamiento, que es lo que le permite decir «de 412» y
+            # traer la página siguiente sin volver a empezar.
+            "campos": campos["items"], "paginas": paginas["items"],
+            "campos_total": campos["total"], "paginas_total": paginas["total"],
+            "desde": desde, "limite": limite,
+            "hay_mas": campos["hay_mas"] or paginas["hay_mas"],
+            "variantes": variantes_de(consulta),
             # La cobertura va SIEMPRE, haya resultados o no. Mostrarla sólo cuando no
             # hay es el mismo error con otra ropa: cuatro coincidencias sobre 241 fojas
             # leídas de 260 tampoco es lo mismo que cuatro sobre 260.
