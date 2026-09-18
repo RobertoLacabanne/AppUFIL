@@ -553,6 +553,7 @@ const SECCIONES = [
     {hash: '#/cola',      rotulo: 'Cola de revisión', cuenta: 'a_revisar'},
     {hash: '#/identidad', rotulo: 'Identidad',        cuenta: 'fusiones'},
     {hash: '#/afuera',    rotulo: 'Quedaron afuera',  cuenta: 'afuera'},
+    {hash: '#/reasociaciones', rotulo: 'Revisiones desplazadas'},
     {hash: '#/equipo',    rotulo: 'Trabajo del equipo'},
   ]},
   {id: 'sistema', rotulo: 'Sistema', items: [
@@ -3378,6 +3379,86 @@ function resumenCarga(ar) {
 
 
 // El plan es informativo: abrir esta pantalla nunca inicia una actualizacion.
+
+function htmlReasociaciones(revisiones) {
+  if (!revisiones.length) return vacio('No hay revisiones desplazadas',
+    'No hay decisiones humanas pendientes de reasociar.');
+  const dato = v => v == null ? '\u00d8 Sin registrar' : esc(v);
+  return `<h2>Revisiones desplazadas</h2>
+    <p class="prosa">Las decisiones se conservaron sin aplicarlas a una pieza incierta.
+    Las candidatas est\u00e1n ordenadas de m\u00e1s a menos plausibles: el sistema no sabe cu\u00e1l corresponde.
+    Mir\u00e1 el documento antes de elegir.</p>
+    ${revisiones.map((r, i) => `<article class="reasociacion" data-revision="${i}">
+      <h3 class="mono">${dato(r.archivo)}</h3>
+      <dl><dt>Decisi\u00f3n conservada</dt><dd>${dato(r.accion)} sobre ${esc(String(r.campo).replaceAll('_', ' '))}: ${dato(r.valor)}</dd>
+      <dt>Qui\u00e9n y cu\u00e1ndo</dt><dd>${dato(r.quien)} &middot; ${esc(fmtFechaHora(r.cuando))}</dd>
+      <dt>D\u00f3nde mir\u00f3</dt><dd>Foja ${dato(r.ancla_pagina)} &middot; ${dato(r.ancla_tipo == null ? null : r.ancla_tipo.replaceAll('_', ' '))}
+        &middot; Pieza ${dato(r.orden)} &middot; Fojas ${dato(r.ancla_desde)} a ${dato(r.ancla_hasta)}</dd>
+      <dt>Por qu\u00e9 qued\u00f3 pendiente</dt><dd>${dato(r.motivo)}</dd></dl>
+      ${r.ancla_pagina != null ? '<button class="boton gris" data-ancla>Ver la foja anclada</button>' : ''}
+      ${r.candidatas.length ? `<fieldset><legend>Eleg\u00ed la pieza destinataria</legend>
+        ${r.candidatas.map(c => `<div class="reasociacion-candidata"><label>
+          <input type="radio" name="pieza-${i}" value="${esc(c.documento_id)}" ${c.tiene_el_campo ? '' : 'disabled'}>
+          Pieza ${dato(c.orden)} &middot; ${dato(c.tipo.replaceAll('_', ' '))}
+          &middot; Fojas ${dato(c.pagina_desde)} a ${dato(c.pagina_hasta)}</label>
+          <p>${esc(c.por_que)}</p><p class="mono">${c.tiene_el_campo
+            ? `${dato(c.valor_actual)} &middot; ${esc((ESTADO[c.estado_actual] || [c.estado_actual || 'Sin estado'])[0])}`
+            : 'Este campo todav\u00eda no se extrajo en esta pieza.'}</p>
+          ${!c.tiene_el_campo ? '<p>Puede ser la pieza correcta. Dejala pendiente hasta que tenga el campo.</p>' : ''}
+          <a href="#/documento/${esc(c.documento_id)}" target="_blank" rel="noopener">Ver la pieza en otra pesta\u00f1a</a>
+        </div>`).join('')}</fieldset>` : '<p>No hay piezas candidatas disponibles en este archivo.</p>'}
+      <p>Descartar no borra la decisi\u00f3n: queda registrada y se puede auditar.
+        Dejar pendiente tambi\u00e9n registra qui\u00e9n lo decidi\u00f3.</p>
+      <div class="reasociacion-acciones">
+        ${r.candidatas.some(c => c.tiene_el_campo) ? '<button class="boton" data-resolver="reasociar" disabled>Reasociar a la pieza elegida</button>' : ''}
+        <button class="boton gris descarte" data-resolver="descartar">Descartar la decisi\u00f3n</button>
+        <button class="boton gris" data-resolver="pendiente">Dejar pendiente</button>
+      </div><p role="status" aria-live="polite" data-resultado></p>
+    </article>`).join('')}`;
+}
+
+async function vReasociaciones() {
+  const {revisiones} = await api('/api/reasociaciones/pendientes');
+  if (location.hash !== '#/reasociaciones') return;
+  vista.innerHTML = bloque('REV', 'Revisiones desplazadas', htmlReasociaciones(revisiones));
+  vista.querySelectorAll('[data-revision]').forEach(tarjeta => {
+    const r = revisiones[Number(tarjeta.dataset.revision)];
+    const asociar = $('[data-resolver="reasociar"]', tarjeta);
+    tarjeta.querySelectorAll('input[type="radio"]').forEach(b => b.onchange = () => {
+      if (asociar) asociar.disabled = false;
+    });
+    const ancla = $('[data-ancla]', tarjeta);
+    if (ancla) ancla.onclick = () => abrirFojaSuelta(r.sha256, r.ancla_pagina, r.archivo);
+    tarjeta.querySelectorAll('[data-resolver]').forEach(b => b.onclick = async () => {
+      const controles = tarjeta.querySelectorAll('button, input');
+      controles.forEach(c => c.disabled = true);
+      const salida = $('[data-resultado]', tarjeta);
+      try {
+        const quien = await conRevisor();
+        if (!quien) return;
+        const elegida = $('input:checked', tarjeta);
+        const resultado = await api('/api/reasociacion/resolver', {method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({sha256:r.sha256, orden:r.orden, campo:r.campo,
+            accion:b.dataset.resolver, quien,
+            documento_id:elegida ? Number(elegida.value) : null})});
+        if (resultado.estado === 'requiere_reasociacion') {
+          salida.textContent = 'Qued\u00f3 pendiente. Tu decisi\u00f3n est\u00e1 registrada en la auditor\u00eda.';
+        } else {
+          await vReasociaciones();
+        }
+      } catch (e) { salida.textContent = e.message; }
+      finally {
+        controles.forEach(c => c.disabled = false);
+        tarjeta.querySelectorAll('input').forEach(c => {
+          c.disabled = !r.candidatas.find(p => p.documento_id === Number(c.value)).tiene_el_campo;
+        });
+        if (asociar) asociar.disabled = !$('input:checked', tarjeta);
+      }
+    });
+  });
+}
+
 function htmlActualizacion(plan, revisiones) {
   const nombres = new Map(plan.etapas.map(e => [e.clave, e.nombre]));
   const etiqueta = clave => ({paginas_ocr: 'Fojas de OCR', lecturas: 'Lecturas guardadas',
@@ -3408,6 +3489,7 @@ function htmlActualizacion(plan, revisiones) {
     <h3>Trabajo de las personas</h3>${cuentas(plan.revisiones)}
     <p class="prosa">Las revisiones que necesitan reasociaci\u00f3n se conservan. No se aplican solas porque no es seguro
       a qu\u00e9 pieza corresponden. Necesitan que una persona las mire; no son trabajo perdido.</p>
+    ${revisiones.length ? '<p><a href="#/reasociaciones">Resolver las revisiones desplazadas</a></p>' : ''}
     ${revisiones.map(r => `<article class="actualizacion-revision"><h4 class="mono">${esc(r.archivo)}</h4>
       <p>${esc(r.campo)}: ${r.valor == null ? 'Sin valor' : esc(r.valor)}</p>
       <p>${esc(r.quien)} &middot; ${esc(r.cuando)}</p><p>${esc(r.motivo)}</p></article>`).join('')}
@@ -4254,6 +4336,7 @@ function vComoFunciona() {
 const TITULOS = {
   '#/acerca': 'Acerca del sistema',
   '#/equipo': 'Trabajo del equipo',
+  '#/reasociaciones':'Revisiones desplazadas',
   '#/actualizacion':'Actualizar an\u00e1lisis',
   '#/panel':'Panel', '#/ingesta':'Cargar escaneos', '#/buscar':'Buscar',
   '#/contratos':'Contratos', '#/personas':'Personas',
@@ -4501,6 +4584,7 @@ addEventListener('visibilitychange', () => {
 const rutas = [
   [/^#\/legajos$/,               vLegajos],
   [/^#\/panel$/,                 vPanel],
+  [/^#\/reasociaciones$/,       vReasociaciones],
   [/^#\/actualizacion$/,         vActualizacion],
   [/^#\/ingesta$/,               vIngesta],
   [/^#\/contratos$/,             vContratos],

@@ -1362,6 +1362,9 @@ class Manejador(BaseHTTPRequestHandler):
                     if ruta == "/api/actualizacion":
                         from . import actualizacion
                         return self._json(actualizacion.plan(cx))
+                    if ruta == "/api/reasociaciones/pendientes":
+                        from . import reasociacion
+                        return self._json({"revisiones": reasociacion.pendientes(cx)})
                     if ruta == "/api/reasociaciones":
                         from . import actualizacion
                         return self._json({"revisiones": actualizacion.reasociaciones(cx)})
@@ -1661,6 +1664,12 @@ class Manejador(BaseHTTPRequestHandler):
 
         cx = _cx()
         try:
+            if u.path == "/api/reasociacion/resolver":
+                from . import reasociacion
+                return self._json(reasociacion.resolver(
+                    cx, cuerpo["sha256"], cuerpo["orden"], cuerpo["campo"],
+                    cuerpo["accion"], cuerpo.get("quien", ""),
+                    documento_id=cuerpo.get("documento_id")))
             if u.path == "/api/detener":
                 return self._json(_procesador().detener())
             if u.path == "/api/actualizar":
