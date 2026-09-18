@@ -144,9 +144,25 @@ def _anclar_revisiones_viejas(cx: sqlite3.Connection) -> int:
         return 0
     if not cols or "ancla_pagina" not in cols:
         return 0
+    # Esto es una migración y corre UNA vez, no en cada conexión.
+    #
+    # El chequeo obvio —«¿queda alguna sin anclar?»— no alcanza como guardia: una
+    # revisión cuya pieza ya no existe NO se puede anclar nunca, así que su ancla
+    # queda en nulo para siempre y el `UPDATE` se volvería a intentar en cada
+    # `db.abrir()`. Con un legajo de miles de revisiones eso es recorrer la tabla
+    # entera cada vez que alguien abre una pantalla, para no cambiar nada.
+    hecho = _ajuste_crudo(cx, "anclaje_revisiones")
+    if hecho == str(ESQUEMA_VERSION):
+        return 0
     pendientes = cx.execute(
         "SELECT COUNT(*) FROM revision_humana WHERE ancla_pagina IS NULL").fetchone()[0]
     if not pendientes:
+        # Se confirma acá mismo. Dejar la escritura sin confirmar deja abierta una
+        # transacción en la conexión, y la siguiente operación que exija no estar en
+        # una —`VACUUM INTO`, que es como se hace la copia de respaldo— se cae con un
+        # error que no tiene nada que ver con lo que se estaba haciendo.
+        _ajuste_crudo(cx, "anclaje_revisiones", str(ESQUEMA_VERSION))
+        cx.commit()
         return 0
     n = cx.execute("""
         UPDATE revision_humana AS r
@@ -181,8 +197,30 @@ def _anclar_revisiones_viejas(cx: sqlite3.Connection) -> int:
                          JOIN documento d ON d.id = c.documento_id
                         WHERE d.sha256 = r.sha256 AND d.orden = r.orden
                           AND c.nombre = r.campo)""").rowcount
+    _ajuste_crudo(cx, "anclaje_revisiones", str(ESQUEMA_VERSION))
     cx.commit()
     return n
+
+
+def _ajuste_crudo(cx: sqlite3.Connection, clave: str, valor: str | None = None):
+    """
+    Lee o escribe un ajuste sin confirmar ni exigir que la tabla exista.
+
+    `ajuste()` sirve para el uso normal; acá hace falta otra cosa: esto corre durante la
+    migración, antes de que el esquema se haya aplicado, así que la tabla puede no estar
+    todavía. Que falte no es un error: significa que la base es nueva y no hay nada que
+    migrar.
+    """
+    try:
+        if valor is None:
+            r = cx.execute("SELECT valor FROM ajuste WHERE clave=?", (clave,)).fetchone()
+            return r["valor"] if r else None
+        cx.execute("""INSERT INTO ajuste (clave, valor) VALUES (?,?)
+                      ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor""",
+                   (clave, valor))
+        return valor
+    except sqlite3.OperationalError:
+        return None
 
 
 def _agregar_columnas_faltantes(cx: sqlite3.Connection) -> list[str]:
