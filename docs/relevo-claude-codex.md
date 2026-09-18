@@ -195,3 +195,28 @@ Ninguno de esos es del incremento y ninguno se puede empeorar:
 
 Correr con Tesseract en el PATH (`C:\Program Files\Tesseract-OCR`); sin él, el import de
 `ufil/capa1_texto.py` falla y se caen 63 pruebas que no tienen nada que ver.
+
+
+---
+
+## Desvío del reparto, anotado
+
+**Claude tocó `ufil/servidor.py`**, que en este incremento es de Codex. Fue una línea, y
+conviene decir por qué y qué se tocó, para que Codex no se encuentre con una sorpresa al
+integrar.
+
+El esquema nuevo hace que una base recién creada ocupe una página de 16 KB más
+(245.760 → 262.144 bytes). Eso destapó un defecto que ya estaba:
+`/api/respaldo/restaurar` contestaba `400` o `404` **sin haber leído el archivo subido**.
+Mientras la copia entraba en el buffer del socket el mensaje de error llegaba igual;
+pasado ese tamaño, el cliente recibe una conexión cortada en lugar del error. O sea que
+quien se equivocaba al escribir el número del legajo veía «se cortó la conexión» en vez
+de la frase que le dice qué tiene que escribir.
+
+La corrección es mover la lectura del cuerpo ANTES de las validaciones. No toca ninguna
+de las rutas que tiene que construir Codex ni el despachador; está adentro del bloque
+`if u.path == "/api/respaldo/restaurar"`.
+
+Lo cubre `pruebas/test_respaldo_vuelta.py::test_restaurar_exige_el_numero_del_legajo`,
+que sin la corrección falla con `ConnectionResetError [WinError 10054]`. No hizo falta
+agregar una prueba: la que ya estaba pasó a ser la de regresión.

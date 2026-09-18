@@ -1518,6 +1518,16 @@ class Manejador(BaseHTTPRequestHandler):
             from . import respaldo as rp
             slug = (parse_qs(u.query).get("slug", [""])[0] or "").strip()
             confirmacion = (parse_qs(u.query).get("confirmacion", [""])[0] or "").strip()
+            # El archivo se lee ANTES de validar nada, aunque se lo vaya a descartar.
+            #
+            # Contestar sin haber leído el cuerpo deja la base subida a medio camino en
+            # el socket, y el cliente recibe una conexión cortada en lugar del error que
+            # se le está mandando. Con una copia chica no se nota —entra en el buffer y
+            # el mensaje llega igual—; pasado ese tamaño, quien se equivocó al escribir
+            # el número del legajo ve «se cortó la conexión» y no la frase que le dice
+            # exactamente qué tiene que escribir. Es un error de una persona que se
+            # convierte en un misterio del sistema por no haber vaciado una lectura.
+            crudo = self.rfile.read(largo) if largo else b""
             if not _slug_valido(slug):
                 return self._json({"ok": False, "error": "ese legajo no existe"}, 404)
             try:
@@ -1533,7 +1543,6 @@ class Manejador(BaseHTTPRequestHandler):
                 return self._json({"ok": False, "error":
                     "Hay un procesamiento en curso. Paralo antes de reemplazar la base."},
                     409)
-            crudo = self.rfile.read(largo) if largo else b""
             if not crudo:
                 return self._json({"ok": False, "error": "no llegó ningún archivo"}, 400)
             with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tf:
