@@ -536,6 +536,8 @@ const SECCIONES = [
   {id: 'panel',    rotulo: 'Panel',           hash: '#/panel'},
   {id: 'ingesta',  rotulo: 'Cargar escaneos', hash: '#/ingesta'},
   {id: 'documentos', rotulo: 'Documentos', items: [
+    {hash: '#/sin-reconocer', rotulo: 'Todav\u00eda sin reconocer'},
+    {hash: '#/conjuntos', rotulo: 'Conjuntos documentales'},
     {hash: '#/contratos',     rotulo: 'Contratos'},
     {hash: '#/comprobantes',  rotulo: 'Facturas y recibos'},
     {hash: '#/personas',      rotulo: 'Personas'},
@@ -1768,6 +1770,7 @@ async function vDocumento(id) {
         `<a href="#/documento/${h.id}">#${h.orden} ${esc(TIPO_DOC[h.tipo] || h.tipo || '')}
           (f. ${h.pagina_desde}–${h.pagina_hasta})</a>`
       ).join(' · ')}</span></div>` : ''}
+    <section id="continuidad-pieza" class="nucleo-continuidad" aria-live="polite">Cargando tramos...</section>
     <div class="visor">
       <div class="datos">
         <div class="entre-extremos">
@@ -1799,6 +1802,7 @@ async function vDocumento(id) {
         ${d.interpretaciones.map(interpHTML).join('')}
       </div>` : ''}`);
 
+  cargarContinuidad(id, doc.sha256);
   vista.querySelectorAll('.deshacer').forEach(b => b.onclick = async () => {
     const quien = await conRevisor(); if (!quien) return;
     if (!confirm('¿Deshacer esta revisión? El campo vuelve a lo que había leído el sistema.')) return;
@@ -3417,6 +3421,176 @@ function htmlReasociaciones(revisiones) {
     </article>`).join('')}`;
 }
 
+
+function htmlSinReconocer(piezas, tipos) {
+  return `<h2>Todav\u00eda sin reconocer</h2>
+    <p class="prosa">Son documentos cargados que el sistema todav\u00eda no sabe leer.
+    No son un error ni un descarte: es trabajo pendiente del sistema. Van a poder recibir
+    un extractor m\u00e1s adelante sin volver a subir nada. Pod\u00e9s decir qu\u00e9 son;
+    el cat\u00e1logo puede ampliarse cuando se incorporen nuevos tipos.</p>
+    ${piezas.length ? piezas.map(p => `<form class="nucleo-ficha" data-pieza="${p.documento_id}">
+      <h3><a class="mono" href="#/documento/${p.documento_id}">${esc(p.archivo)}</a></h3>
+      <p class="mono">Fojas ${esc(p.pagina_desde)} a ${esc(p.pagina_hasta)} (${esc(p.fojas)} fojas)</p>
+      <p>Tipo registrado: ${esc(tipos.find(t => t.clave === p.tipo)?.nombre || p.tipo || '\u00d8 Sin clasificar')}
+      ${p.clasificado_por ? ` &middot; Lo dijo ${esc(p.clasificado_por)}` : ''}</p>
+      <label>Qu\u00e9 es esta pieza <select name="tipo" required>
+        <option value="">Eleg\u00ed un tipo despu\u00e9s de mirar la pieza</option>
+        ${tipos.map(t => `<option value="${esc(t.clave)}">${esc(t.nombre)} (${esc(t.familia)})</option>`).join('')}
+      </select></label><button class="boton" type="submit">Registrar clasificaci\u00f3n</button>
+    </form>`).join('') : '<p class="prosa">No hay piezas sin reconocer.</p>'}`;
+}
+
+async function guardarNucleo(ruta, cuerpo) {
+  return api(ruta, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cuerpo)});
+}
+
+async function vSinReconocer() {
+  const d = await api('/api/piezas/sin-reconocer');
+  if (location.hash !== '#/sin-reconocer') return;
+  vista.innerHTML = bloque('', 'Documentos', htmlSinReconocer(d.piezas, d.tipos));
+  vista.querySelectorAll('[data-pieza]').forEach(f => f.onsubmit = async e => {
+    e.preventDefault();
+    const b = f.querySelector('button'); b.disabled = true;
+    try {
+      const quien = await conRevisor(); if (!quien) return;
+      await guardarNucleo('/api/pieza/clasificar', {documento_id:+f.dataset.pieza, tipo:f.elements.tipo.value, quien});
+      await vSinReconocer();
+    } catch (e) { alert(e.message); } finally { b.disabled = false; }
+  });
+}
+
+function opcionesArchivos(archivos) {
+  return '<option value="">Eleg\u00ed un archivo</option>' + archivos.map(a =>
+    `<option value="${esc(a.sha256)}">${esc(a.nombre)} (${esc(a.paginas)} fojas)</option>`).join('');
+}
+
+function htmlContinuidad(tramos, vecino, archivos) {
+  return `<h3>Tramos de la pieza</h3><p class="prosa">La continuidad la afirma una persona mirando las fojas.</p>
+    <ol>${tramos.map((t, i) => `<li class="nucleo-ficha"><span class="mono">${esc(t.archivo)}:
+      fojas ${esc(t.pagina_desde)} a ${esc(t.pagina_hasta)}</span>
+      <p>${t.principal ? 'Tramo principal' : `Continuidad afirmada por ${esc(t.quien)}`}</p>
+      <button class="boton gris" data-mirar-tramo="${i}">Mirar las fojas</button>
+      ${t.principal ? '' : `<button class="boton gris" data-separar="${t.id}">Separar continuaci\u00f3n</button>`}</li>`).join('')}</ol>
+    ${vecino ? `<aside class="aviso info"><p>Para mirar: <span class="mono">${esc(vecino.nombre)}</span>,
+      parte ${esc(vecino.orden)} de ${esc(vecino.conjunto)}. Es la parte siguiente del conjunto;
+      eso no confirma que la pieza siga ah\u00ed.</p><button class="boton gris" id="mirar-vecino">Mirar parte siguiente</button></aside>` : ''}
+    <form id="continuar-pieza" class="nucleo-form">
+      <label>Archivo donde sigue <select name="sha256" required>${opcionesArchivos(archivos)}</select></label>
+      <label>Desde la foja <input name="pagina_desde" type="number" min="1" required></label>
+      <label>Hasta la foja <input name="pagina_hasta" type="number" min="1" required></label>
+      <button type="button" class="boton gris" id="mirar-destino">Mirar antes de afirmar</button>
+      <button class="boton" type="submit">Afirmar que la pieza sigue en estas fojas</button>
+    </form>`;
+}
+
+async function cargarContinuidad(id, sha) {
+  const host = $('#continuidad-pieza');
+  try {
+    const [d, v, a] = await Promise.all([api('/api/pieza/tramos?id='+id),
+      api('/api/pieza/vecino?sha256='+encodeURIComponent(sha)), api('/api/archivos')]);
+    if (!host.isConnected) return;
+    host.innerHTML = htmlContinuidad(d.tramos, v.vecino, a.archivos);
+    host.querySelectorAll('[data-mirar-tramo]').forEach(b => b.onclick = () => {
+      const t = d.tramos[+b.dataset.mirarTramo]; abrirFojaSuelta(t.sha256, t.pagina_desde, t.archivo);
+    });
+    if (v.vecino) $('#mirar-vecino', host).onclick = () => abrirFojaSuelta(v.vecino.sha256, 1, v.vecino.nombre);
+    const f = $('#continuar-pieza', host);
+    $('#mirar-destino', host).onclick = () => {
+      const a = f.elements.sha256;
+      if (a.value && f.elements.pagina_desde.reportValidity())
+        abrirFojaSuelta(a.value, +f.elements.pagina_desde.value, a.selectedOptions[0].textContent);
+    };
+    f.onsubmit = async e => {
+      e.preventDefault(); const b = f.querySelector('[type="submit"]'); b.disabled = true;
+      try {
+        const quien = await conRevisor(); if (!quien) return;
+        await guardarNucleo('/api/pieza/continuar', {documento_id:+id, sha256:f.elements.sha256.value,
+          pagina_desde:+f.elements.pagina_desde.value, pagina_hasta:+f.elements.pagina_hasta.value, quien});
+        await cargarContinuidad(id, sha);
+      } catch (e) { alert(e.message); } finally { b.disabled = false; }
+    };
+    host.querySelectorAll('[data-separar]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try {
+        const quien = await conRevisor(); if (!quien) return;
+        await guardarNucleo('/api/pieza/separar', {tramo_id:+b.dataset.separar, quien});
+        await cargarContinuidad(id, sha);
+      } catch (e) { alert(e.message); } finally { b.disabled = false; }
+    });
+  } catch (e) { if (host.isConnected) host.textContent = e.message; }
+}
+
+function htmlConjunto(c, archivos) {
+  const partes = c.partes;
+  return `<h3>${esc(c.nombre)}</h3><p>${esc(c.organismo || '\u00d8 Organismo sin indicar')} &middot;
+    ${esc(c.expediente || '\u00d8 Expediente sin indicar')} &middot; ${esc(c.anio || '\u00d8 A\u00f1o sin indicar')}</p>
+    ${c.nota ? `<p class="prosa">${esc(c.nota)}</p>` : ''}
+    <p>${partes.length} archivos &middot; ${partes.reduce((n,p) => n+p.paginas,0)} fojas &middot;
+    ${partes.reduce((n,p) => n+p.piezas,0)} piezas</p>
+    <p class="prosa">El orden se guarda con cada movimiento. Sub\u00ed o baj\u00e1 las partes para respetar el orden de la entrega.</p>
+    <ol>${partes.map((p,i) => `<li class="nucleo-ficha"><span class="mono">${esc(p.nombre)}</span>
+      <p>${esc(p.paginas)} fojas &middot; ${esc(p.piezas)} piezas</p>
+      <button class="boton gris" data-mover="${i}" data-salto="-1" ${i === 0 ? 'disabled' : ''}>Subir</button>
+      <button class="boton gris" data-mover="${i}" data-salto="1" ${i === partes.length-1 ? 'disabled' : ''}>Bajar</button>
+      <button class="boton gris" data-quitar="${i}">Quitar del conjunto</button></li>`).join('')}</ol>
+    ${partes.length ? '' : '<p>Este conjunto todav\u00eda no tiene archivos.</p>'}
+    <form id="agregar-parte" class="nucleo-form"><label>Archivo para sumar
+      <select name="sha256" required>${opcionesArchivos(archivos.filter(a => !partes.some(p => p.sha256 === a.sha256)))}</select></label>
+      <button class="boton">Sumar al final</button></form>`;
+}
+
+async function vConjuntos(elegido) {
+  const [d,a] = await Promise.all([api('/api/conjuntos'), api('/api/archivos')]);
+  if (location.hash !== '#/conjuntos') return;
+  vista.innerHTML = bloque('', 'Documentos', `<h2>Conjuntos documentales</h2>
+    <p class="prosa">Agrup\u00e1 los archivos de una entrega y conserv\u00e1 su orden.</p>
+    <form id="crear-conjunto" class="nucleo-form"><label>Nombre <input name="nombre" required></label>
+      <label>Organismo <input name="organismo"></label><label>Expediente <input name="expediente"></label>
+      <label>A\u00f1o <input name="anio" type="number"></label><label>Nota <input name="nota"></label>
+      <button class="boton">Crear conjunto</button></form>
+    ${d.conjuntos.length ? `<label>Conjunto <select id="elegir-conjunto"><option value="">Eleg\u00ed un conjunto</option>
+      ${d.conjuntos.map(c => `<option value="${c.id}">${esc(c.nombre)} (${c.archivos} archivos, ${c.paginas} fojas)</option>`).join('')}</select></label>`
+      : '<p>No hay conjuntos documentales.</p>'}<section id="detalle-conjunto" aria-live="polite"></section>`);
+  $('#crear-conjunto').onsubmit = async e => {
+    e.preventDefault(); const f=e.currentTarget, b=f.querySelector('button'); b.disabled=true;
+    try {
+      const datos = Object.fromEntries(new FormData(f));
+      for (const k of ['organismo','expediente','nota']) datos[k] = datos[k].trim() || null;
+      datos.anio = datos.anio ? +datos.anio : null;
+      const c = await guardarNucleo('/api/conjunto/crear', datos); await vConjuntos(c.id);
+    } catch(e) { alert(e.message); } finally { b.disabled=false; }
+  };
+  const selector = $('#elegir-conjunto');
+  if (!selector) return;
+  selector.onchange = () => mostrarConjunto(+selector.value, a.archivos);
+  if (elegido) { selector.value=String(elegido); await mostrarConjunto(elegido, a.archivos); }
+}
+
+async function mostrarConjunto(id, archivos) {
+  const host = $('#detalle-conjunto');
+  if (!id) { host.innerHTML=''; return; }
+  try {
+    const c = await api('/api/conjunto?id='+id);
+    if (!host.isConnected || +$('#elegir-conjunto').value !== +id) return;
+    host.innerHTML = htmlConjunto(c, archivos);
+    const cambiar = async (ruta, datos) => {
+      host.querySelectorAll('button').forEach(b => b.disabled=true);
+      try { await guardarNucleo(ruta, {conjunto_id:+id,...datos}); await vConjuntos(id); }
+      catch(e) { alert(e.message); await mostrarConjunto(id, archivos); }
+    };
+    $('#agregar-parte',host).onsubmit = e => {
+      e.preventDefault(); cambiar('/api/conjunto/agregar', {sha256:e.currentTarget.elements.sha256.value});
+    };
+    host.querySelectorAll('[data-quitar]').forEach(b => b.onclick = () =>
+      cambiar('/api/conjunto/quitar',{sha256:c.partes[+b.dataset.quitar].sha256}));
+    host.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => {
+      const shas=c.partes.map(p => p.sha256), i=+b.dataset.mover, j=i+(+b.dataset.salto);
+      [shas[i],shas[j]]=[shas[j],shas[i]];
+      cambiar('/api/conjunto/reordenar',{shas});
+    });
+  } catch(e) { if (host.isConnected) host.textContent=e.message; }
+}
+
 async function vReasociaciones() {
   const {revisiones} = await api('/api/reasociaciones/pendientes');
   if (location.hash !== '#/reasociaciones') return;
@@ -4336,6 +4510,8 @@ function vComoFunciona() {
 const TITULOS = {
   '#/acerca': 'Acerca del sistema',
   '#/equipo': 'Trabajo del equipo',
+  '#/sin-reconocer':'Todav\u00eda sin reconocer',
+  '#/conjuntos':'Conjuntos documentales',
   '#/reasociaciones':'Revisiones desplazadas',
   '#/actualizacion':'Actualizar an\u00e1lisis',
   '#/panel':'Panel', '#/ingesta':'Cargar escaneos', '#/buscar':'Buscar',
@@ -4582,6 +4758,8 @@ addEventListener('visibilitychange', () => {
 });
 
 const rutas = [
+  [/^#\/sin-reconocer$/, vSinReconocer],
+  [/^#\/conjuntos$/, vConjuntos],
   [/^#\/legajos$/,               vLegajos],
   [/^#\/panel$/,                 vPanel],
   [/^#\/reasociaciones$/,       vReasociaciones],
