@@ -205,3 +205,89 @@ corpus sintético. Queda como prueba pendiente.
 3. **Probar sobre el acervo real** e informar los tiempos con volumen de verdad
    (500, 2.000, 5.000 fojas).
 4. **Registrar las etapas que faltan** a medida que se implementen.
+
+---
+
+# 7. Lo que se construyó después (fases 1 a 7)
+
+## FASE 1 — el pipeline dejó de ser una sola pasada
+
+`extraer_documento` hacía cuatro cosas en una pasada por archivo: clasificar fojas,
+cotejar números, partir en piezas y extraer campos. Cualquier cambio en una obligaba a
+rehacer las cuatro, y resegmentar **destruye las piezas**, lo que obliga a reasociar el
+trabajo de las personas.
+
+Hoy son etapas separadas, ejecutables y versionables solas (`clasificar_fojas`,
+`cotejar_numeros`, `segmentar_piezas`, `extraer_campos`). Comprobado: cambiar la
+extracción no vuelve a clasificar ni a resegmentar, y no toca el OCR ni el índice.
+
+La decisión de si el reparto en piezas cambió pasó a la segmentación, que es quien lo
+sabe. Antes la tomaba la reasociación con un mapa que sólo existía mientras las dos
+corrían juntas.
+
+## FASE 2 — las revisiones desplazadas se resuelven
+
+Lo que antes sólo se podía listar ahora se resuelve: `ufil/reasociacion.py` muestra las
+piezas candidatas de cada revisión huérfana y deja reasociar, descartar o dejar
+pendiente. Descartar **no borra**: la fila queda con su estado y su auditoría. Ninguna
+candidata viene preseleccionada, porque todo esto existe justamente porque el sistema no
+sabe cuál es.
+
+## FASE 3 — el núcleo documental
+
+- **Identidad estable de pieza** (`documento.clave` = archivo + foja donde empieza).
+  `orden` ordena, `id` lo asigna la base, `clave` identifica. Resegmentar conserva las
+  piezas que siguen empezando en la misma foja, con sus campos y sus revisiones.
+- **Piezas sin reconocer de primera clase.** Antes se borraban, lo que convertía «el
+  sistema no sabe leer esto» en «esto no existe». Ahora quedan `sin_perfil`: se ven, se
+  cuentan, se clasifican a mano y pueden recibir un extractor después. Las vistas de
+  contratos y comprobantes las excluyen, porque de ellas no se leyó un campo.
+- **Conjunto documental** (`ufil/conjuntos.py`): una entrega son varias partes con un
+  orden, y ese orden vivía en el nombre de los archivos.
+- **Continuidad entre PDF** (`pieza_tramo`): la afirma una persona y queda quién.
+
+## FASE 4 — la foliatura
+
+`ufil/foliatura.py`. La foliatura visible del papel, separada de la página del PDF, con
+bis/ter/vuelta, varias series sobre la misma foja, ilegibles y ausencias. La detección
+exige que el número esté **solo en su renglón**, y guarda confianza y recuadro.
+
+**No detectar no es afirmar.** Una foja sin foliatura anotada es una foja que no se
+miró; decir que el papel no está foliado lo hace una persona.
+
+## FASE 5 — las tablas
+
+`ufil/tablas.py`. Filas, columnas y celdas, cada celda con su recuadro: una cifra de una
+planilla que no se puede señalar en la foja no sirve como prueba.
+
+Sin líneas dibujadas, una tabla se reconoce porque las palabras se alinean en columnas a
+lo largo de varios renglones. Eso solo no alcanza —un texto justificado también alinea—
+así que además se exige un **blanco** entre columna y columna, no un espacio de imprenta.
+Sin las dos condiciones, un contrato en prosa se convierte en una tabla inventada.
+
+Una planilla cortada al pie de la hoja se propone unida con la de la foja siguiente, pero
+la propuesta queda sin confirmar: dos planillas del mismo formulario tienen las mismas
+columnas.
+
+## FASE 7 — la cronología
+
+`ufil/cronologia.py`. Un documento no tiene «una fecha»: tiene la del papel, la de la
+firma, la del sello de recepción, la de la notificación, la del hecho que relata y la de
+su incorporación. Y **el orden cronológico no es el orden físico**: un expediente se arma
+por incorporación, así que lo último agregado puede relatar lo primero que pasó.
+
+Sólo entran campos en estado firme: en una línea de tiempo una fecha dudosa se lee igual
+que una segura. Las fechas imposibles y las piezas fuera de orden se señalan sin
+interpretarlas.
+
+---
+
+# 8. Estado del pipeline, etapa por etapa
+
+Trece etapas versionadas e invalidables por separado:
+
+`ingesta → lectura → clasificacion → segmentacion → foliatura → tablas → cotejo →
+extraccion → normalizacion → identidad → cronologia → indice → interpretacion`
+
+La normalización sigue pegada a la extracción —la escribe la misma pasada— y se
+contabiliza aparte. Es la única que queda fusionada, contra las cinco que había.
