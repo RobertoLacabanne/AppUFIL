@@ -281,3 +281,64 @@ class VeintiunoNoEsVeintiocho(unittest.TestCase):
         self.assertEqual(len(c), 1)
         self.assertIsNone(c[0].coinciden)
         self.assertEqual(discrepancias(texto), [])
+
+
+class ElExpedienteSePuedeMirar(unittest.TestCase):
+    """
+    Antes de esto el expediente entraba al sistema y desaparecía: 88 páginas ingeridas,
+    88 leídas, **0 documentos**, ninguna pantalla donde mirarlo. Un expediente de obra
+    no produce documentos porque no hay adentro un solo formulario que extraer, y el
+    sistema sólo sabía mostrar documentos.
+    """
+
+    APP = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
+    SRV = (RAIZ / "ufil/servidor.py").read_text(encoding="utf-8")
+
+    def test_hay_una_pantalla_de_fojas(self):
+        for pieza, queja in (
+                ("'#/fojas'", "la pantalla no está en la navegación"),
+                ("async function vFojas", "no hay pantalla de fojas"),
+                ("/api/fojas", "la pantalla no tiene de dónde sacar las fojas")):
+            self.assertIn(pieza, self.APP + self.SRV, queja)
+
+    def test_las_apartadas_se_cuentan_y_se_pueden_abrir(self):
+        """
+        Contarlas y esconderlas no es lo mismo: si el sistema se equivocó apartando una
+        foja, poder abrirla es lo único que lo revela.
+        """
+        self.assertIn("fojas apartadas", self.APP,
+                      "las fojas apartadas dejaron de poder mirarse")
+        self.assertIn("f.apartada", self.APP)
+
+    def test_una_foja_se_abre_sin_documento_que_la_contenga(self):
+        """
+        Un expediente no produce documentos, así que pedir su foja 77 «por documento»
+        no se puede. Sin esto, la pantalla donde por fin se ve un expediente no podría
+        abrir una sola de sus fojas, que es lo único que sirve de un expediente.
+        """
+        self.assertIn("function abrirFojaSuelta", self.APP)
+        self.assertIn('if q.get("sha"):', self.SRV,
+                      "la imagen de una foja sólo se puede pedir por documento")
+
+    def test_los_numeros_que_no_coinciden_tienen_su_pantalla(self):
+        for pieza in ("'#/numeros'", "async function vNumeros", "/api/numeros"):
+            self.assertIn(pieza, self.APP + self.SRV)
+
+    def test_y_van_todos_y_no_solo_los_que_fallan(self):
+        """
+        Los que coinciden son la prueba de que el importe se leyó bien. Una pantalla con
+        sólo las diferencias no deja saber si el sistema miró algo o no miró nada.
+        """
+        i = self.SRV.index("def api_numeros")
+        cuerpo = self.SRV[i:i + 2000]
+        self.assertNotIn("WHERE c.coinciden = 0", cuerpo,
+                         "la pantalla muestra sólo las diferencias")
+        self.assertIn("coinciden IS NOT 0", cuerpo,
+                      "las diferencias dejaron de ir primero")
+
+    def test_de_una_hoja_en_blanco_no_sale_ningun_numero(self):
+        extraccion = (RAIZ / "ufil/capa2_extraccion.py").read_text(encoding="utf-8")
+        self.assertIn("if clases.get(nro) in cl.APARTADAS:", extraccion,
+                      "se cotejan números sobre fojas apartadas: de una fotocopia "
+                      "ilegible el motor devuelve cualquier cosa, y cualquier cosa "
+                      "con un paréntesis pasaría por una cantidad escrita dos veces")

@@ -539,12 +539,14 @@ const SECCIONES = [
     {hash: '#/contratos',     rotulo: 'Contratos'},
     {hash: '#/comprobantes',  rotulo: 'Facturas y recibos'},
     {hash: '#/personas',      rotulo: 'Personas'},
+    {hash: '#/fojas',         rotulo: 'Fojas del expediente'},
     {hash: '#/buscar',        rotulo: 'Buscar'},
   ], tambien: ['#/documento', '#/persona']},
   {id: 'hallazgos', rotulo: 'Hallazgos', items: [
     {hash: '#/superposiciones', rotulo: 'Superposiciones'},
     {hash: '#/cruce',           rotulo: 'Facturado vs. contratado'},
     {hash: '#/interpretacion',  rotulo: 'Interpretación'},
+    {hash: '#/numeros',         rotulo: 'Números escritos dos veces'},
     {hash: '#/consultas',       rotulo: 'Consultas'},
   ]},
   {id: 'revision', rotulo: 'Revisión', items: [
@@ -2545,6 +2547,26 @@ function abrirFoja(f) {
   else img.onload = alCampo;
 }
 
+/* La misma foja a pantalla completa, pero pedida por ARCHIVO y no por documento.
+   Un expediente de obra no produce ningún documento —no hay adentro un formulario que
+   extraer—, así que pedir su foja 77 por documento no se puede. Sin esto, la pantalla
+   donde por fin se ve un expediente no podría abrir una sola de sus fojas, que es lo
+   único que sirve de un expediente: mirar el papel. */
+function abrirFojaSuelta(sha, nro, rotulo) {
+  const visor = $('#visor'), img = $('#visor-img'), marco = $('#visor-marco');
+  if (!visor || !sha || !nro) return;
+  img.src = `/pagina?sha=${encodeURIComponent(sha)}&nro=${nro}`;
+  $('#visor-rotulo').textContent = [rotulo || 'expediente', 'f. ' + nro].join(' · ');
+  // Sin campo no hay recuadro que dibujar: acá se abre la foja entera, no un dato.
+  marco.hidden = true;
+  visor.hidden = false;
+  document.body.classList.add('con-visor');
+  volverElFoco = document.activeElement;
+  const cuerpo = document.getElementById('cuerpo');
+  if (cuerpo) cuerpo.inert = true;
+  $('#visor-cerrar').focus();
+}
+
 let volverElFoco = null;
 
 function cerrarVisor() {
@@ -3768,6 +3790,110 @@ async function vSalud() {
    ningún contrato es invisible: el panel muestra 288 y nadie sabe que faltan doce.
    Un documento que se pierde en silencio es lo peor que puede hacer un sistema que
    existe justamente para no perder documentos. */
+/* ── El expediente, foja por foja ───────────────────────────────────────────
+   Un expediente administrativo no se puede mirar como una pila de documentos. Medido
+   sobre el expediente 201.602 —parte 4, 88 páginas escaneadas de una actuación de más
+   de 850 fojas—: no produce UN documento, porque no hay adentro un solo formulario.
+   Antes de esta pantalla todo ese material entraba y desaparecía: 88 páginas leídas,
+   0 documentos, ningún lugar donde mirarlo.
+
+   Lo que hay para mostrar de un expediente es la FOLIATURA: qué es cada foja, cuáles
+   son dorsos en blanco y cuáles tienen tinta y no se pueden leer. Y de cualquiera se
+   sale a mirar el papel, que es lo único que decide. */
+async function vFojas() {
+  const r = await api('/api/fojas');
+  if (!r.archivos.length) return vistaVacia('f. 0008', 'Fojas', 'Fojas del expediente',
+    'Todavía no hay fojas para mostrar',
+    'Cargá los escaneos y corré la lectura: acá va a aparecer qué es cada foja.');
+
+  const cuño = (clase, etiqueta) => clase === 'en_blanco' || clase === 'sin_texto_util'
+    ? `<span class="nulo">${esc(etiqueta)}</span>`
+    : (clase === 'desconocida' || !clase
+        ? `<span class="nulo">${esc(etiqueta)}</span>` : esc(etiqueta));
+
+  vista.innerHTML = bloque('f. 0008', 'Fojas', `
+    <h2>Fojas del expediente</h2>
+    <p class="prosa">Qué es cada foja del escaneo. Lo que está apagado se apartó: un
+      dorso en blanco no es trabajo pendiente, y una foja que no se pudo leer no es un
+      dato que falta sino un papel que hay que mirar.</p>
+    ${r.archivos.map(a => {
+      const cols = sha => [
+        {t:'Foja', c:'num', r:f => String(f.nro)},
+        {t:'Qué es', r:f => cuño(f.clase, f.etiqueta)},
+        {t:'', r:f => `<a href="#/foja/${esc(sha)}/${f.nro}"
+            class="ancla" data-sha="${esc(sha)}" data-nro="${f.nro}"
+            >ver la foja</a>`},
+      ];
+      const trabajo = a.fojas.filter(f => !f.apartada);
+      const apartadas = a.fojas.filter(f => f.apartada);
+      /* Las apartadas van PLEGADAS y no mezcladas. En este expediente son 47 de 88:
+         intercaladas, la lista de trabajo queda sepultada entre dorsos en blanco y
+         hay que saltearlos de a uno. Plegadas siguen estando —se cuentan arriba y se
+         abren de un clic—, que es distinto de esconderlas: una foja que el sistema
+         apartó sola tiene que poder mirarse, porque si se equivocó eso es lo único
+         que lo revela. */
+      return `
+      <h3>${esc(a.archivo)}</h3>
+      <p class="prosa"><strong>${fmtNum.format(a.de_trabajo)}</strong> ${
+        a.de_trabajo === 1 ? 'foja de trabajo' : 'fojas de trabajo'} ·
+        ${fmtNum.format(a.apartadas)} apartadas de ${fmtNum.format(a.total)} escaneadas.</p>
+      ${tabla(cols(a.sha256), trabajo, {lista:'fojas'})}
+      ${apartadas.length ? `<details class="apartadas">
+        <summary>Ver las ${fmtNum.format(apartadas.length)} fojas apartadas</summary>
+        ${tabla(cols(a.sha256), apartadas, {lista:'apartadas'})}
+      </details>` : ''}`;
+    }).join('')}`);
+
+  // Abrir la foja es abrir EL PAPEL, con la misma pieza a pantalla completa que usa
+  // la cola. Acá no hay documento al que pedírsela: se pide por archivo.
+  vista.querySelectorAll('[data-sha]').forEach(a => a.onclick = ev => {
+    ev.preventDefault();
+    abrirFojaSuelta(a.dataset.sha, +a.dataset.nro);
+  });
+}
+
+/* ── Los números que el papel escribe dos veces ─────────────────────────────
+   «PESOS OCHO MILLONES TRESCIENTOS DOCE MIL CIENTO UNO CON 91/100 ($8.312.101,91)».
+   Un acto administrativo escribe cada cantidad dos veces, y eso es una salvaguarda de
+   trescientos años: que un cero de más no pase desapercibido.
+
+   Acá van TODOS los cotejos y no sólo los que fallan. Los que coinciden son la prueba
+   de que el importe se leyó bien; una pantalla con sólo las diferencias no deja saber
+   si el sistema miró algo o no miró nada. */
+async function vNumeros() {
+  const filas = await api('/api/numeros');
+  if (!filas.length) return vistaVacia('f. 0009', 'Cotejo', 'Números escritos dos veces',
+    'Todavía no hay ninguno',
+    'Aparecen solos cuando el material trae actos administrativos: un importe en ' +
+    'letras con su cifra al lado, o una cantidad con su número entre paréntesis.');
+
+  const distintos = filas.filter(f => f.coinciden === 0).length;
+  const dudosos = filas.filter(f => f.coinciden === null).length;
+
+  vista.innerHTML = bloque('f. 0009', 'Cotejo', `
+    <h2>Números escritos dos veces</h2>
+    <p class="prosa">El papel dice la misma cantidad en letras y en dígitos.
+      Comparar las dos es <strong>una segunda lectura del propio documento</strong>, sin
+      depender de que el sistema lea bien. ${distintos
+        ? `<strong>${fmtNum.format(distintos)}</strong> ${
+            distintos === 1 ? 'no coincide' : 'no coinciden'}: eso no lo decide el
+            sistema, hay que mirar la foja.`
+        : 'Por ahora coinciden todos.'}${dudosos
+        ? ` En ${fmtNum.format(dudosos)} no se pudo leer una de las dos formas, que no
+            es lo mismo que un desacuerdo.` : ''}</p>
+    ${tabla([
+      {t:'Foja', c:'num', r:f => String(f.pagina_nro)},
+      {t:'Qué dice en letras', c:'nombre', r:f => esc(f.letras)},
+      {t:'Y en números', c:'mono', r:f => esc(f.digitos)},
+      {t:'Cotejo', r:f => f.coinciden === 1
+        ? `<span class="estado estado--ok">coinciden</span>`
+        : (f.coinciden === 0
+            ? `<span class="estado estado--alerta">no coinciden</span>`
+            : `<span class="nulo">no se pudo leer una de las dos</span>`)},
+      {t:'Archivo', c:'fol', r:f => nombreArchivo(f.archivo)},
+    ], filas, {lista:'numeros'})}`);
+}
+
 async function vAfuera() {
   const d = await api('/api/afuera');
 
@@ -3966,6 +4092,7 @@ const TITULOS = {
   '#/como-funciona':'Cómo funciona', '#/salud':'Estado del sistema',
   '#/afuera':'Quedaron afuera', '#/legajos':'Legajos',
   '#/comprobantes':'Facturas y recibos', '#/cruce':'Facturado contra contratado',
+  '#/fojas':'Fojas del expediente', '#/numeros':'Números escritos dos veces',
 };
 
 /* ── Cuánto ocupa la barra de arriba ───────────────────────────────────────
@@ -4220,6 +4347,8 @@ const rutas = [
   [/^#\/acerca$/,                vAcerca],
   [/^#\/equipo$/,                vEquipo],
   [/^#\/afuera$/,                vAfuera],
+  [/^#\/fojas$/,                 vFojas],
+  [/^#\/numeros$/,               vNumeros],
   [/^#\/salud$/,                 vSalud],
 ];
 

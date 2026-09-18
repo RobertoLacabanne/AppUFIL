@@ -377,6 +377,81 @@ MOTIVOS = {
 }
 
 
+def api_fojas(cx) -> dict:
+    """
+    El expediente foja por foja: qué es cada una y cuáles se apartaron.
+
+    Existe porque un expediente administrativo no se puede mirar como una pila de
+    documentos. Medido sobre el expediente 201.602 —parte 4, 88 páginas escaneadas—:
+    no produce UN documento, porque no hay adentro un solo formulario. Antes de esto,
+    todo ese material entraba al sistema y desaparecía: 88 páginas leídas, 0
+    documentos, ninguna pantalla donde mirarlo.
+
+    Lo que hay para mostrar de un expediente es la foliatura: qué es cada foja, cuáles
+    no se pueden leer y cuáles son dorsos en blanco. De ahí se sale a leer cualquiera.
+    """
+    from . import clasificacion as cl
+    archivos: list[dict] = []
+    for a in cx.execute("""SELECT a.sha256, a.nombre,
+                                  (SELECT count(*) FROM pagina p WHERE p.sha256=a.sha256) AS fojas
+                             FROM archivo a
+                            WHERE EXISTS (SELECT 1 FROM pagina p WHERE p.sha256=a.sha256)
+                            ORDER BY a.nombre"""):
+        fojas = []
+        for p in cx.execute("""SELECT nro, clasificacion FROM pagina
+                                WHERE sha256=? ORDER BY nro""", (a["sha256"],)):
+            clase = p["clasificacion"]
+            fojas.append({
+                "nro": p["nro"],
+                "clase": clase,
+                # Sin clasificar todavía es distinto de «no se reconoce»: la primera
+                # quiere decir que no se corrió `extraer`, y decir «sin reconocer»
+                # ahí sería echarle la culpa al papel de algo que no se hizo.
+                "etiqueta": cl.ETIQUETAS.get(clase, "Sin clasificar" if not clase
+                                             else clase),
+                "apartada": clase in cl.APARTADAS,
+            })
+        apartadas = sum(1 for f in fojas if f["apartada"])
+        archivos.append({
+            "sha256": a["sha256"], "archivo": a["nombre"], "fojas": fojas,
+            "total": a["fojas"], "apartadas": apartadas,
+            "de_trabajo": a["fojas"] - apartadas,
+        })
+    resumen: dict[str, int] = {}
+    for ar in archivos:
+        for f in ar["fojas"]:
+            resumen[f["clase"] or "sin_clasificar"] = \
+                resumen.get(f["clase"] or "sin_clasificar", 0) + 1
+    return {"archivos": archivos, "resumen": resumen,
+            "etiquetas": {k: v for k, v in cl.ETIQUETAS.items()}}
+
+
+def api_numeros(cx) -> list[dict]:
+    """
+    Los números que el papel escribe dos veces, y si las dos veces dicen lo mismo.
+
+    Van TODOS y no sólo los que fallan: los que coinciden son la prueba de que el
+    importe se leyó bien, y una pantalla con sólo las diferencias no deja saber si el
+    sistema miró algo o no miró nada.
+
+    Primero los que no coinciden, que es lo que hay que ir a ver al papel.
+    """
+    filas = []
+    for r in cx.execute("""SELECT c.pagina_nro, c.clase, c.letras, c.digitos,
+                                  c.valor_letras, c.valor_digitos, c.coinciden,
+                                  a.nombre AS archivo,
+                                  (SELECT d.id FROM documento d
+                                    WHERE d.sha256=c.sha256
+                                      AND c.pagina_nro BETWEEN d.pagina_desde AND d.pagina_hasta
+                                    LIMIT 1) AS documento_id
+                             FROM cotejo_numero c
+                             JOIN archivo a ON a.sha256 = c.sha256
+                            ORDER BY (c.coinciden IS NOT 0), a.nombre,
+                                     c.pagina_nro, c.desde"""):
+        filas.append(dict(r))
+    return filas
+
+
 def api_afuera(cx) -> dict:
     """
     Los archivos que entraron y NO produjeron ningún contrato, con el motivo.
@@ -1130,10 +1205,21 @@ class Manejador(BaseHTTPRequestHandler):
                 return
             if ruta == "/pagina":
                 cx = _cx()
-                r = cx.execute("""SELECT p.render FROM pagina p
-                                    JOIN documento d ON d.sha256=p.sha256
-                                   WHERE d.id=? AND p.nro=?""",
-                               (int(q["doc"][0]), int(q.get("nro", ["1"])[0]))).fetchone()
+                nro = int(q.get("nro", ["1"])[0])
+                # Por documento —como siempre— o por archivo. Lo segundo hace falta
+                # desde que hay expedientes: un expediente de obra no produce ningún
+                # documento, así que pedir su foja 77 por documento no se puede, y sin
+                # esto la única pantalla donde se ve un expediente no podría abrir una
+                # sola de sus fojas.
+                if q.get("sha"):
+                    r = cx.execute(
+                        "SELECT render FROM pagina WHERE sha256=? AND nro=?",
+                        (q["sha"][0], nro)).fetchone()
+                else:
+                    r = cx.execute("""SELECT p.render FROM pagina p
+                                        JOIN documento d ON d.sha256=p.sha256
+                                       WHERE d.id=? AND p.nro=?""",
+                                   (int(q["doc"][0]), nro)).fetchone()
                 cx.close()
                 if not r or not r["render"]:
                     return self._json({"error": "sin render"}, 404)
@@ -1220,6 +1306,10 @@ class Manejador(BaseHTTPRequestHandler):
                         return self._json(api_actividad(cx))
                     if ruta == "/api/afuera":
                         return self._json(api_afuera(cx))
+                    if ruta == "/api/fojas":
+                        return self._json(api_fojas(cx))
+                    if ruta == "/api/numeros":
+                        return self._json(api_numeros(cx))
                     if ruta == "/api/salud":
                         # Diagnóstico del entorno + invariantes del pliego, en una sola
                         # pantalla. Quien lo va a mirar no abre una terminal.

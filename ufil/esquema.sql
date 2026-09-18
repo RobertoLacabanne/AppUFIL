@@ -344,6 +344,38 @@ CREATE TABLE IF NOT EXISTS interpretacion_fuente (
 );
 CREATE INDEX IF NOT EXISTS ix_interp_fuente ON interpretacion_fuente(interpretacion_id);
 
+-- ──────────────────────────── EL NÚMERO QUE EL PAPEL ESCRIBE DOS VECES ──
+-- Un acto administrativo escribe cada cantidad en letras y en dígitos, y eso no es
+-- una redundancia burocrática: es una salvaguarda para que un cero de más no pase
+-- desapercibido. Para este sistema son DOS LECTURAS del propio documento, sin pagar
+-- un segundo motor de OCR.
+--
+-- Se guardan TODOS los cotejos, no sólo los que fallan. Los que coinciden son la
+-- prueba de que el importe se leyó bien; guardar sólo las diferencias dejaría un
+-- hallazgo sin nada contra qué medirlo, y sin manera de saber si el sistema miró.
+--
+-- `coinciden` es NULL cuando alguna de las dos no se pudo leer. Eso NO es un
+-- desacuerdo del papel: es una lectura que falló, y decir «no coinciden» sería
+-- acusar al documento de algo que hizo el OCR.
+CREATE TABLE IF NOT EXISTS cotejo_numero (
+  id             INTEGER PRIMARY KEY,
+  sha256         TEXT NOT NULL REFERENCES archivo(sha256),
+  pagina_nro     INTEGER NOT NULL,
+  clase          TEXT NOT NULL,          -- monto | cantidad
+  letras         TEXT NOT NULL,          -- tal como está en el papel
+  digitos        TEXT NOT NULL,          -- tal como está en el papel
+  valor_letras   INTEGER,                -- centavos; NULL si no se pudo leer
+  valor_digitos  INTEGER,
+  coinciden      INTEGER,                -- 1 | 0 | NULL (no se pudo leer una)
+  -- Dónde arranca en el texto de la foja. No se muestra: está para que dos veces
+  -- la MISMA diferencia en la misma foja sean dos hallazgos y no uno. En la memoria
+  -- descriptiva de este expediente «21 (VEINTIOCHO)» aparece en dos frases
+  -- distintas, y son dos errores, no uno repetido.
+  desde          INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (sha256, pagina_nro, letras, digitos, desde)
+);
+CREATE INDEX IF NOT EXISTS ix_cotejo_pagina ON cotejo_numero(sha256, pagina_nro);
+
 -- ───────────────────────────────────────────────────────── VISTA DE TRABAJO ──
 -- El contrato "consolidado". Un campo entra SOLO si tiene valor y no tiene
 -- conflicto abierto. Todo lo demás sale NULL: ninguna consulta río abajo puede

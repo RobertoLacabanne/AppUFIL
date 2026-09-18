@@ -11,7 +11,7 @@ from . import clasificacion as cl
 # Se sube cuando cambia `esquema.sql`. Sirve para no reejecutar el script en cada
 # conexión: con el servidor multihilo y el trabajador de fondo, dos conexiones que
 # corrían el esquema a la vez chocaban al recrear la vista `v_contrato`.
-ESQUEMA_VERSION = 14
+ESQUEMA_VERSION = 15
 
 _candado = threading.Lock()
 

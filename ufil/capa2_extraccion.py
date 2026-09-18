@@ -39,6 +39,7 @@ import pytesseract
 from .capa1_texto import Palabra, palabras_de
 from .capa2_campos import PARSERS, normalizar_cotejo
 from . import clasificacion as cl
+from .cotejo_letras import cotejar
 from .clasificacion import clasificar_documento, tramos_por_tipo
 from .manuscrito import MOTIVO as MOTIVO_MANUSCRITO, es_manuscrito
 from . import confianza as cf
@@ -645,6 +646,31 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
     for nro, clase in clases.items():
         cx.execute("UPDATE pagina SET clasificacion=? WHERE sha256=? AND nro=?",
                    (clase, sha, nro))
+
+    # ── El número que el papel escribe dos veces ──────────────────────────────
+    # Sobre el texto ENTERO de cada foja, no sobre el encabezado: el importe de una
+    # resolución está en el considerando y la cantidad de luminarias, en el medio de
+    # la memoria descriptiva. Se hace acá porque es acá donde ya están las palabras
+    # de todas las rutas cargadas en memoria, y leerlas de nuevo costaría otra vuelta
+    # a la base por cada foja.
+    textos: dict[int, str] = {}
+    for pgs in por_ruta.values():
+        for nro, _, pw in pgs:
+            t = " ".join(w.texto for w in pw)
+            if len(t) > len(textos.get(nro, "")):
+                textos[nro] = t
+    for nro, texto in textos.items():
+        if clases.get(nro) in cl.APARTADAS:
+            continue            # de una hoja en blanco no sale ningún número
+        for c in cotejar(texto):
+            cx.execute(
+                """INSERT OR IGNORE INTO cotejo_numero
+                   (sha256, pagina_nro, clase, letras, digitos,
+                    valor_letras, valor_digitos, coinciden, desde)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (sha, nro, c.clase, c.letras, c.digitos,
+                 c.valor_letras, c.valor_digitos,
+                 None if c.coinciden is None else int(c.coinciden), c.desde))
 
     # Un expediente trae contratos Y facturas en el mismo PDF, así que no se elige un
     # tipo: se sacan TODOS. Cada tramo se queda con los perfiles que declaran ese tipo
