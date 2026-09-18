@@ -40,7 +40,8 @@ from .db import ahora
 
 # Las etapas que se ejecutan por archivo, cada una por su cuenta. El orden importa:
 # es el de dependencia, y es el orden en que se corren.
-POR_ARCHIVO = ("clasificacion", "cotejo", "segmentacion", "extraccion", "normalizacion")
+POR_ARCHIVO = ("clasificacion", "foliatura", "cotejo", "segmentacion",
+               "extraccion", "normalizacion")
 
 # La normalización sigue pegada a la extracción: la escribe `_guardar_contrato` en la
 # misma pasada, porque normalizar es interpretar el literal que se acaba de leer y
@@ -106,6 +107,14 @@ def _unidades(cx: sqlite3.Connection, etapa: str) -> list[tuple[str, bool]]:
         return [(str(r["id"]), bool(r["leida"])) for r in cx.execute(
             """SELECT p.id, EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id=p.id) AS leida
                  FROM pagina p""")]
+    if etapa == "foliatura":
+        # Hay salida si alguna foja del archivo tiene foliatura anotada. Que no la
+        # tenga NO dice que el papel no esté foliado: dice que todavía no se miró.
+        return [(r["sha256"], bool(r["hay"])) for r in cx.execute(
+            """SELECT a.sha256,
+                      EXISTS (SELECT 1 FROM foliatura f JOIN pagina p ON p.id=f.pagina_id
+                               WHERE p.sha256=a.sha256) AS hay
+                 FROM archivo a""")]
     if etapa == "clasificacion":
         # La clasificación deja escrito qué es cada foja. Si ninguna foja del archivo
         # lo tiene, no se clasificó nunca.
@@ -517,6 +526,10 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
                 if "clasificacion" in pendientes:
                     c2.clasificar_fojas(cx, sha, por_ruta=por_ruta)
                     sellar(cx, "clasificacion", sha)
+                if "foliatura" in pendientes:
+                    from . import foliatura as fol
+                    fol.detectar_archivo(cx, sha, por_ruta=por_ruta)
+                    sellar(cx, "foliatura", sha)
                 if "cotejo" in pendientes:
                     c2.cotejar_numeros(cx, sha, por_ruta=por_ruta)
                     sellar(cx, "cotejo", sha)

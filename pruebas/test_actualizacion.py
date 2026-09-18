@@ -333,8 +333,9 @@ class LoQueQuedoViejoYLoQueNo(unittest.TestCase):
         _leer_todo(self.cx)
         for e in vs.ETAPAS:
             ac.sellar(self.cx, e.clave, "")
-        for s in ("ingesta", "clasificacion", "segmentacion", "cotejo", "extraccion",
-                  "normalizacion"):
+        # La lista sale de `POR_ARCHIVO`, no escrita a mano: agregar una etapa nueva al
+        # pipeline no puede hacer fallar una prueba que no habla de ella.
+        for s in ("ingesta",) + ac.POR_ARCHIVO:
             ac.sellar(self.cx, s, SHA)
         for p in self.cx.execute("SELECT id FROM pagina").fetchall():
             ac.sellar(self.cx, "lectura", str(p["id"]))

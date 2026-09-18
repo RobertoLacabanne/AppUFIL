@@ -309,6 +309,43 @@ CREATE TABLE IF NOT EXISTS revision_humana (
 );
 CREATE INDEX IF NOT EXISTS ix_revision_ancla ON revision_humana(sha256, ancla_pagina);
 
+-- ───────────────────────────────────── LA FOLIATURA QUE TIENE EL PAPEL ──
+-- Cuatro numeraciones distintas conviven en un expediente y NO son la misma:
+--
+--   1. la página del PDF          — `pagina.nro`, la posición en el archivo
+--   2. la posición global          — en qué lugar del conjunto documental cae
+--   3. la FOLIATURA VISIBLE        — el número escrito o sellado en el papel
+--   4. la numeración interna       — «hoja 2 de 5» adentro de una pieza
+--
+-- Confundirlas es la forma más fácil de citar mal una prueba: un escrito que dice
+-- «a fojas 47» se refiere a la tercera, y si el sistema contesta con la primera manda
+-- a alguien a mirar otro papel.
+--
+-- Un mismo papel puede tener VARIAS foliaturas —se refolió al incorporarlo a otro
+-- expediente, y quedan las dos— así que hay una `serie` por cada una. Y admite lo que
+-- el papel de verdad trae: bis, ter, vuelta, tachaduras, ilegibles y ausencias.
+--
+-- Que no haya fila NO significa que la foja no esté foliada: significa que no se
+-- detectó. Decir «sin foliar» es una afirmación sobre el papel y la hace una persona,
+-- con `estado='ausente'`.
+CREATE TABLE IF NOT EXISTS foliatura (
+  id        INTEGER PRIMARY KEY,
+  pagina_id INTEGER NOT NULL REFERENCES pagina(id) ON DELETE CASCADE,
+  serie     TEXT NOT NULL DEFAULT 'principal',  -- una por cada foliatura del papel
+  literal   TEXT,                   -- tal como está escrito: «47», «47 bis», «47 vta.»
+  numero    INTEGER,                -- la parte numérica, si se pudo leer
+  sufijo    TEXT,                   -- bis | ter | ...
+  cara      TEXT,                   -- anverso | reverso
+  estado    TEXT NOT NULL,          -- leida | ilegible | ausente | corregida
+  origen    TEXT NOT NULL,          -- ocr | humano
+  confianza REAL,
+  x0 REAL, y0 REAL, x1 REAL, y1 REAL,   -- dónde está en la foja, para poder ir a verlo
+  quien     TEXT, cuando TEXT,
+  UNIQUE (pagina_id, serie)
+);
+CREATE INDEX IF NOT EXISTS ix_foliatura_numero ON foliatura(numero);
+CREATE INDEX IF NOT EXISTS ix_foliatura_pagina ON foliatura(pagina_id);
+
 -- ───────────────────────────────────────────────── EL CONJUNTO DOCUMENTAL ──
 -- Un escaneo o una entrega no es un archivo: es un CONJUNTO de archivos con un orden.
 -- La oficina que responde un oficio manda nueve PDF, y el noveno sigue donde terminó

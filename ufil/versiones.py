@@ -167,6 +167,10 @@ def _firma_extraccion() -> str:
     })
 
 
+def _firma_foliatura() -> str:
+    return _fuente("foliatura.py")
+
+
 def _firma_cotejo() -> str:
     return _fuente("cotejo_letras.py", "castellano.py")
 
@@ -234,6 +238,9 @@ ETAPAS: tuple[Etapa, ...] = (
     Etapa("segmentacion", "Dónde empieza y termina cada pieza", "archivo", 1,
           _firma_segmentacion, depende_de=("clasificacion",), caro=False,
           explica="Un PDF puede traer varias piezas; una pieza puede ocupar varias fojas."),
+    Etapa("foliatura", "La foliatura que tiene el papel", "archivo", 1, _firma_foliatura,
+          depende_de=("lectura",), caro=False,
+          explica="El número escrito en la foja, que NO es la página del PDF."),
     Etapa("cotejo", "El número escrito dos veces", "archivo", 1, _firma_cotejo,
           depende_de=("lectura", "clasificacion"), caro=False,
           explica="Letras contra dígitos, sobre el texto de cada foja."),

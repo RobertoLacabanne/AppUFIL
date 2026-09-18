@@ -231,6 +231,47 @@ def cmd_actualizar(a):
     return 0
 
 
+def cmd_fojas(a):
+    """
+    La foliatura del papel, al lado de la página del PDF.
+
+    Las dos juntas y nombradas distinto a propósito: son las dos numeraciones que más
+    se confunden, y confundirlas manda a alguien a mirar el papel equivocado.
+    """
+    from . import foliatura as fol
+    cx = _cx(a)
+    if a.buscar:
+        r = fol.buscar(cx, a.buscar)
+        if not r:
+            print(f"  ninguna foja dice «{a.buscar}»")
+            print("  (puede estar sin detectar: que no aparezca no dice que no exista)")
+            return 0
+        print(f"  «{a.buscar}» está en:")
+        for f in r:
+            print(f"    {f['archivo']} · página {f['pagina_pdf']} del PDF · "
+                  f"foja «{f['literal']}» ({f['origen']})")
+        return 0
+
+    archivos = [(r["sha256"], r["nombre"]) for r in
+                cx.execute("SELECT sha256, nombre FROM archivo ORDER BY nombre")]
+    if not archivos:
+        print("  no hay archivos cargados")
+        return 0
+    for sha, nombre in archivos:
+        if a.detectar:
+            fol.detectar_archivo(cx, sha)
+        hojas = fol.de_archivo(cx, sha)
+        con = sum(1 for h in hojas if h["foliaturas"])
+        print(f"  {nombre}: {len(hojas)} fojas · {con} con foliatura anotada")
+        for h in hojas if a.detalle else []:
+            marcas = " · ".join(
+                f"{s['literal'] or s['estado']} ({s['origen']})" for s in h["foliaturas"])
+            print(f"    página {h['pagina_pdf']} del PDF -> {marcas or '(sin detectar)'}")
+        for s in fol.saltos(cx, sha):
+            print(f"    ! {s['detalle']}")
+    return 0
+
+
 def cmd_reasociar(a):
     """
     Las revisiones humanas que quedaron sin pieza segura a la cual aplicarse.
@@ -652,6 +693,15 @@ def main(argv=None) -> int:
                         "(por ejemplo: lectura). Arrastra a las que dependen de ellas")
     s.add_argument("--perfil", default="auto")
     s.set_defaults(func=cmd_actualizar)
+
+    s = sub.add_parser("fojas",
+                       help="la foliatura del papel, que no es la página del PDF")
+    s.add_argument("--detectar", action="store_true",
+                   help="leer los márgenes y proponer la foliatura visible")
+    s.add_argument("--detalle", action="store_true", help="foja por foja")
+    s.add_argument("--buscar", default="",
+                   help="dónde está la foja que el papel numera así (por ejemplo: 47)")
+    s.set_defaults(func=cmd_fojas)
 
     s = sub.add_parser("reasociar",
                        help="revisiones humanas que necesitan que alguien diga a qué "
