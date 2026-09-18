@@ -1339,7 +1339,18 @@ class Manejador(BaseHTTPRequestHandler):
                     if ruta == "/api/persona":
                         return self._json(api_persona(cx, int(q["id"][0])))
                     if ruta == "/api/buscar":
-                        return self._json(busqueda.buscar(cx, q.get("q", [""])[0]))
+                        # `limite` y `desde` llegan desde la pantalla. Sin pasarlos, la
+                        # paginación existe en el backend y no se puede alcanzar: la
+                        # búsqueda seguiría cortando en sesenta sin que nadie pueda
+                        # pedir la página siguiente.
+                        def _entero(nombre, por_omision):
+                            try:
+                                return int((q.get(nombre) or [por_omision])[0])
+                            except (TypeError, ValueError):
+                                return por_omision
+                        return self._json(busqueda.buscar(
+                            cx, q.get("q", [""])[0],
+                            limite=_entero("limite", 60), desde=_entero("desde", 0)))
                     if ruta == "/api/documento":
                         return self._json(api_documento(cx, int(q["id"][0])))
                     if ruta == "/api/cola":
