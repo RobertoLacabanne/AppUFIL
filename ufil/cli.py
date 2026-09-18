@@ -151,6 +151,109 @@ def cmd_extraer(a):
     return 0
 
 
+def cmd_actualizar(a):
+    """
+    Aplica al material ya cargado lo que el sistema aprendió después de cargarlo.
+
+    Es la otra puerta al mismo trabajo que `leer` y `extraer`, con una diferencia que
+    importa: aquéllos deciden qué hacer mirando si existe una fila, y esto lo decide
+    comparando con qué versión y con qué configuración se produjo cada resultado. Por eso
+    puede reutilizar el OCR —que es lo caro— y rehacer solamente las capas de arriba.
+
+    Sin `--hacerlo` no toca nada: dice qué haría. Es a propósito que ése sea el modo por
+    omisión. Sobre un acervo grande, «actualizar» puede significar horas, y nadie tendría
+    que enterarse de eso después de haberlo arrancado.
+    """
+    from . import actualizacion as ac
+    cx = _cx(a)
+    forzar = tuple(x.strip() for x in (a.forzar or "").split(",") if x.strip())
+    try:
+        p = ac.plan(cx, forzar=forzar)
+    except KeyError as e:
+        print(f"  {e}")
+        from . import versiones as vs
+        print(f"  las etapas son: {', '.join(vs.CLAVES)}")
+        return 2
+
+    if p["vigente"]:
+        print("  No hay nada para actualizar: todo lo que hay se hizo con las reglas y")
+        print("  la configuración que están puestas ahora.")
+        return 0
+
+    print("  Lo que quedó viejo")
+    for e in p["etapas"]:
+        if not e["desactualizados"] and e["estado"] != "heredada":
+            continue
+        marca = "·" if e["estado"] == "heredada" else "→"
+        cuanto = (f"{e['desactualizados']} de {e['total']}" if e["desactualizados"]
+                  else f"{e['total']} heredadas")
+        print(f"   {marca} {e['nombre']}: {cuanto}")
+        if e["motivo"]:
+            print(f"       {e['motivo']}")
+
+    print()
+    print(f"  Se REUTILIZA: {plural(p['reutiliza']['paginas_ocr'], 'foja ya leída', 'fojas ya leídas')}"
+          f" (no se vuelve a pasar el OCR)")
+    print(f"  Se RECALCULA: {plural(p['recalcula']['paginas_ocr'], 'foja a releer', 'fojas a releer')}"
+          f" · {plural(p['recalcula']['archivos'], 'archivo', 'archivos')}")
+    rev = p["revisiones"]
+    if rev["total"]:
+        print(f"  Revisiones de personas: {rev['preservadas']} se conservan"
+              + (f" · {rev['requieren_reasociacion']} necesitan que alguien diga a qué "
+                 f"documento corresponden" if rev["requieren_reasociacion"] else ""))
+
+    if not a.hacerlo:
+        print()
+        print("  Esto es lo que HARÍA. Para hacerlo de verdad: agregá --hacerlo")
+        return 0
+
+    print()
+    t0 = time.perf_counter()
+
+    def avance(hechas, total):
+        print(f"\r  {hechas}/{total}", end="", flush=True)
+
+    r = ac.aplicar(cx, forzar=forzar, perfil=a.perfil, avance=avance,
+                   fase=lambda nombre, total: print(f"\r  {nombre}…", end="", flush=True))
+    seg = time.perf_counter() - t0
+    print(f"\r  Listo en {seg:.1f}s".ljust(60))
+    print(f"   · {r['reutilizado_paginas_ocr']} fojas ya leídas se reutilizaron")
+    if r["lectura_paginas"]:
+        print(f"   · {r['lectura_paginas']} fojas se volvieron a leer")
+    print(f"   · {plural(r['archivos'], 'archivo revisado', 'archivos revisados')} de nuevo")
+    if r["revisiones_reaplicadas"]:
+        print(f"   · {plural(r['revisiones_reaplicadas'], 'revisión de una persona se conservó', 'revisiones de personas se conservaron')}")
+    if r["revisiones_a_reasociar"]:
+        print(f"   · {plural(r['revisiones_a_reasociar'], 'revisión necesita', 'revisiones necesitan')} "
+              f"que alguien diga")
+        print(f"     a qué documento corresponden (mirá `ufil reasociar`)")
+    for e in r["errores"]:
+        print(f"   ! {e['etapa']}: {e['detalle']}")
+    return 0
+
+
+def cmd_reasociar(a):
+    """
+    Las revisiones humanas que quedaron sin pieza segura a la cual aplicarse.
+
+    No se perdieron y no se aplicaron. Es la única respuesta honesta cuando la
+    segmentación cambió y el anclaje no alcanza para saber a cuál corresponden.
+    """
+    from . import actualizacion as ac
+    cx = _cx(a)
+    pendientes = ac.reasociaciones(cx)
+    if not pendientes:
+        print("  No hay revisiones esperando que alguien las reasocie.")
+        return 0
+    print(f"  {plural(len(pendientes), 'revisión', 'revisiones')} esperando una decisión:")
+    for r in pendientes:
+        foja = f"foja {r['ancla_pagina']}" if r["ancla_pagina"] else "sin foja anotada"
+        print(f"   · {r['archivo']} · {foja} · campo «{r['campo']}»"
+              f" = {r['valor'] or '(sin valor)'}")
+        print(f"     lo decidió {r['quien']} el {r['cuando'][:10]} — {r['motivo']}")
+    return 0
+
+
 def cmd_identidad(a):
     cx = _cx(a)
     print("  " + json.dumps(c3.resolver(cx), ensure_ascii=False))
@@ -538,6 +641,23 @@ def main(argv=None) -> int:
     s.add_argument("--perfil", default="auto",
                    help="perfil de formulario; «auto» prueba todos y elige el que mejor calce")
     s.set_defaults(func=cmd_extraer)
+
+    s = sub.add_parser("actualizar",
+                       help="aplica al material ya cargado lo que el sistema aprendió "
+                            "después, sin volver a subirlo ni repetir el OCR")
+    s.add_argument("--hacerlo", action="store_true",
+                   help="hacerlo de verdad. Sin esto sólo dice qué haría, que es lo "
+                        "que corresponde cuando actualizar puede significar horas")
+    s.add_argument("--forzar", default="",
+                   help="etapas a rehacer aunque estén vigentes, separadas por coma "
+                        "(por ejemplo: lectura). Arrastra a las que dependen de ellas")
+    s.add_argument("--perfil", default="auto")
+    s.set_defaults(func=cmd_actualizar)
+
+    s = sub.add_parser("reasociar",
+                       help="revisiones humanas que necesitan que alguien diga a qué "
+                            "documento corresponden")
+    s.set_defaults(func=cmd_reasociar)
 
     s = sub.add_parser("identidad", help="Capa 3: personas por clave fuerte + propuestas")
     s.set_defaults(func=cmd_identidad)

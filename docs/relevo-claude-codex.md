@@ -37,6 +37,7 @@ ufil/capa1_texto.py
 ufil/capa2_extraccion.py
 ufil/aplicar_revision.py
 ufil/trabajo.py
+ufil/cli.py
 pruebas/test_actualizacion.py   (nuevo)
 docs/evolucion-documental.md
 docs/relevo-claude-codex.md
