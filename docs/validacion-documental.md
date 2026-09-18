@@ -82,7 +82,29 @@ Una corrección hecha sobre un importe (`$123.456,78`, `perez.ana`) se conservó
 estado `corregido` a través de dos actualizaciones completas, incluida una que rehízo la
 segmentación.
 
-## 2.5 El defecto de resegmentación está reproducido y cerrado
+## 2.5 La aplicación real levanta y responde
+
+Se levantó `ufil.servidor` sobre la base del corpus sintético, con el esquema nuevo
+aplicado. `/`, `/api/panel`, `/api/documentos` y `/api/salud` contestaron 200 con datos.
+
+## 2.6 Dos defectos más, encontrados y cerrados durante el incremento
+
+- **Una revisión que se corre de lugar borraba a la de al lado.** La clave de
+  `revision_humana` incluye el `orden`; al mudar una revisión a su posición nueva, esa
+  posición podía estar ocupada por otra revisión todavía sin mirar, que se borraba en
+  silencio. Se reescribió la reasociación en dos tiempos: primero se decide todo,
+  después se escribe. Cubierto por
+  `test_dos_revisiones_que_se_corren_de_lugar_no_se_pisan`.
+- **`/api/respaldo/restaurar` contestaba sin leer el archivo subido.** Latente desde
+  antes: lo destapó que el esquema nuevo agregue una página de 16 KB a una base recién
+  creada (245.760 → 262.144 bytes), lo que empujó el archivo de la prueba por encima
+  del tamaño del buffer del socket. Pasado ese umbral, quien se equivocaba al escribir
+  el número del legajo recibía una conexión cortada en lugar del mensaje que le dice
+  qué escribir. Cubierto por la prueba que ya existía,
+  `test_respaldo_vuelta.py::test_restaurar_exige_el_numero_del_legajo`, que sin la
+  corrección falla con `ConnectionResetError [WinError 10054]`.
+
+## 2.7 El defecto de resegmentación está reproducido y cerrado
 
 `pruebas/test_actualizacion.py::UnaCorreccionNoSeMudaDeDocumento`. Con el código anterior
 al arreglo, una corrección hecha sobre la factura de la foja 3 terminaba aplicada al
@@ -104,12 +126,12 @@ import de `ufil/capa1_texto.py` falla y se caen 63 pruebas que no tienen nada qu
 
 | | Antes del incremento | Después |
 |---|---|---|
-| Tests | 530 | **540** |
+| Tests | 530 | **542** |
 | Failures | 1 | 1 |
 | Errors | 14 | 14 |
 | Skipped | 1 | 1 |
 
-Las 10 nuevas son `pruebas/test_actualizacion.py` y pasan todas.
+Las 12 nuevas son `pruebas/test_actualizacion.py` y pasan todas.
 
 ## Las fallas que ya estaban, y por qué no son del incremento
 
@@ -136,6 +158,8 @@ imposible saber qué rompió qué. Quedan anotadas acá para que se arreglen apa
 | `la_cascada_va_solo_hacia_adelante` | Invalidar la interpretación no puede costar un OCR. |
 | `invalidar_marca_la_etapa_y_las_que_dependen` | Idem, sobre la base. |
 | `migrar_no_pierde_revisiones_y_las_ancla` | Compatibilidad hacia atrás. |
+| `dos_revisiones_que_se_corren_de_lugar_no_se_pisan` | Al mudarse de posición, una revisión no puede borrar a la de al lado. |
+| `no_promete_reutilizar_fojas_que_va_a_releer` | La cuenta de fojas reutilizadas no puede ser optimista. |
 | `cortarla_no_pierde_lo_hecho_ni_repite` | Reanudable. |
 | `forzar_una_etapa_la_rehace_y_arrastra_a_las_de_abajo` | Forzado explícito. |
 
