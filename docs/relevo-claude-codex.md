@@ -20,7 +20,7 @@ terminar aplicada a otra pieza. Ver `docs/evolucion-documental.md` para el diagn
 | Agente | Rama | Worktree |
 |---|---|---|
 | Claude | `claude/actualizacion-incremental` | `C:\Users\rober\AppUFIL` |
-| Codex | `codex/actualizacion-incremental` | `C:\Users\rober\AppUFIL-codex` |
+| Codex | `codex/actualizacion-incremental` | `C:\Users\rober\AppUFIL\_codex` |
 | Integración | `claude/prompt-maestro-documental-dwhk59` | — |
 
 Cada uno commitea en la suya. La integración es un merge de las dos, con las pruebas
@@ -220,3 +220,13 @@ de las rutas que tiene que construir Codex ni el despachador; está adentro del 
 Lo cubre `pruebas/test_respaldo_vuelta.py::test_restaurar_exige_el_numero_del_legajo`,
 que sin la corrección falla con `ConnectionResetError [WinError 10054]`. No hizo falta
 agregar una prueba: la que ya estaba pasó a ser la de regresión.
+
+## Por qué el worktree de Codex está ADENTRO del repositorio
+
+El primer intento lo puso al lado, en `AppUFIL-codex`, que es donde corresponde. No
+funciona: el entorno de Codex sólo puede escribir bajo la carpeta del proyecto, así que
+un worktree hermano le queda fuera del área autorizada y no puede tocar un archivo.
+
+Queda entonces en `_codex/`, adentro, y anotado en `.gitignore`. Sigue siendo un worktree
+de verdad —otra rama, otro directorio de trabajo— así que los dos agentes pueden
+programar a la vez sin pisarse, que es lo único que se le pedía.
