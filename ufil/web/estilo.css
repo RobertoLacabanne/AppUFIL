@@ -2568,6 +2568,17 @@ details.consejo[open]>summary{border-bottom:1px solid var(--filete-2); margin-bo
 
 /* El ahorro y el recálculo tienen la misma jerarquía. */
 .actualizacion-cuentas { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--s4, 1.5rem); }
+.reasociacion { padding:1rem 0; border-bottom:1px solid var(--filete); overflow-wrap:anywhere; }
+.reasociacion dl { margin:1rem 0; }
+.reasociacion dt { font-weight:600; margin-top:.75rem; }
+.reasociacion dd { margin:.25rem 0; }
+.reasociacion fieldset { min-width:0; margin:1rem 0; padding:1rem; border:1px solid var(--borde-control); }
+.reasociacion-candidata { padding:.75rem 0; border-bottom:1px solid var(--filete); }
+.reasociacion-candidata label { display:flex; align-items:center; gap:.75rem; min-height:44px; }
+.reasociacion-candidata input { flex:none; }
+.reasociacion-acciones { display:flex; flex-wrap:wrap; gap:.75rem; }
+.reasociacion-acciones .boton { min-height:44px; white-space:normal; }
+.reasociacion-acciones .descarte { border-style:dashed; }
 .actualizacion-cuentas section, .actualizacion-etapas article, .actualizacion-revision { border-bottom:1px solid var(--filete); padding:1rem 0; overflow-wrap:anywhere; }
 #plan-actualizacion dl > div { display:flex; justify-content:space-between; gap:1rem; }
 #plan-actualizacion dd { margin:0; font-variant-numeric:tabular-nums; }
