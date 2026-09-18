@@ -122,18 +122,41 @@ CREATE VIRTUAL TABLE IF NOT EXISTS pagina_texto USING fts5(
 -- Antes esto era `sha256 UNIQUE`, o sea un contrato por archivo, y un PDF con cinco
 -- contratos producía un solo registro mezclando campos de contratos distintos. Un
 -- registro inventado, y sin marca. Es la razón por la que existe `orden`.
+-- `clave` es la IDENTIDAD de la pieza, y no es lo mismo que `id` ni que `orden`.
+--
+-- `orden` es una posición en una fila que se rearma en cada resegmentación: sirve para
+-- ordenar y no para identificar. `id` lo asigna SQLite y se pierde apenas la pieza se
+-- borra y se vuelve a crear, que es justamente lo que pasa al resegmentar.
+--
+-- `clave` es el archivo y la foja donde la pieza EMPIEZA. Las fojas de un PDF no se
+-- mueven, así que una pieza que sigue empezando en la misma foja es la misma pieza
+-- aunque haya cambiado de tipo, de largo o de posición. Eso es lo que permite que una
+-- resegmentación conserve la pieza —y con ella las revisiones que cuelgan— en vez de
+-- destruirla y tener que reasociar todo a mano.
+--
+-- `estado` distingue lo que el sistema sabe de lo que todavía no:
+--   segmentado  — la pieza existe; los campos no se extrajeron todavía
+--   extraido    — se le pasó un perfil y se le sacaron los campos
+--   sin_perfil  — ningún extractor la reconoce. NO es un error y no se descarta:
+--                 es un documento que el sistema todavía no sabe leer, y tiene que
+--                 poder verse, buscarse, clasificarse a mano y recibir un extractor
+--                 más adelante sin volver a subir nada.
 CREATE TABLE IF NOT EXISTS documento (
   id            INTEGER PRIMARY KEY,
   sha256        TEXT NOT NULL REFERENCES archivo(sha256),
   orden         INTEGER NOT NULL DEFAULT 1,   -- 1º, 2º… contrato dentro del archivo
+  clave         TEXT,                         -- identidad estable: <sha256>:<foja inicial>
   pagina_desde  INTEGER,
   pagina_hasta  INTEGER,
   tipo          TEXT NOT NULL,
   perfil        TEXT NOT NULL,
   camara        TEXT,
   estado        TEXT NOT NULL DEFAULT 'extraido',
+  clasificado_por TEXT,                       -- si una persona dijo qué es esta pieza
+  clasificado_en  TEXT,
   UNIQUE (sha256, orden)
 );
+CREATE INDEX IF NOT EXISTS ix_documento_clave ON documento(clave);
 
 -- EL CARRIL DE DATOS.
 -- Regla dura: o hay valor_literal, o hay nulo_motivo. Nunca los dos, nunca ninguno.
@@ -285,6 +308,53 @@ CREATE TABLE IF NOT EXISTS revision_humana (
   PRIMARY KEY (sha256, orden, campo)
 );
 CREATE INDEX IF NOT EXISTS ix_revision_ancla ON revision_humana(sha256, ancla_pagina);
+
+-- ───────────────────────────────────────────────── EL CONJUNTO DOCUMENTAL ──
+-- Un escaneo o una entrega no es un archivo: es un CONJUNTO de archivos con un orden.
+-- La oficina que responde un oficio manda nueve PDF, y el noveno sigue donde terminó
+-- el octavo. Ese orden es información del expediente, no del sistema de archivos: se
+-- pierde apenas alguien renombra un archivo, y con él se pierde la única pista de que
+-- una pieza sigue en la parte siguiente.
+--
+-- Se guarda aparte del archivo a propósito: el mismo PDF puede llegar dos veces, en
+-- dos entregas distintas, y eso es un hecho del expediente que hay que poder ver.
+CREATE TABLE IF NOT EXISTS conjunto (
+  id         INTEGER PRIMARY KEY,
+  nombre     TEXT NOT NULL,
+  organismo  TEXT,
+  expediente TEXT,                    -- número del expediente o actuación de origen
+  anio       INTEGER,
+  nota       TEXT,
+  creado_en  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS conjunto_archivo (
+  conjunto_id INTEGER NOT NULL REFERENCES conjunto(id),
+  sha256      TEXT NOT NULL REFERENCES archivo(sha256),
+  orden       INTEGER NOT NULL,       -- la parte 1, la parte 2… como llegaron
+  PRIMARY KEY (conjunto_id, sha256)
+);
+CREATE INDEX IF NOT EXISTS ix_conjunto_orden ON conjunto_archivo(conjunto_id, orden);
+
+-- ─────────────────────────── UNA PIEZA QUE SIGUE EN OTRO ARCHIVO ──
+-- El límite de un PDF no es el límite de un documento. Un remito de cuatro fojas puede
+-- quedar partido entre dos archivos porque así salió del escáner, y son UNA pieza.
+--
+-- El tramo principal sigue estando en `documento` (sha256, pagina_desde, pagina_hasta):
+-- no se movió nada, para no romper lo que ya anda. Acá se agregan los tramos QUE SIGUEN,
+-- en otro archivo o en fojas no contiguas del mismo.
+CREATE TABLE IF NOT EXISTS pieza_tramo (
+  id           INTEGER PRIMARY KEY,
+  documento_id INTEGER NOT NULL REFERENCES documento(id) ON DELETE CASCADE,
+  sha256       TEXT NOT NULL REFERENCES archivo(sha256),
+  pagina_desde INTEGER NOT NULL,
+  pagina_hasta INTEGER NOT NULL,
+  orden        INTEGER NOT NULL DEFAULT 1,   -- en qué orden se leen los tramos
+  quien        TEXT,                          -- quién dijo que continúa; NULL = lo dedujo el sistema
+  cuando       TEXT,
+  UNIQUE (documento_id, sha256, pagina_desde)
+);
+CREATE INDEX IF NOT EXISTS ix_pieza_tramo ON pieza_tramo(documento_id, orden);
 
 -- ────────────────────────────── QUÉ ETAPA PRODUJO ESTO, Y SI SIGUE VIGENTE ──
 -- El acervo se carga durante años y el sistema aprende cosas nuevas en el medio. Cuando
@@ -521,6 +591,10 @@ LEFT JOIN normalizacion n ON n.campo_id = c.id
 -- Es a propósito que no esté escrita acá: una lista repetida en dos archivos se separa
 -- el día que alguien agrega un tipo, y lo que se rompe es un total.
 WHERE d.tipo IN ({{TIPOS_CONTRATO}})
+  -- Una pieza que ningún extractor reconoce se ve y se cuenta (ver `v_documento_todo`)
+  -- pero NO entra acá: esta vista alimenta acumulados y totales, y un documento sin
+  -- campos leídos no puede sumar ni figurar como contrato firme.
+  AND d.estado <> 'sin_perfil'
 GROUP BY d.id;
 
 -- Todos los documentos, de cualquier familia, con el estado de cada campo al lado y
@@ -543,10 +617,15 @@ SELECT
   -- el tipo no está en ninguna familia conocida, que es como tiene que salir: un
   -- documento sin clasificar se ve y se cuenta, no se acomoda en la familia más
   -- probable. Ver `familia()` en ufil/clasificacion.py.
-  CASE WHEN d.tipo IN ({{TIPOS_CONTRATO}})    THEN 'contrato'
+  CASE WHEN d.estado = 'sin_perfil'           THEN NULL
+       WHEN d.tipo IN ({{TIPOS_CONTRATO}})    THEN 'contrato'
        WHEN d.tipo IN ({{TIPOS_COMPROBANTE}}) THEN 'comprobante'
        WHEN d.tipo IN ({{TIPOS_ACTO}})        THEN 'acto'
   END             AS familia,
+  -- Qué tanto sabe el sistema de esta pieza. `sin_perfil` es un documento que existe y
+  -- que todavía no sabemos leer: se ve, se cuenta y se puede clasificar a mano.
+  d.estado        AS estado,
+  d.clave         AS clave,
   a.nombre        AS archivo,
   MAX(CASE WHEN c.nombre='nombre'        THEN c.valor_literal END) AS nombre_literal,
   MAX(CASE WHEN c.nombre='nombre'        THEN c.estado        END) AS nombre_estado,
@@ -627,4 +706,5 @@ LEFT JOIN campo c
                          AND k.estado = 'abierto')
 LEFT JOIN normalizacion n ON n.campo_id = c.id
 WHERE d.tipo IN ({{TIPOS_COMPROBANTE}})
+  AND d.estado <> 'sin_perfil'      -- misma razón que en `v_contrato`
 GROUP BY d.id;

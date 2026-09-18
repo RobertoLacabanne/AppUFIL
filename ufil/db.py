@@ -11,7 +11,7 @@ from . import clasificacion as cl
 # Se sube cuando cambia `esquema.sql`. Sirve para no reejecutar el script en cada
 # conexión: con el servidor multihilo y el trabajador de fondo, dos conexiones que
 # corrían el esquema a la vez chocaban al recrear la vista `v_contrato`.
-ESQUEMA_VERSION = 17
+ESQUEMA_VERSION = 18
 
 _candado = threading.Lock()
 
@@ -47,6 +47,7 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
             cx.commit()
         _migrar_estados(cx)
         _anclar_revisiones_viejas(cx)
+        _completar_claves_de_pieza(cx)
     if not forzar and cx.execute("PRAGMA user_version").fetchone()[0] == ESQUEMA_VERSION:
         return False
     with _candado:
@@ -84,6 +85,11 @@ COLUMNAS_AGREGADAS = (
     ("revision_humana", "ancla_tipo", "TEXT"),
     ("revision_humana", "estado", "TEXT NOT NULL DEFAULT 'vigente'"),
     ("revision_humana", "motivo", "TEXT"),
+    # La identidad estable de la pieza y quién dijo qué es. Ver el comentario de
+    # `documento` en esquema.sql: `orden` ordena, `clave` identifica.
+    ("documento", "clave", "TEXT"),
+    ("documento", "clasificado_por", "TEXT"),
+    ("documento", "clasificado_en", "TEXT"),
 )
 
 
@@ -198,6 +204,37 @@ def _anclar_revisiones_viejas(cx: sqlite3.Connection) -> int:
                         WHERE d.sha256 = r.sha256 AND d.orden = r.orden
                           AND c.nombre = r.campo)""").rowcount
     _ajuste_crudo(cx, "anclaje_revisiones", str(ESQUEMA_VERSION))
+    cx.commit()
+    return n
+
+
+def _completar_claves_de_pieza(cx: sqlite3.Connection) -> int:
+    """
+    Le pone identidad estable a las piezas que se crearon antes de que existiera.
+
+    `clave` es el archivo y la foja donde la pieza empieza. Se completa acá, en la
+    migración, y no en el próximo reproceso, por la misma razón que el anclaje de las
+    revisiones: ahora la pieza todavía es la que era, y después de resegmentar ya no se
+    sabe. Ver el comentario de `documento` en esquema.sql.
+    """
+    try:
+        cols = {r[1] for r in cx.execute("PRAGMA table_info(documento)")}
+    except sqlite3.OperationalError:
+        return 0
+    if not cols or "clave" not in cols:
+        return 0
+    # Se pregunta ANTES de escribir, y con una consulta de lectura.
+    #
+    # Un `UPDATE` que no cambia ninguna fila igual pide el candado de escritura, y esto
+    # corre en cada `db.abrir()`. Con otra conexión leyendo —la interfaz mostrando una
+    # pantalla, por ejemplo— el `UPDATE` se queda esperando el candado hasta el timeout
+    # de treinta segundos, y lo que se ve del otro lado es un pedido que nunca contesta.
+    if not cx.execute(
+            "SELECT EXISTS (SELECT 1 FROM documento WHERE clave IS NULL)").fetchone()[0]:
+        return 0
+    n = cx.execute("""UPDATE documento
+                         SET clave = sha256 || ':' || COALESCE(pagina_desde, 1)
+                       WHERE clave IS NULL""").rowcount
     cx.commit()
     return n
 

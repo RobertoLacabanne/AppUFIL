@@ -763,6 +763,22 @@ def _tramos_del_archivo(cx, sha: str, perfiles: list, por_ruta) -> tuple:
     return tramos, perfil_de_tramo
 
 
+def _borrar_pieza(cx, doc_id: int) -> None:
+    """Borra UNA pieza y todo lo que cuelga, en orden de dependencias."""
+    sub = "SELECT id FROM campo WHERE documento_id=?"
+    cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute("DELETE FROM interpretacion_fuente  WHERE documento_id=?", (doc_id,))
+    cx.execute("DELETE FROM documento_persona      WHERE documento_id=?", (doc_id,))
+    cx.execute(f"DELETE FROM normalizacion         WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute("""DELETE FROM conflicto_variante WHERE conflicto_id IN
+                  (SELECT id FROM conflicto WHERE documento_id=?)""", (doc_id,))
+    cx.execute("DELETE FROM conflicto    WHERE documento_id=?", (doc_id,))
+    cx.execute("DELETE FROM campo        WHERE documento_id=?", (doc_id,))
+    cx.execute("DELETE FROM pieza_tramo  WHERE documento_id=?", (doc_id,))
+    cx.execute("DELETE FROM documento    WHERE id=?", (doc_id,))
+
+
 def _borrar_piezas(cx, sha: str) -> None:
     """Borra las piezas de un archivo y todo lo que cuelga, en orden de dependencias."""
     for f in cx.execute("SELECT id FROM documento WHERE sha256=?", (sha,)).fetchall():
@@ -810,22 +826,55 @@ def segmentar_piezas(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "aut
         # revisiones que cuelgan de eso.
         return {"piezas": 0, "sin_perfil": 1, "cambio": False}
 
-    antes = [(f["pagina_desde"], f["pagina_hasta"])
-             for f in cx.execute("""SELECT pagina_desde, pagina_hasta FROM documento
-                                     WHERE sha256=? ORDER BY orden""", (sha,))]
-    cambio = antes != tramos
-
-    _borrar_piezas(cx, sha)
+    # ── Las piezas se CONSERVAN por identidad, no se destruyen y rehacen ────────
+    #
+    # `clave` es el archivo y la foja donde la pieza empieza. Una pieza que sigue
+    # arrancando en la misma foja es la misma pieza, aunque haya cambiado de largo, de
+    # tipo o de posición. Conservarla es lo que hace que resegmentar no se lleve puesto
+    # el trabajo de las personas: los campos y las revisiones cuelgan del `id`, y el
+    # `id` sobrevive.
+    #
+    # Antes esto borraba todas las piezas del archivo y las volvía a crear, así que
+    # cualquier resegmentación —agregar un tipo documental, por ejemplo— obligaba a
+    # reasociar todo aunque la mayoría de las piezas no se hubiera movido.
+    existentes = {f["clave"]: f for f in cx.execute(
+        """SELECT id, clave, orden, pagina_desde, pagina_hasta, tipo, estado
+             FROM documento WHERE sha256=?""", (sha,))}
     clases = _clases_guardadas(cx, sha)
+    nuevas_claves = [f"{sha}:{desde}" for desde, _ in tramos]
+    cambio = sorted(existentes) != sorted(nuevas_claves)
+
+    # Las que ya no salen de la segmentación se van, con todo lo que cuelga.
+    sobran = [f["id"] for k, f in existentes.items() if k not in set(nuevas_claves)]
+    for doc_id in sobran:
+        _borrar_pieza(cx, doc_id)
+
+    # `orden` se recalcula siempre —es una posición, y las posiciones se corren— pero
+    # se aplica en dos pasadas: la clave `(sha256, orden)` es única, así que mover la
+    # 3ª al lugar de la 2ª choca con la 2ª mientras todavía está ahí.
+    cx.execute("UPDATE documento SET orden = -orden WHERE sha256=?", (sha,))
     for i, (desde, hasta) in enumerate(tramos, start=1):
-        # El tipo sale de la clasificación de la foja donde arranca. La extracción lo
-        # precisa después con el perfil que gane; hasta entonces la pieza ya existe y
-        # se puede ver, que es lo que hace falta para poder trabajarla.
-        cx.execute(
-            """INSERT INTO documento (sha256, orden, pagina_desde, pagina_hasta,
-                                      tipo, perfil, estado)
-               VALUES (?,?,?,?,?,?,'segmentado')""",
-            (sha, i, desde, hasta, clases.get(desde) or "desconocido", SIN_PERFIL))
+        clave = f"{sha}:{desde}"
+        vieja = existentes.get(clave)
+        if vieja is not None:
+            # El tipo sólo se recalcula si no lo puso una persona: una clasificación
+            # manual no la pisa una corrida del sistema.
+            cx.execute("""UPDATE documento
+                             SET orden=?, pagina_hasta=?,
+                                 tipo = CASE WHEN clasificado_por IS NULL
+                                             THEN ? ELSE tipo END
+                           WHERE id=?""",
+                       (i, hasta, clases.get(desde) or vieja["tipo"], vieja["id"]))
+        else:
+            # El tipo sale de la clasificación de la foja donde arranca. La extracción
+            # lo precisa después con el perfil que gane; hasta entonces la pieza ya
+            # existe y se puede ver, que es lo que hace falta para poder trabajarla.
+            cx.execute(
+                """INSERT INTO documento (sha256, orden, clave, pagina_desde,
+                                          pagina_hasta, tipo, perfil, estado)
+                   VALUES (?,?,?,?,?,?,?,'segmentado')""",
+                (sha, i, clave, desde, hasta,
+                 clases.get(desde) or "desconocido", SIN_PERFIL))
 
     if cambio:
         # Ver el encabezado: sin anclaje no hay forma de saber si la pieza que ocupa
@@ -907,21 +956,26 @@ def extraer_campos(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "auto"
                 mejor_cam = max(set(camaras), key=camaras.count) if camaras else None
 
         if mejor_perfil is None:
-            # Ningún perfil reconoce esta pieza. No queda un documento vacío dando
-            # vueltas: se borra y queda anotado, que es como se ve en «Quedaron afuera».
+            # Ningún extractor reconoce esta pieza. **No se descarta.**
             #
-            # Es deliberado que la pieza NO sobreviva como «desconocida», aunque el
-            # pliego pida que un documento desconocido sea una pieza de primera clase:
-            # hacerlo acá metería piezas sin campos adentro de las vistas de contratos
-            # y comprobantes, que filtran por tipo. Eso es trabajo de la fase del núcleo
-            # documental, donde las vistas se cambian a la vez.
+            # Antes se borraba, y eso convertía «el sistema todavía no sabe leer esto»
+            # en «esto no existe». Un documento que el sistema no sabe leer sigue
+            # siendo un documento: tiene que poder verse, buscarse, clasificarse a mano
+            # y recibir un extractor más adelante sin volver a subir el archivo, que es
+            # de lo que se trata todo esto.
+            #
+            # Queda con `estado='sin_perfil'`, que las vistas de contratos y
+            # comprobantes excluyen —no puede sumar en un total algo de lo que no se
+            # leyó un solo campo— y `v_documento_todo` muestra con su estado al lado.
             cx.execute("""INSERT INTO excepcion (sha256, clase, detalle, creado_en)
                           VALUES (?,?,?,?)""",
                        (sha, "perfil_no_aplica",
-                        f"fojas {desde}-{hasta}: ningún perfil reconoció el documento",
+                        f"fojas {desde}-{hasta}: ningún extractor reconoce todavía este "
+                        f"documento; queda cargado y se puede clasificar a mano",
                         ahora()))
             cx.execute("DELETE FROM campo WHERE documento_id=?", (doc_id,))
-            cx.execute("DELETE FROM documento WHERE id=?", (doc_id,))
+            cx.execute("UPDATE documento SET estado='sin_perfil' WHERE id=?", (doc_id,))
+            total["sin_perfil"] += 1
             continue
 
         perfil = mejor_perfil

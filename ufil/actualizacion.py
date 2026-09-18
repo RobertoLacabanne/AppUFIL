@@ -135,7 +135,7 @@ def _unidades(cx: sqlite3.Connection, etapa: str) -> list[tuple[str, bool]]:
     return []
 
 
-def _estado_unidad(etapa: vs.Etapa, guardado, hay_salida: bool) -> str:
+def _estado_unidad(etapa: vs.Etapa, guardado, hay_salida: bool, firma_actual: str) -> str:
     """
     En qué estado está UNA unidad. Los cuatro que ve la pantalla.
 
@@ -157,12 +157,12 @@ def _estado_unidad(etapa: vs.Etapa, guardado, hay_salida: bool) -> str:
     version, firma, estado, _origen = guardado
     if estado in (vs.DESACTUALIZADO, vs.FALLIDO, vs.DETENIDO, vs.PARCIAL):
         return "desactualizada"
-    if version != etapa.version or firma != etapa.firma():
+    if version != etapa.version or firma != firma_actual:
         return "desactualizada"
     return "vigente"
 
 
-def _motivo(etapa: vs.Etapa, guardado, estado: str) -> str | None:
+def _motivo(etapa: vs.Etapa, guardado, estado: str, firma_actual: str) -> str | None:
     if estado == "vigente":
         return None
     if estado == "nunca":
@@ -175,7 +175,7 @@ def _motivo(etapa: vs.Etapa, guardado, estado: str) -> str | None:
     version, firma, _estado, _origen = guardado
     if version != etapa.version:
         return f"cambió el algoritmo (versión {version} → {etapa.version})"
-    if firma != etapa.firma():
+    if firma != firma_actual:
         return "cambió la configuración con la que se hace"
     return "quedó marcada para rehacerse"
 
@@ -199,8 +199,14 @@ def plan(cx: sqlite3.Connection, *, forzar: tuple = ()) -> dict:
     for clave in forzar:
         arrastradas.update(vs.cadena(clave))
 
+    # Las firmas se calculan UNA vez por llamada. Cada una lee y resume archivos del
+    # disco —el código fuente de la etapa, los perfiles— y `_estado_unidad` se llama una
+    # vez por unidad: calcularla adentro del bucle hacía que mirar un legajo cargado
+    # costara miles de lecturas de disco y se fuera de tiempo.
+    firmas = {e.clave: e.firma() for e in vs.ETAPAS}
     etapas, archivos_viejos = [], {}
     desactualizadas: set[str] = set()
+    viejas_ejecucion: dict[str, list[str]] = {}
 
     for e in vs.ETAPAS:
         unidades = _unidades(cx, e.clave)
@@ -210,9 +216,11 @@ def plan(cx: sqlite3.Connection, *, forzar: tuple = ()) -> dict:
 
         vigentes, viejas, heredadas, nuevas = 0, 0, 0, 0
         for alcance_id, hay_salida in unidades:
-            est = _estado_unidad(e, guardados.get(alcance_id), hay_salida)
+            est = _estado_unidad(e, guardados.get(alcance_id), hay_salida, firmas[e.clave])
             if (e.clave in arrastradas or por_dependencia) and est in ("vigente", "heredada"):
                 est = "desactualizada"
+            if est in ("desactualizada", "nunca"):
+                viejas_ejecucion.setdefault(e.clave, []).append(alcance_id)
             if est == "vigente":
                 vigentes += 1
             elif est == "heredada":
@@ -240,11 +248,12 @@ def plan(cx: sqlite3.Connection, *, forzar: tuple = ()) -> dict:
                 # El motivo de la primera unidad que no está vigente: en la práctica
                 # todas las de una etapa quedan viejas por lo mismo —cambió el
                 # algoritmo o la configuración, que son de la etapa entera—.
-                suelta = next(((a, _estado_unidad(e, guardados.get(a), h))
-                               for a, h in unidades
-                               if _estado_unidad(e, guardados.get(a), h) != "vigente"), None)
+                suelta = next(((a, est) for a, h in unidades
+                               if (est := _estado_unidad(e, guardados.get(a), h,
+                                                         firmas[e.clave])) != "vigente"),
+                              None)
                 if suelta:
-                    motivo = _motivo(e, guardados.get(suelta[0]), suelta[1])
+                    motivo = _motivo(e, guardados.get(suelta[0]), suelta[1], firmas[e.clave])
 
         etapas.append({
             "clave": e.clave, "nombre": e.nombre, "estado": estado, "motivo": motivo,
@@ -260,7 +269,6 @@ def plan(cx: sqlite3.Connection, *, forzar: tuple = ()) -> dict:
     # lleva puesto el archivo entero. Informar a sus vecinas como «reutilizadas» sería
     # decirle a alguien que no va a esperar un OCR que sí va a esperar, que es
     # exactamente lo que esta pantalla existe para que no pase.
-    viejas_ejecucion = desactualizadas_por_etapa(cx, forzar=forzar)
     paginas_ocr_viejas, paginas_ocr_ok = _cuenta_de_fojas(
         cx, viejas_ejecucion.get("lectura", []))
     lecturas = cx.execute("SELECT COUNT(*) FROM lectura").fetchone()[0]
@@ -371,6 +379,7 @@ def desactualizadas_por_etapa(cx: sqlite3.Connection, *, forzar: tuple = ()
     for clave in forzar or ():
         arrastradas.update(vs.cadena(vs.etapa(clave).clave))
 
+    firmas = {e.clave: e.firma() for e in vs.ETAPAS}
     viejas: dict[str, list[str]] = {}
     con_cambio: set[str] = set()
     for e in vs.ETAPAS:
@@ -378,7 +387,7 @@ def desactualizadas_por_etapa(cx: sqlite3.Connection, *, forzar: tuple = ()
         por_dependencia = any(d in con_cambio for d in e.depende_de)
         pendientes = []
         for alcance_id, hay_salida in _unidades(cx, e.clave):
-            est = _estado_unidad(e, guardados.get(alcance_id), hay_salida)
+            est = _estado_unidad(e, guardados.get(alcance_id), hay_salida, firmas[e.clave])
             # Lo heredado NO se rehace por su cuenta: adoptarlo es justamente lo que
             # evita releer un acervo entero. Se rehace sólo si alguien lo pide o si
             # cambió algo de lo que depende.
