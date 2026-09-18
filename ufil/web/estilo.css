@@ -2565,3 +2565,11 @@ details.consejo[open]>summary::before{content:'▾'}
 details.consejo>summary:hover{color:var(--sello)}
 details.consejo>p{margin:0 14px 11px; padding:0}
 details.consejo[open]>summary{border-bottom:1px solid var(--filete-2); margin-bottom:11px}
+
+/* El ahorro y el recálculo tienen la misma jerarquía. */
+.actualizacion-cuentas { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--s4, 1.5rem); }
+.actualizacion-cuentas section, .actualizacion-etapas article, .actualizacion-revision { border-bottom:1px solid var(--filete); padding:1rem 0; overflow-wrap:anywhere; }
+#plan-actualizacion dl > div { display:flex; justify-content:space-between; gap:1rem; }
+#plan-actualizacion dd { margin:0; font-variant-numeric:tabular-nums; }
+#plan-actualizacion li { overflow-wrap:anywhere; }
+@media (max-width:720px) { .actualizacion-cuentas { grid-template-columns:1fr; } }
