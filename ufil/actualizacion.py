@@ -38,9 +38,15 @@ import sqlite3
 from . import versiones as vs
 from .db import ahora
 
-# Las cinco que hoy corren juntas. Ver la nota de arriba.
-JUNTAS_POR_ARCHIVO = ("clasificacion", "segmentacion", "cotejo", "extraccion",
-                      "normalizacion")
+# Las etapas que se ejecutan por archivo, cada una por su cuenta. El orden importa:
+# es el de dependencia, y es el orden en que se corren.
+POR_ARCHIVO = ("clasificacion", "cotejo", "segmentacion", "extraccion", "normalizacion")
+
+# La normalización sigue pegada a la extracción: la escribe `_guardar_contrato` en la
+# misma pasada, porque normalizar es interpretar el literal que se acaba de leer y
+# separarlo costaría volver a recorrer los campos para nada. Se contabiliza aparte
+# —tiene su propia versión— pero se ejecuta con la extracción.
+JUNTAS_POR_ARCHIVO = ("extraccion", "normalizacion")
 # Las que valen para el legajo entero y no por archivo.
 DE_LEGAJO = ("identidad", "indice", "interpretacion")
 
@@ -100,7 +106,15 @@ def _unidades(cx: sqlite3.Connection, etapa: str) -> list[tuple[str, bool]]:
         return [(str(r["id"]), bool(r["leida"])) for r in cx.execute(
             """SELECT p.id, EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id=p.id) AS leida
                  FROM pagina p""")]
-    if etapa in JUNTAS_POR_ARCHIVO:
+    if etapa == "clasificacion":
+        # La clasificación deja escrito qué es cada foja. Si ninguna foja del archivo
+        # lo tiene, no se clasificó nunca.
+        return [(r["sha256"], bool(r["hay"])) for r in cx.execute(
+            """SELECT a.sha256,
+                      EXISTS (SELECT 1 FROM pagina p WHERE p.sha256=a.sha256
+                                AND p.clasificacion IS NOT NULL) AS hay
+                 FROM archivo a""")]
+    if etapa in POR_ARCHIVO:
         # Hay salida si el archivo ya produjo algún documento… o si se lo miró y no
         # produjo ninguno, que también es un resultado y está en `excepcion`. Un
         # archivo sin nada de lo dos no se procesó nunca.
@@ -472,27 +486,46 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
             sellar(cx, "lectura", str(r["id"]))
         cx.commit()
 
-    # ── 2. Las cinco que hoy corren juntas, por archivo ────────────────────────
-    # Ver la nota del encabezado del módulo: se contabilizan separadas y se ejecutan
-    # en una sola pasada, porque eso es lo que hace el código de verdad.
-    archivos = sorted({s for clave in JUNTAS_POR_ARCHIVO for s in viejas.get(clave, [])})
+    # ── 2. Las etapas por archivo, cada una por su cuenta ──────────────────────
+    #
+    # Acá está lo que se gana con haberlas separado: si lo único que cambió es la
+    # extracción, **sólo corre la extracción**. No se vuelve a clasificar una foja que
+    # nadie tocó ni se resegmenta un archivo que no cambió, que además de costar tiempo
+    # obligaría a reasociar el trabajo que las personas ya hicieron.
+    #
+    # Las palabras de todas las lecturas se cargan UNA vez por archivo y se pasan a las
+    # etapas que corran: es lo más caro de armar y no tiene sentido pagarlo cuatro veces.
+    archivos = sorted({s for clave in POR_ARCHIVO for s in viejas.get(clave, [])})
     if archivos and not hecho["cortado"]:
         _fase("volviendo a mirar los archivos", len(archivos))
         for i, sha in enumerate(archivos, start=1):
             if not _sigo():
                 hecho["cortado"] = True
                 break
+            pendientes = [c for c in POR_ARCHIVO if sha in viejas.get(c, ())]
             try:
-                r = c2.extraer_documento(cx, sha, perfil)
-                hecho["revisiones_reaplicadas"] += r.get("revisiones_reaplicadas", 0)
-                hecho["revisiones_a_reasociar"] += r.get("revisiones_a_reasociar", 0)
+                por_ruta = c2.lecturas_por_ruta(cx, sha)
+                if "clasificacion" in pendientes:
+                    c2.clasificar_fojas(cx, sha, por_ruta=por_ruta)
+                    sellar(cx, "clasificacion", sha)
+                if "cotejo" in pendientes:
+                    c2.cotejar_numeros(cx, sha, por_ruta=por_ruta)
+                    sellar(cx, "cotejo", sha)
+                if "segmentacion" in pendientes:
+                    seg = c2.segmentar_piezas(cx, sha, perfil, por_ruta=por_ruta)
+                    sellar(cx, "segmentacion", sha,
+                           detalle="sin perfil que aplique" if seg["sin_perfil"] else None)
+                if "extraccion" in pendientes or "normalizacion" in pendientes:
+                    r = c2.extraer_campos(cx, sha, perfil, por_ruta=por_ruta)
+                    hecho["revisiones_reaplicadas"] += r.get("revisiones_reaplicadas", 0)
+                    hecho["revisiones_a_reasociar"] += r.get("revisiones_a_reasociar", 0)
+                    for clave in JUNTAS_POR_ARCHIVO:
+                        sellar(cx, clave, sha)
                 hecho["archivos"] += 1
-                for clave in JUNTAS_POR_ARCHIVO:
-                    sellar(cx, clave, sha)
             except Exception as e:
                 detalle = f"{type(e).__name__}: {e}"
-                hecho["errores"].append({"etapa": "extracción", "detalle": detalle})
-                for clave in JUNTAS_POR_ARCHIVO:
+                hecho["errores"].append({"etapa": "archivo", "detalle": detalle})
+                for clave in pendientes:
                     sellar(cx, clave, sha, estado=vs.FALLIDO, detalle=detalle)
             cx.commit()
             if avance:

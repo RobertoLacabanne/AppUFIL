@@ -112,14 +112,13 @@ class UnaCorreccionNoSeMudaDeDocumento(unittest.TestCase):
         # Llega una capacidad nueva: la foja 2 deja de ser continuación y pasa a ser una
         # pieza propia. La factura se corre de la 2ª posición a la 3ª.
         _borrar_piezas(self.cx)
-        viejo = {1: (1, 2, "contrato_obra"), 2: (3, 3, "factura")}
         d1 = _pieza(self.cx, 1, 1, 1, "contrato_obra", con_campo=None)
         d2 = _pieza(self.cx, 2, 2, 2, "recibo", pagina=2)
         d3 = _pieza(self.cx, 3, 3, 3, "factura", pagina=3)
         piezas = [{"id": d1, "orden": 1, "pagina_desde": 1, "pagina_hasta": 1, "tipo": "contrato_obra"},
                   {"id": d2, "orden": 2, "pagina_desde": 2, "pagina_hasta": 2, "tipo": "recibo"},
                   {"id": d3, "orden": 3, "pagina_desde": 3, "pagina_hasta": 3, "tipo": "factura"}]
-        reaplicar_revisiones(self.cx, SHA, piezas, viejo)
+        reaplicar_revisiones(self.cx, SHA, piezas)
 
         recibo = self.cx.execute(
             """SELECT c.valor_literal, c.estado, c.revisado_por FROM campo c
@@ -156,7 +155,7 @@ class UnaCorreccionNoSeMudaDeDocumento(unittest.TestCase):
         d1 = _pieza(self.cx, 1, 1, 1, "contrato_obra", pagina=1)
         piezas = [{"id": d1, "orden": 1, "pagina_desde": 1, "pagina_hasta": 1,
                    "tipo": "contrato_obra"}]
-        r = reaplicar_revisiones(self.cx, SHA, piezas, {1: (3, 3, "factura")})
+        r = reaplicar_revisiones(self.cx, SHA, piezas)
 
         self.assertEqual(r["reaplicadas"], 0)
         self.assertEqual(r["a_reasociar"], 1)
@@ -192,14 +191,13 @@ class UnaCorreccionNoSeMudaDeDocumento(unittest.TestCase):
 
         # Aparece una pieza en la foja 1: las dos de atrás se corren un lugar.
         _borrar_piezas(self.cx)
-        viejo = {1: (2, 2, "factura"), 2: (3, 3, "factura")}
         d1 = _pieza(self.cx, 1, 1, 1, "contrato_obra", pagina=1)
         d2 = _pieza(self.cx, 2, 2, 2, "factura", pagina=2)
         d3 = _pieza(self.cx, 3, 3, 3, "factura", pagina=3)
         piezas = [{"id": d1, "orden": 1, "pagina_desde": 1, "pagina_hasta": 1, "tipo": "contrato_obra"},
                   {"id": d2, "orden": 2, "pagina_desde": 2, "pagina_hasta": 2, "tipo": "factura"},
                   {"id": d3, "orden": 3, "pagina_desde": 3, "pagina_hasta": 3, "tipo": "factura"}]
-        r = reaplicar_revisiones(self.cx, SHA, piezas, viejo)
+        r = reaplicar_revisiones(self.cx, SHA, piezas)
 
         self.assertEqual(r["reaplicadas"], 2, "las dos revisiones tienen que aplicarse")
         self.assertEqual(
@@ -218,24 +216,57 @@ class UnaCorreccionNoSeMudaDeDocumento(unittest.TestCase):
 
     def test_una_revision_vieja_sin_anclaje_no_se_aplica_a_ciegas(self):
         """
-        Las revisiones hechas antes de que existiera el anclaje se pueden reaplicar por
-        posición, pero SÓLO si la pieza que ocupa esa posición es la misma que antes.
+        Una revisión anterior al anclaje sólo se puede reaplicar por posición, y eso
+        vale únicamente mientras el reparto del archivo en piezas no cambie.
+
+        Quien sabe si cambió es la segmentación, así que es ella la que las marca. Acá
+        se comprueba el otro extremo: si la posición ni siquiera existe, la revisión no
+        se le encaja a la pieza que haya quedado.
         """
-        _pieza(self.cx, 1, 1, 1, "contrato_obra", pagina=1)
+        _pieza(self.cx, 2, 2, 2, "factura", pagina=2)
         campo = self.cx.execute("SELECT id FROM campo").fetchone()["id"]
         aplicar(self.cx, campo, "corregir", "5000", "perez.ana")
-        # Se le saca el anclaje: así quedaron las filas de una base anterior.
         self.cx.execute("UPDATE revision_humana SET ancla_pagina=NULL, ancla_x0=NULL")
         self.cx.commit()
 
         _borrar_piezas(self.cx)
-        d1 = _pieza(self.cx, 1, 1, 1, "factura", pagina=1)     # otro tipo en el mismo lugar
+        d1 = _pieza(self.cx, 1, 1, 1, "factura", pagina=1)   # ya no hay una 2ª pieza
         piezas = [{"id": d1, "orden": 1, "pagina_desde": 1, "pagina_hasta": 1,
                    "tipo": "factura"}]
-        r = reaplicar_revisiones(self.cx, SHA, piezas, {1: (1, 1, "contrato_obra")})
+        r = reaplicar_revisiones(self.cx, SHA, piezas)
 
         self.assertEqual(r["a_reasociar"], 1)
         self.assertEqual(r["reaplicadas"], 0)
+        quedo = self.cx.execute(
+            "SELECT revisado_por FROM campo WHERE documento_id=?", (d1,)).fetchone()
+        self.assertIsNone(quedo["revisado_por"],
+                          "no se le puede encajar a la única pieza que quedó")
+
+    def test_una_revision_que_se_descarto_no_vuelve_sola(self):
+        """
+        Si una persona decidió que una revisión desplazada no corresponde, reprocesar
+        no puede resucitarla. Y la fila tiene que seguir existiendo: descartar no es
+        borrar, es una decisión que queda registrada.
+        """
+        d1 = _pieza(self.cx, 1, 1, 1, "factura", pagina=1)
+        campo = self.cx.execute("SELECT id FROM campo").fetchone()["id"]
+        aplicar(self.cx, campo, "corregir", "5000", "perez.ana")
+        self.cx.execute("UPDATE revision_humana SET estado='descartada'")
+        self.cx.execute("UPDATE campo SET valor_literal='$ 1.000,00', estado='automatico_alta', "
+                        "revisado_por=NULL WHERE id=?", (campo,))
+        self.cx.commit()
+
+        piezas = [{"id": d1, "orden": 1, "pagina_desde": 1, "pagina_hasta": 1,
+                   "tipo": "factura"}]
+        r = reaplicar_revisiones(self.cx, SHA, piezas)
+
+        self.assertEqual(r["reaplicadas"], 0, "una decisión descartada no se reaplica")
+        self.assertEqual(
+            self.cx.execute("SELECT COUNT(*) FROM revision_humana").fetchone()[0], 1,
+            "y la fila no se puede perder: descartar no es borrar")
+        self.assertIsNone(
+            self.cx.execute("SELECT revisado_por FROM campo WHERE id=?",
+                            (campo,)).fetchone()["revisado_por"])
 
 
 class LoQueQuedoViejoYLoQueNo(unittest.TestCase):
@@ -344,6 +375,89 @@ class LoQueQuedoViejoYLoQueNo(unittest.TestCase):
         self.assertIn("extraccion", tocadas)
         self.assertNotIn("lectura", tocadas, "el OCR está antes, no puede quedar viejo")
         self.assertNotIn("ingesta", tocadas)
+
+
+class LasEtapasCorrenPorSeparado(unittest.TestCase):
+    """
+    FASE 1: clasificación, cotejo, segmentación y extracción son cuatro cosas, no una.
+
+    Antes eran una sola pasada por archivo, y eso hacía que cualquier cambio en
+    cualquiera de las cuatro obligara a rehacer las cuatro. Agregar un extractor
+    —lo más frecuente que va a pasar acá— volvía a clasificar fojas que nadie tocó y a
+    resegmentar archivos que no cambiaron, y resegmentar obliga a reasociar el trabajo
+    de las personas.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = _base(Path(self.tmp.name))
+        _leer_todo(self.cx)
+        # Todo sellado y al día: el punto de partida de los dos escenarios.
+        ac.aplicar(self.cx)
+
+    def tearDown(self):
+        self.cx.close()
+        try:
+            self.tmp.cleanup()
+        except PermissionError:
+            pass
+
+    def _viejas(self, forzar=()):
+        return ac.desactualizadas_por_etapa(self.cx, forzar=forzar)
+
+    def test_cambiar_la_extraccion_no_vuelve_a_clasificar_ni_a_segmentar(self):
+        self.cx.execute("UPDATE resultado_etapa SET firma='otra' WHERE etapa='extraccion'")
+        self.cx.commit()
+        viejas = self._viejas()
+        self.assertIn("extraccion", viejas)
+        self.assertNotIn("clasificacion", viejas,
+                         "clasificar una foja no depende de si sabemos extraerle campos")
+        self.assertNotIn("segmentacion", viejas,
+                         "resegmentar por un extractor nuevo obligaría a reasociar el "
+                         "trabajo de las personas sin ningún motivo")
+        self.assertNotIn("lectura", viejas, "y el OCR mucho menos")
+        self.assertNotIn("cotejo", viejas)
+
+    def test_cambiar_la_segmentacion_no_vuelve_a_leer_ni_a_clasificar(self):
+        self.cx.execute("UPDATE resultado_etapa SET firma='otra' WHERE etapa='segmentacion'")
+        self.cx.commit()
+        viejas = self._viejas()
+        self.assertIn("segmentacion", viejas)
+        self.assertIn("extraccion", viejas, "los campos cuelgan de la pieza: se rehacen")
+        self.assertNotIn("lectura", viejas)
+        self.assertNotIn("clasificacion", viejas,
+                         "la clasificación está ANTES de la segmentación, no después")
+
+    def test_cambiar_la_clasificacion_arrastra_hacia_adelante_y_no_el_ocr(self):
+        self.cx.execute("UPDATE resultado_etapa SET firma='otra' WHERE etapa='clasificacion'")
+        self.cx.commit()
+        viejas = self._viejas()
+        for clave in ("clasificacion", "segmentacion", "cotejo", "extraccion"):
+            self.assertIn(clave, viejas, f"{clave} se apoya en la clasificación")
+        self.assertNotIn("lectura", viejas, "clasificar de nuevo no puede costar un OCR")
+
+    def test_extraer_no_resegmenta(self):
+        """
+        `extraer_campos` trabaja sobre las piezas que YA están: no recalcula tramos.
+
+        Se comprueba con una pieza cuyo tramo la segmentación nunca habría producido
+        —la clasificación de estas fojas no la sostiene—. Si la extracción resegmentara,
+        la pieza no sería la que se le dio. Que conserve su `id` cuando la reconoce un
+        perfil está comprobado sobre corpus real, no acá: con fojas sintéticas ningún
+        perfil reconoce nada y la pieza se retira, que es lo que corresponde.
+        """
+        from ufil import capa2_extraccion as c2
+        _pieza(self.cx, 7, 1, 3, "factura", pagina=1)     # tramo inventado, orden 7
+        antes = self.cx.execute(
+            """SELECT orden, pagina_desde, pagina_hasta FROM documento
+                WHERE sha256=?""", (SHA,)).fetchall()
+        self.assertEqual([tuple(f) for f in antes], [(7, 1, 3)])
+        c2.extraer_campos(self.cx, SHA)
+        # La pieza se retira porque ningún perfil la reconoce, pero en ningún momento
+        # aparecieron los tramos que la segmentación habría calculado.
+        self.assertEqual(
+            self.cx.execute("SELECT COUNT(*) FROM documento WHERE sha256=?",
+                            (SHA,)).fetchone()[0], 0)
 
 
 class UnaBaseVieja(unittest.TestCase):

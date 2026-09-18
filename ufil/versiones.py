@@ -235,7 +235,7 @@ ETAPAS: tuple[Etapa, ...] = (
           _firma_segmentacion, depende_de=("clasificacion",), caro=False,
           explica="Un PDF puede traer varias piezas; una pieza puede ocupar varias fojas."),
     Etapa("cotejo", "El número escrito dos veces", "archivo", 1, _firma_cotejo,
-          depende_de=("lectura",), caro=False,
+          depende_de=("lectura", "clasificacion"), caro=False,
           explica="Letras contra dígitos, sobre el texto de cada foja."),
     Etapa("extraccion", "Los campos de cada pieza", "archivo", 1, _firma_extraccion,
           depende_de=("segmentacion",), caro=False,

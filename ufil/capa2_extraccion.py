@@ -46,6 +46,11 @@ from . import confianza as cf
 from .db import ahora
 
 MARGEN_IZQ = 8.0        # puntos que se toleran a la izquierda del rótulo
+# Lo que dice `documento.perfil` entre que la segmentación crea la pieza y la
+# extracción decide con qué perfil leerla. La columna es NOT NULL y no puede quedar
+# vacía, y dejarla en blanco sería peor: una pieza sin perfil no es una pieza sin
+# nombre, es una pieza que todavía nadie miró.
+SIN_PERFIL = "(sin determinar)"
 PENALIZA_UNICA = 0.6          # confianza cuando una sola ruta vio el valor
 PENALIZA_DISCREPANCIA = 0.7   # cuando la relectura focalizada discrepa sin seguridad
 
@@ -595,70 +600,122 @@ def _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina) -> dict:
     return {"campos": n_campos, "conflictos": n_conf, "a_revisar": n_rev}
 
 
-def extraer_documento(cx: sqlite3.Connection, sha: str,
-                      perfil_nombre: str = "auto") -> dict:
-    """
-    Extrae TODOS los contratos que haya en un archivo, con el perfil que mejor le calce.
+# ═══════════════════════════════════════════════════════════════════════════
+# LAS CUATRO ETAPAS, Y POR QUÉ ESTÁN SEPARADAS
+#
+# Hasta acá esto era una sola función que hacía todo de una pasada por archivo:
+# clasificaba las fojas, cotejaba los números, partía el archivo en piezas y extraía
+# los campos. Funcionaba, pero tenía una consecuencia cara: **cualquier cambio en
+# cualquiera de las cuatro obligaba a rehacer las cuatro**.
+#
+# Agregar un extractor —lo más frecuente que va a pasar en este sistema— volvía a
+# clasificar fojas que nadie tocó y a resegmentar un archivo que no cambió. Y
+# resegmentar no es gratis: destruye las piezas y obliga a reasociar el trabajo que
+# las personas ya hicieron, con el riesgo que eso trae (ver `reaplicar_revisiones`).
+#
+# Ahora son cuatro funciones que se pueden correr solas y que se versionan por
+# separado (ver ufil/versiones.py). Lo que se gana en concreto:
+#
+#   * cambiar la extracción NO vuelve a clasificar ni a resegmentar;
+#   * cambiar la segmentación NO vuelve a leer ni a clasificar;
+#   * cambiar la clasificación NO vuelve a pasar el OCR.
+#
+# `extraer_documento` sigue existiendo y hace las cuatro en orden: es lo que usan la
+# línea de comandos y el procesamiento de un lote nuevo, donde de todas formas hay que
+# hacer todo. Lo que cambió es que ya no es la única forma de hacer una sola.
+# ═══════════════════════════════════════════════════════════════════════════
 
-    Devuelve el agregado del archivo. `documentos` dice cuántos contratos encontró: si
-    da más de uno, el PDF traía varios adentro y cada uno quedó como un registro
-    separado, con su tramo de páginas.
-    """
-    perfiles = perfiles_a_probar(perfil_nombre)
-    perfil = perfiles[0]
 
-    # Agrupar las lecturas por ruta.
+def lecturas_por_ruta(cx: sqlite3.Connection, sha: str) -> dict:
+    """
+    Las palabras de cada foja, agrupadas por ruta de lectura.
+
+    Es lo que las cuatro etapas necesitan y lo más caro de armar —una vuelta a la base
+    por cada lectura— así que se carga una vez y se pasa. Cada etapa igual sabe
+    cargarlo sola cuando se la corre por separado.
+    """
     por_ruta: dict[str, list[tuple[int, int, list[Palabra]]]] = {}
     for r in cx.execute(
         """SELECT p.nro, l.id AS lid, l.ruta
              FROM pagina p JOIN lectura l ON l.pagina_id = p.id
             WHERE p.sha256 = ? ORDER BY p.nro, l.ruta""", (sha,)):
         por_ruta.setdefault(r["ruta"], []).append((r["nro"], r["lid"], palabras_de(cx, r["lid"])))
-
     if not por_ruta:
         raise RuntimeError(f"sin lecturas para {sha}: correr `leer` antes que `extraer`")
+    return por_ruta
 
+
+def _clases_guardadas(cx: sqlite3.Connection, sha: str) -> dict:
+    """Qué es cada foja, según lo que dejó escrito la clasificación."""
+    return {r["nro"]: r["clasificacion"]
+            for r in cx.execute("""SELECT nro, clasificacion FROM pagina
+                                    WHERE sha256=? AND clasificacion IS NOT NULL""", (sha,))}
+
+
+# ───────────────────────────────────────────────────── ETAPA: clasificación ──
+def clasificar_fojas(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict:
+    """
+    Qué es cada foja de este archivo. Depende de la lectura y de nada más.
+
+    Un expediente real no es una pila prolija de contratos: trae la carátula, dos o
+    tres contratos, el decreto que los aprueba, una nota y después quince facturas.
+    Clasificar foja por foja es lo que evita que el último contrato se quede con todo
+    lo que viene atrás. Se hace sobre el encabezado, que es donde el documento se
+    identifica, y con la mejor ruta de lectura disponible para cada foja.
+
+    No mira los perfiles de extracción a propósito: qué ES una foja no depende de si
+    sabemos sacarle los campos. Por eso agregar un extractor no vuelve a clasificar.
+    """
+    por_ruta = por_ruta or lecturas_por_ruta(cx, sha)
     todas = sorted({nro for pgs in por_ruta.values() for nro, _, _ in pgs})
 
-    # ── Qué es cada foja ──────────────────────────────────────────────────────
-    # Un expediente real no es una pila prolija de contratos: trae la carátula, dos o
-    # tres contratos, el decreto que los aprueba, una nota y después quince facturas.
-    # Clasificar foja por foja es lo que evita que el último contrato se quede con
-    # todo lo que viene atrás. Se hace sobre el encabezado, que es donde el documento
-    # se identifica, y con la mejor ruta de lectura disponible para cada foja.
     encabezados: dict[int, str] = {}
-    # Y cuánto leyó el motor en cada foja, que es lo que separa un dorso en blanco y
-    # una fotocopia ilegible de una foja de trabajo. Se mide sobre la página ENTERA,
-    # no sobre el encabezado: una hoja en blanco no tiene encabezado, y de eso se
-    # trata. Entre rutas gana la que más cosas legibles encontró, por la misma razón
-    # que el encabezado más largo: si alguna pudo leer, la foja se puede leer.
+    # Cuánto leyó el motor en cada foja, que es lo que separa un dorso en blanco y una
+    # fotocopia ilegible de una foja de trabajo. Se mide sobre la página ENTERA, no
+    # sobre el encabezado: una hoja en blanco no tiene encabezado, y de eso se trata.
+    # Entre rutas gana la que más cosas legibles encontró, por la misma razón que el
+    # encabezado más largo: si alguna pudo leer, la foja se puede leer.
     medidas: dict[int, cl.Medida] = {}
     for pgs in por_ruta.values():
         for nro, _, pw in pgs:
             plano = normalizar_cotejo(" ".join(w.texto for w in pw[:120]))
-            # Se queda con el encabezado más largo entre rutas: el que más leyó.
             if len(plano) > len(encabezados.get(nro, "")):
                 encabezados[nro] = plano
             m = cl.medir(w.texto for w in pw)
             if nro not in medidas or m.utiles > medidas[nro].utiles:
                 medidas[nro] = m
+
     clases = clasificar_documento([(n, encabezados.get(n, "")) for n in todas], medidas)
     for nro, clase in clases.items():
         cx.execute("UPDATE pagina SET clasificacion=? WHERE sha256=? AND nro=?",
                    (clase, sha, nro))
+    cx.commit()
+    return {"fojas": len(clases), "clases": clases}
 
-    # ── El número que el papel escribe dos veces ──────────────────────────────
-    # Sobre el texto ENTERO de cada foja, no sobre el encabezado: el importe de una
-    # resolución está en el considerando y la cantidad de luminarias, en el medio de
-    # la memoria descriptiva. Se hace acá porque es acá donde ya están las palabras
-    # de todas las rutas cargadas en memoria, y leerlas de nuevo costaría otra vuelta
-    # a la base por cada foja.
+
+# ────────────────────────────────────────────────────────── ETAPA: cotejo ──
+def cotejar_numeros(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict:
+    """
+    El número que el papel escribe dos veces, en letras y en dígitos.
+
+    Sobre el texto ENTERO de cada foja, no sobre el encabezado: el importe de una
+    resolución está en el considerando y la cantidad de luminarias, en el medio de la
+    memoria descriptiva.
+
+    Depende de la lectura y de la clasificación —de una hoja en blanco no sale ningún
+    número— pero no de los perfiles ni de la segmentación.
+    """
+    por_ruta = por_ruta or lecturas_por_ruta(cx, sha)
+    clases = _clases_guardadas(cx, sha)
+
     textos: dict[int, str] = {}
     for pgs in por_ruta.values():
         for nro, _, pw in pgs:
             t = " ".join(w.texto for w in pw)
             if len(t) > len(textos.get(nro, "")):
                 textos[nro] = t
+
+    n = 0
     for nro, texto in textos.items():
         if clases.get(nro) in cl.APARTADAS:
             continue            # de una hoja en blanco no sale ningún número
@@ -671,13 +728,23 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
                 (sha, nro, c.clase, c.letras, c.digitos,
                  c.valor_letras, c.valor_digitos,
                  None if c.coinciden is None else int(c.coinciden), c.desde))
+            n += 1
+    cx.commit()
+    return {"cotejos": n}
 
-    # Un expediente trae contratos Y facturas en el mismo PDF, así que no se elige un
-    # tipo: se sacan TODOS. Cada tramo se queda con los perfiles que declaran ese tipo
-    # de foja, y después, adentro del tramo, gana el que más campos resuelve. Elegir un
-    # solo tipo por archivo era perder los contratos o perder las facturas.
-    tramos: list[tuple[int, int]] = []
-    perfil_de_tramo: dict[tuple[int, int], list[dict]] = {}
+
+def _tramos_del_archivo(cx, sha: str, perfiles: list, por_ruta) -> tuple:
+    """
+    En qué piezas se parte este archivo, y qué perfiles declaran cada una.
+
+    Un expediente trae contratos Y facturas en el mismo PDF, así que no se elige un
+    tipo: se sacan TODOS. Cada tramo se queda con los perfiles que declaran ese tipo de
+    foja. Elegir un solo tipo por archivo era perder los contratos o perder las
+    facturas.
+    """
+    clases = _clases_guardadas(cx, sha)
+    tramos: list = []
+    perfil_de_tramo: dict = {}
     for pf in perfiles:
         tipo = pf.get("tipo_pagina") or pf.get("tipo")
         for t in tramos_por_tipo(clases, tipo):
@@ -689,39 +756,17 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
     if not tramos:
         # Perfiles viejos de formulario, que no declaran un tipo de foja: se sigue
         # reconociendo por rótulos, como antes.
+        todas = sorted({nro for pgs in por_ruta.values() for nro, _, _ in pgs})
         inicios = sorted({nro for pgs in por_ruta.values() for nro, _, pw in pgs
                           if any(pagina_es_formulario(pw, pf) for pf in perfiles)})
         tramos = segmentar(inicios, todas)
+    return tramos, perfil_de_tramo
 
-    if not tramos:
-        cx.execute("INSERT INTO excepcion (sha256, clase, detalle, creado_en) VALUES (?,?,?,?)",
-                   (sha, "perfil_no_aplica",
-                    "ninguna página se reconoció como formulario conocido; probados: "
-                    + ", ".join(pf["nombre"] for pf in perfiles), ahora()))
-        cx.commit()
-        # Se sale ANTES de borrar los documentos que ya había: un archivo que esta
-        # corrida no supo reconocer no puede llevarse puesto lo que otra sí reconoció,
-        # ni las revisiones que cuelgan de eso.
-        return {"documentos": 0, "campos": 0, "conflictos": 0, "a_revisar": 0,
-                "sin_perfil": 1, "revisiones_reaplicadas": 0,
-                "revisiones_a_reasociar": 0}
 
-    # Render de las páginas, para la relectura focalizada.
-    por_pagina = {r["nro"]: (Path(r["render"]), r["render_escala"] or config.ESCALA_RENDER)
-                  for r in cx.execute("""SELECT nro, render, render_escala FROM pagina
-                                          WHERE sha256=? AND render IS NOT NULL""", (sha,))}
-
-    # Cómo estaba repartido este archivo en piezas ANTES de resegmentar. Es la única
-    # oportunidad de saberlo: en dos líneas más se borra. Sirve para las revisiones
-    # anteriores al anclaje, que sólo se pueden reaplicar por posición si la pieza que
-    # ocupa esa posición quedó igual. Ver `reaplicar_revisiones`.
-    layout_viejo = {f["orden"]: (f["pagina_desde"], f["pagina_hasta"], f["tipo"])
-                    for f in cx.execute("""SELECT orden, pagina_desde, pagina_hasta, tipo
-                                             FROM documento WHERE sha256=?""", (sha,))}
-
-    # Borrar lo anterior de ESTE archivo, en orden de dependencias.
-    viejos = [f["id"] for f in cx.execute("SELECT id FROM documento WHERE sha256=?", (sha,))]
-    for doc_id in viejos:
+def _borrar_piezas(cx, sha: str) -> None:
+    """Borra las piezas de un archivo y todo lo que cuelga, en orden de dependencias."""
+    for f in cx.execute("SELECT id FROM documento WHERE sha256=?", (sha,)).fetchall():
+        doc_id = f["id"]
         sub = "SELECT id FROM campo WHERE documento_id=?"
         cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
         cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
@@ -734,18 +779,115 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
         cx.execute("DELETE FROM campo     WHERE documento_id=?", (doc_id,))
     cx.execute("DELETE FROM documento WHERE sha256=?", (sha,))
 
+
+# ──────────────────────────────────────────────────────── ETAPA: segmentación ──
+def segmentar_piezas(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "auto",
+                     *, por_ruta=None) -> dict:
+    """
+    Dónde empieza y termina cada pieza documental adentro del archivo.
+
+    Un límite de PDF no es un límite de documento: un archivo puede traer varias piezas
+    y una pieza puede ocupar varias fojas. Esto decide los tramos y deja creadas las
+    piezas; los campos los llena la extracción, después.
+
+    Cuando el reparto en piezas CAMBIA, las revisiones humanas anteriores al anclaje
+    —las que no saben en qué foja estaban— dejan de poder reaplicarse por posición: la
+    pieza que ocupa ese lugar ya no es la misma. Se las marca acá para que las mire una
+    persona, en lugar de aplicarlas a ciegas sobre otro documento.
+    """
+    por_ruta = por_ruta or lecturas_por_ruta(cx, sha)
+    perfiles = perfiles_a_probar(perfil_nombre)
+    tramos, _ = _tramos_del_archivo(cx, sha, perfiles, por_ruta)
+
+    if not tramos:
+        cx.execute("INSERT INTO excepcion (sha256, clase, detalle, creado_en) VALUES (?,?,?,?)",
+                   (sha, "perfil_no_aplica",
+                    "ninguna página se reconoció como formulario conocido; probados: "
+                    + ", ".join(pf["nombre"] for pf in perfiles), ahora()))
+        cx.commit()
+        # Se sale ANTES de borrar las piezas que ya había: un archivo que esta corrida
+        # no supo reconocer no puede llevarse puesto lo que otra sí reconoció, ni las
+        # revisiones que cuelgan de eso.
+        return {"piezas": 0, "sin_perfil": 1, "cambio": False}
+
+    antes = [(f["pagina_desde"], f["pagina_hasta"])
+             for f in cx.execute("""SELECT pagina_desde, pagina_hasta FROM documento
+                                     WHERE sha256=? ORDER BY orden""", (sha,))]
+    cambio = antes != tramos
+
+    _borrar_piezas(cx, sha)
+    clases = _clases_guardadas(cx, sha)
+    for i, (desde, hasta) in enumerate(tramos, start=1):
+        # El tipo sale de la clasificación de la foja donde arranca. La extracción lo
+        # precisa después con el perfil que gane; hasta entonces la pieza ya existe y
+        # se puede ver, que es lo que hace falta para poder trabajarla.
+        cx.execute(
+            """INSERT INTO documento (sha256, orden, pagina_desde, pagina_hasta,
+                                      tipo, perfil, estado)
+               VALUES (?,?,?,?,?,?,'segmentado')""",
+            (sha, i, desde, hasta, clases.get(desde) or "desconocido", SIN_PERFIL))
+
+    if cambio:
+        # Ver el encabezado: sin anclaje no hay forma de saber si la pieza que ocupa
+        # ese lugar sigue siendo la que la persona miró.
+        cx.execute("""UPDATE revision_humana
+                         SET estado='requiere_reasociacion', motivo=?
+                       WHERE sha256=? AND ancla_pagina IS NULL AND estado='vigente'""",
+                   ("es una revisión anterior al anclaje y el reparto del archivo en "
+                    "piezas cambió, así que su posición ya no la identifica", sha))
+    if len(tramos) > 1:
+        cx.execute("""INSERT INTO excepcion (sha256, clase, detalle, creado_en)
+                      VALUES (?,?,?,?)""",
+                   (sha, "varios_contratos_en_un_archivo",
+                    f"el archivo trae {len(tramos)} contratos; se separaron en "
+                    f"{len(tramos)} registros por tramo de páginas", ahora()))
+    cx.commit()
+    return {"piezas": len(tramos), "sin_perfil": 0, "cambio": cambio}
+
+
+# ─────────────────────────────────────────────────────── ETAPA: extracción ──
+def extraer_campos(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "auto",
+                   *, por_ruta=None) -> dict:
+    """
+    Los campos de cada pieza ya segmentada. **No vuelve a segmentar.**
+
+    Ésa es la diferencia que hace que agregar un extractor sea barato: trabaja sobre
+    las piezas que ya están, con sus tramos, y lo único que rehace son los campos. Las
+    piezas conservan su identidad, así que las revisiones humanas se reaplican sobre la
+    misma pieza y no hay nada que reasociar.
+    """
+    piezas_guardadas = cx.execute(
+        """SELECT id, orden, pagina_desde, pagina_hasta, tipo FROM documento
+            WHERE sha256=? ORDER BY orden""", (sha,)).fetchall()
     total = {"documentos": 0, "campos": 0, "conflictos": 0, "a_revisar": 0,
              "sin_perfil": 0, "revisiones_reaplicadas": 0, "revisiones_a_reasociar": 0}
+    if not piezas_guardadas:
+        return total
+
+    por_ruta = por_ruta or lecturas_por_ruta(cx, sha)
+    perfiles = perfiles_a_probar(perfil_nombre)
+
+    # Render de las páginas, para la relectura focalizada.
+    por_pagina = {r["nro"]: (Path(r["render"]), r["render_escala"] or config.ESCALA_RENDER)
+                  for r in cx.execute("""SELECT nro, render, render_escala FROM pagina
+                                          WHERE sha256=? AND render IS NOT NULL""", (sha,))}
+
     piezas: list[dict] = []
-    for i, (desde, hasta) in enumerate(tramos, start=1):
+    for fila in piezas_guardadas:
+        doc_id, desde, hasta = fila["id"], fila["pagina_desde"], fila["pagina_hasta"]
         recorte = {ruta: [(n, l, w) for n, l, w in pgs if desde <= n <= hasta]
                    for ruta, pgs in por_ruta.items()}
         recorte = {r: pgs for r, pgs in recorte.items() if pgs}
 
-        # Se prueba cada perfil sobre este tramo y gana el que más campos saca. Con un
-        # solo perfil dado a mano, el bucle corre una vez y decide lo mismo.
+        # Los perfiles que declaran este tipo de foja. Si ninguno lo declara —perfiles
+        # viejos de formulario, que no declaran tipo— se prueban todos, como antes.
+        candidatos = [pf for pf in perfiles
+                      if (pf.get("tipo_pagina") or pf.get("tipo")) == fila["tipo"]] or perfiles
+
+        # Gana el que más campos saca. Con un solo perfil dado a mano, el bucle corre
+        # una vez y decide lo mismo.
         mejor_perfil, mejor_res, mejor_cam, mejor_pt = None, None, None, (-1, -1)
-        for pf in perfil_de_tramo.get((desde, hasta), perfiles):
+        for pf in candidatos:
             resultados, camaras, aplico = {}, [], False
             for ruta, pgs in recorte.items():
                 hall, camara, aplica = extraer_de_ruta(pgs, pf)
@@ -763,48 +905,79 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
             if pt > mejor_pt:
                 mejor_perfil, mejor_res, mejor_pt = pf, resultados, pt
                 mejor_cam = max(set(camaras), key=camaras.count) if camaras else None
+
         if mejor_perfil is None:
-            # Ningún perfil reconoce este tramo. No se registra un documento vacío:
-            # queda anotado como excepción y se ve en «Quedaron afuera».
+            # Ningún perfil reconoce esta pieza. No queda un documento vacío dando
+            # vueltas: se borra y queda anotado, que es como se ve en «Quedaron afuera».
+            #
+            # Es deliberado que la pieza NO sobreviva como «desconocida», aunque el
+            # pliego pida que un documento desconocido sea una pieza de primera clase:
+            # hacerlo acá metería piezas sin campos adentro de las vistas de contratos
+            # y comprobantes, que filtran por tipo. Eso es trabajo de la fase del núcleo
+            # documental, donde las vistas se cambian a la vez.
             cx.execute("""INSERT INTO excepcion (sha256, clase, detalle, creado_en)
                           VALUES (?,?,?,?)""",
                        (sha, "perfil_no_aplica",
                         f"fojas {desde}-{hasta}: ningún perfil reconoció el documento",
                         ahora()))
+            cx.execute("DELETE FROM campo WHERE documento_id=?", (doc_id,))
+            cx.execute("DELETE FROM documento WHERE id=?", (doc_id,))
             continue
-        perfil, resultados, camara = mejor_perfil, mejor_res, mejor_cam
 
-        doc_id = cx.execute(
-            """INSERT INTO documento (sha256, orden, pagina_desde, pagina_hasta,
-                                      tipo, perfil, camara, estado)
-               VALUES (?,?,?,?,?,?,?,'extraido')""",
-            (sha, i, desde, hasta, perfil["tipo"], perfil["nombre"], camara)).lastrowid
+        perfil = mejor_perfil
+        # Los campos de la corrida anterior se van; la PIEZA se queda con su id. Eso es
+        # lo que permite que reextraer no obligue a reasociar nada.
+        sub = "SELECT id FROM campo WHERE documento_id=?"
+        cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
+        cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
+        cx.execute(f"DELETE FROM normalizacion         WHERE campo_id IN ({sub})", (doc_id,))
+        cx.execute("""DELETE FROM conflicto_variante WHERE conflicto_id IN
+                      (SELECT id FROM conflicto WHERE documento_id=?)""", (doc_id,))
+        cx.execute("DELETE FROM conflicto WHERE documento_id=?", (doc_id,))
+        cx.execute("DELETE FROM campo     WHERE documento_id=?", (doc_id,))
+        cx.execute("""UPDATE documento SET tipo=?, perfil=?, camara=?, estado='extraido'
+                       WHERE id=?""",
+                   (perfil["tipo"], perfil["nombre"], mejor_cam, doc_id))
 
-        r = _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina)
-        piezas.append({"id": doc_id, "orden": i, "pagina_desde": desde,
+        r = _guardar_contrato(cx, sha, doc_id, perfil, mejor_res, por_pagina)
+        piezas.append({"id": doc_id, "orden": fila["orden"], "pagina_desde": desde,
                        "pagina_hasta": hasta, "tipo": perfil["tipo"]})
         total["documentos"] += 1
         for k in ("campos", "conflictos"):
             total[k] += r[k]
         total["a_revisar"] += r["a_revisar"]
 
-    # Recién ACÁ, con todas las piezas del archivo ya creadas. Antes se reaplicaba pieza
-    # por pieza, apenas se creaba cada una, y así no hay forma de darse cuenta de que dos
-    # revisiones caen en la misma o de que una quedó sin dueño: hay que ver el archivo
-    # entero para poder decir «esto no se puede decidir solo».
-    rev = reaplicar_revisiones(cx, sha, piezas, layout_viejo)
+    # Recién ACÁ, con todas las piezas del archivo ya resueltas. Mirando una pieza por
+    # vez no hay forma de darse cuenta de que dos revisiones caen en la misma o de que
+    # una quedó sin dueño: hay que ver el archivo entero para poder decir «esto no se
+    # puede decidir solo».
+    rev = reaplicar_revisiones(cx, sha, piezas)
     total["revisiones_reaplicadas"] = rev["reaplicadas"]
     total["revisiones_a_reasociar"] = rev["a_reasociar"]
     total["a_revisar"] = max(0, total["a_revisar"] - rev["reaplicadas"])
-
-    if len(tramos) > 1:
-        cx.execute("""INSERT INTO excepcion (sha256, clase, detalle, creado_en)
-                      VALUES (?,?,?,?)""",
-                   (sha, "varios_contratos_en_un_archivo",
-                    f"el archivo trae {len(tramos)} contratos; se separaron en "
-                    f"{len(tramos)} registros por tramo de páginas", ahora()))
     cx.commit()
     return total
+
+
+def extraer_documento(cx: sqlite3.Connection, sha: str,
+                      perfil_nombre: str = "auto") -> dict:
+    """
+    Las cuatro etapas de un archivo, en orden. Es lo que hace falta con material nuevo.
+
+    Sigue existiendo con la misma forma de siempre para que la línea de comandos y el
+    procesamiento de un lote no tengan que saber que por dentro ahora son cuatro. Para
+    correr una sola —que es lo que hace la actualización incremental— están
+    `clasificar_fojas`, `cotejar_numeros`, `segmentar_piezas` y `extraer_campos`.
+    """
+    por_ruta = lecturas_por_ruta(cx, sha)
+    clasificar_fojas(cx, sha, por_ruta=por_ruta)
+    cotejar_numeros(cx, sha, por_ruta=por_ruta)
+    seg = segmentar_piezas(cx, sha, perfil_nombre, por_ruta=por_ruta)
+    if seg["sin_perfil"]:
+        return {"documentos": 0, "campos": 0, "conflictos": 0, "a_revisar": 0,
+                "sin_perfil": 1, "revisiones_reaplicadas": 0,
+                "revisiones_a_reasociar": 0}
+    return extraer_campos(cx, sha, perfil_nombre, por_ruta=por_ruta)
 
 
 def _solapan(a, b) -> float:
@@ -826,8 +999,7 @@ def _marcar_para_reasociar(cx, sha: str, orden: int, campo: str, motivo: str) ->
                    WHERE sha256=? AND orden=? AND campo=?""", (motivo, sha, orden, campo))
 
 
-def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list,
-                         layout_viejo: dict | None = None) -> dict:
+def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list) -> dict:
     """
     Vuelve a aplicar lo que las personas ya decidieron sobre las piezas de este archivo.
 
@@ -861,16 +1033,24 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list,
     otra decisión humana se borra en silencio. Decidiendo primero, las colisiones se
     ven antes de tocar nada.
 
-    `layout_viejo` es `{orden: (desde, hasta, tipo)}` de ANTES de resegmentar. Sirve
-    para las revisiones viejas que no tienen anclaje: si su pieza quedó igual, se las
-    puede seguir aplicando por posición sin riesgo; si cambió, no.
+    Las revisiones anteriores al anclaje —las que no saben en qué foja estaban— sólo
+    se pueden reaplicar por posición, y eso vale únicamente si el reparto del archivo
+    en piezas NO cambió. De eso se encarga `segmentar_piezas`, que es quien sabe si
+    cambió: cuando cambia, las marca para que las mire una persona y acá ya no llegan
+    como vigentes.
+
+    Una revisión que una persona descartó no se vuelve a aplicar nunca: se saltean
+    todos los estados que no sean `vigente` o `requiere_reasociacion`. Las que están
+    esperando reasociación sí se vuelven a mirar, porque el reproceso puede haber
+    despejado la duda; si sigue sin despejarse, quedan marcadas igual.
     """
     from .aplicar_revision import aplicar
-    layout_viejo = layout_viejo or {}
     resultado = {"reaplicadas": 0, "a_reasociar": 0}
 
-    revisiones = cx.execute("SELECT * FROM revision_humana WHERE sha256=?",
-                            (sha,)).fetchall()
+    revisiones = cx.execute(
+        """SELECT * FROM revision_humana
+            WHERE sha256=? AND COALESCE(estado,'vigente')
+                  IN ('vigente','requiere_reasociacion')""", (sha,)).fetchall()
     if not revisiones:
         return resultado
 
@@ -893,16 +1073,17 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list,
         ancla = (r["ancla_x0"], r["ancla_y0"], r["ancla_x1"], r["ancla_y1"])
 
         if r["ancla_pagina"] is None:
-            # Revisión anterior al anclaje. Sólo se puede aplicar por posición si la
-            # pieza que ocupa ese lugar es LA MISMA que antes.
-            vieja = layout_viejo.get(r["orden"])
+            # Revisión anterior al anclaje: sólo se puede aplicar por posición.
+            #
+            # Que haya llegado hasta acá como vigente significa que la segmentación no
+            # cambió el reparto del archivo —`segmentar_piezas` marca las que sí— así
+            # que la pieza que ocupa ese lugar sigue siendo la que la persona miró.
+            # Si ni siquiera existe esa posición, no se inventa una.
             p = por_orden.get(r["orden"])
-            igual = (p is not None and vieja is not None
-                     and (p["pagina_desde"], p["pagina_hasta"], p["tipo"]) == vieja)
-            if not igual:
+            if p is None:
                 decisiones.append([r, None, None,
-                                   "es una revisión anterior al anclaje y la pieza que "
-                                   "ocupaba ese lugar cambió al resegmentar"])
+                                   "es una revisión anterior al anclaje y en el archivo "
+                                   f"ya no hay una pieza en la posición {r['orden']}"])
                 continue
             candidatas = [p]
         else:
@@ -977,7 +1158,12 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list,
                      ancla_pagina,ancla_x0,ancla_y0,ancla_x1,ancla_y1,
                      ancla_desde,ancla_hasta,ancla_tipo,estado,motivo)
                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
-    cx.execute("DELETE FROM revision_humana WHERE sha256=?", (sha,))
+    # OJO: se borran SOLAMENTE las que se miraron. Un `DELETE` por `sha256` a secas se
+    # llevaría puestas las que quedaron afuera del filtro de arriba —entre ellas las
+    # que una persona descartó— y ésas no se vuelven a insertar acá, así que
+    # desaparecerían sin que nadie lo pida.
+    cx.executemany("DELETE FROM revision_humana WHERE sha256=? AND orden=? AND campo=?",
+                   [(sha, f["orden"], f["campo"]) for f, _, _, _ in decisiones])
     for fila, pieza, campo, motivo in decisiones:
         if pieza is None:
             cx.execute(COLUMNAS,
