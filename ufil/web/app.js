@@ -3147,12 +3147,12 @@ function resultadosHTML(r) {
   const hallazgos = total
     ? `<strong>${plural(total, 'coincidencia', 'coincidencias')}</strong>`
     : `<strong>No aparece</strong>`;
-  const cob = coberturaHTML(r.cobertura, hallazgos);
+  const cob = htmlResumenBusqueda(r) + coberturaHTML(r.cobertura, hallazgos);
   const nada = !r.campos.length && !r.paginas.length;
   // Nunca «Sin coincidencias» a secas. Lo que se puede afirmar es dónde se buscó.
-  if (nada) return htmlResumenBusqueda(r) + (cob || `<div class="vacio">Sin coincidencias para
-    «${esc(r.consulta)}».</div>`);
-  return `${htmlResumenBusqueda(r)}${cob}
+  if (nada) return cob || `<div class="vacio">Sin coincidencias para
+    «${esc(r.consulta)}».</div>`;
+  return `${cob}
     ${r.campos.length ? `
       <h3>En los datos extraídos <span class="rotulo">(${r.campos.length})</span></h3>
       <p class="prosa nota">Son <strong>datos extra\u00eddos</strong>: el dato ya
