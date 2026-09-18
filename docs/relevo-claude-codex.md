@@ -260,3 +260,28 @@ Codex apuntando al mismo worktree y las dos escribieron sobre los mismos archivo
 que quedaron los tres endpoints duplicados. Lo detectó el propio Codex al ver cambios
 que no había escrito. Se consolidó en una sola pasada suya. **Una tarea por worktree a
 la vez**, y verificar que la anterior terminó antes de lanzar la siguiente.
+
+---
+
+## Incremento 2 — FASE 1 y FASE 2, en paralelo
+
+| | Claude | Codex |
+|---|---|---|
+| Rama | `claude/fase1-desacoplar-pipeline` | `codex/fase2-reasociacion` |
+| Qué hizo | partió `extraer_documento` en cuatro etapas (clasificación, cotejo, segmentación, extracción), cada una ejecutable y versionable sola; movió a la segmentación la decisión de si el reparto en piezas cambió; 5 pruebas nuevas | `ufil/reasociacion.py`, dos endpoints y la pantalla para resolver revisiones desplazadas; 14 pruebas |
+
+**Integración:** merge de las dos en `claude/prompt-maestro-documental-dwhk59`, sin conflictos.
+**Suite combinada:** `568 tests · 1 failure · 14 errors · 1 skipped` — la base de referencia, sin regresiones.
+
+**Revisión cruzada:**
+
+- *De Codex sobre Claude:* encontró que `reaplicar_revisiones` volvía a aplicar una
+  revisión que una persona había descartado. No lo tocó porque era de otro. **Ya estaba
+  cerrado** en la FASE 1 por el filtro de estados, y se comprobó contra la rama
+  integrada: `reaplicadas: 0`, el campo intacto y la fila descartada en su lugar.
+- *De Claude sobre Codex:* sin hallazgos. Consumió el contrato sin pedir cambios.
+
+**Comprobado sobre corpus real** (6 contratos, 10 fojas, OCR de verdad): reextraer
+conserva la identidad de la pieza y la clasificación, y la corrección humana sobrevive
+(`$999.888,77 · corregido · perez.ana`, 1 reaplicada, 0 a reasociar). El pipeline
+completo da lo mismo que antes del corte: 6 documentos, 36 campos, 1 conflicto.
