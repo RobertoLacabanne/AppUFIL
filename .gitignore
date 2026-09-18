@@ -22,3 +22,8 @@ __pycache__/
 venv/
 node_modules/
 .DS_Store
+
+# Worktree de Codex para el trabajo en paralelo. No es material del legajo ni
+# codigo: es una copia de trabajo de otra rama, montada adentro del repositorio
+# porque el entorno de Codex solo puede escribir bajo esta carpeta.
+_codex/
