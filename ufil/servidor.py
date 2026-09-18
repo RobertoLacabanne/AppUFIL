@@ -1393,7 +1393,10 @@ class Manejador(BaseHTTPRequestHandler):
                                 hasta=(q.get("hasta") or [None])[0],
                                 clases=tuple(x for x in (q.get("clase") or []) if x)),
                             "desordenes": cr.desordenes(cx)})
-                    # ── Consultas guardadas y colecciones ──
+                    if ruta == "/api/informes":
+                        from . import exportar as ex
+                        return self._json({"informes": ex.disponibles()})
+                # ── Consultas guardadas y colecciones ──
                     if ruta == "/api/consultas-guardadas":
                         from . import colecciones as co
                         return self._json({"consultas": co.consultas(cx)})
@@ -1759,6 +1762,15 @@ class Manejador(BaseHTTPRequestHandler):
                     return self._json(piezas.clasificar_a_mano(
                         cx, entero("documento_id"), texto("tipo"), texto("quien")))
                 # ── Consultas guardadas y colecciones ──
+                if u.path == "/api/informe":
+                    from . import exportar as ex
+                    ruta_salida = ex.generar(
+                        cx, texto("clave"), config.EXPORT,
+                        formato=cuerpo.get("formato", "csv"),
+                        coleccion_id=cuerpo.get("coleccion_id"),
+                        documento_ids=cuerpo.get("documento_ids"))
+                    return self._json({"ok": True, "archivo": ruta_salida.name,
+                                       "carpeta": str(ruta_salida.parent)})
                 if u.path == "/api/consulta/guardar":
                     from . import colecciones as co
                     return self._json(co.guardar_consulta(

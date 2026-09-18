@@ -272,6 +272,33 @@ def cmd_fojas(a):
     return 0
 
 
+def cmd_informe(a):
+    """
+    Los informes que se adjuntan a un escrito: índice, cronología, fichas y punteos.
+
+    Todos llevan de dónde sale cada fila. Una planilla que no se puede volver a atar al
+    papel no sirve para ofrecer prueba.
+    """
+    from . import exportar as ex
+    cx = _cx(a)
+    if not a.clave:
+        print("  Informes que se pueden sacar:")
+        for i in ex.disponibles():
+            extra = f" (necesita --{i['necesita'].replace('_','-')})" if i.get("necesita") else ""
+            print(f"    {i['clave']:<12} {i['nombre']}{extra} · {', '.join(i['formatos'])}")
+        return 0
+    try:
+        ruta = ex.generar(cx, a.clave, config.EXPORT, formato=a.formato,
+                          coleccion_id=a.coleccion_id,
+                          documento_ids=[int(x) for x in a.documentos.split(",") if x.strip()]
+                          if a.documentos else None)
+    except ex.NoSePuede as e:
+        print(f"  {e}")
+        return 2
+    print(f"  {ruta}")
+    return 0
+
+
 def cmd_reasociar(a):
     """
     Las revisiones humanas que quedaron sin pieza segura a la cual aplicarse.
@@ -702,6 +729,16 @@ def main(argv=None) -> int:
     s.add_argument("--buscar", default="",
                    help="dónde está la foja que el papel numera así (por ejemplo: 47)")
     s.set_defaults(func=cmd_fojas)
+
+    s = sub.add_parser("informe",
+                       help="índice documental, cronología, fichas y punteos")
+    s.add_argument("clave", nargs="?", default="",
+                   help="sin nada, lista los informes que se pueden sacar")
+    s.add_argument("--formato", default="csv", choices=["csv", "pdf"])
+    s.add_argument("--coleccion-id", type=int, dest="coleccion_id")
+    s.add_argument("--documentos", default="",
+                   help="ids de piezas separados por coma, para una selección")
+    s.set_defaults(func=cmd_informe)
 
     s = sub.add_parser("reasociar",
                        help="revisiones humanas que necesitan que alguien diga a qué "
