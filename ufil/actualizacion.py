@@ -240,9 +240,15 @@ def plan(cx: sqlite3.Connection, *, forzar: tuple = ()) -> dict:
         })
 
     # ── qué se reutiliza y qué se recalcula, en las unidades que la gente entiende ──
-    paginas_ocr_viejas = next(
-        (x["desactualizados"] for x in etapas if x["clave"] == "lectura"), 0)
-    paginas_ocr_ok = next((x["vigentes"] for x in etapas if x["clave"] == "lectura"), 0)
+    #
+    # OJO con la cuenta fácil —fojas leídas menos fojas viejas—: miente. La lectura se
+    # contabiliza por foja pero se EJECUTA por archivo, así que una sola foja vieja se
+    # lleva puesto el archivo entero. Informar a sus vecinas como «reutilizadas» sería
+    # decirle a alguien que no va a esperar un OCR que sí va a esperar, que es
+    # exactamente lo que esta pantalla existe para que no pase.
+    viejas_ejecucion = desactualizadas_por_etapa(cx, forzar=forzar)
+    paginas_ocr_viejas, paginas_ocr_ok = _cuenta_de_fojas(
+        cx, viejas_ejecucion.get("lectura", []))
     lecturas = cx.execute("SELECT COUNT(*) FROM lectura").fetchone()[0]
 
     # La lectura se cuenta por foja, pero se ejecuta por archivo: para la tabla de la
@@ -282,6 +288,33 @@ def plan(cx: sqlite3.Connection, *, forzar: tuple = ()) -> dict:
         "archivos": detalle_archivos,
         "revisiones": revisiones,
     }
+
+
+def _cuenta_de_fojas(cx: sqlite3.Connection, paginas_viejas: list) -> tuple[int, int]:
+    """
+    (fojas a releer, fojas que se reutilizan), contando por ARCHIVO.
+
+    La lectura se ejecuta por archivo: si una foja quedó vieja, se relee el archivo
+    entero. Así que las fojas a releer son todas las de esos archivos, no sólo las
+    marcadas, y las reutilizadas son las de los demás. Es la cuenta que corresponde
+    informarle a alguien que va a decidir si espera.
+    """
+    leidas = """SELECT COUNT(*) FROM pagina p
+                 WHERE EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id = p.id)"""
+    if not paginas_viejas:
+        return 0, cx.execute(leidas).fetchone()[0]
+    marcas = ','.join('?' * len(paginas_viejas))
+    shas = [r["sha256"] for r in cx.execute(
+        f"SELECT DISTINCT sha256 FROM pagina WHERE CAST(id AS TEXT) IN ({marcas})",
+        paginas_viejas)]
+    if not shas:
+        return len(paginas_viejas), cx.execute(leidas).fetchone()[0]
+    ms = ','.join('?' * len(shas))
+    a_releer = cx.execute(
+        f"SELECT COUNT(*) FROM pagina WHERE sha256 IN ({ms})", shas).fetchone()[0]
+    reutiliza = cx.execute(
+        f"{leidas} AND p.sha256 NOT IN ({ms})", shas).fetchone()[0]
+    return a_releer, reutiliza
 
 
 def _resumen_revisiones(cx: sqlite3.Connection, *, va_a_resegmentar: bool) -> dict:
@@ -403,16 +436,15 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
 
     # ── 1. Lectura. Lo caro. Sólo las fojas que de verdad quedaron viejas ──────
     paginas_viejas = viejas.get("lectura", [])
-    vigentes = cx.execute(
-        """SELECT COUNT(*) FROM pagina p
-            WHERE EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id = p.id)""").fetchone()[0]
-    hecho["reutilizado_paginas_ocr"] = max(0, vigentes - len(paginas_viejas))
+    shas_a_releer = [r["sha256"] for r in cx.execute(
+        f"""SELECT DISTINCT sha256 FROM pagina
+             WHERE CAST(id AS TEXT) IN ({','.join('?' * len(paginas_viejas))})""",
+        paginas_viejas)] if paginas_viejas else []
+
+    _, hecho["reutilizado_paginas_ocr"] = _cuenta_de_fojas(cx, paginas_viejas)
 
     if paginas_viejas:
-        shas = [r["sha256"] for r in cx.execute(
-            f"""SELECT DISTINCT sha256 FROM pagina
-                 WHERE CAST(id AS TEXT) IN ({','.join('?' * len(paginas_viejas))})""",
-            paginas_viejas)]
+        shas = shas_a_releer
         _fase("leyendo las fojas que quedaron viejas", len(paginas_viejas))
         for sha in shas:
             if not _sigo():

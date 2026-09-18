@@ -224,6 +224,32 @@ class LoQueQuedoViejoYLoQueNo(unittest.TestCase):
         self.assertEqual(p["reutiliza"]["paginas_ocr"], 3)
         self.assertEqual(p["recalcula"]["paginas_ocr"], 0)
 
+    def test_no_promete_reutilizar_fojas_que_va_a_releer(self):
+        """
+        La lectura se cuenta por foja pero se EJECUTA por archivo: una sola foja vieja
+        se lleva puesto el archivo entero.
+
+        Si el plan contara «fojas leídas menos fojas viejas», prometería reutilizar las
+        vecinas de la foja vieja, que se releen igual. Es decirle a alguien que no va a
+        esperar un OCR que sí va a esperar, y esta pantalla existe justamente para
+        contestar esa pregunta.
+        """
+        _leer_todo(self.cx)
+        for p in self.cx.execute("SELECT id FROM pagina").fetchall():
+            ac.sellar(self.cx, "lectura", str(p["id"]))
+        # Se ensucia UNA sola de las tres fojas del archivo.
+        una = self.cx.execute("SELECT id FROM pagina ORDER BY nro LIMIT 1").fetchone()
+        self.cx.execute("UPDATE resultado_etapa SET firma='otra' "
+                        "WHERE etapa='lectura' AND alcance_id=?", (str(una["id"]),))
+        self.cx.commit()
+
+        p = ac.plan(self.cx)
+        self.assertEqual(p["reutiliza"]["paginas_ocr"], 0,
+                         "las otras dos fojas son del mismo archivo y se releen igual: "
+                         "no se pueden ofrecer como reutilizadas")
+        self.assertEqual(p["recalcula"]["paginas_ocr"], 3,
+                         "se relee el archivo entero, que son tres fojas, no una")
+
     def test_cambiar_una_etapa_de_arriba_no_toca_el_ocr(self):
         """
         Agregar un extractor tiene que alcanzar a los documentos viejos SIN releerlos.
