@@ -247,6 +247,24 @@ CREATE TABLE IF NOT EXISTS excepcion (
 -- sobrevive a que se vuelva a correr el pipeline: se indexa por el hash del archivo y
 -- el nombre del campo, no por ids que se regeneran. Si mejoramos el perfil de
 -- extracción y reprocesamos el lote, el equipo NO pierde la revisión que ya hizo.
+-- EL ANCLAJE, y por qué `orden` no alcanza.
+--
+-- `orden` es la posición de la pieza adentro del archivo: 1ª, 2ª, 3ª. Se recalcula en
+-- cada reproceso contando los tramos que salieron de la clasificación. Eso significa
+-- que NO identifica a la pieza: identifica a un lugar en una fila que se rearma.
+--
+-- El día que el sistema aprende un tipo documental nuevo, una foja que antes era
+-- `continuacion` pasa a ser una pieza propia, todas las de atrás se corren un lugar, y
+-- la corrección que una persona hizo sobre la 2ª pieza se reaplica sobre otra. Con
+-- estado `corregido` y confianza 1,0, o sea entrando como firme en los totales. Está
+-- reproducido en pruebas/test_actualizacion.py.
+--
+-- Por eso se guarda además DÓNDE estaba lo que la persona miró: la foja y el recuadro
+-- del campo, y el tramo de la pieza en ese momento. La foja es el ancla fuerte —las
+-- páginas de un PDF no se mueven— y el recuadro desempata cuando hay varias piezas en
+-- la misma foja. Cuando el anclaje no alcanza para decidir, la revisión NO se aplica:
+-- queda marcada `requiere_reasociacion` y la mira una persona. Perder trabajo humano es
+-- malo; aplicarlo al documento equivocado en silencio es peor.
 CREATE TABLE IF NOT EXISTS revision_humana (
   sha256 TEXT NOT NULL,
   orden  INTEGER NOT NULL DEFAULT 1,
@@ -255,8 +273,54 @@ CREATE TABLE IF NOT EXISTS revision_humana (
   valor  TEXT,
   quien  TEXT NOT NULL,
   cuando TEXT NOT NULL,
+  -- Anclaje estable. Nulo en las filas anteriores a que esto existiera: ver
+  -- `_anclar_revisiones_viejas` en ufil/db.py, que las completa con lo que haya.
+  ancla_pagina INTEGER,              -- foja donde estaba el campo que se revisó
+  ancla_x0 REAL, ancla_y0 REAL, ancla_x1 REAL, ancla_y1 REAL,
+  ancla_desde  INTEGER,              -- tramo de la pieza en el momento de revisar
+  ancla_hasta  INTEGER,
+  ancla_tipo   TEXT,                 -- qué era la pieza cuando se la revisó
+  estado TEXT NOT NULL DEFAULT 'vigente',   -- vigente | requiere_reasociacion
+  motivo TEXT,                       -- por qué necesita que alguien la mire
   PRIMARY KEY (sha256, orden, campo)
 );
+CREATE INDEX IF NOT EXISTS ix_revision_ancla ON revision_humana(sha256, ancla_pagina);
+
+-- ────────────────────────────── QUÉ ETAPA PRODUJO ESTO, Y SI SIGUE VIGENTE ──
+-- El acervo se carga durante años y el sistema aprende cosas nuevas en el medio. Cuando
+-- eso pasa, lo ya cargado tiene que poder aprovecharlas SIN volver a subirlo y sin
+-- volver a leerlo entero.
+--
+-- Para eso hay que poder contestar una pregunta que antes no se podía: «esto que está
+-- guardado, ¿lo produjo el algoritmo que tengo ahora?». Hasta acá la respuesta salía de
+-- mirar si existía una fila, y eso contesta otra cosa: que ALGUNA vez se procesó. Con
+-- ese criterio, mejorar el OCR no vuelve a leer nada y agregar un extractor no alcanza
+-- a lo viejo, porque la fila ya está.
+--
+-- Acá queda el SELLO de cada resultado: qué etapa, con qué versión de algoritmo y con
+-- qué configuración. Un resultado cuyo sello no es el vigente está viejo, y se sabe sin
+-- adivinarlo. Ver ufil/versiones.py.
+--
+-- `alcance_id` es texto a propósito: según la etapa es un SHA-256, el id de una página o
+-- el de un documento, y una sola tabla para todas es lo que permite preguntar «qué
+-- quedó viejo» de una vez en lugar de recorrer diez tablas distintas.
+CREATE TABLE IF NOT EXISTS resultado_etapa (
+  etapa      TEXT NOT NULL,
+  alcance    TEXT NOT NULL,          -- archivo | pagina | documento | legajo
+  alcance_id TEXT NOT NULL,          -- sha256 | pagina.id | documento.id | '' (legajo)
+  version    INTEGER NOT NULL,       -- versión del algoritmo que lo produjo
+  firma      TEXT NOT NULL,          -- huella de la configuración que lo produjo
+  estado     TEXT NOT NULL,          -- pendiente|corriendo|parcial|terminado|
+                                     -- desactualizado|fallido|detenido
+  cuando     TEXT NOT NULL,
+  -- `heredado` cuando el resultado ya estaba en la base antes de que existiera el
+  -- sellado y se lo adoptó en vez de recalcularlo. Es distinto de haber comprobado que
+  -- coincide, y la interfaz tiene que poder decir cuál de las dos cosas es.
+  origen     TEXT,
+  detalle    TEXT,
+  PRIMARY KEY (etapa, alcance, alcance_id)
+);
+CREATE INDEX IF NOT EXISTS ix_resultado_etapa ON resultado_etapa(etapa, estado);
 
 -- ───────────────────────────────── CAPA 3: NORMALIZACIÓN E IDENTIDAD (APARTE) ──
 -- No pisa el literal. Es una tabla satélite, auditable y reversible sin volver

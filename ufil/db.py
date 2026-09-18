@@ -11,7 +11,7 @@ from . import clasificacion as cl
 # Se sube cuando cambia `esquema.sql`. Sirve para no reejecutar el script en cada
 # conexión: con el servidor multihilo y el trabajador de fondo, dos conexiones que
 # corrían el esquema a la vez chocaban al recrear la vista `v_contrato`.
-ESQUEMA_VERSION = 16
+ESQUEMA_VERSION = 17
 
 _candado = threading.Lock()
 
@@ -46,6 +46,7 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
         if _agregar_columnas_faltantes(cx):
             cx.commit()
         _migrar_estados(cx)
+        _anclar_revisiones_viejas(cx)
     if not forzar and cx.execute("PRAGMA user_version").fetchone()[0] == ESQUEMA_VERSION:
         return False
     with _candado:
@@ -70,6 +71,19 @@ COLUMNAS_AGREGADAS = (
     ("campo", "motivo_auto", "TEXT"),
     ("campo", "conf_auto", "REAL"),
     ("campo", "ruta_auto", "TEXT"),
+    # El anclaje estable de una revisión humana. Ver el comentario de `revision_humana`
+    # en esquema.sql: sin esto, una resegmentación puede dejar una corrección aplicada
+    # sobre otra pieza.
+    ("revision_humana", "ancla_pagina", "INTEGER"),
+    ("revision_humana", "ancla_x0", "REAL"),
+    ("revision_humana", "ancla_y0", "REAL"),
+    ("revision_humana", "ancla_x1", "REAL"),
+    ("revision_humana", "ancla_y1", "REAL"),
+    ("revision_humana", "ancla_desde", "INTEGER"),
+    ("revision_humana", "ancla_hasta", "INTEGER"),
+    ("revision_humana", "ancla_tipo", "TEXT"),
+    ("revision_humana", "estado", "TEXT NOT NULL DEFAULT 'vigente'"),
+    ("revision_humana", "motivo", "TEXT"),
 )
 
 
@@ -103,6 +117,72 @@ def _migrar_estados(cx: sqlite3.Connection) -> int:
         cx.execute(f"UPDATE campo SET estado=? WHERE estado=? AND {cond}", (nuevo, viejo))
     cx.commit()
     return quedan
+
+
+def _anclar_revisiones_viejas(cx: sqlite3.Connection) -> int:
+    """
+    Le pone anclaje a las revisiones humanas que se hicieron antes de que el anclaje
+    existiera. Devuelve cuántas quedaron ancladas.
+
+    Se hace ACÁ, en la migración, y no más tarde, por una razón que importa: en este
+    momento la base todavía no se resegmentó, así que la pieza que hoy ocupa el `orden`
+    N es la misma que la persona miró cuando revisó. Es la última oportunidad de
+    aprender dónde estaba ese campo sin tener que adivinarlo.
+
+    Si se dejara para después del primer reproceso, el `orden` ya podría apuntar a otra
+    pieza y el anclaje se aprendería mal, que es exactamente el defecto que viene a
+    cerrar. Ver el comentario de `revision_humana` en esquema.sql.
+
+    Lo que no se puede anclar —la pieza ya no está, el campo se llama de otra forma—
+    queda con el ancla en nulo y sin marcar: no se inventa una foja. Esas se resuelven
+    por el camino de siempre, y si la segmentación cambia se las marca para que las
+    mire una persona en lugar de aplicarlas a ciegas.
+    """
+    try:
+        cols = {r[1] for r in cx.execute("PRAGMA table_info(revision_humana)")}
+    except sqlite3.OperationalError:
+        return 0
+    if not cols or "ancla_pagina" not in cols:
+        return 0
+    pendientes = cx.execute(
+        "SELECT COUNT(*) FROM revision_humana WHERE ancla_pagina IS NULL").fetchone()[0]
+    if not pendientes:
+        return 0
+    n = cx.execute("""
+        UPDATE revision_humana AS r
+           SET ancla_pagina = (SELECT c.pagina_nro FROM campo c
+                                 JOIN documento d ON d.id = c.documento_id
+                                WHERE d.sha256 = r.sha256 AND d.orden = r.orden
+                                  AND c.nombre = r.campo),
+               ancla_x0     = (SELECT c.x0 FROM campo c
+                                 JOIN documento d ON d.id = c.documento_id
+                                WHERE d.sha256 = r.sha256 AND d.orden = r.orden
+                                  AND c.nombre = r.campo),
+               ancla_y0     = (SELECT c.y0 FROM campo c
+                                 JOIN documento d ON d.id = c.documento_id
+                                WHERE d.sha256 = r.sha256 AND d.orden = r.orden
+                                  AND c.nombre = r.campo),
+               ancla_x1     = (SELECT c.x1 FROM campo c
+                                 JOIN documento d ON d.id = c.documento_id
+                                WHERE d.sha256 = r.sha256 AND d.orden = r.orden
+                                  AND c.nombre = r.campo),
+               ancla_y1     = (SELECT c.y1 FROM campo c
+                                 JOIN documento d ON d.id = c.documento_id
+                                WHERE d.sha256 = r.sha256 AND d.orden = r.orden
+                                  AND c.nombre = r.campo),
+               ancla_desde  = (SELECT d.pagina_desde FROM documento d
+                                WHERE d.sha256 = r.sha256 AND d.orden = r.orden),
+               ancla_hasta  = (SELECT d.pagina_hasta FROM documento d
+                                WHERE d.sha256 = r.sha256 AND d.orden = r.orden),
+               ancla_tipo   = (SELECT d.tipo FROM documento d
+                                WHERE d.sha256 = r.sha256 AND d.orden = r.orden)
+         WHERE r.ancla_pagina IS NULL
+           AND EXISTS (SELECT 1 FROM campo c
+                         JOIN documento d ON d.id = c.documento_id
+                        WHERE d.sha256 = r.sha256 AND d.orden = r.orden
+                          AND c.nombre = r.campo)""").rowcount
+    cx.commit()
+    return n
 
 
 def _agregar_columnas_faltantes(cx: sqlite3.Connection) -> list[str]:

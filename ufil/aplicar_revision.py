@@ -221,12 +221,36 @@ def aplicar(cx: sqlite3.Connection, campo_id: int, accion: str, valor, quien: st
                    (c["documento_id"],)).fetchone()
 
     if registrar and accion != "revertir":
-        cx.execute("""INSERT INTO revision_humana (sha256,orden,campo,accion,valor,quien,cuando)
-                      VALUES (?,?,?,?,?,?,?)
+        # Se guarda DÓNDE estaba lo que la persona miró, no sólo qué decidió.
+        #
+        # `orden` es la posición de la pieza adentro del archivo y se recalcula en cada
+        # reproceso: no identifica a la pieza, identifica a un lugar en una fila que se
+        # rearma. El día que el sistema aprenda un tipo documental nuevo, las piezas de
+        # atrás se corren un lugar y esta corrección se reaplicaría sobre otra. La foja
+        # y el recuadro no se mueven, así que son el anclaje que sí aguanta. Ver
+        # `reaplicar_revisiones` en ufil/capa2_extraccion.py.
+        act = cx.execute("SELECT * FROM campo WHERE id=?", (campo_id,)).fetchone()
+        pieza = cx.execute("""SELECT pagina_desde, pagina_hasta, tipo FROM documento
+                               WHERE id=?""", (c["documento_id"],)).fetchone()
+        cx.execute("""INSERT INTO revision_humana
+                        (sha256,orden,campo,accion,valor,quien,cuando,
+                         ancla_pagina,ancla_x0,ancla_y0,ancla_x1,ancla_y1,
+                         ancla_desde,ancla_hasta,ancla_tipo,estado,motivo)
+                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'vigente',NULL)
                       ON CONFLICT(sha256,orden,campo) DO UPDATE SET accion=excluded.accion,
-                          valor=excluded.valor, quien=excluded.quien, cuando=excluded.cuando""",
+                          valor=excluded.valor, quien=excluded.quien, cuando=excluded.cuando,
+                          ancla_pagina=excluded.ancla_pagina,
+                          ancla_x0=excluded.ancla_x0, ancla_y0=excluded.ancla_y0,
+                          ancla_x1=excluded.ancla_x1, ancla_y1=excluded.ancla_y1,
+                          ancla_desde=excluded.ancla_desde, ancla_hasta=excluded.ancla_hasta,
+                          ancla_tipo=excluded.ancla_tipo,
+                          estado='vigente', motivo=NULL""",
                    (d["sha256"], d["orden"], c["nombre"], accion,
-                    str(valor) if valor is not None else None, quien, ahora()))
+                    str(valor) if valor is not None else None, quien, ahora(),
+                    act["pagina_nro"], act["x0"], act["y0"], act["x1"], act["y1"],
+                    pieza["pagina_desde"] if pieza else None,
+                    pieza["pagina_hasta"] if pieza else None,
+                    pieza["tipo"] if pieza else None))
 
     estado_final = _auditar(cx, campo_id, c, d, accion, valor_previo, motivo_previo,
                             estado_previo, observacion, quien)

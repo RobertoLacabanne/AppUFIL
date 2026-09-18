@@ -699,13 +699,25 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
                     "ninguna página se reconoció como formulario conocido; probados: "
                     + ", ".join(pf["nombre"] for pf in perfiles), ahora()))
         cx.commit()
+        # Se sale ANTES de borrar los documentos que ya había: un archivo que esta
+        # corrida no supo reconocer no puede llevarse puesto lo que otra sí reconoció,
+        # ni las revisiones que cuelgan de eso.
         return {"documentos": 0, "campos": 0, "conflictos": 0, "a_revisar": 0,
-                "sin_perfil": 1, "revisiones_reaplicadas": 0}
+                "sin_perfil": 1, "revisiones_reaplicadas": 0,
+                "revisiones_a_reasociar": 0}
 
     # Render de las páginas, para la relectura focalizada.
     por_pagina = {r["nro"]: (Path(r["render"]), r["render_escala"] or config.ESCALA_RENDER)
                   for r in cx.execute("""SELECT nro, render, render_escala FROM pagina
                                           WHERE sha256=? AND render IS NOT NULL""", (sha,))}
+
+    # Cómo estaba repartido este archivo en piezas ANTES de resegmentar. Es la única
+    # oportunidad de saberlo: en dos líneas más se borra. Sirve para las revisiones
+    # anteriores al anclaje, que sólo se pueden reaplicar por posición si la pieza que
+    # ocupa esa posición quedó igual. Ver `reaplicar_revisiones`.
+    layout_viejo = {f["orden"]: (f["pagina_desde"], f["pagina_hasta"], f["tipo"])
+                    for f in cx.execute("""SELECT orden, pagina_desde, pagina_hasta, tipo
+                                             FROM documento WHERE sha256=?""", (sha,))}
 
     # Borrar lo anterior de ESTE archivo, en orden de dependencias.
     viejos = [f["id"] for f in cx.execute("SELECT id FROM documento WHERE sha256=?", (sha,))]
@@ -723,7 +735,8 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
     cx.execute("DELETE FROM documento WHERE sha256=?", (sha,))
 
     total = {"documentos": 0, "campos": 0, "conflictos": 0, "a_revisar": 0,
-             "sin_perfil": 0, "revisiones_reaplicadas": 0}
+             "sin_perfil": 0, "revisiones_reaplicadas": 0, "revisiones_a_reasociar": 0}
+    piezas: list[dict] = []
     for i, (desde, hasta) in enumerate(tramos, start=1):
         recorte = {ruta: [(n, l, w) for n, l, w in pgs if desde <= n <= hasta]
                    for ruta, pgs in por_ruta.items()}
@@ -768,12 +781,21 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
             (sha, i, desde, hasta, perfil["tipo"], perfil["nombre"], camara)).lastrowid
 
         r = _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina)
-        rehechas = reaplicar_revisiones(cx, doc_id, sha, i)
+        piezas.append({"id": doc_id, "orden": i, "pagina_desde": desde,
+                       "pagina_hasta": hasta, "tipo": perfil["tipo"]})
         total["documentos"] += 1
         for k in ("campos", "conflictos"):
             total[k] += r[k]
-        total["a_revisar"] += max(0, r["a_revisar"] - rehechas)
-        total["revisiones_reaplicadas"] += rehechas
+        total["a_revisar"] += r["a_revisar"]
+
+    # Recién ACÁ, con todas las piezas del archivo ya creadas. Antes se reaplicaba pieza
+    # por pieza, apenas se creaba cada una, y así no hay forma de darse cuenta de que dos
+    # revisiones caen en la misma o de que una quedó sin dueño: hay que ver el archivo
+    # entero para poder decir «esto no se puede decidir solo».
+    rev = reaplicar_revisiones(cx, sha, piezas, layout_viejo)
+    total["revisiones_reaplicadas"] = rev["reaplicadas"]
+    total["revisiones_a_reasociar"] = rev["a_reasociar"]
+    total["a_revisar"] = max(0, total["a_revisar"] - rev["reaplicadas"])
 
     if len(tramos) > 1:
         cx.execute("""INSERT INTO excepcion (sha256, clase, detalle, creado_en)
@@ -785,24 +807,175 @@ def extraer_documento(cx: sqlite3.Connection, sha: str,
     return total
 
 
-def reaplicar_revisiones(cx: sqlite3.Connection, doc_id: int, sha: str,
-                        orden: int = 1) -> int:
+def _solapan(a, b) -> float:
+    """Cuánto se pisan dos recuadros, de 0 a 1 sobre el más chico. Sin caja, 0."""
+    if not a or not b or any(v is None for v in a) or any(v is None for v in b):
+        return 0.0
+    ax0, ay0, ax1, ay1 = a
+    bx0, by0, bx1, by1 = b
+    ancho = min(ax1, bx1) - max(ax0, bx0)
+    alto = min(ay1, by1) - max(ay0, by0)
+    if ancho <= 0 or alto <= 0:
+        return 0.0
+    menor = min((ax1 - ax0) * (ay1 - ay0), (bx1 - bx0) * (by1 - by0))
+    return (ancho * alto) / menor if menor > 0 else 0.0
+
+
+def _marcar_para_reasociar(cx, sha: str, orden: int, campo: str, motivo: str) -> None:
+    cx.execute("""UPDATE revision_humana SET estado='requiere_reasociacion', motivo=?
+                   WHERE sha256=? AND orden=? AND campo=?""", (motivo, sha, orden, campo))
+
+
+def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list,
+                         layout_viejo: dict | None = None) -> dict:
     """
-    Vuelve a aplicar lo que una persona ya decidió sobre este documento en una corrida
-    anterior. Sin esto, mejorar el perfil de extracción y reprocesar el lote le borraría
-    al equipo todo el trabajo de revisión, que es exactamente lo que no puede pasar.
+    Vuelve a aplicar lo que las personas ya decidieron sobre las piezas de este archivo.
+
+    Por qué no alcanza con `orden`
+    ------------------------------
+    `orden` es la posición de la pieza adentro del archivo —1ª, 2ª, 3ª— y se recalcula
+    en cada reproceso contando los tramos que salieron de la clasificación. O sea que NO
+    identifica a la pieza: identifica a un lugar en una fila que se rearma.
+
+    Cuando el sistema aprende un tipo documental nuevo —que es exactamente lo que este
+    incremento existe para permitir— una foja que antes era `continuacion` pasa a ser
+    una pieza propia, todas las de atrás se corren un lugar, y la corrección que alguien
+    hizo sobre la 2ª pieza se reaplica sobre otra. Con estado `corregido` y confianza
+    1,0: entrando como firme en los totales. Está reproducido en
+    pruebas/test_actualizacion.py.
+
+    Qué se usa en su lugar
+    ----------------------
+    La foja y el recuadro donde estaba el campo que la persona miró. Las páginas de un
+    PDF no se mueven, así que la foja aguanta la resegmentación; el recuadro desempata
+    cuando dos piezas comparten foja.
+
+    Y cuando no alcanza para decidir, **no se aplica**: la revisión queda marcada
+    `requiere_reasociacion` y la mira una persona. Perder trabajo humano es malo;
+    aplicarlo en silencio al documento equivocado es peor.
+
+    `layout_viejo` es `{orden: (desde, hasta, tipo)}` de ANTES de resegmentar. Sirve
+    para las revisiones viejas que no tienen anclaje: si su pieza quedó igual, se las
+    puede seguir aplicando por posición sin riesgo; si cambió, no.
     """
     from .aplicar_revision import aplicar
-    n = 0
-    for r in cx.execute("SELECT * FROM revision_humana WHERE sha256=? AND orden=?",
-                        (sha, orden)).fetchall():
-        c = cx.execute("SELECT id FROM campo WHERE documento_id=? AND nombre=?",
-                       (doc_id, r["campo"])).fetchone()
-        if not c:
+    layout_viejo = layout_viejo or {}
+    resultado = {"reaplicadas": 0, "a_reasociar": 0}
+
+    revisiones = cx.execute("SELECT * FROM revision_humana WHERE sha256=?",
+                            (sha,)).fetchall()
+    if not revisiones:
+        return resultado
+
+    # Los campos que existen ahora, por pieza. Una sola consulta.
+    campos: dict[int, dict] = {}
+    for c in cx.execute("""SELECT c.id, c.documento_id, c.nombre, c.pagina_nro,
+                                  c.x0, c.y0, c.x1, c.y1
+                             FROM campo c JOIN documento d ON d.id = c.documento_id
+                            WHERE d.sha256=?""", (sha,)):
+        campos.setdefault(c["documento_id"], {})[c["nombre"]] = c
+
+    por_orden = {p["orden"]: p for p in piezas}
+    destinos: dict[tuple, int] = {}          # (orden_nuevo, campo) -> campo_id
+
+    for r in revisiones:
+        nombre = r["campo"]
+        ancla = (r["ancla_x0"], r["ancla_y0"], r["ancla_x1"], r["ancla_y1"])
+
+        if r["ancla_pagina"] is None:
+            # Revisión anterior al anclaje. Sólo se puede aplicar por posición si la
+            # pieza que ocupa ese lugar es LA MISMA que antes.
+            vieja = layout_viejo.get(r["orden"])
+            p = por_orden.get(r["orden"])
+            igual = (p is not None and vieja is not None
+                     and (p["pagina_desde"], p["pagina_hasta"], p["tipo"]) == vieja)
+            if not igual:
+                _marcar_para_reasociar(
+                    cx, sha, r["orden"], nombre,
+                    "es una revisión anterior al anclaje y la pieza que ocupaba ese "
+                    "lugar cambió al resegmentar")
+                resultado["a_reasociar"] += 1
+                continue
+            candidatas = [p]
+        else:
+            # Las piezas que contienen la foja que la persona miró.
+            candidatas = [p for p in piezas
+                          if (p["pagina_desde"] or 0) <= r["ancla_pagina"]
+                          <= (p["pagina_hasta"] or p["pagina_desde"] or 0)]
+
+        # De ésas, las que tienen este campo.
+        candidatas = [p for p in candidatas if nombre in campos.get(p["id"], {})]
+
+        if not candidatas:
+            _marcar_para_reasociar(
+                cx, sha, r["orden"], nombre,
+                f"ninguna pieza de este archivo tiene hoy el campo «{nombre}» en la "
+                f"foja {r['ancla_pagina']}" if r["ancla_pagina"] else
+                f"ninguna pieza de este archivo tiene hoy el campo «{nombre}»")
+            resultado["a_reasociar"] += 1
             continue
+
+        if len(candidatas) > 1:
+            # Varias piezas en la misma foja: desempata el recuadro. Si tampoco
+            # desempata, no se elige por nosotros.
+            puntuadas = sorted(
+                candidatas,
+                key=lambda p: _solapan(ancla, (campos[p["id"]][nombre]["x0"],
+                                               campos[p["id"]][nombre]["y0"],
+                                               campos[p["id"]][nombre]["x1"],
+                                               campos[p["id"]][nombre]["y1"])),
+                reverse=True)
+            mejor = _solapan(ancla, (campos[puntuadas[0]["id"]][nombre]["x0"],
+                                     campos[puntuadas[0]["id"]][nombre]["y0"],
+                                     campos[puntuadas[0]["id"]][nombre]["x1"],
+                                     campos[puntuadas[0]["id"]][nombre]["y1"]))
+            if mejor <= 0:
+                _marcar_para_reasociar(
+                    cx, sha, r["orden"], nombre,
+                    f"la foja {r['ancla_pagina']} quedó repartida entre "
+                    f"{len(candidatas)} piezas y el recuadro no alcanza para saber a "
+                    f"cuál corresponde")
+                resultado["a_reasociar"] += 1
+                continue
+            candidatas = [puntuadas[0]]
+
+        pieza = candidatas[0]
+        campo = campos[pieza["id"]][nombre]
+        clave = (pieza["orden"], nombre)
+        if clave in destinos:
+            # Dos revisiones distintas apuntan a la misma pieza y al mismo campo: la
+            # resegmentación fusionó lo que antes eran dos piezas. No se elige.
+            _marcar_para_reasociar(
+                cx, sha, r["orden"], nombre,
+                "al resegmentar, dos revisiones distintas quedaron apuntando al mismo "
+                "campo de la misma pieza")
+            resultado["a_reasociar"] += 1
+            continue
+
         try:
-            aplicar(cx, c["id"], r["accion"], r["valor"], r["quien"], registrar=False)
-            n += 1
-        except Exception:
-            pass          # el campo cambió de forma; queda para revisar de nuevo
-    return n
+            aplicar(cx, campo["id"], r["accion"], r["valor"], r["quien"], registrar=False)
+        except Exception as e:
+            _marcar_para_reasociar(
+                cx, sha, r["orden"], nombre,
+                f"el campo cambió de forma y la decisión ya no se puede aplicar: {e}")
+            resultado["a_reasociar"] += 1
+            continue
+
+        destinos[clave] = campo["id"]
+        resultado["reaplicadas"] += 1
+        # La revisión se muda a la pieza que le corresponde ahora, y aprende dónde
+        # está: la próxima vez el anclaje va a ser más preciso todavía.
+        if pieza["orden"] != r["orden"]:
+            cx.execute("""DELETE FROM revision_humana
+                           WHERE sha256=? AND orden=? AND campo=?""",
+                       (sha, pieza["orden"], nombre))
+        cx.execute("""UPDATE revision_humana
+                         SET orden=?, ancla_pagina=?, ancla_x0=?, ancla_y0=?,
+                             ancla_x1=?, ancla_y1=?, ancla_desde=?, ancla_hasta=?,
+                             ancla_tipo=?, estado='vigente', motivo=NULL
+                       WHERE sha256=? AND orden=? AND campo=?""",
+                   (pieza["orden"], campo["pagina_nro"], campo["x0"], campo["y0"],
+                    campo["x1"], campo["y1"], pieza["pagina_desde"],
+                    pieza["pagina_hasta"], pieza["tipo"], sha, r["orden"], nombre))
+
+    return resultado

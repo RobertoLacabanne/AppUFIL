@@ -25,6 +25,31 @@ from . import busqueda
 from . import capa5_interpretacion as c5
 
 
+def _mensaje_actualizacion(r: dict) -> str:
+    """
+    Lo que se le dice a una persona cuando terminó de actualizar.
+
+    Lo primero es lo que NO se hizo: el OCR reutilizado. Es la respuesta a la única
+    pregunta que se hace alguien antes de apretar el botón —«¿me va a hacer esperar
+    dos horas otra vez?»— y después de apretarlo es la que confirma que no.
+    """
+    partes = []
+    if r.get("reutilizado_paginas_ocr"):
+        partes.append(f"{r['reutilizado_paginas_ocr']} fojas ya leídas se reutilizaron "
+                      f"(no se volvió a pasar el OCR)")
+    if r.get("lectura_paginas"):
+        partes.append(f"{r['lectura_paginas']} fojas se volvieron a leer")
+    if r.get("archivos"):
+        partes.append(f"{r['archivos']} archivos revisados de nuevo")
+    if r.get("revisiones_reaplicadas"):
+        partes.append(f"{r['revisiones_reaplicadas']} revisiones de personas se "
+                      f"conservaron")
+    if r.get("revisiones_a_reasociar"):
+        partes.append(f"{r['revisiones_a_reasociar']} necesitan que alguien diga a qué "
+                      f"documento corresponden")
+    return " · ".join(partes) if partes else "no había nada para actualizar"
+
+
 @dataclass
 class Estado:
     estado: str = "inactivo"          # inactivo | corriendo | terminado | detenido | error
@@ -84,6 +109,70 @@ class Procesador:
         with self._lock:
             self.estado.mensaje = "parando… se termina la página que está en curso"
         return {"ok": True}
+
+    def actualizar(self, forzar=(), perfil: str = "auto", con_vlm: bool = False) -> dict:
+        """
+        Aplica al material ya cargado lo que el sistema aprendió después de cargarlo.
+
+        Es la otra puerta al mismo trabajador: `arrancar` procesa lo que falta, esto
+        rehace lo que quedó viejo. La diferencia no es de grado. `arrancar` decide qué
+        hacer mirando si existe una fila; esto lo decide comparando con qué versión y
+        con qué configuración se produjo cada resultado, así que puede reutilizar el
+        OCR —lo caro— y rehacer solamente las capas de arriba.
+
+        El estado que publica es el mismo de siempre, así que la barra de progreso y
+        `/api/trabajo` no cambian.
+        """
+        with self._lock:
+            if self.ocupado():
+                return {"ok": False, "motivo": "ya hay un procesamiento en curso"}
+            self._parar.clear()
+            self.estado = Estado(estado="corriendo", etapa="mirando qué quedó viejo",
+                                 inicio=time.time(), mensaje="")
+            self._hilo = threading.Thread(target=self._correr_actualizacion,
+                                          args=(tuple(forzar or ()), perfil, con_vlm),
+                                          daemon=True)
+            self._hilo.start()
+        return {"ok": True}
+
+    def _correr_actualizacion(self, forzar: tuple, perfil: str, con_vlm: bool) -> None:
+        config.activar_legajo(self.legajo)
+        cx = db.abrir(self.ruta_base)
+        try:
+            from . import actualizacion as ac
+
+            def avance(hechas, total):
+                with self._lock:
+                    self.estado.hecho = hechas
+                    self.estado.total = total
+
+            r = ac.aplicar(cx, forzar=forzar, perfil=perfil, con_vlm=con_vlm,
+                           avance=avance, seguir=lambda: not self._parar.is_set(),
+                           fase=self._fase)
+            for e in r.get("errores", []):
+                with self._lock:
+                    self.estado.errores.append(e)
+            with self._lock:
+                if r.get("cortado"):
+                    self.estado.estado = "detenido"
+                    self.estado.etapa = "parado"
+                    self.estado.mensaje = (
+                        "Lo paraste. Lo que ya se actualizó quedó guardado: al volver a "
+                        "actualizar, retoma donde iba y no repite nada.")
+                else:
+                    self.estado.estado = "terminado"
+                    self.estado.etapa = "listo"
+                    self.estado.mensaje = _mensaje_actualizacion(r)
+                self.estado.fin = time.time()
+                self.estado.resumen = r
+        except Exception as e:
+            traceback.print_exc()
+            with self._lock:
+                self.estado.estado = "error"
+                self.estado.fin = time.time()
+                self.estado.mensaje = f"{type(e).__name__}: {e}"
+        finally:
+            cx.close()
 
     def arrancar(self, perfil: str = "auto", con_vlm: bool = False) -> dict:
         with self._lock:
