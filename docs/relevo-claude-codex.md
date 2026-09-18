@@ -285,3 +285,25 @@ la vez**, y verificar que la anterior terminó antes de lanzar la siguiente.
 conserva la identidad de la pieza y la clasificación, y la corrección humana sobrevive
 (`$999.888,77 · corregido · perez.ana`, 1 reaplicada, 0 a reasociar). El pipeline
 completo da lo mismo que antes del corte: 6 documentos, 36 campos, 1 conflicto.
+
+---
+
+## Incremento 3 — FASE 3 (núcleo documental) y FASE 4 (foliatura)
+
+| | Claude | Codex |
+|---|---|---|
+| Ramas | `claude/fase3-nucleo-documental`, `claude/fase4-foliatura` | `codex/fase3-interfaz` |
+| Qué hizo | identidad estable de pieza (`clave`), piezas sin reconocer como ciudadanas de primera clase, conjunto documental, continuidad entre PDF, foliatura visible con detección conservadora; 24 pruebas | endpoints y pantallas de piezas sin reconocer, tramos y conjuntos; 10 pruebas |
+
+**Integración:** tres ramas en `claude/prompt-maestro-documental-dwhk59`, sin conflictos.
+**Suite combinada:** `602 tests · 1 failure · 14 errors · 1 skipped` — la base de referencia.
+
+**Revisión cruzada (de Claude sobre Codex):** los cinco endpoints contestan sobre corpus
+real; un tipo documental inventado da 400 con el mensaje correcto; el catálogo de tipos
+sale del backend (19) y no del JavaScript; las partes del conjunto salen en orden. Sin
+hallazgos.
+
+**Codex agotó su cuota** a los 5 m 57 s, con los endpoints, las pantallas y las diez
+pruebas ya escritas pero sin poder commitear ni informar. Claude verificó el trabajo
+(las diez pruebas pasan), lo commiteó en su rama y siguió con la FASE 4. Se retoma a
+Codex en el próximo incremento.
