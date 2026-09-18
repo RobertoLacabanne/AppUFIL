@@ -1370,6 +1370,33 @@ class Manejador(BaseHTTPRequestHandler):
                         return self._json({"conjuntos": conjuntos.listar(cx)})
                     if ruta == "/api/conjunto":
                         return self._json(conjuntos.ver(cx, int(q["id"][0])))
+                    # ── Las tablas del documento y la línea de tiempo ──
+                    # Los dos carriles nuevos, expuestos para que la interfaz pueda
+                    # consumirlos. Van acá y no en un módulo aparte por la misma razón
+                    # que el resto: este archivo es el único despachador que hay.
+                    if ruta == "/api/tablas":
+                        from . import tablas as tb
+                        return self._json({"tablas": tb.de_archivo(cx, q["sha"][0])})
+                    if ruta == "/api/tabla":
+                        from . import tablas as tb
+                        return self._json(tb.ver(cx, int(q["id"][0])))
+                    if ruta == "/api/tabla/renglones":
+                        from . import tablas as tb
+                        return self._json({"renglones": tb.renglones(cx, int(q["id"][0]))})
+                    if ruta == "/api/cronologia":
+                        from . import cronologia as cr
+                        return self._json({
+                            "clases": [{"clave": c, "que_es": cr.ETIQUETAS[c]}
+                                       for c in cr.CLASES],
+                            "linea": cr.linea(
+                                cx, desde=(q.get("desde") or [None])[0],
+                                hasta=(q.get("hasta") or [None])[0],
+                                clases=tuple(x for x in (q.get("clase") or []) if x)),
+                            "desordenes": cr.desordenes(cx)})
+                    if ruta == "/api/foliatura":
+                        from . import foliatura as fol
+                        return self._json({"fojas": fol.de_archivo(cx, q["sha"][0]),
+                                           "saltos": fol.saltos(cx, q["sha"][0])})
                     if ruta == "/api/actualizacion":
                         from . import actualizacion
                         return self._json(actualizacion.plan(cx))
