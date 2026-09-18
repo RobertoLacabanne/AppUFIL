@@ -171,6 +171,51 @@ class UnaCorreccionNoSeMudaDeDocumento(unittest.TestCase):
         self.assertEqual(pendiente[0]["quien"], "perez.ana")
         self.assertTrue(pendiente[0]["motivo"], "tiene que decir por qué quedó pendiente")
 
+    def test_dos_revisiones_que_se_corren_de_lugar_no_se_pisan(self):
+        """
+        Cuando aparece una pieza nueva adelante, TODAS las de atrás se corren un lugar.
+
+        La clave de `revision_humana` incluye el `orden`, así que al mudar la primera
+        revisión a su lugar nuevo, ese lugar ya está ocupado por la segunda —que todavía
+        no se miró—. Escribiendo sobre la marcha, esa segunda decisión humana se borra
+        sin que nadie se entere. Las dos tienen que sobrevivir y cada una quedar en la
+        pieza que le corresponde.
+        """
+        _pieza(self.cx, 1, 2, 2, "factura", pagina=2)
+        _pieza(self.cx, 2, 3, 3, "factura", pagina=3)
+        for orden, valor in ((1, "1000"), (2, "2000")):
+            campo = self.cx.execute(
+                """SELECT c.id FROM campo c JOIN documento d ON d.id=c.documento_id
+                    WHERE d.orden=?""", (orden,)).fetchone()["id"]
+            aplicar(self.cx, campo, "corregir", valor, f"revisor{orden}")
+        self.assertEqual(self.cx.execute("SELECT COUNT(*) FROM revision_humana").fetchone()[0], 2)
+
+        # Aparece una pieza en la foja 1: las dos de atrás se corren un lugar.
+        _borrar_piezas(self.cx)
+        viejo = {1: (2, 2, "factura"), 2: (3, 3, "factura")}
+        d1 = _pieza(self.cx, 1, 1, 1, "contrato_obra", pagina=1)
+        d2 = _pieza(self.cx, 2, 2, 2, "factura", pagina=2)
+        d3 = _pieza(self.cx, 3, 3, 3, "factura", pagina=3)
+        piezas = [{"id": d1, "orden": 1, "pagina_desde": 1, "pagina_hasta": 1, "tipo": "contrato_obra"},
+                  {"id": d2, "orden": 2, "pagina_desde": 2, "pagina_hasta": 2, "tipo": "factura"},
+                  {"id": d3, "orden": 3, "pagina_desde": 3, "pagina_hasta": 3, "tipo": "factura"}]
+        r = reaplicar_revisiones(self.cx, SHA, piezas, viejo)
+
+        self.assertEqual(r["reaplicadas"], 2, "las dos revisiones tienen que aplicarse")
+        self.assertEqual(
+            self.cx.execute("SELECT COUNT(*) FROM revision_humana").fetchone()[0], 2,
+            "ninguna de las dos se puede perder al correrse de lugar")
+        foja2 = self.cx.execute(
+            """SELECT c.valor_literal, c.revisado_por FROM campo c
+                 JOIN documento d ON d.id=c.documento_id WHERE d.pagina_desde=2""").fetchone()
+        foja3 = self.cx.execute(
+            """SELECT c.valor_literal, c.revisado_por FROM campo c
+                 JOIN documento d ON d.id=c.documento_id WHERE d.pagina_desde=3""").fetchone()
+        self.assertEqual(foja2["revisado_por"], "revisor1")
+        self.assertIn("1.000", foja2["valor_literal"])
+        self.assertEqual(foja3["revisado_por"], "revisor2")
+        self.assertIn("2.000", foja3["valor_literal"])
+
     def test_una_revision_vieja_sin_anclaje_no_se_aplica_a_ciegas(self):
         """
         Las revisiones hechas antes de que existiera el anclaje se pueden reaplicar por

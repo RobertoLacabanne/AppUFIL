@@ -854,6 +854,13 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list,
     `requiere_reasociacion` y la mira una persona. Perder trabajo humano es malo;
     aplicarlo en silencio al documento equivocado es peor.
 
+    Se hace en dos tiempos —primero se decide todo, después se escribe— y eso no es
+    prolijidad. La clave de `revision_humana` incluye el `orden`, así que mover una
+    revisión a su pieza nueva choca contra la fila que todavía ocupa ese lugar, que
+    puede ser otra revisión que ni siquiera se miró. Escribiendo sobre la marcha, esa
+    otra decisión humana se borra en silencio. Decidiendo primero, las colisiones se
+    ven antes de tocar nada.
+
     `layout_viejo` es `{orden: (desde, hasta, tipo)}` de ANTES de resegmentar. Sirve
     para las revisiones viejas que no tienen anclaje: si su pieza quedó igual, se las
     puede seguir aplicando por posición sin riesgo; si cambió, no.
@@ -876,7 +883,10 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list,
         campos.setdefault(c["documento_id"], {})[c["nombre"]] = c
 
     por_orden = {p["orden"]: p for p in piezas}
-    destinos: dict[tuple, int] = {}          # (orden_nuevo, campo) -> campo_id
+
+    # ── Primer tiempo: decidir, sin escribir nada ─────────────────────────────
+    decisiones: list = []                 # [fila, pieza|None, campo|None, motivo|None]
+    tomados: dict[tuple, int] = {}        # (orden_nuevo, campo) -> índice en decisiones
 
     for r in revisiones:
         nombre = r["campo"]
@@ -890,11 +900,9 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list,
             igual = (p is not None and vieja is not None
                      and (p["pagina_desde"], p["pagina_hasta"], p["tipo"]) == vieja)
             if not igual:
-                _marcar_para_reasociar(
-                    cx, sha, r["orden"], nombre,
-                    "es una revisión anterior al anclaje y la pieza que ocupaba ese "
-                    "lugar cambió al resegmentar")
-                resultado["a_reasociar"] += 1
+                decisiones.append([r, None, None,
+                                   "es una revisión anterior al anclaje y la pieza que "
+                                   "ocupaba ese lugar cambió al resegmentar"])
                 continue
             candidatas = [p]
         else:
@@ -907,75 +915,87 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list,
         candidatas = [p for p in candidatas if nombre in campos.get(p["id"], {})]
 
         if not candidatas:
-            _marcar_para_reasociar(
-                cx, sha, r["orden"], nombre,
-                f"ninguna pieza de este archivo tiene hoy el campo «{nombre}» en la "
-                f"foja {r['ancla_pagina']}" if r["ancla_pagina"] else
-                f"ninguna pieza de este archivo tiene hoy el campo «{nombre}»")
-            resultado["a_reasociar"] += 1
+            donde = (f" en la foja {r['ancla_pagina']}" if r["ancla_pagina"] else "")
+            decisiones.append([r, None, None,
+                               f"ninguna pieza de este archivo tiene hoy el campo "
+                               f"«{nombre}»{donde}"])
             continue
 
         if len(candidatas) > 1:
             # Varias piezas en la misma foja: desempata el recuadro. Si tampoco
             # desempata, no se elige por nosotros.
-            puntuadas = sorted(
-                candidatas,
-                key=lambda p: _solapan(ancla, (campos[p["id"]][nombre]["x0"],
-                                               campos[p["id"]][nombre]["y0"],
-                                               campos[p["id"]][nombre]["x1"],
-                                               campos[p["id"]][nombre]["y1"])),
-                reverse=True)
-            mejor = _solapan(ancla, (campos[puntuadas[0]["id"]][nombre]["x0"],
-                                     campos[puntuadas[0]["id"]][nombre]["y0"],
-                                     campos[puntuadas[0]["id"]][nombre]["x1"],
-                                     campos[puntuadas[0]["id"]][nombre]["y1"]))
-            if mejor <= 0:
-                _marcar_para_reasociar(
-                    cx, sha, r["orden"], nombre,
-                    f"la foja {r['ancla_pagina']} quedó repartida entre "
-                    f"{len(candidatas)} piezas y el recuadro no alcanza para saber a "
-                    f"cuál corresponde")
-                resultado["a_reasociar"] += 1
+            def _cuanto(p, _n=nombre, _a=ancla):
+                c = campos[p["id"]][_n]
+                return _solapan(_a, (c["x0"], c["y0"], c["x1"], c["y1"]))
+
+            candidatas = sorted(candidatas, key=_cuanto, reverse=True)
+            if _cuanto(candidatas[0]) <= 0:
+                decisiones.append([r, None, None,
+                                   f"la foja {r['ancla_pagina']} quedó repartida entre "
+                                   f"{len(candidatas)} piezas y el recuadro no alcanza "
+                                   f"para saber a cuál corresponde"])
                 continue
-            candidatas = [puntuadas[0]]
 
         pieza = candidatas[0]
-        campo = campos[pieza["id"]][nombre]
         clave = (pieza["orden"], nombre)
-        if clave in destinos:
-            # Dos revisiones distintas apuntan a la misma pieza y al mismo campo: la
-            # resegmentación fusionó lo que antes eran dos piezas. No se elige.
-            _marcar_para_reasociar(
-                cx, sha, r["orden"], nombre,
-                "al resegmentar, dos revisiones distintas quedaron apuntando al mismo "
-                "campo de la misma pieza")
-            resultado["a_reasociar"] += 1
+        if clave in tomados:
+            # Dos revisiones distintas apuntan al mismo campo de la misma pieza: la
+            # resegmentación fusionó lo que antes eran dos piezas. No se elige ninguna,
+            # y la que ya se había anotado tampoco queda aplicada por haber llegado
+            # primero.
+            choque = ("al resegmentar, esta revisión y otra quedaron apuntando al "
+                      "mismo campo de la misma pieza")
+            antes = tomados.pop(clave)
+            decisiones[antes][1] = None
+            decisiones[antes][2] = None
+            decisiones[antes][3] = choque
+            decisiones.append([r, None, None, choque])
             continue
 
+        tomados[clave] = len(decisiones)
+        decisiones.append([r, pieza, campos[pieza["id"]][nombre], None])
+
+    # ── Segundo tiempo: aplicar lo que se pudo decidir ────────────────────────
+    for d in decisiones:
+        fila, pieza, campo, _motivo = d
+        if pieza is None:
+            continue
         try:
-            aplicar(cx, campo["id"], r["accion"], r["valor"], r["quien"], registrar=False)
+            aplicar(cx, campo["id"], fila["accion"], fila["valor"], fila["quien"],
+                    registrar=False)
         except Exception as e:
-            _marcar_para_reasociar(
-                cx, sha, r["orden"], nombre,
-                f"el campo cambió de forma y la decisión ya no se puede aplicar: {e}")
-            resultado["a_reasociar"] += 1
-            continue
+            d[1] = d[2] = None
+            d[3] = (f"el campo cambió de forma y la decisión ya no se puede "
+                    f"aplicar: {e}")
 
-        destinos[clave] = campo["id"]
-        resultado["reaplicadas"] += 1
-        # La revisión se muda a la pieza que le corresponde ahora, y aprende dónde
-        # está: la próxima vez el anclaje va a ser más preciso todavía.
-        if pieza["orden"] != r["orden"]:
-            cx.execute("""DELETE FROM revision_humana
-                           WHERE sha256=? AND orden=? AND campo=?""",
-                       (sha, pieza["orden"], nombre))
-        cx.execute("""UPDATE revision_humana
-                         SET orden=?, ancla_pagina=?, ancla_x0=?, ancla_y0=?,
-                             ancla_x1=?, ancla_y1=?, ancla_desde=?, ancla_hasta=?,
-                             ancla_tipo=?, estado='vigente', motivo=NULL
-                       WHERE sha256=? AND orden=? AND campo=?""",
-                   (pieza["orden"], campo["pagina_nro"], campo["x0"], campo["y0"],
-                    campo["x1"], campo["y1"], pieza["pagina_desde"],
-                    pieza["pagina_hasta"], pieza["tipo"], sha, r["orden"], nombre))
+    # ── Y recién ahora se reescriben las filas ────────────────────────────────
+    # Se borran todas las de este archivo y se vuelven a insertar con su posición
+    # nueva. Es la única forma de mover varias a la vez sin que la clave primaria haga
+    # que una pise a otra, y sin que se pierda ninguna en el camino.
+    COLUMNAS = """INSERT INTO revision_humana
+                    (sha256,orden,campo,accion,valor,quien,cuando,
+                     ancla_pagina,ancla_x0,ancla_y0,ancla_x1,ancla_y1,
+                     ancla_desde,ancla_hasta,ancla_tipo,estado,motivo)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+    cx.execute("DELETE FROM revision_humana WHERE sha256=?", (sha,))
+    for fila, pieza, campo, motivo in decisiones:
+        if pieza is None:
+            cx.execute(COLUMNAS,
+                       (sha, fila["orden"], fila["campo"], fila["accion"], fila["valor"],
+                        fila["quien"], fila["cuando"], fila["ancla_pagina"],
+                        fila["ancla_x0"], fila["ancla_y0"], fila["ancla_x1"],
+                        fila["ancla_y1"], fila["ancla_desde"], fila["ancla_hasta"],
+                        fila["ancla_tipo"], "requiere_reasociacion", motivo))
+            resultado["a_reasociar"] += 1
+        else:
+            # Se muda a la pieza que le corresponde ahora, y aprende dónde está: la
+            # próxima vez el anclaje va a ser más preciso todavía.
+            cx.execute(COLUMNAS,
+                       (sha, pieza["orden"], fila["campo"], fila["accion"], fila["valor"],
+                        fila["quien"], fila["cuando"], campo["pagina_nro"],
+                        campo["x0"], campo["y0"], campo["x1"], campo["y1"],
+                        pieza["pagina_desde"], pieza["pagina_hasta"], pieza["tipo"],
+                        "vigente", None))
+            resultado["reaplicadas"] += 1
 
     return resultado
