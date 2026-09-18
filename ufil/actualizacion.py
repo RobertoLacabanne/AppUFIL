@@ -428,10 +428,14 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
              "revisiones_a_reasociar": 0, "reutilizado_paginas_ocr": 0,
              "cortado": False, "errores": []}
 
-    # La ingesta no se rehace: los originales son inmutables y ya están. Se sella lo que
-    # hay, que es lo que convierte a una base vieja en una base que sabe qué tiene.
+    # La ingesta no se rehace: los originales son inmutables, así que volver a ingerirlos
+    # no puede producir nada distinto. Se sella lo que hay —es lo que convierte una base
+    # vieja en una base que sabe qué tiene— pero marcado como HEREDADO, porque eso es lo
+    # que pasó: se adoptó lo que estaba, no se comprobó.
+    sellados = _sellos_guardados(cx, "ingesta")
     for sha, _ in _unidades(cx, "ingesta"):
-        sellar(cx, "ingesta", sha)
+        sellar(cx, "ingesta", sha,
+               origen=None if sha in sellados else vs.HEREDADO)
     cx.commit()
 
     # ── 1. Lectura. Lo caro. Sólo las fojas que de verdad quedaron viejas ──────
