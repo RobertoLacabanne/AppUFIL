@@ -24,7 +24,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import acceso, config, db, legajos
+from . import acceso, config, db, legajos, piezas, conjuntos
 from . import confianza as cf
 from . import capa3_identidad as c3
 from . import capa4_analisis as c4
@@ -1359,6 +1359,17 @@ class Manejador(BaseHTTPRequestHandler):
                               FROM fusion_propuesta f WHERE f.estado='pendiente' ORDER BY f.score DESC""")])
                     if ruta == "/api/interpretaciones":
                         return self._json(api_interpretaciones(cx))
+                    if ruta == "/api/piezas/sin-reconocer":
+                        return self._json({"piezas": piezas.sin_reconocer(cx),
+                                           "tipos": piezas.tipos_posibles()})
+                    if ruta == "/api/pieza/tramos":
+                        return self._json({"tramos": piezas.tramos(cx, int(q["id"][0]))})
+                    if ruta == "/api/pieza/vecino":
+                        return self._json({"vecino": conjuntos.vecino(cx, q["sha256"][0])})
+                    if ruta == "/api/conjuntos":
+                        return self._json({"conjuntos": conjuntos.listar(cx)})
+                    if ruta == "/api/conjunto":
+                        return self._json(conjuntos.ver(cx, int(q["id"][0])))
                     if ruta == "/api/actualizacion":
                         from . import actualizacion
                         return self._json(actualizacion.plan(cx))
@@ -1434,6 +1445,8 @@ class Manejador(BaseHTTPRequestHandler):
         except (KeyError, IndexError):
             return self._json({"error": "Falta un dato en el pedido.",
                                "no_encontrado": True}, 400)
+        except (piezas.NoSePuede, conjuntos.NoSePuede) as e:
+            return self._json({"error": str(e)}, 400)
         except ValueError:
             return self._json({"error": "El identificador tiene que ser un número.",
                                "no_encontrado": True}, 400)
@@ -1664,6 +1677,54 @@ class Manejador(BaseHTTPRequestHandler):
 
         cx = _cx()
         try:
+            if u.path.startswith(("/api/pieza/", "/api/conjunto/")):
+                if not isinstance(cuerpo, dict):
+                    raise ValueError("El pedido tiene que ser un objeto.")
+
+                def entero(nombre, opcional=False):
+                    valor = cuerpo.get(nombre)
+                    if opcional and valor is None:
+                        return None
+                    if type(valor) is not int:
+                        raise ValueError(f"{nombre} tiene que ser un número entero.")
+                    return valor
+
+                def texto(nombre, opcional=False):
+                    valor = cuerpo.get(nombre)
+                    if opcional and valor is None:
+                        return None
+                    if not isinstance(valor, str) or not valor.strip():
+                        raise ValueError(f"Hace falta indicar {nombre}.")
+                    return valor.strip()
+
+                if u.path == "/api/pieza/clasificar":
+                    return self._json(piezas.clasificar_a_mano(
+                        cx, entero("documento_id"), texto("tipo"), texto("quien")))
+                if u.path == "/api/pieza/continuar":
+                    return self._json(piezas.continuar_en(
+                        cx, entero("documento_id"), texto("sha256"),
+                        entero("pagina_desde"), entero("pagina_hasta"), texto("quien")))
+                if u.path == "/api/pieza/separar":
+                    return self._json(piezas.separar_continuacion(
+                        cx, entero("tramo_id"), texto("quien")))
+                if u.path == "/api/conjunto/crear":
+                    return self._json(conjuntos.crear(cx, texto("nombre"),
+                        organismo=texto("organismo", True), expediente=texto("expediente", True),
+                        anio=entero("anio", True), nota=texto("nota", True)))
+                if u.path == "/api/conjunto/agregar":
+                    return self._json(conjuntos.agregar(cx, entero("conjunto_id"),
+                                                       texto("sha256"), entero("orden", True)))
+                if u.path == "/api/conjunto/quitar":
+                    return self._json(conjuntos.quitar(cx, entero("conjunto_id"), texto("sha256")))
+                if u.path == "/api/conjunto/reordenar":
+                    cid = entero("conjunto_id")
+                    shas = cuerpo.get("shas")
+                    if (not isinstance(shas, list) or
+                            not all(isinstance(s, str) for s in shas) or
+                            len(set(shas)) != len(shas)):
+                        raise ValueError("Mandá una lista de archivos sin repetir.")
+                    conjuntos.ver(cx, cid)
+                    return self._json(conjuntos.reordenar(cx, cid, shas))
             if u.path == "/api/reasociacion/resolver":
                 from . import reasociacion
                 return self._json(reasociacion.resolver(

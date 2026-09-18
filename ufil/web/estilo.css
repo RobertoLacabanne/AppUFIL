@@ -2584,3 +2584,16 @@ details.consejo[open]>summary{border-bottom:1px solid var(--filete-2); margin-bo
 #plan-actualizacion dd { margin:0; font-variant-numeric:tabular-nums; }
 #plan-actualizacion li { overflow-wrap:anywhere; }
 @media (max-width:720px) { .actualizacion-cuentas { grid-template-columns:1fr; } }
+
+/* Documentos pendientes del sistema y decisiones de las personas. */
+.nucleo-ficha { padding:1rem 0; border-bottom:1px solid var(--filete); overflow-wrap:anywhere; }
+.nucleo-form { display:flex; flex-wrap:wrap; align-items:end; gap:1rem; margin:1rem 0; }
+.nucleo-form label, .nucleo-ficha label { display:flex; flex-direction:column; gap:.5rem; min-width:0; max-width:100%; }
+.nucleo-form input, .nucleo-form select, .nucleo-ficha select, #elegir-conjunto { max-width:100%; min-height:44px; border:1px solid var(--borde-control); }
+.nucleo-ficha .boton, .nucleo-form .boton { min-height:44px; white-space:normal; margin:.25rem 0; }
+.nucleo-continuidad { margin:1rem 0; padding:1rem; background:var(--papel-2); overflow-wrap:anywhere; }
+.nucleo-continuidad ol, #detalle-conjunto ol { padding-left:1.5rem; }
+@media (max-width:720px) {
+  .nucleo-form label { width:100%; }
+  .nucleo-form input, .nucleo-form select, .nucleo-ficha select, #elegir-conjunto { font-size:18px; }
+}
