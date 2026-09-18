@@ -98,7 +98,14 @@ def cmd_ingerir(a):
                    domicilio=a.domicilio, dispositivo=a.dispositivo,
                    fecha_secuestro=a.fecha_secuestro, operador=a.operador)
     print(f"nuevos {r.nuevos} · duplicados exactos {r.duplicados} · "
-          f"fallidos {r.fallidos} · páginas {r.paginas}")
+          f"mismo papel {r.mismo_papel} · fallidos {r.fallidos} · páginas {r.paginas}")
+    # Lo que se solapa a medias se guardó, así que hay que decir CUÁNTO y CON QUÉ: es
+    # la diferencia entre dos partes de un expediente que comparten el empalme —normal—
+    # y media carpeta cargada dos veces —un problema—.
+    for s in r.solapados:
+        donde = ", ".join(f"{a['archivo']} ({a['fojas']})" for a in s["archivos"][:3])
+        print(f"  ojo: «{s['archivo']}» trae {s['repetidas']} de {s['total']} fojas "
+              f"que ya estaban, en {donde}")
     return 0
 
 

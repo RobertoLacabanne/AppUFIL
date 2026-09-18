@@ -822,6 +822,35 @@ Si hay un `assets/marca/logo.png`, el escudo va además arriba de la portada del
 
 ---
 
+## 8 bis. Cargar: qué entró, qué falta, y qué ya estaba
+
+**Tres estados y ninguno se adivina.** Cada archivo cargado muestra en qué está, y el
+estado lo decide **lo que falta**, no lo que ya se hizo: ochenta fojas leídas y ocho sin
+leer es «a medio leer», no «leído». `sin leer` y `leído, sin extraer` van en ámbar
+—trabajo pendiente—; `a medio leer` va en punzó, porque no es algo por hacer sino algo
+que se cortó. El botón cuenta **fojas**, no archivos: contar archivos escondía el
+trabajo pendiente de los que estaban a medias.
+
+**El mismo papel adentro de otro archivo.** El SHA-256 reconoce el mismo archivo;
+reexportar un PDF cambia los bytes y no cambia una sola foja. Medido: el expediente
+201.602 entró dos veces y el legajo quedó con 176 fojas, sin un aviso. Cada foja lleva
+su **huella** —el SHA-256 de su dibujo a 24 dpi, ver `ufil/huella.py`— y al cargar se
+compara contra las que ya hay.
+
+La huella es **exacta, no perceptual**, y eso es deliberado: una huella tolerante
+reconocería también un reescaneo, pero declararía «es el mismo papel» sobre dos
+formularios en blanco del mismo modelo. Entre pasar por alto un reescaneo y borrar una
+foja legítima, el sistema prefiere lo primero. Una foja **en blanco no tiene huella**:
+dos hojas vacías se parecen entre sí más que ninguna otra cosa.
+
+Y sólo se rechaza lo que es **copia entera** —misma cantidad de fojas, todas repetidas,
+ninguna nueva—. Todo lo demás se guarda y se avisa: entre cargar algo dos veces —que se
+ve, se cuenta y se puede borrar— y perder una foja, lo segundo no tiene vuelta. Lo
+rechazado queda en «Quedaron afuera»: un archivo que entró y no dejó rastro tiene que
+poder explicarse después.
+
+---
+
 ## 9. Al agregar una pantalla
 
 1. Envolvela en `bloque(folio, rotulo, html)`.

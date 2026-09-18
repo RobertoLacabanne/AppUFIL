@@ -11,7 +11,7 @@ from . import clasificacion as cl
 # Se sube cuando cambia `esquema.sql`. Sirve para no reejecutar el script en cada
 # conexión: con el servidor multihilo y el trabajador de fondo, dos conexiones que
 # corrían el esquema a la vez chocaban al recrear la vista `v_contrato`.
-ESQUEMA_VERSION = 15
+ESQUEMA_VERSION = 16
 
 _candado = threading.Lock()
 
@@ -65,6 +65,7 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
 COLUMNAS_AGREGADAS = (
     ("pagina", "rotacion", "INTEGER DEFAULT 0"),
     ("pagina", "clasificacion", "TEXT"),
+    ("pagina", "huella", "TEXT"),
     ("campo", "valor_auto", "TEXT"),
     ("campo", "motivo_auto", "TEXT"),
     ("campo", "conf_auto", "REAL"),

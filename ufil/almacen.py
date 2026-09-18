@@ -25,6 +25,7 @@ from pathlib import Path
 import fitz
 
 from . import config
+from . import huella as hu
 from .capa0_ingesta import _metadatos_pdf
 from .db import ahora
 
@@ -42,6 +43,11 @@ class Guardado:
     paginas: int
     duplicado: bool
     ruta: Path
+    # Por qué se consideró repetido: `archivo` cuando es el mismo byte a byte, `papel`
+    # cuando es el mismo documento adentro de otro archivo. Vacío si es nuevo.
+    motivo: str = ""
+    # El cotejo de fojas contra lo que ya hay. Ver ufil/huella.py.
+    cotejo: dict | None = None
 
 
 def raiz_originales() -> Path:
@@ -77,7 +83,8 @@ def guardar(cx: sqlite3.Connection, datos: bytes, nombre: str, *, lote: str,
                       VALUES (?,?,?)""", (sha, f"(subido de nuevo como {nombre})", ahora()))
         cx.commit()
         n = cx.execute("SELECT paginas FROM archivo WHERE sha256=?", (sha,)).fetchone()["paginas"]
-        return Guardado(sha, nombre, n or 0, True, Path(ya["ruta_original"]))
+        return Guardado(sha, nombre, n or 0, True, Path(ya["ruta_original"]),
+                        motivo="archivo")
 
     destino = raiz_originales() / sha[:2] / f"{sha}.pdf"
     destino.parent.mkdir(parents=True, exist_ok=True)
@@ -92,6 +99,27 @@ def guardar(cx: sqlite3.Connection, datos: bytes, nombre: str, *, lote: str,
     if n_pag == 0:
         parcial.unlink(missing_ok=True)
         raise ArchivoInvalido("el PDF no tiene páginas")
+
+    # ── ¿Es el mismo papel adentro de otro archivo? ───────────────────────────
+    # El SHA-256 de arriba sólo reconoce el MISMO ARCHIVO. Reexportar el mismo PDF
+    # —lo que hace cualquier programa al guardarlo, y lo que hace un portal al rearmar
+    # la descarga— cambia los bytes y no cambia una sola foja. Medido: el expediente
+    # 201.602 entró dos veces y el legajo quedó con 176 fojas, sin un aviso.
+    #
+    # Si TODAS las fojas legibles ya están, el archivo no aporta nada por definición y
+    # no se guarda. Si están ALGUNAS, se guarda y se avisa: dos partes de un mismo
+    # expediente comparten la foja del empalme, y eso es correcto en el papel. Quién
+    # sabe cuál de las dos cosas es, es quien carga; el sistema avisa, no elige.
+    cot = hu.cotejar(cx, [h for _, _, _, h in paginas])
+    if hu.veredicto(cot) == "repetido":
+        parcial.unlink(missing_ok=True)
+        cx.execute("""INSERT INTO excepcion (sha256, clase, detalle, creado_en)
+                      VALUES (NULL,?,?,?)""",
+                   ("mismo_papel",
+                    f"{nombre}: es copia entera de {cot['mismo_que']} "
+                    f"({cot['total']} fojas)", ahora()))
+        cx.commit()
+        return Guardado(sha, nombre, n_pag, True, Path(), motivo="papel", cotejo=cot)
 
     parcial.rename(destino)
     try:
@@ -108,9 +136,10 @@ def guardar(cx: sqlite3.Connection, datos: bytes, nombre: str, *, lote: str,
                                            fecha_secuestro, operador, lote)
                   VALUES (?,?,?,?,NULL,?,?,?)""",
                (sha, legajo, acta, domicilio, fecha_secuestro, operador, lote))
-    for i, (ancho, alto, con_texto) in enumerate(paginas, start=1):
-        cx.execute("""INSERT INTO pagina (sha256, nro, ancho_pt, alto_pt, tiene_texto)
-                      VALUES (?,?,?,?,?)""", (sha, i, ancho, alto, 1 if con_texto else 0))
+    for i, (ancho, alto, con_texto, hue) in enumerate(paginas, start=1):
+        cx.execute("""INSERT INTO pagina (sha256, nro, ancho_pt, alto_pt, tiene_texto, huella)
+                      VALUES (?,?,?,?,?,?)""",
+                   (sha, i, ancho, alto, 1 if con_texto else 0, hue))
     if de_prueba:
         # Los PDF del generador de prueba llevan una marca en sus metadatos. Acá es
         # donde más importa reconocerla: subidos por la pantalla de carga, la ruta de
@@ -119,4 +148,5 @@ def guardar(cx: sqlite3.Connection, datos: bytes, nombre: str, *, lote: str,
         from .db import ajuste
         ajuste(cx, "demostracion", "1")
     cx.commit()
-    return Guardado(sha, nombre, n_pag, False, destino)
+    return Guardado(sha, nombre, n_pag, False, destino,
+                    motivo="parcial" if cot["repetidas"] else "", cotejo=cot)

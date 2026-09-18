@@ -70,6 +70,9 @@ CREATE TABLE IF NOT EXISTS pagina (
   render_escala REAL,                   -- px por punto, para mapear el recuadro
   rotacion      INTEGER DEFAULT 0,      -- grados que hubo que girar para dejarla derecha
   clasificacion TEXT,                   -- qué es esta foja: contrato_obra, factura, ...
+  -- El dibujo de la foja, no los bytes del PDF que la envuelve. Es lo que permite
+  -- reconocer el mismo papel cuando llega adentro de otro archivo. Ver ufil/huella.py.
+  huella        TEXT,
   UNIQUE (sha256, nro)
 );
 
@@ -97,6 +100,9 @@ CREATE TABLE IF NOT EXISTS palabra (
   conf       REAL
 );
 CREATE INDEX IF NOT EXISTS ix_palabra_lectura ON palabra(lectura_id, orden);
+-- Buscar una foja por su dibujo: es lo que se pregunta en cada carga, contra todas
+-- las fojas que ya hay en el legajo.
+CREATE INDEX IF NOT EXISTS ix_pagina_huella ON pagina(huella);
 
 -- Índice de texto completo sobre lo leído de cada página. `remove_diacritics 2` hace
 -- que buscar "locacion" encuentre "locación": el que busca no tiene por qué acordarse

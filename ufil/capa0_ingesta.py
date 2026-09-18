@@ -14,12 +14,13 @@ from __future__ import annotations
 import hashlib
 import mimetypes
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import fitz  # PyMuPDF
 
 from . import config
+from . import huella as hu
 from .db import ahora
 
 EXTENSIONES = {".pdf"}
@@ -45,6 +46,13 @@ class ResultadoIngesta:
     duplicados: int = 0
     fallidos: int = 0
     paginas: int = 0
+    # El mismo papel adentro de otro archivo: mismo documento, otro SHA-256. No se
+    # guarda —no aporta una sola foja— pero tiene que contarse aparte del duplicado
+    # exacto, porque son dos cosas distintas y la segunda es la que sorprende.
+    mismo_papel: int = 0
+    # Archivos que traen ALGUNAS fojas que ya estaban. Se guardan igual: dos partes de
+    # un expediente comparten la foja del empalme y eso es correcto. Se avisa.
+    solapados: list = field(default_factory=list)
 
 
 # Los PDF que sale del generador de prueba llevan esta marca en sus metadatos. Se la
@@ -54,14 +62,23 @@ class ResultadoIngesta:
 MARCA_SINTETICO = "UFIL-CORPUS-SINTETICO-DE-PRUEBA"
 
 
-def _metadatos_pdf(ruta: Path) -> tuple[int, list[tuple[float, float, bool]], bool]:
-    """Devuelve (páginas, [(ancho_pt, alto_pt, tiene_texto), ...], es_de_prueba)."""
+def _metadatos_pdf(ruta: Path) -> tuple[int, list[tuple[float, float, bool, str]], bool]:
+    """
+    Devuelve (páginas, [(ancho_pt, alto_pt, tiene_texto, huella), ...], es_de_prueba).
+
+    La huella se saca ACÁ, en la misma pasada que ya abre el PDF y recorre sus páginas.
+    Es lo que después permite reconocer el mismo papel adentro de otro archivo, y hay
+    que tenerla ANTES de guardar nada: avisar de un duplicado después de ingerirlo es
+    avisar tarde. Medido sobre un expediente de 88 fojas: 0,53 s, contra 119 s que
+    cuesta leerlo.
+    """
+    from .huella import de_pagina
     paginas = []
     with fitz.open(ruta) as doc:
         for p in doc:
             texto = p.get_text("text").strip()
             # Una capa de texto de cuatro caracteres sueltos no es una capa de texto.
-            paginas.append((p.rect.width, p.rect.height, len(texto) >= 40))
+            paginas.append((p.rect.width, p.rect.height, len(texto) >= 40, de_pagina(p)))
         meta = " ".join(str(v) for v in (doc.metadata or {}).values() if v)
         return doc.page_count, paginas, MARCA_SINTETICO in meta
 
@@ -113,6 +130,26 @@ def ingerir(
             )
             continue
 
+        # ¿El mismo papel adentro de otro archivo? Ver ufil/huella.py. Si todas sus
+        # fojas legibles ya están, el archivo no aporta nada y no se guarda.
+        cot = hu.cotejar(cx, [h for _, _, _, h in paginas])
+        v = hu.veredicto(cot)
+        if v == "repetido":
+            # Va a `excepcion` y no a `duplicado`: `duplicado` dice «este archivo que
+            # TENGO apareció de nuevo», y éste no está —no se guarda—. Y va con estado
+            # abierto a propósito, para que aparezca en «Quedaron afuera»: un archivo
+            # que entró y no dejó rastro tiene que poder explicarse después.
+            cx.execute(
+                "INSERT INTO excepcion (sha256, clase, detalle, creado_en) VALUES (?,?,?,?)",
+                (None, "mismo_papel",
+                 f"{ruta}: es copia entera de {cot['mismo_que']} "
+                 f"({cot['total']} fojas)", ahora()),
+            )
+            res.mismo_papel += 1
+            continue
+        if v == "parcial":
+            res.solapados.append({"archivo": ruta.name, **cot})
+
         st = ruta.stat()
         cx.execute(
             """INSERT INTO archivo (sha256, ruta_original, nombre, bytes, mtime, mime,
@@ -127,11 +164,11 @@ def ingerir(
                VALUES (?,?,?,?,?,?,?,?)""",
             (sha, legajo, acta, domicilio, dispositivo, fecha_secuestro, operador, lote),
         )
-        for i, (ancho, alto, con_texto) in enumerate(paginas, start=1):
+        for i, (ancho, alto, con_texto, hue) in enumerate(paginas, start=1):
             cx.execute(
-                """INSERT INTO pagina (sha256, nro, ancho_pt, alto_pt, tiene_texto)
-                   VALUES (?,?,?,?,?)""",
-                (sha, i, ancho, alto, 1 if con_texto else 0),
+                """INSERT INTO pagina (sha256, nro, ancho_pt, alto_pt, tiene_texto, huella)
+                   VALUES (?,?,?,?,?,?)""",
+                (sha, i, ancho, alto, 1 if con_texto else 0, hue),
             )
         if de_prueba:
             # Basta un archivo de prueba para que la base entera quede marcada. El error

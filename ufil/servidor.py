@@ -377,6 +377,78 @@ MOTIVOS = {
 }
 
 
+def api_archivos(cx) -> dict:
+    """
+    Qué hay cargado y en qué estado está cada archivo.
+
+    Antes de esto el único dato era «N documentos sin leer», y contaba archivos SIN
+    NINGUNA lectura. Un archivo leído a medias —porque el procesamiento se cortó, o
+    porque la máquina se apagó— no aparecía en ningún lado: ni como pendiente ni como
+    terminado. Y «leído pero sin extraer» directamente no existía como estado, así que
+    un archivo podía estar leído entero y no haber producido ni una foja clasificada
+    sin que nada lo dijera.
+
+    Acá van los tres números que hacen falta para saber dónde está cada archivo:
+    cuántas fojas tiene, cuántas se leyeron y cuántas se clasificaron. De ahí sale el
+    estado, y de los estados sale qué falta hacer.
+    """
+    filas = []
+    for a in cx.execute("""
+            SELECT a.sha256, a.nombre, a.paginas, a.bytes, a.ingerido_en,
+                   p.lote,
+                   (SELECT COUNT(*) FROM pagina g WHERE g.sha256=a.sha256) AS fojas,
+                   (SELECT COUNT(DISTINCT g.id) FROM pagina g
+                     WHERE g.sha256=a.sha256
+                       AND EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id=g.id)) AS leidas,
+                   (SELECT COUNT(*) FROM pagina g
+                     WHERE g.sha256=a.sha256 AND g.clasificacion IS NOT NULL) AS clasificadas,
+                   (SELECT COUNT(*) FROM documento d WHERE d.sha256=a.sha256) AS documentos
+              FROM archivo a
+              LEFT JOIN procedencia p ON p.sha256 = a.sha256
+             ORDER BY a.ingerido_en DESC, a.nombre"""):
+        f = dict(a)
+        fojas, leidas, clasif = f["fojas"] or 0, f["leidas"] or 0, f["clasificadas"] or 0
+        # El orden importa: lo que FALTA manda sobre lo que ya se hizo. Un archivo con
+        # ochenta fojas leídas y ocho sin leer está «a medio leer», no «leído».
+        if leidas == 0:
+            f["estado"] = "sin_leer"
+        elif leidas < fojas:
+            f["estado"] = "a_medio_leer"
+        elif clasif == 0:
+            f["estado"] = "sin_extraer"
+        else:
+            f["estado"] = "listo"
+        f["falta_leer"] = max(fojas - leidas, 0)
+        filas.append(f)
+    resumen = {}
+    for f in filas:
+        resumen[f["estado"]] = resumen.get(f["estado"], 0) + 1
+    return {"archivos": filas, "resumen": resumen,
+            "fojas": sum(f["fojas"] or 0 for f in filas),
+            "falta_leer": sum(f["falta_leer"] for f in filas),
+            "sin_extraer": sum(1 for f in filas if f["estado"] == "sin_extraer")}
+
+
+def api_ya_esta(cx, shas: list[str]) -> dict:
+    """
+    Cuáles de estos archivos ya están, preguntado ANTES de subirlos.
+
+    Un PDF de un expediente pesa veintidós megabytes. Subirlo entero para que el
+    servidor conteste «ya estaba» es tiempo de la persona que está cargando, y en una
+    carpeta de trescientos escaneos vueltos a arrastrar es la tarde entera. El
+    navegador puede calcular el SHA-256 sin subir nada.
+
+    Esto contesta por SHA-256 —el mismo archivo—, no por huella de foja: para lo otro
+    hay que abrir el PDF, y eso no se puede hacer sin el PDF.
+    """
+    if not shas:
+        return {"estan": []}
+    marcas = ",".join("?" * len(shas))
+    estan = [r[0] for r in cx.execute(
+        f"SELECT sha256 FROM archivo WHERE sha256 IN ({marcas})", shas)]
+    return {"estan": estan}
+
+
 def api_fojas(cx) -> dict:
     """
     El expediente foja por foja: qué es cada una y cuáles se apartaron.
@@ -469,7 +541,7 @@ def api_afuera(cx) -> dict:
                                   e.sha256
                              FROM excepcion e
                             WHERE e.estado='abierta'
-                              AND e.clase IN ('pdf_ilegible','ingesta_ilegible')
+                              AND e.clase IN ('pdf_ilegible','ingesta_ilegible','mismo_papel')
                             GROUP BY e.clase, e.detalle
                             ORDER BY creado_en DESC"""):
         # El detalle viene como "<ruta>: <excepción>". Nos alcanza con el nombre.
@@ -1308,6 +1380,11 @@ class Manejador(BaseHTTPRequestHandler):
                         return self._json(api_afuera(cx))
                     if ruta == "/api/fojas":
                         return self._json(api_fojas(cx))
+                    if ruta == "/api/archivos":
+                        return self._json(api_archivos(cx))
+                    if ruta == "/api/yaestan":
+                        return self._json(api_ya_esta(
+                            cx, [s for s in (q.get("sha", [""])[0] or "").split(",") if s]))
                     if ruta == "/api/numeros":
                         return self._json(api_numeros(cx))
                     if ruta == "/api/salud":
@@ -1403,7 +1480,12 @@ class Manejador(BaseHTTPRequestHandler):
                             domicilio=(q.get("domicilio", [None])[0] or None),
                             operador=(q.get("operador", [None])[0] or None))
                 return self._json({"ok": True, "sha256": g.sha256, "nombre": g.nombre,
-                                   "paginas": g.paginas, "duplicado": g.duplicado})
+                                   "paginas": g.paginas, "duplicado": g.duplicado,
+                                   # Por qué: `archivo` es el mismo byte a byte,
+                                   # `papel` es el mismo documento adentro de otro
+                                   # archivo, `parcial` trae algunas fojas que ya
+                                   # estaban y se guardó igual.
+                                   "motivo": g.motivo, "cotejo": g.cotejo})
             except ArchivoInvalido as e:
                 return self._json({"ok": False, "error": str(e)}, 400)
             except Exception as e:

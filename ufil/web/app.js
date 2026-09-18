@@ -3346,6 +3346,35 @@ async function vPersona(id) {
 /* ── Carga de escaneos ─────────────────────────────────────────────────── */
 let subiendo = false;
 
+/* En qué está cada archivo. Los cuatro estados salen de comparar tres números —fojas,
+   leídas, clasificadas— y están dichos por lo que FALTA, no por lo que hay: un archivo
+   con ochenta fojas leídas y ocho sin leer está a medio leer, no leído. */
+const ESTADO_CARGA = {
+  // Sin leer es trabajo pendiente —ámbar, atención—; a medio leer es una falla —algo
+  // cortó el procesamiento— y por eso va en punzó. §2: el rojo se gasta si se usa
+  // para lo que simplemente falta hacer.
+  sin_leer: sello('atencion', 'sin leer'),
+  a_medio_leer: sello('alerta', 'a medio leer'),
+  sin_extraer: sello('atencion', 'leído, sin extraer'),
+  listo: sello('ok', 'listo'),
+};
+
+function resumenCarga(ar) {
+  const n = ar.archivos.length;
+  const r = ar.resumen || {};
+  const listos = r.listo || 0;
+  if (listos === n) return `<strong>${fmtNum.format(n)}</strong> ${
+    n === 1 ? 'archivo' : 'archivos'} · ${fmtNum.format(ar.fojas)} fojas · todo procesado.`;
+  const falta = [
+    r.sin_leer ? `${fmtNum.format(r.sin_leer)} sin leer` : '',
+    r.a_medio_leer ? `<strong>${fmtNum.format(r.a_medio_leer)} a medio leer</strong>` : '',
+    r.sin_extraer ? `${fmtNum.format(r.sin_extraer)} leídos sin extraer` : '',
+  ].filter(Boolean).join(', ');
+  return `<strong>${fmtNum.format(n)}</strong> ${n === 1 ? 'archivo' : 'archivos'} · ${
+    fmtNum.format(ar.fojas)} fojas · ${fmtNum.format(listos)} ${
+    listos === 1 ? 'listo' : 'listos'}${falta ? ', ' + falta : ''}.`;
+}
+
 async function vIngesta() {
   // El control de arriba ya corta la ruta, pero la carga es la única pantalla que
   // ESCRIBE en disco: se chequea de nuevo acá, contra el servidor y no contra lo que
@@ -3353,8 +3382,18 @@ async function vIngesta() {
   const c = await api('/api/cuentas');
   if (!c.legajo && !c.documentos) return vistaSinLegajo('Cargar escaneos');
 
-  const t = await api('/api/trabajo');
+  const [t, ar] = await Promise.all([api('/api/trabajo'), api('/api/archivos')]);
   const lote = localStorage.getItem('ufil.lote') || '';
+  /* Qué falta hacer, dicho por lo que falta y no por lo que hay. «N documentos sin
+     leer» contaba archivos sin NINGUNA lectura: un archivo leído a medias no aparecía
+     ni como pendiente ni como terminado, y «leído pero sin extraer» no existía. */
+  const pendiente = (ar.falta_leer || 0) + (ar.sin_extraer || 0);
+  const textoPendiente = [
+    ar.falta_leer ? `${fmtNum.format(ar.falta_leer)} ${
+      ar.falta_leer === 1 ? 'foja sin leer' : 'fojas sin leer'}` : '',
+    ar.sin_extraer ? `${fmtNum.format(ar.sin_extraer)} ${
+      ar.sin_extraer === 1 ? 'archivo sin extraer' : 'archivos sin extraer'}` : '',
+  ].filter(Boolean).join(' y ');
   vista.innerHTML = bloque('f. 0000', 'Ingesta', `
     <h2>Cargar escaneos</h2>
     <p class="prosa">Arrastrá acá los PDF escaneados, o elegilos. Se guardan tal cual
@@ -3381,11 +3420,24 @@ async function vIngesta() {
     <div id="subidas"></div>
 
     <div class="fila-suelta">
-      <button class="boton" id="b-procesar" ${t.sin_leer ? '' : 'disabled'}>
-        Procesar ${t.sin_leer || 0} documento${t.sin_leer === 1 ? '' : 's'} sin leer</button>
+      <button class="boton" id="b-procesar" ${pendiente ? '' : 'disabled'}>
+        ${pendiente ? `Procesar ${textoPendiente}` : 'No queda nada por procesar'}</button>
       <span class="rotulo" id="estado-trabajo"></span>
     </div>
     <div id="progreso"></div>
+
+    ${ar.archivos.length ? `
+      <h3>Lo que hay cargado</h3>
+      <p class="prosa">${resumenCarga(ar)}</p>
+      ${tabla([
+        {t:'Archivo', c:'fol', r:f => nombreArchivo(f.nombre)},
+        {t:'Fojas', c:'num', r:f => fmtNum.format(f.fojas || 0)},
+        {t:'Leídas', c:'num', r:f => f.leidas === f.fojas
+          ? fmtNum.format(f.leidas)
+          : `<span class="marca">${fmtNum.format(f.leidas || 0)}</span>`},
+        {t:'En qué está', r:f => ESTADO_CARGA[f.estado] || f.estado},
+        {t:'Lote', r:f => esc(f.lote || '—')},
+      ], ar.archivos, {lista:'archivos'})}` : ''}
 
     <details class="consejo" id="c-escaneo">
       <summary>Qué pedirle a quien escanea</summary>
@@ -3453,7 +3505,30 @@ async function subir(archivos) {
   const caja = $('#subidas');
   caja.innerHTML = `<div class="lista-subida"></div>`;
   const lista = caja.firstElementChild;
-  let nuevos = 0, dups = 0, fallos = 0;
+  let nuevos = 0, dups = 0, fallos = 0, papel = 0, parciales = 0;
+
+  /* ── Preguntar ANTES de subir ──────────────────────────────────────────────
+     Un PDF de un expediente pesa veintidós megabytes. Subirlo entero para que el
+     servidor conteste «ya estaba» es tiempo de quien está cargando, y una carpeta de
+     trescientos escaneos vuelta a arrastrar es la tarde entera. El SHA-256 se puede
+     calcular acá, sin mandar nada, y preguntarlo todo junto.
+
+     Es lo mismo que calcula el servidor: el hash del archivo tal cual. Si el navegador
+     no tiene `crypto.subtle` —sin HTTPS y sin localhost no existe— se sigue como
+     antes; que falte esto no puede impedir cargar. */
+  const yaEstan = new Set();
+  try {
+    if (crypto.subtle) {
+      const shas = [];
+      for (const f of pdfs) {
+        const h = await crypto.subtle.digest('SHA-256', await f.arrayBuffer());
+        f.__sha = [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('');
+        shas.push(f.__sha);
+      }
+      const r = await api('/api/yaestan?sha=' + shas.join(','));
+      (r.estan || []).forEach(x => yaEstan.add(x));
+    }
+  } catch (e) { /* si no se puede preguntar, se sube y contesta el servidor */ }
 
   for (const [i, f] of pdfs.entries()) {
     const fila = document.createElement('div');
@@ -3462,6 +3537,12 @@ async function subir(archivos) {
       <span class="nom">${esc(f.name)}</span><span class="res">subiendo…</span>`;
     lista.appendChild(fila);
     fila.scrollIntoView({block:'nearest'});
+    if (f.__sha && yaEstan.has(f.__sha)) {
+      dups++;
+      fila.querySelector('.res').innerHTML =
+        `<span class="nulo">ya estaba — no se subió</span>`;
+      continue;
+    }
     try {
       const q = new URLSearchParams({nombre: f.name, lote,
         legajo: ($('#i-legajo').value || '').trim(), operador});
@@ -3470,8 +3551,27 @@ async function subir(archivos) {
       const j = await r.json();
       if (!r.ok || !j.ok) { fallos++; fila.querySelector('.res').innerHTML =
         `<span class="marca">${esc(j.error || 'error')}</span>`; }
+      else if (j.duplicado && j.motivo === 'papel') {
+        /* El mismo documento adentro de otro archivo. Es el caso que no se veía:
+           reexportar un PDF cambia su SHA-256 y no cambia una sola foja. Se dice con
+           todas las letras, y se dice contra QUÉ, porque quien carga tiene que poder
+           ir a mirarlo. */
+        papel++;
+        fila.querySelector('.res').innerHTML =
+          `<span class="marca">es el mismo papel que ${
+            esc((j.cotejo && j.cotejo.mismo_que) || 'otro archivo')}</span>`;
+      }
       else if (j.duplicado) { dups++; fila.querySelector('.res').innerHTML =
         `<span class="nulo">ya estaba</span>`; }
+      else if (j.motivo === 'parcial' && j.cotejo) {
+        /* Se guardó. Dos partes de un expediente comparten la foja del empalme y eso
+           es correcto en el papel, así que acá el sistema NO decide: avisa y sigue. */
+        parciales++; nuevos++;
+        fila.querySelector('.res').innerHTML =
+          `<span class="ok-txt">${j.paginas} pág.</span> <span class="marca"
+            >${j.cotejo.repetidas} de ${j.cotejo.con_huella} fojas ya estaban${
+              j.cotejo.archivos[0] ? ' en ' + esc(j.cotejo.archivos[0].archivo) : ''}</span>`;
+      }
       else { nuevos++; fila.querySelector('.res').innerHTML =
         `<span class="ok-txt">${j.paginas} pág.</span>`; }
     } catch (e) {
@@ -3483,6 +3583,8 @@ async function subir(archivos) {
   resumen.className = 'prosa';
   resumen.style.marginTop = '12px';
   resumen.innerHTML = `<strong>${nuevos} nuevo${nuevos===1?'':'s'}</strong>, ${dups} ya estaban` +
+    (papel ? `, <span class="marca">${papel} ${papel===1?'era el mismo papel':'eran el mismo papel'} con otro nombre</span>` : '') +
+    (parciales ? `, <span class="marca">${parciales} con fojas repetidas</span>` : '') +
     (fallos ? `, <span class="marca">${fallos} con error</span>` : '') +
     (salteados ? `, ${salteados} salteados por no ser PDF` : '') +
     `. Ahora tocá <em>Procesar</em>.`;
