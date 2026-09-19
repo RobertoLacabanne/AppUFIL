@@ -626,13 +626,44 @@ def _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina) -> dict:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def leer_foja_por_foja(cx: sqlite3.Connection, sha: str):
+    """
+    Las palabras de un archivo, **de a una foja**. Devuelve `(nro, {ruta: (lid, palabras)})`.
+
+    Por qué existe además de `lecturas_por_ruta`
+    --------------------------------------------
+    `lecturas_por_ruta` carga el archivo entero en memoria. Medido sobre un expediente
+    de 400 fojas con dos rutas de lectura: 360.000 palabras y **103 MB de pico**, o sea
+    unos 0,26 MB por foja. Un PDF de 2.000 fojas pediría medio giga, y el pliego pide
+    pensar en 5.000.
+
+    Las etapas que trabajan foja por foja —qué es cada foja, la foliatura, el cotejo de
+    números, las tablas— no necesitan el archivo entero: necesitan una foja por vez. Con
+    esto la memoria deja de crecer con el tamaño del PDF.
+
+    La extracción sí mira tramos de varias fojas, así que sigue usando la otra.
+    """
+    actual, acumulado = None, {}
+    for r in cx.execute(
+        """SELECT p.nro, l.id AS lid, l.ruta
+             FROM pagina p JOIN lectura l ON l.pagina_id = p.id
+            WHERE p.sha256 = ? ORDER BY p.nro, l.ruta""", (sha,)):
+        if actual is not None and r["nro"] != actual:
+            yield actual, acumulado
+            acumulado = {}
+        actual = r["nro"]
+        acumulado[r["ruta"]] = (r["lid"], palabras_de(cx, r["lid"]))
+    if actual is not None:
+        yield actual, acumulado
+
+
 def lecturas_por_ruta(cx: sqlite3.Connection, sha: str) -> dict:
     """
-    Las palabras de cada foja, agrupadas por ruta de lectura.
+    Las palabras de cada foja, agrupadas por ruta de lectura. **Carga el archivo entero.**
 
-    Es lo que las cuatro etapas necesitan y lo más caro de armar —una vuelta a la base
-    por cada lectura— así que se carga una vez y se pasa. Cada etapa igual sabe
-    cargarlo sola cuando se la corre por separado.
+    La usa la extracción, que mira tramos de varias fojas y no puede trabajar de a una.
+    Para lo que sí trabaja foja por foja está `leer_foja_por_foja`, que no hace crecer
+    la memoria con el tamaño del PDF.
     """
     por_ruta: dict[str, list[tuple[int, int, list[Palabra]]]] = {}
     for r in cx.execute(
@@ -666,9 +697,6 @@ def clasificar_fojas(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict
     No mira los perfiles de extracción a propósito: qué ES una foja no depende de si
     sabemos sacarle los campos. Por eso agregar un extractor no vuelve a clasificar.
     """
-    por_ruta = por_ruta or lecturas_por_ruta(cx, sha)
-    todas = sorted({nro for pgs in por_ruta.values() for nro, _, _ in pgs})
-
     encabezados: dict[int, str] = {}
     # Cuánto leyó el motor en cada foja, que es lo que separa un dorso en blanco y una
     # fotocopia ilegible de una foja de trabajo. Se mide sobre la página ENTERA, no
@@ -676,14 +704,29 @@ def clasificar_fojas(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict
     # Entre rutas gana la que más cosas legibles encontró, por la misma razón que el
     # encabezado más largo: si alguna pudo leer, la foja se puede leer.
     medidas: dict[int, cl.Medida] = {}
-    for pgs in por_ruta.values():
-        for nro, _, pw in pgs:
-            plano = normalizar_cotejo(" ".join(w.texto for w in pw[:120]))
-            if len(plano) > len(encabezados.get(nro, "")):
-                encabezados[nro] = plano
-            m = cl.medir(w.texto for w in pw)
-            if nro not in medidas or m.utiles > medidas[nro].utiles:
-                medidas[nro] = m
+
+    # De a una foja: lo único que se guarda de cada una es su encabezado normalizado y
+    # su medida, que ocupan unos bytes. Antes se retenían todas las palabras del archivo
+    # para sacar eso mismo, y la memoria crecía con el tamaño del PDF.
+    fuente = (((nro, pw) for pgs in por_ruta.values() for nro, _, pw in pgs)
+              if por_ruta else
+              ((nro, pw) for nro, rutas in leer_foja_por_foja(cx, sha)
+               for _lid, pw in rutas.values()))
+    vistas: set = set()
+    for nro, pw in fuente:
+        # La foja se anota aunque no haya dado una sola palabra. Una hoja en blanco, una
+        # fotocopia ilegible y un dorso son fojas: dejarlas afuera acá las borraría del
+        # archivo, y distinguirlas es justamente para lo que sirve clasificar.
+        vistas.add(nro)
+        plano = normalizar_cotejo(" ".join(w.texto for w in pw[:120]))
+        if len(plano) > len(encabezados.get(nro, "")):
+            encabezados[nro] = plano
+        m = cl.medir(w.texto for w in pw)
+        if nro not in medidas or m.utiles > medidas[nro].utiles:
+            medidas[nro] = m
+    todas = sorted(vistas)
+    if not todas:
+        raise RuntimeError(f"sin lecturas para {sha}: correr `leer` antes que `extraer`")
 
     clases = clasificar_documento([(n, encabezados.get(n, "")) for n in todas], medidas)
     for nro, clase in clases.items():
@@ -705,18 +748,31 @@ def cotejar_numeros(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict:
     Depende de la lectura y de la clasificación —de una hoja en blanco no sale ningún
     número— pero no de los perfiles ni de la segmentación.
     """
-    por_ruta = por_ruta or lecturas_por_ruta(cx, sha)
     clases = _clases_guardadas(cx, sha)
 
-    textos: dict[int, str] = {}
-    for pgs in por_ruta.values():
-        for nro, _, pw in pgs:
-            t = " ".join(w.texto for w in pw)
-            if len(t) > len(textos.get(nro, "")):
-                textos[nro] = t
+    # De a una foja, y sin guardar el texto de las que ya se cotejaron: acá lo único que
+    # hace falta es el texto de UNA foja por vez.
+    def por_foja():
+        if por_ruta:
+            textos: dict[int, str] = {}
+            for pgs in por_ruta.values():
+                for nro, _, pw in pgs:
+                    t = " ".join(w.texto for w in pw)
+                    if len(t) > len(textos.get(nro, "")):
+                        textos[nro] = t
+            yield from textos.items()
+            return
+        for nro, rutas in leer_foja_por_foja(cx, sha):
+            # Entre rutas gana la que más leyó: si alguna pudo, la foja se puede leer.
+            mejor = ""
+            for _lid, pw in rutas.values():
+                t = " ".join(w.texto for w in pw)
+                if len(t) > len(mejor):
+                    mejor = t
+            yield nro, mejor
 
     n = 0
-    for nro, texto in textos.items():
+    for nro, texto in por_foja():
         if clases.get(nro) in cl.APARTADAS:
             continue            # de una hoja en blanco no sale ningún número
         for c in cotejar(texto):
