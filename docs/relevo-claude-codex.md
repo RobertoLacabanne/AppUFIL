@@ -336,3 +336,43 @@ se la abrió con el código de ahora y se la actualizó:
   (`$555.444,33 · corregido · perez.ana`).
 
 Es exactamente lo que pide el §7 del pliego, comprobado y no inferido.
+
+---
+
+## Incremento 5 — FASES 6, 8, 9 y 10
+
+| | Claude | Codex |
+|---|---|---|
+| Ramas | `claude/fase6-entidades`, `fase8-busqueda`, `fase9-exportaciones`, `fase10-rendimiento` | `codex/fase6y8-interfaz` |
+| Qué hizo | menciones/entidades/relaciones, búsqueda paginada con variantes de OCR, consultas guardadas y colecciones, informes con trazabilidad, pantalla de informes, y el trabajo de volumen y robustez | las pantallas de entidades, relaciones, colecciones y la paginación de la búsqueda, con 11 pruebas |
+
+**Suite:** `699 tests · 1 failure · 14 errors · 1 skipped` — la base de referencia.
+
+### Revisión cruzada: lo que encontró cada uno en el código del otro
+
+- **Codex → Claude.** `/api/buscar` ignoraba `limite` y `desde`: la paginación existía
+  en el backend y no se podía alcanzar desde la pantalla. Lo reportó y no lo tocó,
+  porque `servidor.py` no era suyo.
+- **Codex → Claude, otra vez.** Sus pruebas HTTP dieron 404 en cuatro POST. Cinco rutas
+  —informes, colecciones, consultas, entidades y relaciones— habían quedado escritas
+  adentro de un `if` que sólo dejaba pasar `/api/pieza/` y `/api/conjunto/`. El
+  manejador estaba y la ruta no existía para el servidor. **Sin sus pruebas, las cinco
+  se habrían dado por funcionando.**
+- **Claude → Codex.** Sin hallazgos: su trabajo pasó las 11 pruebas propias y la suite
+  entera una vez corregido el bug de las rutas.
+
+### Lo que Codex dejó y cómo se recuperó
+
+Codex se quedó sin cuota cinco veces y en la última quedó con las pantallas a medio
+commitear. Se preservaron en su rama con dos commits marcados `INCOMPLETO`, **sin
+integrar**. Al retomar se los evaluó en una rama descartable: sus 11 pruebas pasaban una
+vez corregido el bug que ellas mismas habían encontrado, así que se recuperó todo.
+
+### Hallazgos propios de la fase 10
+
+- **103 MB de pico para un archivo de 400 fojas.** Las etapas que trabajan foja por foja
+  cargaban el archivo entero. Con lectura de a una: 1 MB.
+- **Las fojas sin una sola palabra desaparecían del recuento** al pasar a leer de a una.
+  Roto un rato, corregido, con su prueba.
+- **Un archivo roto obligaba a rehacer los demás.** La invalidación por dependencia era
+  por etapa entera y no por archivo.
