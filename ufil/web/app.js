@@ -546,7 +546,11 @@ const SECCIONES = [
     {hash: '#/tablas',        rotulo: 'Tablas'},
     {hash: '#/cronologia',    rotulo: 'Cronolog\u00eda'},
     {hash: '#/buscar',        rotulo: 'Buscar'},
-  ], tambien: ['#/documento', '#/persona']},
+    {hash: '#/entidades', rotulo: 'Entidades y menciones'},
+    {hash: '#/relaciones', rotulo: 'Relaciones'},
+    {hash: '#/guardadas', rotulo: 'Consultas guardadas'},
+    {hash: '#/colecciones', rotulo: 'Colecciones'},
+  ], tambien: ['#/documento', '#/persona', '#/entidad', '#/coleccion']},
   {id: 'hallazgos', rotulo: 'Hallazgos', items: [
     {hash: '#/superposiciones', rotulo: 'Superposiciones'},
     {hash: '#/cruce',           rotulo: 'Facturado vs. contratado'},
@@ -1773,6 +1777,7 @@ async function vDocumento(id) {
         `<a href="#/documento/${h.id}">#${h.orden} ${esc(TIPO_DOC[h.tipo] || h.tipo || '')}
           (f. ${h.pagina_desde}–${h.pagina_hasta})</a>`
       ).join(' · ')}</span></div>` : ''}
+    <section id="relaciones-documento" aria-live="polite">Cargando relaciones...</section>
     <section id="continuidad-pieza" class="nucleo-continuidad" aria-live="polite">Cargando tramos...</section>
     <div class="visor">
       <div class="datos">
@@ -1806,6 +1811,7 @@ async function vDocumento(id) {
       </div>` : ''}`);
 
   cargarContinuidad(id, doc.sha256);
+  cargarRelacionesDocumento(id);
   vista.querySelectorAll('.deshacer').forEach(b => b.onclick = async () => {
     const quien = await conRevisor(); if (!quien) return;
     if (!confirm('¿Deshacer esta revisión? El campo vuelve a lo que había leído el sistema.')) return;
@@ -3071,21 +3077,34 @@ function resaltar(fragmento) {
 
 async function vBuscar(q) {
   q = q ? decodeURIComponent(q) : '';
-  const r = q ? await api('/api/buscar?q=' + encodeURIComponent(q)) : null;
-  vista.innerHTML = bloque('f. 0010', 'Buscar', `
-    <h2>Buscar en el corpus</h2>
-    <form id="f-buscar" class="fila-suelta">
-      <input type="text" id="q" value="${esc(q)}" class="campo-crece"
-        placeholder="un apellido, un CUIL, una palabra del contrato…" autocomplete="off">
-      <button class="boton" type="submit">Buscar</button>
-    </form>
-    <p class="prosa nota">Sin tildes está bien: <span class="mono">locacion</span>
-      encuentra <span class="mono">locación</span>. Entre comillas busca la frase exacta.</p>
-    ${r ? resultadosHTML(r) : '<div class="vacio">Escribí algo y dale a Buscar.</div>'}`);
-
-  const form = $('#f-buscar');
-  form.onsubmit = e => { e.preventDefault();
-    location.hash = '#/buscar/' + encodeURIComponent($('#q').value.trim()); };
+  const hash = location.hash;
+  let r = q ? await api('/api/buscar?q=' + encodeURIComponent(q) + '&limite=60&desde=0') : null;
+  if (hash !== location.hash) return;
+  vista.innerHTML = bloque('f. 0010', 'Buscar', `<h2>Buscar en el corpus</h2>
+    <form id="f-buscar" class="fila-suelta"><label>Buscar <input id="q" value="${esc(q)}" autocomplete="off"></label><button class="boton">Buscar</button></form>
+    ${r ? '<button class="boton gris" id="guardar-busqueda">Guardar como consulta</button>' : ''}
+    <div id="resultados-busqueda" aria-live="polite"></div>`);
+  $('#f-buscar').onsubmit = e => { e.preventDefault(); location.hash = '#/buscar/' + encodeURIComponent($('#q').value.trim()); };
+  const pintar = () => {
+    const host = $('#resultados-busqueda');
+    host.innerHTML = r ? resultadosHTML(r) + (r.hay_mas ? '<button class="boton" id="mas-busqueda">Traer la p\u00e1gina siguiente</button>' : '') : '<p>Escrib\u00ed algo y dale a Buscar.</p>';
+    host.querySelectorAll('tr[data-i]').forEach(tr => tr.onclick = () => { location.hash = '#/documento/' + r.campos[Number(tr.dataset.i)].documento_id; });
+    host.querySelectorAll('[data-apartar]').forEach(b => b.onclick = e => { e.stopPropagation(); accionInterfaz(b, () => apartarResultado(b.dataset.apartar, b.dataset.referencia)); });
+    const mas = $('#mas-busqueda'); if (mas) mas.onclick = () => accionInterfaz(mas, async () => {
+      const siguiente = await api('/api/buscar?q=' + encodeURIComponent(q) + '&limite=' + r.limite + '&desde=' + (r.desde + r.limite));
+      if (hash !== location.hash) return;
+      r = acumularBusqueda(r, siguiente); pintar();
+    });
+  };
+  pintar();
+  const guardar = $('#guardar-busqueda'); if (guardar) guardar.onclick = () => {
+    const d = dialogo(`<h3>Guardar consulta</h3><p>Se volver\u00e1 a buscar: los resultados cambian con los datos.</p><form><label>Nombre <input name="nombre" required></label><button class="boton">Guardar</button></form><button class="boton gris" data-cerrar>Cancelar</button>`);
+    d.querySelector('[data-cerrar]').onclick = () => d.close();
+    const f = d.querySelector('form'); f.onsubmit = e => { e.preventDefault(); accionInterfaz(f.querySelector('button'), async () => {
+      const quien = await conRevisor(); if (!quien) return;
+      await guardarNucleo('/api/consulta/guardar', {nombre:f.elements.nombre.value.trim(), consulta:q, filtros:{}, quien}); d.close();
+    }); };
+  };
   if (!q) $('#q').focus();
 }
 
@@ -3124,11 +3143,11 @@ function coberturaHTML(c, hallazgos) {
 function resultadosHTML(r) {
   if (r.aviso) return `<div class="aviso"><span class="sello alerta">Atención</span>
     <span>${esc(r.aviso)}</span></div>`;
-  const total = r.campos.length + r.paginas.length;
+  const total = (r.campos_total ?? r.campos.length) + (r.paginas_total ?? r.paginas.length);
   const hallazgos = total
     ? `<strong>${plural(total, 'coincidencia', 'coincidencias')}</strong>`
     : `<strong>No aparece</strong>`;
-  const cob = coberturaHTML(r.cobertura, hallazgos);
+  const cob = htmlResumenBusqueda(r) + coberturaHTML(r.cobertura, hallazgos);
   const nada = !r.campos.length && !r.paginas.length;
   // Nunca «Sin coincidencias» a secas. Lo que se puede afirmar es dónde se buscó.
   if (nada) return cob || `<div class="vacio">Sin coincidencias para
@@ -3136,9 +3155,10 @@ function resultadosHTML(r) {
   return `${cob}
     ${r.campos.length ? `
       <h3>En los datos extraídos <span class="rotulo">(${r.campos.length})</span></h3>
-      <p class="prosa nota">Esto son <strong>contratos</strong>: el dato ya
+      <p class="prosa nota">Son <strong>datos extra\u00eddos</strong>: el dato ya
         está leído y anclado.</p>
       ${tabla([
+        {t:'Apartar', r:f => `<button class="mini" data-apartar="documento" data-referencia="${esc(f.documento_id)}">Apartar en colecci\u00f3n</button>`},
         {t:'Archivo', k:'archivo', c:'fol'},
         {t:'Campo', k:'campo'},
         {t:'Valor leído', c:'mono', r:f => esc(f.valor_literal)},
@@ -3152,10 +3172,10 @@ function resultadosHTML(r) {
       <p class="prosa nota">Esto son <strong>lugares donde mirar</strong>:
         apareció en la página, sin que sea un campo extraído.</p>
       <div class="hallazgos">${r.paginas.map(p => `
-        <a class="hallazgo" href="#/documento/${p.documento_id}">
+        <div class="hallazgo">${p.documento_id ? `<a href="#/documento/${esc(p.documento_id)}">Ver documento</a>` : '<span>Sin documento asignado</span>'}
           <span class="fol">${esc(p.archivo)} · f. ${p.nro}</span>
           <span class="frag">${resaltar(p.fragmento)}</span>
-        </a>`).join('')}</div>` : ''}`;
+        <button class="mini" data-apartar="foja" data-referencia="${esc(p.sha256)}:${esc(p.nro)}">Apartar en colecci\u00f3n</button></div>`).join('')}</div>` : ''}`;
 }
 
 /* ── Personas ──────────────────────────────────────────────────────────── */
@@ -4943,7 +4963,152 @@ async function vCronologia() {
   };
 }
 
+
+/* Menciones conservan el literal; decisiones conservan su autor. */
+function fuenteMencion(m) {
+  return `<span class="mono">${esc(m.archivo || '\u00d8 archivo no informado')} \u00b7 foja ${esc(m.pagina_nro ?? '\u00d8 no informada')}</span>
+    ${m.documento_id ? `<a href="#/documento/${esc(m.documento_id)}">Ver documento</a>` : ''}
+    <span>Fuente: ${esc(m.origen || '\u00d8 no informada')} \u00b7 confianza ${esc(m.confianza ?? '\u00d8 no informada')}</span>`;
+}
+function htmlMenciones(ms) {
+  return ms.length ? `<div class="tabla-env"><table><thead><tr><th>Lo que dice el papel</th><th>Fuente</th></tr></thead><tbody>${ms.map(m => `<tr><td class="mono">${esc(m.literal)}</td><td>${fuenteMencion(m)}</td></tr>`).join('')}</tbody></table></div>` : '<p>No hay menciones para mostrar.</p>';
+}
+function htmlEntidades(d, clase = '') {
+  const filtrar = xs => xs.filter(x => !clase || x.clase === clase);
+  const es = filtrar(d.entidades), ms = filtrar(d.sin_resolver), ps = filtrar(d.propuestas);
+  return `<h2>Entidades y menciones</h2><p class="prosa">Una menci\u00f3n es lo que dice un documento; una entidad es a qui\u00e9n se refiere.</p>
+    <label>Clase <select id="clase-entidad"><option value="">Todas las clases</option>${d.clases.map(c => `<option value="${esc(c.clave)}"${c.clave === clase ? ' selected' : ''}>${esc(c.que_es)}</option>`).join('')}</select></label>
+    <h3>Fichas</h3>${es.length ? `<div class="tabla-env"><table><thead><tr><th>Nombre y clase</th><th>Clave fuerte</th><th>Menciones / documentos</th><th>Resoluci\u00f3n</th></tr></thead><tbody>${es.map(e => `<tr><td><a href="#/${e.carril === 'persona' ? 'persona' : 'entidad'}/${esc(e.id)}">${esc(e.nombre || '\u00d8 nombre no informado')}</a> \u00b7 ${esc(e.clase)}</td><td class="mono">${esc(e.clave_fuerte || '\u00d8 sin clave fuerte')}</td><td>${esc(e.menciones)} menciones / ${esc(e.documentos)} documentos</td><td>${e.quien ? `Afirmado por ${esc(e.quien)}` : (e.clave_fuerte ? 'Resoluci\u00f3n del sistema por clave fuerte' : '\u00d8 autor de resoluci\u00f3n no informado')}</td></tr>`).join('')}</tbody></table></div>` : '<p>No hay entidades para esta clase.</p>'}
+    <h3>Menciones sin resolver</h3><p>Son trabajo pendiente, no un error.</p>${htmlMenciones(ms)}
+    <h3>Propuestas de fusi\u00f3n</h3><p class="prosa">Unir de m\u00e1s es peor que no unir: junta en una ficha lo que dos papeles dicen de personas distintas. Ninguna propuesta est\u00e1 confirmada de antemano. Rechazar deja constancia y no se vuelve a preguntar.</p>
+    ${ps.length ? ps.map(p => `<form class="revision-propuesta" data-fusion="${esc(p.norm)}" data-clase="${esc(p.clase)}"><h3>Propuesta \u00b7 ${esc(p.clase)}</h3><p class="mono">${p.literales.map(esc).join(' / ')}</p><p>${esc(p.veces)} menciones \u00b7 Motivo: ${esc(p.motivo)}</p>${htmlMenciones(ms.filter(m => m.norm === p.norm && m.clase === p.clase))}<label>Nombre que afirm\u00e1s <input name="nombre" required autocomplete="off"></label><button class="boton" type="submit">Confirmar con este nombre</button><button class="boton gris" type="button" data-rechazar-fusion>Rechazar: no volver a preguntar</button></form>`).join('') : '<p>No hay propuestas de fusi\u00f3n.</p>'}`;
+}
+function htmlEntidad(e) {
+  return `<h2>${esc(e.nombre)}</h2><p>${esc(e.clase)} \u00b7 Clave fuerte: <span class="mono">${esc(e.clave_fuerte || '\u00d8 sin clave')}</span></p><p>${e.quien ? `Afirmado por ${esc(e.quien)}` : (e.clave_fuerte ? 'Resuelto por el sistema por clave fuerte' : '\u00d8 autor de resoluci\u00f3n no informado')}</p><h3>Todas las formas que dice el papel</h3>${htmlMenciones(e.menciones)}`;
+}
+function htmlRelaciones(rs, decidir = false) {
+  return rs.length ? rs.map(r => {
+    const estado = r.estado || 'propuesta';
+    return `<article class="${estado === 'confirmada' ? 'revision-confirmada' : 'revision-propuesta'}"><h3>${esc(r.hacia || '')} \u00b7 ${esc(r.que_dice || r.tipo)} \u00b7 ${esc(estado)}</h3><p>${r.desde_doc ? `<a href="#/documento/${esc(r.desde_doc)}">${esc(r.archivo_desde || r.desde_doc)}</a>` : '\u00d8 documento de origen no informado'} \u2192 ${r.hasta_doc ? `<a href="#/documento/${esc(r.hasta_doc)}">${esc(r.archivo_hasta || r.hasta_doc)}</a>` : '\u00d8 documento de destino no informado'}</p><p>Fuente: ${esc(r.fuente || '\u00d8 no informada')} \u00b7 confianza ${esc(r.confianza ?? '\u00d8 no informada')}${r.quien ? ` \u00b7 Decidi\u00f3 ${esc(r.quien)}` : ''}</p><p>${esc(r.nota || '')}</p>${decidir && estado === 'propuesta' ? `<button class="boton" data-relacion="${esc(r.id)}" data-aceptar="true">Confirmar</button> <button class="boton gris" data-relacion="${esc(r.id)}" data-aceptar="false">Rechazar y conservar constancia</button>` : ''}</article>`;
+  }).join('') : '<p>No hay relaciones para mostrar.</p>';
+}
+function htmlTiposRelacion(tipos) {
+  return `<label>Tipo <select name="tipo" required><option value="">Eleg\u00ed qu\u00e9 afirma la relaci\u00f3n</option>${tipos.map(t => `<option value="${esc(t.clave)}">${esc(t.que_dice)}</option>`).join('')}</select></label>`;
+}
+async function accionInterfaz(b, tarea) {
+  b.disabled = true;
+  try { await tarea(); } catch (e) { alert(e.message); } finally { b.disabled = false; }
+}
+async function vEntidades() {
+  const hash = location.hash, clase = new URLSearchParams(hash.split('?')[1] || '').get('clase') || '';
+  const d = await api('/api/entidades' + (clase ? '?clase=' + encodeURIComponent(clase) : ''));
+  if (location.hash !== hash) return;
+  vista.innerHTML = bloque('', 'Entidades', htmlEntidades(d, clase));
+  $('#clase-entidad').onchange = e => { location.hash = '#/entidades?clase=' + encodeURIComponent(e.target.value); };
+  vista.querySelectorAll('[data-fusion]').forEach(f => {
+    const enviar = async (b, aceptar) => accionInterfaz(b, async () => {
+      const quien = await conRevisor(); if (!quien) return;
+      await guardarNucleo('/api/entidad/' + (aceptar ? 'confirmar' : 'rechazar'), {clase:f.dataset.clase, norm:f.dataset.fusion, nombre:f.elements.nombre.value.trim(), quien});
+      await vEntidades();
+    });
+    f.onsubmit = e => { e.preventDefault(); enviar(f.querySelector('[type="submit"]'), true); };
+    f.querySelector('[data-rechazar-fusion]').onclick = e => enviar(e.currentTarget, false);
+  });
+}
+async function vEntidad(id) {
+  const hash = location.hash, e = await api('/api/entidad?id=' + id);
+  if (hash === location.hash) vista.innerHTML = bloque('', 'Entidad', htmlEntidad(e));
+}
+function enlazarDecisionesRelacion(host, refrescar) {
+  host.querySelectorAll('[data-relacion]').forEach(b => b.onclick = () => accionInterfaz(b, async () => {
+    const quien = await conRevisor(); if (!quien) return;
+    await guardarNucleo('/api/relacion/decidir', {id:Number(b.dataset.relacion), aceptar:b.dataset.aceptar === 'true', quien});
+    await refrescar();
+  }));
+}
+async function vRelaciones() {
+  const hash = location.hash, d = await api('/api/relaciones');
+  if (hash !== location.hash) return;
+  vista.innerHTML = bloque('', 'Relaciones', `<h2>Relaciones pendientes</h2><p>Son propuestas del sistema. Rechazar no borra: conserva la decisi\u00f3n para que no se vuelva a proponer lo descartado.</p>${htmlRelaciones(d.pendientes, true)}<h3>Anotar una relaci\u00f3n entre documentos</h3><form id="anotar-relacion">${htmlTiposRelacion(d.tipos)}<label>Documento del que sale (identificador) <input name="desde" type="number" min="1" required></label><label>Documento al que llega (identificador) <input name="hasta" type="number" min="1" required></label><label>Nota de respaldo <textarea name="nota"></textarea></label><button class="boton">Registrar mi afirmaci\u00f3n</button></form>`);
+  enlazarDecisionesRelacion(vista, vRelaciones);
+  $('#anotar-relacion').onsubmit = e => { e.preventDefault(); const f = e.currentTarget; accionInterfaz(f.querySelector('button'), async () => {
+    const quien = await conRevisor(); if (!quien) return;
+    await guardarNucleo('/api/relacion/anotar', {tipo:f.elements.tipo.value, desde_doc:Number(f.elements.desde.value), hasta_doc:Number(f.elements.hasta.value), nota:f.elements.nota.value, quien});
+    await vRelaciones();
+  }); };
+}
+async function cargarRelacionesDocumento(id) {
+  const host = $('#relaciones-documento');
+  try {
+    const d = await api('/api/relaciones/documento?id=' + id);
+    if (!host.isConnected) return;
+    host.innerHTML = `<h3>Relaciones: sale / llega</h3>${htmlRelaciones(d.relaciones)}<a href="#/relaciones">Revisar o anotar relaciones</a>`;
+  } catch(e) { if (host.isConnected) host.textContent = e.message; }
+}
+/* Consultas se ejecutan otra vez; colecciones solo cambian por una accion. */
+function htmlGuardadas(d) {
+  return `<h2>Consultas guardadas</h2><p class="prosa">Una consulta guardada vuelve a ejecutar una b\u00fasqueda con sus filtros. Sus resultados cambian cuando cambian los datos. Una colecci\u00f3n contiene lo apartado a mano y no cambia sola.</p>${d.consultas.length ? d.consultas.map(c => `<article class="revision-confirmada"><h3>${esc(c.nombre)}</h3><p>${esc(c.consulta)} \u00b7 Guard\u00f3 ${esc(c.quien)}</p><p>Filtros: ${esc(JSON.stringify(c.filtros))}</p><button class="boton" data-ejecutar="${esc(c.id)}">Volver a buscar</button> <button class="boton gris" data-borrar-consulta="${esc(c.id)}">Borrar consulta guardada</button></article>`).join('') : '<p>No hay consultas guardadas. Guard\u00e1 una desde Buscar.</p>'}`;
+}
+function htmlColecciones(d) {
+  return `<h2>Colecciones</h2><p class="prosa">Una colecci\u00f3n es una selecci\u00f3n manual: no cambia sola al cargar documentos. Una consulta guardada vuelve a buscar y sus resultados pueden cambiar.</p>${d.colecciones.length ? d.colecciones.map(c => `<article class="revision-confirmada"><h3><a href="#/coleccion/${esc(c.id)}">${esc(c.nombre)}</a></h3><p>${esc(c.items)} elementos \u00b7 Apart\u00f3 ${esc(c.quien)}</p><p>${esc(c.nota || '')}</p></article>`).join('') : '<p>No hay colecciones. Pod\u00e9s crear una para apartar material.</p>'}<form id="crear-coleccion"><label>Nombre <input name="nombre" required></label><label>Nota <textarea name="nota"></textarea></label><button class="boton">Crear colecci\u00f3n</button></form>`;
+}
+function htmlColeccion(c) {
+  return `<h2>${esc(c.nombre)}</h2><p>Colecci\u00f3n manual: no cambia sola. Cre\u00f3 ${esc(c.quien)}.</p><p>${esc(c.nota || '')}</p>${c.items.length ? `<div class="tabla-env"><table><thead><tr><th>Elemento</th><th>Fuente</th><th>Qui\u00e9n y nota</th><th>Acci\u00f3n</th></tr></thead><tbody>${c.items.map((i,n) => `<tr><td>${esc(i.clase)} \u00b7 ${esc(i.nombre || i.que_es)} \u00b7 ${esc(i.referencia)}</td><td>${esc(i.archivo || '\u00d8 sin archivo')} \u00b7 fojas ${esc(i.fojas || '\u00d8 no corresponde')}</td><td>${esc(i.quien)} \u00b7 ${esc(i.nota || '')}</td><td><button class="mini" data-quitar-item="${n}">Quitar de la colecci\u00f3n</button></td></tr>`).join('')}</tbody></table></div>` : '<p>Esta colecci\u00f3n no tiene elementos.</p>'}`;
+}
+async function vGuardadas() {
+  const hash = location.hash, d = await api('/api/consultas-guardadas'); if (hash !== location.hash) return;
+  vista.innerHTML = bloque('', 'Consultas guardadas', htmlGuardadas(d));
+  vista.querySelectorAll('[data-ejecutar]').forEach(b => b.onclick = () => {
+    const c = d.consultas.find(c => String(c.id) === b.dataset.ejecutar);
+    if (Object.keys(c.filtros || {}).length) { alert('El servidor de b\u00fasqueda no expone filtros todav\u00eda. No se ejecutar\u00e1 una consulta distinta de la guardada.'); return; }
+    location.hash = '#/buscar/' + encodeURIComponent(c.consulta);
+  });
+  vista.querySelectorAll('[data-borrar-consulta]').forEach(b => b.onclick = () => accionInterfaz(b, async () => { await guardarNucleo('/api/consulta/borrar', {id:Number(b.dataset.borrarConsulta)}); await vGuardadas(); }));
+}
+async function vColecciones() {
+  const hash = location.hash, d = await api('/api/colecciones'); if (hash !== location.hash) return;
+  vista.innerHTML = bloque('', 'Colecciones', htmlColecciones(d));
+  $('#crear-coleccion').onsubmit = e => { e.preventDefault(); const f = e.currentTarget; accionInterfaz(f.querySelector('button'), async () => {
+    const quien = await conRevisor(); if (!quien) return;
+    const c = await guardarNucleo('/api/coleccion/crear', {nombre:f.elements.nombre.value.trim(), nota:f.elements.nota.value, quien}); location.hash = '#/coleccion/' + c.id;
+  }); };
+}
+async function vColeccion(id) {
+  const hash = location.hash, c = await api('/api/coleccion?id=' + id); if (hash !== location.hash) return;
+  vista.innerHTML = bloque('', 'Colecci\u00f3n', htmlColeccion(c));
+  vista.querySelectorAll('[data-quitar-item]').forEach(b => b.onclick = () => accionInterfaz(b, async () => {
+    const i = c.items[Number(b.dataset.quitarItem)];
+    await guardarNucleo('/api/coleccion/quitar', {coleccion_id:Number(id), clase:i.clase, referencia:i.referencia}); await vColeccion(id);
+  }));
+}
+async function apartarResultado(clase, referencia) {
+  const d = await api('/api/colecciones');
+  if (!d.clases.includes(clase)) throw new Error('El servidor no permite apartar esta clase de resultado.');
+  const modal = dialogo(`<h3>Apartar en una colecci\u00f3n</h3><p>Selecci\u00f3n manual: no cambia sola.</p>${d.colecciones.length ? `<form id="apartar"><label>Colecci\u00f3n <select name="coleccion" required><option value="">Eleg\u00ed una colecci\u00f3n</option>${d.colecciones.map(c => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('')}</select></label><label>Nota <textarea name="nota"></textarea></label><button class="boton">Apartar</button></form>` : '<p>No hay colecciones. <a href="#/colecciones">Cre\u00e1 una primero</a>.</p>'}<button class="boton gris" data-cerrar>Cerrar</button>`);
+  modal.querySelector('[data-cerrar]').onclick = () => modal.close();
+  const enlace = modal.querySelector('a'); if (enlace) enlace.onclick = () => modal.close();
+  const f = modal.querySelector('form'); if (f) f.onsubmit = e => { e.preventDefault(); accionInterfaz(f.querySelector('button'), async () => {
+    const quien = await conRevisor(); if (!quien) return;
+    await guardarNucleo('/api/coleccion/agregar', {coleccion_id:Number(f.elements.coleccion.value), clase, referencia:String(referencia), quien, nota:f.elements.nota.value}); modal.close();
+  }); };
+}
+function htmlResumenBusqueda(r) {
+  const total = (r.campos_total ?? r.campos.length) + (r.paginas_total ?? r.paginas.length);
+  return `<p class="prosa">Total: ${esc(total)} coincidencias (${esc(r.campos_total ?? r.campos.length)} en datos; ${esc(r.paginas_total ?? r.paginas.length)} en fojas). Mostradas: ${r.campos.length + r.paginas.length}.</p>${total < 10 && r.variantes?.length ? `<p>Buscaste <span class="mono">${esc(r.consulta)}</span>; el OCR pudo haber le\u00eddo lo mismo como: ${r.variantes.map(v => `<a href="#/buscar/${encodeURIComponent(v)}">${esc(v)}</a>`).join(' \u00b7 ')}. Son variantes de lectura, no equivalencias confirmadas.</p>` : ''}`;
+}
+function acumularBusqueda(previa, siguiente) {
+  if (siguiente.desde <= previa.desde) throw new Error('El servidor repiti\u00f3 la p\u00e1gina. No se agregaron duplicados; quedan resultados sin traer.');
+  const unir = (a,b,clave) => { const vistos = new Set(a.map(clave)); return a.concat(b.filter(x => { const k = clave(x); if (vistos.has(k)) return false; vistos.add(k); return true; })); };
+  return {...siguiente, campos:unir(previa.campos, siguiente.campos, x => JSON.stringify([x.documento_id,x.campo,x.valor_literal,x.pagina_nro])), paginas:unir(previa.paginas, siguiente.paginas, x => JSON.stringify([x.sha256,x.nro]))};
+}
+
 const rutas = [
+  [/^#\/entidades(\?.*)?$/, vEntidades],
+  [/^#\/entidad\/(\d+)$/, vEntidad],
+  [/^#\/relaciones$/, vRelaciones],
+  [/^#\/guardadas$/, vGuardadas],
+  [/^#\/colecciones$/, vColecciones],
+  [/^#\/coleccion\/(\d+)$/, vColeccion],
   [/^#\/sin-reconocer$/, vSinReconocer],
   [/^#\/foliatura\/?(.*)$/, vFoliatura],
   [/^#\/tablas\/?(.*)$/, vTablas],
