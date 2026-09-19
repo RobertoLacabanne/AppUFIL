@@ -407,14 +407,32 @@ def desactualizadas_por_etapa(cx: sqlite3.Connection, *, forzar: tuple = ()
     con_cambio: set[str] = set()
     for e in vs.ETAPAS:
         guardados = _sellos_guardados(cx, e.clave)
-        por_dependencia = any(d in con_cambio for d in e.depende_de)
+        # La dependencia se mira POR UNIDAD cuando se puede, y no por etapa entera.
+        #
+        # Con un solo archivo roto en un lote de cincuenta, mirarlo por etapa marca la
+        # etapa como cambiada y arrastra a los otros cuarenta y nueve: al reintentar se
+        # rehace todo por culpa de uno. Que es exactamente el desperdicio que este
+        # carril existe para evitar.
+        #
+        # Entre etapas del mismo alcance —las que trabajan por archivo— se compara
+        # archivo contra archivo. Cuando los alcances no coinciden (la lectura es por
+        # foja, la identidad es de todo el legajo) no hay unidad común que comparar, y
+        # ahí sí vale la regla vieja: si cambió algo arriba, esta etapa se rehace entera.
+        arrastre_global = any(
+            d in con_cambio and vs.POR_CLAVE[d].alcance != e.alcance
+            for d in e.depende_de)
+        de_arriba = set()
+        for d in e.depende_de:
+            if d in con_cambio and vs.POR_CLAVE[d].alcance == e.alcance:
+                de_arriba.update(viejas.get(d, ()))
         pendientes = []
         for alcance_id, hay_salida in _unidades(cx, e.clave):
             est = _estado_unidad(e, guardados.get(alcance_id), hay_salida, firmas[e.clave])
             # Lo heredado NO se rehace por su cuenta: adoptarlo es justamente lo que
             # evita releer un acervo entero. Se rehace sólo si alguien lo pide o si
             # cambió algo de lo que depende.
-            if est in ("desactualizada", "nunca") or e.clave in arrastradas or por_dependencia:
+            if (est in ("desactualizada", "nunca") or e.clave in arrastradas
+                    or arrastre_global or alcance_id in de_arriba):
                 pendientes.append(alcance_id)
         if pendientes:
             viejas[e.clave] = pendientes

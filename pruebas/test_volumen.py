@@ -134,3 +134,127 @@ class UnExpedienteGrandeNoSeCargaEntero(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnaFallaNoSeLlevaPuestoElResto(unittest.TestCase):
+    """
+    Un archivo que falla no puede frenar a los demás.
+
+    En un lote de cincuenta escaneos siempre hay uno roto. Si ese corta la corrida,
+    alguien tiene que volver a lanzar todo y esperar de nuevo; y si la corta en silencio,
+    los otros cuarenta y nueve quedan sin procesar sin que nadie se entere.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        for i, sha in enumerate(("a" * 64, "b" * 64, "c" * 64)):
+            self.cx.execute(
+                """INSERT INTO archivo (sha256,ruta_original,nombre,bytes,paginas,ingerido_en)
+                   VALUES (?,?,?,1,1,?)""", (sha, f"/x/{i}.pdf", f"{i}.pdf", ahora()))
+            pid = self.cx.execute("INSERT INTO pagina (sha256,nro,ancho_pt,alto_pt) "
+                                  "VALUES (?,1,595,842)", (sha,)).lastrowid
+            self.cx.execute(
+                """INSERT INTO lectura (pagina_id,ruta,motor,version,confianza,ms,creado_en)
+                   VALUES (?,'ocr_a','tesseract','5.4.0',0.9,10,?)""", (pid, ahora()))
+        self.cx.commit()
+
+    def tearDown(self):
+        self.cx.close()
+        try:
+            self.tmp.cleanup()
+        except PermissionError:
+            pass
+
+    def test_el_que_falla_queda_marcado_y_los_otros_se_hacen(self):
+        from ufil import actualizacion as ac
+        from ufil import capa2_extraccion as c2
+
+        malo = "b" * 64
+        original = c2.clasificar_fojas
+
+        def romper(cx, sha, **kw):
+            if sha == malo:
+                raise RuntimeError("este escaneo est\u00e1 roto")
+            return original(cx, sha, **kw)
+
+        c2.clasificar_fojas = romper
+        try:
+            r = ac.aplicar(self.cx)
+        finally:
+            c2.clasificar_fojas = original
+
+        self.assertTrue(r["errores"], "la falla tiene que informarse, no tragarse")
+        self.assertEqual(r["archivos"], 2, "los otros dos se hacen igual")
+        fallidas = {f["alcance_id"] for f in self.cx.execute(
+            "SELECT alcance_id FROM resultado_etapa WHERE estado='fallido'")}
+        self.assertIn(malo, fallidas, "el archivo roto queda marcado como fallido")
+        self.assertNotIn("a" * 64, fallidas)
+
+    def test_volver_a_correr_reintenta_solo_el_que_fallo(self):
+        from ufil import actualizacion as ac
+        from ufil import capa2_extraccion as c2
+
+        malo = "b" * 64
+        original = c2.clasificar_fojas
+        c2.clasificar_fojas = lambda cx, sha, **kw: (
+            (_ for _ in ()).throw(RuntimeError("roto")) if sha == malo
+            else original(cx, sha, **kw))
+        try:
+            ac.aplicar(self.cx)
+        finally:
+            c2.clasificar_fojas = original
+
+        viejas = ac.desactualizadas_por_etapa(self.cx)
+        pendientes = {s for v in viejas.values() for s in v}
+        self.assertIn(malo, pendientes,
+                      "el que fall\u00f3 tiene que volver a intentarse")
+        r = ac.aplicar(self.cx)
+        self.assertEqual(r["archivos"], 1,
+                         "y s\u00f3lo \u00e9l: los otros dos ya estaban hechos")
+
+
+class DosConexionesALaVez(unittest.TestCase):
+    """
+    La interfaz lee mientras el trabajador escribe. Es lo normal, no un caso raro.
+
+    SQLite en WAL lo permite, pero una escritura sin confirmar en la conexión del
+    trabajador bloquea a la otra hasta el timeout, y del lado de la pantalla eso se ve
+    como un pedido que nunca contesta. Ya pasó dos veces en este proyecto.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ruta = Path(self.tmp.name) / "t.sqlite"
+        cx = db.abrir(self.ruta)
+        cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,paginas,ingerido_en)
+                      VALUES ('aa','/x/a.pdf','a.pdf',1,1,?)""", (ahora(),))
+        cx.execute("INSERT INTO pagina (sha256,nro,ancho_pt,alto_pt) VALUES ('aa',1,595,842)")
+        cx.commit()
+        cx.close()
+
+    def tearDown(self):
+        try:
+            self.tmp.cleanup()
+        except PermissionError:
+            pass
+
+    def test_abrir_una_segunda_conexion_no_se_queda_esperando(self):
+        import time
+        from ufil import actualizacion as ac
+        lector = db.abrir(self.ruta)
+        escritor = db.abrir(self.ruta)
+        try:
+            # El lector deja una consulta abierta, como la interfaz mostrando una pantalla.
+            lector.execute("SELECT COUNT(*) FROM pagina").fetchone()
+            t0 = time.perf_counter()
+            ac.plan(escritor)                       # mirar no puede bloquear
+            otra = db.abrir(self.ruta)              # abrir tampoco
+            otra.close()
+            seg = time.perf_counter() - t0
+            self.assertLess(seg, 5,
+                            f"abrir y mirar con otra conexi\u00f3n encima tard\u00f3 "
+                            f"{seg:.1f}s: hay una escritura sin confirmar bloqueando")
+        finally:
+            lector.close()
+            escritor.close()
