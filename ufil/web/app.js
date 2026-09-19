@@ -550,6 +550,7 @@ const SECCIONES = [
     {hash: '#/relaciones', rotulo: 'Relaciones'},
     {hash: '#/guardadas', rotulo: 'Consultas guardadas'},
     {hash: '#/colecciones', rotulo: 'Colecciones'},
+    {hash: '#/informes', rotulo: 'Informes'},
   ], tambien: ['#/documento', '#/persona', '#/entidad', '#/coleccion']},
   {id: 'hallazgos', rotulo: 'Hallazgos', items: [
     {hash: '#/superposiciones', rotulo: 'Superposiciones'},
@@ -4534,6 +4535,7 @@ const TITULOS = {
   '#/acerca': 'Acerca del sistema',
   '#/equipo': 'Trabajo del equipo',
   '#/sin-reconocer':'Todav\u00eda sin reconocer',
+  '#/informes':'Informes',
   '#/foliatura':'Foliatura del papel',
   '#/tablas':'Tablas',
   '#/cronologia':'Cronolog\u00eda',
@@ -5102,12 +5104,69 @@ function acumularBusqueda(previa, siguiente) {
   return {...siguiente, campos:unir(previa.campos, siguiente.campos, x => JSON.stringify([x.documento_id,x.campo,x.valor_literal,x.pagina_nro])), paginas:unir(previa.paginas, siguiente.paginas, x => JSON.stringify([x.sha256,x.nro]))};
 }
 
+
+/* -- Informes: lo que se adjunta a un escrito ------------------------------
+   Todo lo que sale lleva de donde salio: archivo, foja y, cuando corresponde, el
+   recuadro. Una planilla con importes que no se puede volver a atar al papel no sirve
+   para ofrecer prueba: del otro lado van a preguntar de donde salio cada numero, y
+   "del sistema" no es una respuesta.
+
+   Los informes ordenan y describen. No concluyen. Eso se dice en la pantalla y va
+   tambien en el pie de cada archivo que sale. */
+function htmlInformes(informes, colecciones) {
+  return `<p class="prosa">Estos informes <strong>ordenan y describen</strong> lo que el
+      sistema ley\u00f3 de los originales. No sacan conclusiones sobre responsabilidad,
+      intenci\u00f3n ni licitud: eso lo escribe quien firma. Cada fila dice el archivo y
+      la foja de donde sale, para poder verificarla contra el papel.</p>
+    ${informes.map(i => `<article class="nucleo-ficha">
+      <h3>${esc(i.nombre)}</h3>
+      ${i.necesita === 'coleccion_id' ? (colecciones.length
+        ? `<label>Colecci\u00f3n
+             <select data-coleccion-de="${esc(i.clave)}">${colecciones.map(c =>
+               `<option value="${esc(c.id)}">${esc(c.nombre)} (${esc(c.items)})</option>`
+             ).join('')}</select></label>`
+        : '<p class="apagado">Todav\u00eda no hay ninguna colecci\u00f3n armada.</p>') : ''}
+      ${i.necesita === 'documento_ids'
+        ? '<p class="apagado">Se arma desde una colecci\u00f3n o desde la b\u00fasqueda.</p>'
+        : `<p class="botonera">${i.formatos.map(f =>
+            `<button class="boton" data-informe="${esc(i.clave)}" data-formato="${esc(f)}"
+               ${i.necesita === 'coleccion_id' && !colecciones.length ? 'disabled' : ''}
+             >Sacar en ${esc(f.toUpperCase())}</button>`).join(' ')}</p>`}
+    </article>`).join('')}
+    <div id="salida-informe"></div>`;
+}
+
+async function vInformes() {
+  const [d, c] = await Promise.all([api('/api/informes'), api('/api/colecciones')]);
+  if (location.hash !== '#/informes') return;
+  const colecciones = c.colecciones || [];
+  vista.innerHTML = bloque('', 'Documentos', htmlInformes(d.informes, colecciones));
+  vista.querySelectorAll('[data-informe]').forEach(b => b.onclick = async () => {
+    const clave = b.dataset.informe;
+    const sel = vista.querySelector(`[data-coleccion-de="${clave}"]`);
+    b.disabled = true;
+    const salida = $('#salida-informe');
+    try {
+      const r = await api('/api/informe', {method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({clave, formato: b.dataset.formato,
+                              coleccion_id: sel ? +sel.value : undefined})});
+      salida.innerHTML = `<p class="prosa">Qued\u00f3
+        <span class="mono">${esc(r.archivo)}</span> en
+        <span class="mono">${esc(r.carpeta)}</span>.</p>`;
+    } catch (e) {
+      salida.innerHTML = `<p class="prosa">${esc(e.message)}</p>`;
+    } finally { b.disabled = false; }
+  });
+}
+
 const rutas = [
   [/^#\/entidades(\?.*)?$/, vEntidades],
   [/^#\/entidad\/(\d+)$/, vEntidad],
   [/^#\/relaciones$/, vRelaciones],
   [/^#\/guardadas$/, vGuardadas],
   [/^#\/colecciones$/, vColecciones],
+  [/^#\/informes$/, vInformes],
   [/^#\/coleccion\/(\d+)$/, vColeccion],
   [/^#\/sin-reconocer$/, vSinReconocer],
   [/^#\/foliatura\/?(.*)$/, vFoliatura],
