@@ -1749,7 +1749,18 @@ class Manejador(BaseHTTPRequestHandler):
 
         cx = _cx()
         try:
-            if u.path.startswith(("/api/pieza/", "/api/conjunto/")):
+            # Todo lo que recibe un objeto JSON con campos obligatorios entra por acá:
+            # comparten los validadores `entero` y `texto` de abajo, que son los que
+            # convierten un cuerpo mal armado en un 400 con un mensaje en castellano.
+            #
+            # OJO: agregar una ruta nueva abajo NO alcanza si el prefijo no está en esta
+            # lista. Queda adentro del `if` y nunca se la alcanza, así que contesta 404
+            # «ruta desconocida» aunque el manejador exista. Pasó con las cinco rutas de
+            # informes, colecciones, entidades y relaciones: el código estaba escrito y
+            # la ruta no existía para el servidor.
+            if u.path.startswith(("/api/pieza/", "/api/conjunto/", "/api/consulta/",
+                                  "/api/coleccion/", "/api/entidad/", "/api/relacion/",
+                                  "/api/informe")):
                 if not isinstance(cuerpo, dict):
                     raise ValueError("El pedido tiene que ser un objeto.")
 
