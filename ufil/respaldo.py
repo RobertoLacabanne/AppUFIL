@@ -21,6 +21,8 @@ escrituras (WAL) va aparte.
 from __future__ import annotations
 
 import sqlite3
+import os
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -49,6 +51,8 @@ def resumen(cx: sqlite3.Connection) -> dict:
             raise
     return {
         "archivos": uno("SELECT COUNT(*) FROM archivo"),
+        "archivos_papelera": uno("SELECT COUNT(*) FROM papelera_archivo"),
+        "revisiones_papelera": uno("SELECT COALESCE(SUM(revisiones),0) FROM papelera_archivo"),
         "documentos": uno("SELECT COUNT(*) FROM documento"),
         # Lo irreemplazable: decisiones de personas.
         "revisiones": uno("SELECT COUNT(*) FROM revision_humana"),
@@ -142,6 +146,13 @@ def inspeccionar(ruta: Path) -> dict:
     cx = sqlite3.connect(f"file:{ruta}?mode=ro", uri=True)
     cx.row_factory = sqlite3.Row
     try:
+        from .db import ESQUEMA_VERSION
+        if cx.execute('PRAGMA user_version').fetchone()[0] > ESQUEMA_VERSION:
+            raise RespaldoInvalido('El respaldo requiere una versión más nueva de AppUFIL.')
+        if cx.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
+            raise RespaldoInvalido('El respaldo no supera el control de integridad SQLite.')
+        if cx.execute('PRAGMA foreign_key_check').fetchone():
+            raise RespaldoInvalido('El respaldo contiene referencias inválidas.')
         tablas = {r[0] for r in cx.execute(
             "SELECT name FROM sqlite_master WHERE type='table'")}
         faltan = {"archivo", "documento", "campo", "revision_humana"} - tablas
@@ -160,6 +171,8 @@ def inspeccionar(ruta: Path) -> dict:
         return {
             "version_esquema": uno("PRAGMA user_version"),
             "archivos": uno("SELECT COUNT(*) FROM archivo"),
+            "archivos_papelera": uno("SELECT COUNT(*) FROM papelera_archivo"),
+            "revisiones_papelera": uno("SELECT COALESCE(SUM(revisiones),0) FROM papelera_archivo"),
             "documentos": uno("SELECT COUNT(*) FROM documento"),
             "campos": uno("SELECT COUNT(*) FROM campo"),
             # Lo único que no se puede volver a generar. Es el número que hay que mirar
@@ -169,6 +182,8 @@ def inspeccionar(ruta: Path) -> dict:
             "ultima_revision": uno("SELECT MAX(cuando) FROM revision_humana", None),
             "bytes": ruta.stat().st_size,
         }
+    except sqlite3.DatabaseError as e:
+        raise RespaldoInvalido('El respaldo está dañado o no tiene un esquema válido.') from e
     finally:
         cx.close()
 
@@ -181,24 +196,56 @@ def restaurar(origen: Path, destino: Path) -> dict:
     restauración equivocada sobre el legajo que no era es exactamente el accidente que
     esta función podría causar, así que tiene la misma vuelta atrás que todo lo demás.
     """
-    origen, destino = Path(origen), Path(destino)
-    datos = inspeccionar(origen)
-
+    from .exclusion import exclusiva, tomar_conexiones
+    origen, destino = Path(origen).resolve(), Path(destino).resolve()
+    if origen == destino:
+        raise RespaldoInvalido('El origen y el destino del respaldo deben ser distintos.')
+    inspeccionar(origen)
     destino.parent.mkdir(parents=True, exist_ok=True)
-    apartada = None
-    if destino.exists():
-        sello = datetime.now().strftime("%Y%m%d-%H%M%S")
-        apartada = destino.with_name(f"{destino.stem}.reemplazada-{sello}{destino.suffix}")
-        destino.replace(apartada)
-    # Los archivos laterales del WAL pertenecen a la base que se acaba de apartar: si
-    # quedaran, SQLite los aplicaría sobre la base nueva y la corrompería.
-    for lateral in ("-wal", "-shm"):
-        suelto = destino.with_name(destino.name + lateral)
-        if suelto.exists():
-            suelto.unlink()
+    # Exclusión de operaciones largas y de TODAS las conexiones de la aplicación,
+    # incluso lectores HTTP en otro proceso. Ambas se liberan ante un apagón.
+    with exclusiva(destino), tomar_conexiones(destino, compartido=False):
+        sello = datetime.now().strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex
+        temporal = destino.with_name(f'.restaurar-{sello}.sqlite')
+        apartada = None
+        try:
+            _copiar_sqlite(origen, temporal)
+            from . import db
+            preparada = db.conectar(temporal)
+            try:
+                db.inicializar(preparada)
+            finally:
+                preparada.close()
+            datos = inspeccionar(temporal)
+            if destino.exists():
+                apartada = destino.with_name(f'{destino.stem}.reemplazada-{sello}{destino.suffix}')
+                # La copia anterior incluye su WAL: copiar/renombrar sólo el .sqlite
+                # y borrar el WAL perdía decisiones humanas confirmadas.
+                _copiar_sqlite(destino, apartada)
+                anterior = sqlite3.connect(destino, timeout=0)
+                try:
+                    if anterior.execute('PRAGMA wal_checkpoint(TRUNCATE)').fetchone()[0]:
+                        raise RespaldoInvalido('La base tiene un lector/escritor externo activo.')
+                finally:
+                    anterior.close()
+            for lateral in ('-wal', '-shm'):
+                destino.with_name(destino.name + lateral).unlink(missing_ok=True)
+            with temporal.open('r+b') as f:
+                os.fsync(f.fileno())
+            os.replace(temporal, destino)
+            return {**datos, 'apartada': str(apartada) if apartada else None}
+        finally:
+            temporal.unlink(missing_ok=True)
 
-    # Se copia en vez de mover: el archivo de origen puede ser el que la persona
-    # subió a una carpeta temporal, y moverlo dejaría la carpeta sin él si algo falla
-    # después.
-    destino.write_bytes(origen.read_bytes())
-    return {**datos, "apartada": str(apartada) if apartada else None}
+
+def _copiar_sqlite(origen, destino):
+    """Copia un snapshot confirmado, incluyendo cualquier WAL del origen."""
+    fuente = sqlite3.connect(Path(origen).as_uri() + '?mode=ro', uri=True)
+    try:
+        salida = sqlite3.connect(destino)
+        try:
+            fuente.backup(salida)
+        finally:
+            salida.close()
+    finally:
+        fuente.close()

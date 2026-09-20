@@ -19,6 +19,43 @@ class Ocupado(ValueError):
 _local = threading.local()
 
 
+def tomar_conexiones(ruta, *, compartido):
+    """Cada conexión sostiene un lock compartido; reemplazar la base exige exclusivo.
+
+    Se usa LockFileEx en Windows: los locks de lectura de msvcrt no ofrecen
+    compartición real en todas las CRT. No bloquea: el llamador recibe 409.
+    """
+    candado = Path(str(Path(ruta).resolve()) + '.conexiones.lock')
+    candado.parent.mkdir(parents=True, exist_ok=True)
+    f = candado.open('a+b')
+    try:
+        if os.name == 'nt':
+            import ctypes
+            from ctypes import wintypes
+            import msvcrt
+            class Overlapped(ctypes.Structure):
+                _fields_ = [('Internal', ctypes.c_size_t), ('InternalHigh', ctypes.c_size_t),
+                            ('Offset', wintypes.DWORD), ('OffsetHigh', wintypes.DWORD),
+                            ('hEvent', wintypes.HANDLE)]
+            lock = ctypes.WinDLL('kernel32', use_last_error=True).LockFileEx
+            lock.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD,
+                             wintypes.DWORD, wintypes.DWORD, ctypes.POINTER(Overlapped)]
+            lock.restype = wintypes.BOOL
+            overlapped = Overlapped()
+            if not lock(msvcrt.get_osfhandle(f.fileno()), 1 if compartido else 3,
+                        0, 1, 0, ctypes.byref(overlapped)):
+                raise Ocupado('Hay conexiones abiertas o una restauración de respaldo en curso.')
+        else:
+            import fcntl
+            fcntl.flock(f.fileno(), (fcntl.LOCK_SH if compartido else fcntl.LOCK_EX) | fcntl.LOCK_NB)
+        return f  # Cerrar el handle libera el lock, también al morir el proceso.
+    except Exception as e:
+        f.close()
+        if isinstance(e, OSError):
+            raise Ocupado('Hay conexiones abiertas o una restauración de respaldo en curso.') from e
+        raise
+
+
 @contextmanager
 def exclusiva(ruta):
     ruta = str(Path(ruta).resolve())

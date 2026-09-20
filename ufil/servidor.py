@@ -411,8 +411,7 @@ def api_archivos(cx, *, procesando=False) -> dict:
         f = dict(a)
         f['revisiones'] = cx.execute(
             'SELECT COUNT(*) FROM revision_humana WHERE sha256=?', (f['sha256'],)).fetchone()[0]
-        f['tiene_revisiones_humanas'] = bool(f['revisiones'] or cx.execute(
-            'SELECT 1 FROM auditoria WHERE sha256=? LIMIT 1', (f['sha256'],)).fetchone())
+        f['tiene_revisiones_humanas'] = papelera.tiene_revisiones_humanas(cx, f['sha256'])
         f['procesando'] = procesando or papelera._ocupado(cx, f['sha256'])
         f['confirmacion_quitar'] = 'QUITAR ' + f['sha256']
         fojas, leidas, clasif = f["fojas"] or 0, f["leidas"] or 0, f["clasificadas"] or 0
@@ -1522,6 +1521,8 @@ class Manejador(BaseHTTPRequestHandler):
             return self._json({"error": "no encontrado"}, 404)
         except NoEncontrado as e:
             return self._json({"error": str(e), "no_encontrado": True}, 404)
+        except Ocupado as e:
+            return self._json({'ok': False, 'error': str(e)}, 409)
         except FileNotFoundError as e:
             return self._json({"error": str(e), "no_encontrado": True}, 404)
         except (KeyError, IndexError):
@@ -1576,7 +1577,10 @@ class Manejador(BaseHTTPRequestHandler):
         if u.path == "/api/subir":
             q = parse_qs(u.query)
             datos = self.rfile.read(largo) if largo else b""
-            cx = _cx()
+            try:
+                cx = _cx()
+            except Ocupado as e:
+                return self._json({'ok': False, 'error': str(e)}, 409)
             try:
                 g = guardar(cx, datos, q.get("nombre", ["sin-nombre.pdf"])[0],
                             lote=(q.get("lote", ["sin-lote"])[0] or "sin-lote").strip(),
@@ -1645,11 +1649,8 @@ class Manejador(BaseHTTPRequestHandler):
                 return self._json({"ok": False, "error":
                     f"Para reemplazar la base hay que escribir el número del legajo: "
                     f"{l.numero}"}, 400)
-            t = _procesador().estado.como_dict()
-            if t.get("estado") == "corriendo":
-                return self._json({"ok": False, "error":
-                    "Hay un procesamiento en curso. Paralo antes de reemplazar la base."},
-                    409)
+            # respaldo.restaurar protege la BASE DESTINO, que puede ser distinta
+            # del legajo de la cookie. Consultar el trabajador activo era insuficiente.
             if not crudo:
                 return self._json({"ok": False, "error": "no llegó ningún archivo"}, 400)
             with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tf:
@@ -1659,6 +1660,8 @@ class Manejador(BaseHTTPRequestHandler):
                 r = rp.restaurar(temporal, legajos.carpeta_de(slug) / "ufil.sqlite")
             except rp.RespaldoInvalido as e:
                 return self._json({"ok": False, "error": str(e)}, 400)
+            except (Ocupado, OSError) as e:
+                return self._json({'ok': False, 'error': str(e)}, 409)
             finally:
                 temporal.unlink(missing_ok=True)
             legajos.tocar(slug)
@@ -1666,7 +1669,7 @@ class Manejador(BaseHTTPRequestHandler):
 
         try:
             cuerpo = json.loads(self.rfile.read(largo) or b"{}")
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             return self._json({"error": "cuerpo JSON inválido"}, 400)
         # ── legajos ──
         # Antes de abrir ninguna base: elegir legajo es justamente lo que se hace
@@ -1760,7 +1763,10 @@ class Manejador(BaseHTTPRequestHandler):
                 return self._json({"ok": False, "error": str(e)}, 400)
             return self._json({"ok": True, **evento})
 
-        cx = _cx()
+        try:
+            cx = _cx()
+        except Ocupado as e:
+            return self._json({'ok': False, 'error': str(e)}, 409)
         try:
             if u.path in ('/api/archivo/quitar', '/api/archivo/restaurar', '/api/archivo/destruir'):
                 if not isinstance(cuerpo, dict):

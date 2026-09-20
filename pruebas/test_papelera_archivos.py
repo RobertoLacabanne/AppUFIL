@@ -249,6 +249,36 @@ class PapeleraArchivos(unittest.TestCase):
             self.cx.execute('INSERT INTO archivo VALUES (?,?,?,?,?,?,?,?)',fila)
         self.cx.rollback()
 
+    def test_destruir_limpia_copia_de_restauracion_abortada(self):
+        sha=sembrar(self.cx,self.raiz,completo=True)
+        self.quitar(sha)
+        with patch.object(pa,'_invalidar',side_effect=RuntimeError('corte antes del commit')):
+            with self.assertRaises(RuntimeError):
+                pa.restaurar(self.cx,sha)
+        ruta=self.raiz/'originales'/sha[:2]/(sha+'.pdf')
+        self.assertTrue(ruta.exists())
+        pa.destruir(self.cx,sha,'DESTRUIR '+sha)
+        self.assertFalse(ruta.exists())
+
+    def test_no_borra_copia_fisica_modificada(self):
+        sha=sembrar(self.cx,self.raiz)
+        ruta=self.raiz/'originales'/sha[:2]/(sha+'.pdf')
+        with patch.object(pa,'limpiar_pendientes',side_effect=OSError('ocupado')):
+            self.quitar(sha)
+        ruta.write_bytes(b'contenido ajeno')
+        with self.assertRaises(pa.ConflictoPapelera):
+            pa.destruir(self.cx,sha,'DESTRUIR '+sha)
+        self.assertEqual(ruta.read_bytes(),b'contenido ajeno')
+        self.assertEqual(len(pa.listar(self.cx)['archivos']),1)
+
+    def test_anotacion_humana_sin_revision_de_campo(self):
+        sha=sembrar(self.cx,self.raiz)
+        self.cx.execute("INSERT INTO foliatura(pagina_id,estado,origen,quien) VALUES (1,'corregida','humano','test')")
+        self.cx.commit()
+        self.assertTrue(pa.tiene_revisiones_humanas(self.cx,sha))
+        self.quitar(sha)
+        self.assertTrue(pa.listar(self.cx)['archivos'][0]['tiene_revisiones_humanas'])
+
 
 if __name__ == '__main__':
     unittest.main()

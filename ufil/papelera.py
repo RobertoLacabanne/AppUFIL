@@ -123,8 +123,32 @@ def _ocupado(cx, sha):
 
 
 def listar(cx):
-    return {'archivos': [dict(r) for r in cx.execute('''SELECT sha256,nombre,quitado_en,
-        revisiones,documentos,length(pdf) AS bytes FROM papelera_archivo ORDER BY quitado_en,sha256''')]}
+    filas = [dict(r) for r in cx.execute('''SELECT sha256,nombre,quitado_en,
+        revisiones,documentos,length(pdf) AS bytes,
+        json_extract(registros,'$.tiene_revisiones_humanas') AS tiene_revisiones_humanas
+        FROM papelera_archivo ORDER BY quitado_en,sha256''')]
+    for r in filas:
+        r['tiene_revisiones_humanas'] = bool(r['tiene_revisiones_humanas'])
+        r['confirmacion_destruir'] = 'DESTRUIR ' + r['sha256']
+    return {'archivos': filas}
+
+
+def tiene_revisiones_humanas(cx, sha):
+    return bool(cx.execute('''SELECT
+        EXISTS(SELECT 1 FROM revision_humana WHERE sha256=:sha) OR
+        EXISTS(SELECT 1 FROM auditoria WHERE sha256=:sha) OR
+        EXISTS(SELECT 1 FROM documento WHERE sha256=:sha AND clasificado_por IS NOT NULL) OR
+        EXISTS(SELECT 1 FROM campo c JOIN documento d ON d.id=c.documento_id
+               WHERE d.sha256=:sha AND c.revisado_por IS NOT NULL) OR
+        EXISTS(SELECT 1 FROM foliatura f JOIN pagina p ON p.id=f.pagina_id
+               WHERE p.sha256=:sha AND (f.origen='humano' OR f.quien IS NOT NULL)) OR
+        EXISTS(SELECT 1 FROM evento WHERE sha256=:sha AND (origen='humano' OR quien IS NOT NULL)) OR
+        EXISTS(SELECT 1 FROM mencion WHERE sha256=:sha AND (origen='humano' OR quien IS NOT NULL)) OR
+        EXISTS(SELECT 1 FROM tabla WHERE sha256=:sha AND (origen='humano' OR union_quien IS NOT NULL)) OR
+        EXISTS(SELECT 1 FROM pieza_tramo WHERE sha256=:sha AND quien IS NOT NULL) OR
+        EXISTS(SELECT 1 FROM relacion WHERE (fuente='humano' OR quien IS NOT NULL)
+               AND (desde_doc IN (SELECT id FROM documento WHERE sha256=:sha)
+                 OR hasta_doc IN (SELECT id FROM documento WHERE sha256=:sha)))''', {'sha':sha}).fetchone()[0])
 
 
 def _base(cx):
@@ -158,7 +182,9 @@ def _fisicos(cx, a):
             _ruta_segura(base, relativa, sha)
             if ruta.is_file():
                 assets[relativa] = base64.b64encode(ruta.read_bytes()).decode('ascii')
-                limpiar.append(relativa)
+                if not cx.execute('SELECT 1 FROM pagina WHERE render=? AND sha256<>?',
+                                  (str(ruta),sha)).fetchone():
+                    limpiar.append(relativa)
     return assets, limpiar
 
 
@@ -170,9 +196,20 @@ def limpiar_pendientes(cx):
     cx.execute('BEGIN IMMEDIATE')
     try:
         for r in cx.execute('SELECT * FROM papelera_limpieza').fetchall():
+            a = cx.execute('SELECT pdf,registros FROM papelera_archivo WHERE sha256=?',
+                           (r['sha256'],)).fetchone()
+            datos = json.loads(a['registros'])
             for relativa in json.loads(r['rutas']):
                 ruta = _ruta_segura(_base(cx), relativa, r['sha256'])
                 if ruta.exists():
+                    if cx.execute('SELECT 1 FROM archivo WHERE ruta_original=? UNION ALL '
+                                  'SELECT 1 FROM pagina WHERE render=?',
+                                  (str(ruta),str(ruta))).fetchone():
+                        continue  # Otra referencia activa conserva su copia.
+                    esperado = (base64.b64decode(datos['assets'][relativa])
+                                if relativa in datos.get('assets', {}) else a['pdf'])
+                    if ruta.read_bytes() != esperado:
+                        raise ConflictoPapelera('Cambió un archivo físico pendiente de limpieza; se conserva.')
                     ruta.chmod(0o600)
                     ruta.unlink()
             cx.execute('DELETE FROM papelera_limpieza WHERE sha256=?', (r['sha256'],))
@@ -201,6 +238,7 @@ def quitar(cx, sha, confirmacion):
         if hashlib.sha256(pdf).hexdigest() != sha:
             raise ConflictoPapelera('El original no coincide con su SHA-256; no se quitó nada.')
         datos = _instantanea(cx, sha)
+        datos['tiene_revisiones_humanas'] = tiene_revisiones_humanas(cx, sha)
         datos['assets'], limpiar = _fisicos(cx, a)
         revisiones = len(datos['filas'].get('revision_humana', []))
         cx.execute('INSERT INTO papelera_archivo VALUES (?,?,?,?,?,?,?,?)',
@@ -228,7 +266,7 @@ def quitar(cx, sha, confirmacion):
         pendiente = False
         try:
             limpiar_pendientes(cx)
-        except OSError:
+        except (OSError, ConflictoPapelera):
             pendiente = True
         return {'ok': True, 'sha256': sha, 'estado': 'papelera', 'revisiones': revisiones,
                 'limpieza_pendiente': pendiente}
@@ -319,6 +357,20 @@ def destruir(cx, sha, confirmacion):
     _sha(sha)
     if confirmacion != f'DESTRUIR {sha}':
         raise ValueError(f'Confirmación requerida: DESTRUIR {sha}')
+    # Una restauración abortada puede haber publicado copias antes de su rollback.
+    # Reconstituir el trabajo de limpieza evita dejarlas atrás al destruir.
+    _iniciar(cx)
+    try:
+        a = cx.execute('SELECT registros FROM papelera_archivo WHERE sha256=?', (sha,)).fetchone()
+        if not a or cx.execute('SELECT 1 FROM archivo WHERE sha256=?', (sha,)).fetchone():
+            raise ConflictoPapelera('Sólo se pueden destruir archivos que ya están en papelera.')
+        datos = json.loads(a['registros'])
+        rutas = [f'originales/{sha[:2]}/{sha}.pdf', *datos.get('assets', {})]
+        cx.execute('INSERT OR REPLACE INTO papelera_limpieza VALUES (?,?)', (sha,json.dumps(rutas)))
+        cx.commit()
+    except Exception:
+        cx.rollback()
+        raise
     # No descartar la última copia hasta completar la limpieza física pendiente.
     limpiar_pendientes(cx)
     _iniciar(cx)

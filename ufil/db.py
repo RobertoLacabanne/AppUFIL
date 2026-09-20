@@ -16,6 +16,19 @@ ESQUEMA_VERSION = 24
 _candado = threading.Lock()
 
 
+class Conexion(sqlite3.Connection):
+    """Impide reemplazar el archivo SQLite mientras una conexión lo utiliza."""
+    _proteccion = None
+
+    def close(self):
+        try:
+            super().close()
+        finally:
+            if self._proteccion is not None:
+                self._proteccion.close()
+                self._proteccion = None
+
+
 def ahora() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
@@ -23,11 +36,22 @@ def ahora() -> str:
 def conectar(ruta: Path | None = None) -> sqlite3.Connection:
     ruta = Path(ruta or config.BASE)
     ruta.parent.mkdir(parents=True, exist_ok=True)
-    cx = sqlite3.connect(ruta, timeout=30.0)
-    cx.row_factory = sqlite3.Row
-    cx.execute("PRAGMA journal_mode=WAL")
-    cx.execute("PRAGMA foreign_keys=ON")
-    cx.execute("PRAGMA synchronous=NORMAL")
+    from .exclusion import tomar_conexiones
+    proteccion = tomar_conexiones(ruta, compartido=True)
+    try:
+        cx = sqlite3.connect(ruta, timeout=30.0, factory=Conexion)
+    except Exception:
+        proteccion.close()
+        raise
+    cx._proteccion = proteccion
+    try:
+        cx.row_factory = sqlite3.Row
+        cx.execute("PRAGMA journal_mode=WAL")
+        cx.execute("PRAGMA foreign_keys=ON")
+        cx.execute("PRAGMA synchronous=NORMAL")
+    except Exception:
+        cx.close()
+        raise
     return cx
 
 
@@ -38,6 +62,11 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
     Serializado con un candado de proceso: el `DROP VIEW` seguido del `CREATE VIEW` no
     es atómico, y dos hilos ejecutándolo a la vez terminan en «view already exists».
     """
+    if cx.execute('PRAGMA user_version').fetchone()[0] > ESQUEMA_VERSION:
+        raise ValueError('La base requiere una versión más nueva de AppUFIL; no se modificó.')
+    objetos = {r[0] for r in cx.execute("SELECT name FROM sqlite_master WHERE name IN "
+        "('papelera_archivo','papelera_limpieza','archivo_no_reingresar_papelera')")}
+    forzar = forzar or len(objetos) != 3
     # Las columnas que faltan se chequean SIEMPRE, aunque la versión ya esté al día.
     # Si no, una base que quedó a mitad de camino —el número subió pero el ALTER no
     # llegó a correr— se queda rota para siempre y sin forma de arreglarse sola. Son
@@ -53,10 +82,12 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
     with _candado:
         if not forzar and cx.execute("PRAGMA user_version").fetchone()[0] == ESQUEMA_VERSION:
             return False
-        cx.executescript(esquema_sql())
-        _agregar_columnas_faltantes(cx)
-        cx.execute(f"PRAGMA user_version={ESQUEMA_VERSION}")
-        cx.commit()
+        try:
+            cx.executescript('BEGIN IMMEDIATE;\n' + esquema_sql() +
+                             f'\nPRAGMA user_version={ESQUEMA_VERSION};\nCOMMIT;')
+        except Exception:
+            cx.rollback()
+            raise
     return True
 
 
@@ -321,12 +352,16 @@ def ajuste(cx: sqlite3.Connection, clave: str, valor=None):
 def abrir(ruta: Path | None = None) -> sqlite3.Connection:
     """Conexión con el esquema garantizado. Para la línea de comandos y el arranque."""
     cx = conectar(ruta)
-    inicializar(cx)
+    try:
+        inicializar(cx)
+    except Exception:
+        cx.close()
+        raise
     if cx.execute('SELECT 1 FROM papelera_limpieza LIMIT 1').fetchone():
-        from .papelera import limpiar_pendientes
+        from .papelera import limpiar_pendientes, ConflictoPapelera
         from .exclusion import Ocupado
         try:
             limpiar_pendientes(cx)
-        except (OSError, Ocupado):
+        except (OSError, Ocupado, ConflictoPapelera):
             pass  # Queda registrado para reintentar; nunca se descarta la copia.
     return cx
