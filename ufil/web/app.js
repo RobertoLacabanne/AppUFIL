@@ -5511,7 +5511,7 @@ async function pedirQuitarArchivo(sha, nombre, confirmacion_quitar, procesando, 
 
   let msjRev = '';
   if (revisiones_humanas > 0) {
-     msjRev = `<div class="aviso" style="margin-top:1em">${sello('atencion', 'Hay decisiones humanas')}<span>Este archivo tiene ${esc(fmtNum.format(revisiones_humanas))} revisiones o confirmaciones humanas. Se conservar\\u00e1n en la papelera y volver\\u00e1n si restaur\\u00e1s el archivo.</span></div>`;
+     msjRev = `<div class="aviso separador-arriba">${sello('atencion', 'Hay decisiones humanas')}<span>Este archivo tiene ${esc(fmtNum.format(revisiones_humanas))} revisiones o confirmaciones humanas. Se conservar\\u00e1n en la papelera y volver\\u00e1n si restaur\\u00e1s el archivo.</span></div>`;
   }
 
   const d = dialogo(`
@@ -5579,7 +5579,7 @@ async function pedirDestruirArchivo(sha, nombre, confirmacion_destruir) {
         <span>Esta acci\\u00f3n no se puede deshacer. El archivo se borrar\\u00e1 del disco y todo su trabajo asociado se perder\\u00e1.</span>
       </div>
       <p class="prosa separador-arriba"><label for="conf-destruir">Para confirmar, escrib\\u00ed DESTRUIR:</label></p>
-      <input type="text" id="conf-destruir" autocomplete="off" class="campo-buscar" style="max-width:100%">
+      <input type="text" id="conf-destruir" autocomplete="off" class="campo-buscar" >
       <div class="botonera separador-arriba">
         <button class="boton gris" value="no" type="submit">Cancelar</button>
         <button class="boton peligro" id="b-destruir" type="button" disabled>Destruir para siempre</button>
