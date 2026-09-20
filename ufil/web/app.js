@@ -3789,7 +3789,7 @@ async function vIngesta() {
           : `<span class="marca">${fmtNum.format(f.leidas || 0)}</span>`},
         {t:'En qué está', r:f => ESTADO_CARGA[f.estado] || f.estado},
         {t:'Lote', r:f => esc(f.lote || '—')},
-        {t:'', r:f => f.estado !== 'papelera' ? '<button type="button" class="mini" onclick="pedirQuitarArchivo(\''+f.sha256+'\', \''+esc(f.nombre)+'\')">Quitar del legajo</button>' : ''}
+        {t:'', r:f => f.estado !== 'papelera' ? `<button type="button" class="mini" onclick="pedirQuitarArchivo('${esc(f.sha256)}', '${esc(f.nombre)}', '${esc(f.confirmacion_quitar)}', ${f.procesando}, ${f.tiene_revisiones_humanas ? (f.revisiones||1) : 0})">Quitar del legajo</button>` : ''}
       ], ar.archivos, {lista:'archivos'})}` : ''}
 
     <details class="consejo" id="c-escaneo">
@@ -5445,12 +5445,12 @@ refrescarCuentas().then(rutear);
 vigilarTrabajo();
 latir();
 
+
 async function vPapelera() {
   const c = await api('/api/cuentas');
   if (!c.legajo && !c.documentos) return vistaSinLegajo('Papelera de archivos');
 
   const d = await api('/api/papelera/archivos');
-
   const archivos = d.archivos || [];
 
   if (!archivos.length) {
@@ -5467,29 +5467,62 @@ async function vPapelera() {
     <p class="prosa">Estos archivos fueron quitados del legajo. Ya no participan en el análisis, pero se conservan acá por si fue un error.</p>
     ${tabla([
       {t:'Archivo', c:'mono fol', r:f => esc(f.nombre)},
-      {t:'Fecha de baja', c:'fol', r:f => f.eliminado_en ? esc(fmtFechaHora(f.eliminado_en)) : '—'},
-      {t:'Páginas', c:'num', k:'paginas'},
+      {t:'Fecha de baja', c:'fol', r:f => f.quitado_en ? esc(fmtFechaHora(f.quitado_en)) : '—'},
+      {t:'Documentos', c:'num', k:'documentos'},
+      {t:'Revisiones', c:'num', r:f => f.tiene_revisiones_humanas ? esc(f.revisiones || 'Sí') : '—'},
       {t:'Tamaño', c:'num', r:f => tamano(f.bytes)},
       {t:'Acciones', r:f => `
         <div class="acciones-fila">
           <button type="button" class="mini" onclick="pedirRestaurarArchivo('${esc(f.sha256)}')">Restaurar</button>
-          <button type="button" class="mini peligro" onclick="pedirDestruirArchivo('${esc(f.sha256)}', '${esc(f.nombre)}')">Destruir definitivamente</button>
+          <button type="button" class="mini peligro" onclick="pedirDestruirArchivo('${esc(f.sha256)}', '${esc(f.nombre)}', '${esc(f.confirmacion_destruir)}')">Destruir definitivamente</button>
         </div>
       `}
     ], archivos)}
   `);
 }
 
-async function pedirQuitarArchivo(sha, nombre) {
+function mostrarErrorDialogo(d, error) {
+  d.innerHTML = `
+    <form method="dialog">
+      <h3>No se pudo completar la acci\\u00f3n</h3>
+      <div class="aviso">${sello('alerta', 'Error')}<span>${esc(error.message)}</span></div>
+      <p class="prosa separador-arriba">Si es un conflicto de estado (409), el sistema evit\\u00f3 el cambio porque podr\\u00eda pisar informaci\\u00f3n actual o reutilizar referencias.</p>
+      <div class="botonera separador-arriba">
+        <button class="boton" type="submit">Cerrar</button>
+      </div>
+    </form>
+  `;
+}
+
+async function pedirQuitarArchivo(sha, nombre, confirmacion_quitar, procesando, revisiones_humanas) {
+  if (procesando) {
+    const d = dialogo(`
+      <form method="dialog">
+        <h3>Archivo en procesamiento</h3>
+        <p class="prosa">El archivo <strong class="mono">${esc(nombre)}</strong> est\\u00e1 siendo procesado en este momento.</p>
+        <div class="aviso">${sello('atencion', 'Bloqueado')}<span>Esper\\u00e1 a que el sistema termine de leerlo antes de quitarlo.</span></div>
+        <div class="botonera separador-arriba">
+          <button class="boton" type="submit">Cerrar</button>
+        </div>
+      </form>
+    `);
+    return;
+  }
+
+  let msjRev = '';
+  if (revisiones_humanas > 0) {
+     msjRev = `<div class="aviso" style="margin-top:1em">${sello('atencion', 'Hay decisiones humanas')}<span>Este archivo tiene ${esc(fmtNum.format(revisiones_humanas))} revisiones o confirmaciones humanas. Se conservar\\u00e1n en la papelera y volver\\u00e1n si restaur\\u00e1s el archivo.</span></div>`;
+  }
+
   const d = dialogo(`
     <form method="dialog" id="f-quitar-arch">
       <h3>Quitar archivo</h3>
       <p class="prosa">Vas a quitar el archivo <strong class="mono">${esc(nombre)}</strong>.</p>
-      <div class="aviso">${sello('atencion', 'Atenci\u00f3n')}
-        <span>Este archivo dejará de participar en el legajo y sus resultados derivados dejarán de mostrarse. El original se conservará en la papelera y podrá restaurarse.</span>
+      <div class="aviso">${sello('atencion', 'Atenci\\u00f3n')}
+        <span>Este archivo dejar\\u00e1 de participar en el legajo y sus resultados derivados dejar\\u00e1n de mostrarse. El original se conservar\\u00e1 en la papelera y podr\\u00e1 restaurarse.</span>
       </div>
-      <p class="prosa separador-arriba">Si el archivo tiene revisiones humanas, tambi\u00e9n dejarán de mostrarse.</p>
-      <div class="botonera">
+      ${msjRev}
+      <div class="botonera separador-arriba">
         <button class="boton gris" value="no" type="submit">Cancelar</button>
         <button class="boton peligro" id="b-quitar" type="button">Quitar del legajo</button>
       </div>
@@ -5497,11 +5530,12 @@ async function pedirQuitarArchivo(sha, nombre) {
   `);
 
   d.querySelector('#b-quitar').onclick = async () => {
+    d.querySelector('#b-quitar').disabled = true;
     try {
       const r = await api('/api/archivo/quitar', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({sha256: sha, confirmacion: 'si'})
+        body: JSON.stringify({sha256: sha, confirmacion: confirmacion_quitar})
       });
       d.close();
       if (location.hash === '#/ingesta') {
@@ -5510,35 +5544,43 @@ async function pedirQuitarArchivo(sha, nombre) {
         location.reload();
       }
     } catch (e) {
-      alert(e.message);
+      mostrarErrorDialogo(d, e);
     }
   };
 }
 
 async function pedirRestaurarArchivo(sha) {
+  const d = dialogo(`
+    <form method="dialog">
+      <h3>Restaurando archivo...</h3>
+      <p class="prosa">Por favor esper\\u00e1...</p>
+    </form>
+  `);
+
   try {
     const r = await api('/api/archivo/restaurar', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({sha256: sha})
     });
+    d.close();
     vPapelera();
   } catch (e) {
-    alert(e.message);
+    mostrarErrorDialogo(d, e);
   }
 }
 
-async function pedirDestruirArchivo(sha, nombre) {
+async function pedirDestruirArchivo(sha, nombre, confirmacion_destruir) {
   const d = dialogo(`
     <form method="dialog" id="f-destruir-arch">
       <h3>Destruir archivo definitivamente</h3>
       <p class="prosa">Vas a destruir el archivo <strong class="mono">${esc(nombre)}</strong> para siempre.</p>
-      <div class="aviso">${sello('alerta', 'Destrucci\u00f3n f\u00edsica')}
-        <span>Esta acci\u00f3n no se puede deshacer. El archivo se borrará del disco y todo su trabajo asociado se perderá.</span>
+      <div class="aviso">${sello('alerta', 'Destrucci\\u00f3n f\\u00edsica')}
+        <span>Esta acci\\u00f3n no se puede deshacer. El archivo se borrar\\u00e1 del disco y todo su trabajo asociado se perder\\u00e1.</span>
       </div>
-      <label for="conf-destruir">Para confirmar, escribí DESTRUIR:</label>
-      <input type="text" id="conf-destruir" autocomplete="off">
-      <div class="botonera">
+      <p class="prosa separador-arriba"><label for="conf-destruir">Para confirmar, escrib\\u00ed DESTRUIR:</label></p>
+      <input type="text" id="conf-destruir" autocomplete="off" class="campo-buscar" style="max-width:100%">
+      <div class="botonera separador-arriba">
         <button class="boton gris" value="no" type="submit">Cancelar</button>
         <button class="boton peligro" id="b-destruir" type="button" disabled>Destruir para siempre</button>
       </div>
@@ -5553,16 +5595,17 @@ async function pedirDestruirArchivo(sha, nombre) {
   };
 
   btn.onclick = async () => {
+    btn.disabled = true;
     try {
       const r = await api('/api/archivo/destruir', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({sha256: sha, confirmacion: 'si'})
+        body: JSON.stringify({sha256: sha, confirmacion: confirmacion_destruir})
       });
       d.close();
       vPapelera();
     } catch (e) {
-      alert(e.message);
+      mostrarErrorDialogo(d, e);
     }
   };
 }
