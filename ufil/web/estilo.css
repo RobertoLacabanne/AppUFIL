@@ -2605,3 +2605,9 @@ details.consejo[open]>summary{border-bottom:1px solid var(--filete-2); margin-bo
 .revision-confirmada { border:1px solid var(--borde-control); }
 .revision-propuesta label, #anotar-relacion label, #crear-coleccion label { display:block; margin-block:12px; }
 .revision-propuesta input, #anotar-relacion input, #anotar-relacion select, #crear-coleccion input, #crear-coleccion textarea { max-width:100%; box-sizing:border-box; }
+
+.separador-arriba { margin-top: 1em; }
+.separador-abajo { margin-bottom: 1em; }
+.explicacion-informe { margin-top: -5px; margin-bottom: 10px; }
+.margen-izq { margin-left: 4px; }
+.acciones-fila { display: flex; gap: 8px; align-items: center; }
