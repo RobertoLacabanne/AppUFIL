@@ -22,6 +22,7 @@ import fitz  # PyMuPDF
 from . import config
 from . import huella as hu
 from .db import ahora
+from .exclusion import conexion
 
 EXTENSIONES = {".pdf"}
 
@@ -83,6 +84,7 @@ def _metadatos_pdf(ruta: Path) -> tuple[int, list[tuple[float, float, bool, str]
         return doc.page_count, paginas, MARCA_SINTETICO in meta
 
 
+@conexion
 def ingerir(
     cx: sqlite3.Connection,
     origen: Path,
@@ -111,6 +113,8 @@ def ingerir(
             continue
 
         ya = cx.execute("SELECT sha256 FROM archivo WHERE sha256=?", (sha,)).fetchone()
+        if cx.execute('SELECT 1 FROM papelera_archivo WHERE sha256=?', (sha,)).fetchone():
+            raise ValueError('El archivo está en papelera: restauralo antes de ingerirlo.')
         if ya:
             # Copia exacta. Se registra el hecho; no se borra ni se toca nada.
             cx.execute(

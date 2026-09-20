@@ -30,6 +30,8 @@ from . import capa3_identidad as c3
 from . import capa4_analisis as c4
 from . import capa5_interpretacion as c5
 from . import busqueda
+from . import papelera
+from .exclusion import Ocupado
 from .almacen import ArchivoInvalido, guardar
 from .aplicar_revision import DecisionDesactualizada
 from .db import ahora
@@ -377,7 +379,7 @@ MOTIVOS = {
 }
 
 
-def api_archivos(cx) -> dict:
+def api_archivos(cx, *, procesando=False) -> dict:
     """
     Qué hay cargado y en qué estado está cada archivo.
 
@@ -407,6 +409,12 @@ def api_archivos(cx) -> dict:
               LEFT JOIN procedencia p ON p.sha256 = a.sha256
              ORDER BY a.ingerido_en DESC, a.nombre"""):
         f = dict(a)
+        f['revisiones'] = cx.execute(
+            'SELECT COUNT(*) FROM revision_humana WHERE sha256=?', (f['sha256'],)).fetchone()[0]
+        f['tiene_revisiones_humanas'] = bool(f['revisiones'] or cx.execute(
+            'SELECT 1 FROM auditoria WHERE sha256=? LIMIT 1', (f['sha256'],)).fetchone())
+        f['procesando'] = procesando or papelera._ocupado(cx, f['sha256'])
+        f['confirmacion_quitar'] = 'QUITAR ' + f['sha256']
         fojas, leidas, clasif = f["fojas"] or 0, f["leidas"] or 0, f["clasificadas"] or 0
         # El orden importa: lo que FALTA manda sobre lo que ya se hizo. Un archivo con
         # ochenta fojas leídas y ocho sin leer está «a medio leer», no «leído».
@@ -1473,7 +1481,9 @@ class Manejador(BaseHTTPRequestHandler):
                     if ruta == "/api/fojas":
                         return self._json(api_fojas(cx))
                     if ruta == "/api/archivos":
-                        return self._json(api_archivos(cx))
+                        return self._json(api_archivos(cx, procesando=_procesador().ocupado()))
+                    if ruta == "/api/papelera/archivos":
+                        return self._json(papelera.listar(cx))
                     if ruta == "/api/yaestan":
                         return self._json(api_ya_esta(
                             cx, [s for s in (q.get("sha", [""])[0] or "").split(",") if s]))
@@ -1557,7 +1567,8 @@ class Manejador(BaseHTTPRequestHandler):
         # La subida manda el PDF crudo en el cuerpo, con los metadatos en la URL. Es a
         # propósito: evita parsear multipart (que salió de la biblioteca estándar) y da
         # progreso archivo por archivo sin esfuerzo.
-        if u.path in ("/api/subir", "/api/procesar", "/api/actualizar"):
+        if u.path in ("/api/subir", "/api/procesar", "/api/actualizar",
+                      "/api/archivo/quitar", "/api/archivo/restaurar", "/api/archivo/destruir"):
             falta = _falta_abrir_legajo()
             if falta:
                 return self._json({"ok": False, "sin_legajo": True, "error": falta}, 409)
@@ -1582,6 +1593,8 @@ class Manejador(BaseHTTPRequestHandler):
                                    "motivo": g.motivo, "cotejo": g.cotejo})
             except ArchivoInvalido as e:
                 return self._json({"ok": False, "error": str(e)}, 400)
+            except Ocupado as e:
+                return self._json({"ok": False, "error": str(e)}, 409)
             except Exception as e:
                 traceback.print_exc()
                 return self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
@@ -1749,6 +1762,23 @@ class Manejador(BaseHTTPRequestHandler):
 
         cx = _cx()
         try:
+            if u.path in ('/api/archivo/quitar', '/api/archivo/restaurar', '/api/archivo/destruir'):
+                if not isinstance(cuerpo, dict):
+                    raise ValueError('El pedido tiene que ser un objeto JSON.')
+                p = _procesador()
+                # El mismo candado que arrancar/actualizar: evita la carrera entre
+                # comprobar ocupado y comenzar la transacción de papelera.
+                with p._lock:
+                    if p.ocupado():
+                        raise Ocupado('Hay un procesamiento en curso en este legajo.')
+                    sha = cuerpo.get('sha256')
+                    if u.path.endswith('/restaurar'):
+                        r = papelera.restaurar(cx, sha)
+                    elif u.path.endswith('/quitar'):
+                        r = papelera.quitar(cx, sha, cuerpo.get('confirmacion'))
+                    else:
+                        r = papelera.destruir(cx, sha, cuerpo.get('confirmacion'))
+                return self._json(r)
             # Todo lo que recibe un objeto JSON con campos obligatorios entra por acá:
             # comparten los validadores `entero` y `texto` de abajo, que son los que
             # convierten un cuerpo mal armado en un 400 con un mensaje en castellano.
@@ -1914,6 +1944,8 @@ class Manejador(BaseHTTPRequestHandler):
                 destino = config.EXPORT
                 return self._json({"archivos": c7.exportar(cx, destino)})
             return self._json({"error": "ruta desconocida"}, 404)
+        except (papelera.ConflictoPapelera, Ocupado) as e:
+            return self._json({'ok': False, 'error': str(e)}, 409)
         except NoEncontrado as e:
             return self._json({"error": str(e), "no_encontrado": True}, 404)
         except (ValueError, KeyError) as e:

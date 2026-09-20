@@ -11,7 +11,7 @@ from . import clasificacion as cl
 # Se sube cuando cambia `esquema.sql`. Sirve para no reejecutar el script en cada
 # conexión: con el servidor multihilo y el trabajador de fondo, dos conexiones que
 # corrían el esquema a la vez chocaban al recrear la vista `v_contrato`.
-ESQUEMA_VERSION = 23
+ESQUEMA_VERSION = 24
 
 _candado = threading.Lock()
 
@@ -322,4 +322,11 @@ def abrir(ruta: Path | None = None) -> sqlite3.Connection:
     """Conexión con el esquema garantizado. Para la línea de comandos y el arranque."""
     cx = conectar(ruta)
     inicializar(cx)
+    if cx.execute('SELECT 1 FROM papelera_limpieza LIMIT 1').fetchone():
+        from .papelera import limpiar_pendientes
+        from .exclusion import Ocupado
+        try:
+            limpiar_pendientes(cx)
+        except (OSError, Ocupado):
+            pass  # Queda registrado para reintentar; nunca se descarta la copia.
     return cx

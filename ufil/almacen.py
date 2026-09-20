@@ -28,6 +28,7 @@ from . import config
 from . import huella as hu
 from .capa0_ingesta import _metadatos_pdf
 from .db import ahora
+from .exclusion import conexion
 
 MAX_BYTES = 200 * 1024 * 1024          # un PDF de más de 200 MB no es un contrato
 
@@ -63,6 +64,7 @@ def raiz_originales() -> Path:
     return d
 
 
+@conexion
 def guardar(cx: sqlite3.Connection, datos: bytes, nombre: str, *, lote: str,
             legajo: str | None = None, acta: str | None = None,
             domicilio: str | None = None, operador: str | None = None,
@@ -76,6 +78,9 @@ def guardar(cx: sqlite3.Connection, datos: bytes, nombre: str, *, lote: str,
 
     nombre = Path(nombre).name.strip() or "sin-nombre.pdf"
     sha = hashlib.sha256(datos).hexdigest()
+
+    if cx.execute('SELECT 1 FROM papelera_archivo WHERE sha256=?', (sha,)).fetchone():
+        raise ArchivoInvalido('El archivo está en papelera: restauralo antes de volver a subirlo.')
 
     ya = cx.execute("SELECT ruta_original FROM archivo WHERE sha256=?", (sha,)).fetchone()
     if ya:

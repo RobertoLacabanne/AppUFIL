@@ -37,6 +37,7 @@ import sqlite3
 
 from . import versiones as vs
 from .db import ahora
+from .exclusion import conexion
 
 # Las etapas que se ejecutan por archivo, cada una por su cuenta. El orden importa:
 # es el de dependencia, y es el orden en que se corren.
@@ -461,6 +462,7 @@ def _borrar_lecturas_de(cx: sqlite3.Connection, sha: str) -> int:
     return n
 
 
+@conexion
 def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
             con_vlm: bool = False, avance=None, seguir=None, fase=None) -> dict:
     """

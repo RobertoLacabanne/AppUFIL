@@ -7,6 +7,26 @@
 
 PRAGMA foreign_keys = ON;
 
+-- Instantánea autocontenida: PDF y registros salen del acervo en un solo COMMIT.
+CREATE TABLE IF NOT EXISTS papelera_archivo (
+  sha256 TEXT PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  quitado_en TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  registros TEXT NOT NULL,
+  pdf BLOB NOT NULL,
+  revisiones INTEGER NOT NULL,
+  documentos INTEGER NOT NULL
+);
+
+-- Limpieza física reintentable después del COMMIT de quitar. Sólo rutas relativas
+-- a la carpeta de esta base, nunca rutas del corpus ni recibidas por HTTP.
+CREATE TABLE IF NOT EXISTS papelera_limpieza (
+  sha256 TEXT PRIMARY KEY REFERENCES papelera_archivo(sha256) ON DELETE CASCADE,
+  rutas TEXT NOT NULL
+);
+
+
 -- ─────────────────────────────────────────────────────────── CAPA 0: INGESTA ──
 CREATE TABLE IF NOT EXISTS archivo (
   sha256        TEXT PRIMARY KEY,
@@ -18,6 +38,11 @@ CREATE TABLE IF NOT EXISTS archivo (
   paginas       INTEGER,
   ingerido_en   TEXT NOT NULL
 );
+
+CREATE TRIGGER IF NOT EXISTS archivo_no_reingresar_papelera
+BEFORE INSERT ON archivo
+WHEN EXISTS (SELECT 1 FROM papelera_archivo WHERE sha256=NEW.sha256)
+BEGIN SELECT RAISE(ABORT, 'El archivo está en papelera: restauralo primero.'); END;
 
 -- Copias exactas del mismo contenido en otras rutas. No se borra ninguna:
 -- el original es inmutable, así que se registra el hecho y se sigue.
