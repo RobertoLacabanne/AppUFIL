@@ -2611,3 +2611,7 @@ details.consejo[open]>summary{border-bottom:1px solid var(--filete-2); margin-bo
 .explicacion-informe { margin-top: -5px; margin-bottom: 10px; }
 .margen-izq { margin-left: 4px; }
 .acciones-fila { display: flex; gap: 8px; align-items: center; }
+
+.visor-zoom-texto { color: var(--barra-txt); margin: 0 8px; font-variant-numeric: tabular-nums; }
+.paginacion-env { margin-bottom: 1em; }
+.paginacion-link { margin-left: 1em; }
