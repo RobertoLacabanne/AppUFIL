@@ -610,3 +610,42 @@ de este incremento.
 Codex no tiene cuota hasta las 23:15. Mientras tanto Claude escribe el núcleo semántico
 (`ufil/comparabilidad.py`) y Gemini programa la interfaz contra el contrato con datos
 simulados; el backend de Codex arranca cuando vuelve la cuota, sobre ese núcleo.
+
+## El corpus real pasa a ser el criterio (21/09/2026)
+
+Roberto pidió que la validación y la mejora se hagan **sobre el legajo real** cargado en la
+instancia desplegada, y autorizó expresamente usarlo para todo. Los PDF sintéticos quedan
+como regresión mínima. El flujo: corpus real → problema → reproducir → corregir → prueba
+sintética mínima → volver al corpus real → confirmar. **Nada real va a Git**: ni en
+pruebas, ni en fixtures, ni en mensajes; en este documento sólo cantidades.
+
+**Dónde está y cómo se copió.** La instancia de Render guarda todo en su disco
+persistente (`UFIL_DATOS=/app/datos`, `legajos/<slug>/ufil.sqlite`). La copia se sacó con
+la función de respaldo de la propia aplicación (API de backup de SQLite, no toca la base)
+a `C:\Users\rober\AppUFIL-corpus-real\` —fuera de todo repositorio—: el original intacto
+en `produccion-original/` (sólo lectura, `integrity_check` ok, esquema 25) y una copia de
+trabajo por agente (`claude/`, `codex/`, `gemini/`). Coincide con lo que Roberto ve en
+producción: 20 piezas, 1.628 fojas, 116 campos a revisar, 2 en conflicto, 6 revisiones
+humanas, 18 personas. `herramientas/traer_corpus_real.py` repite el procedimiento.
+
+**Alerta de seguridad, para Roberto:** la instancia desplegada sirve los datos **sin
+clave** (`/api/legajos`, `/descargar`), aunque `render.yaml` la pide. Se le avisó; el
+arreglo es suyo (variables de entorno en Render) y no se tocó producción.
+
+**Límites de la copia:** de los 11 originales sólo está en esta máquina el de 750 fojas
+(mismo SHA-256); los otros 10 no. Los renders de las fojas no se pudieron bajar: el
+clasificador de permisos de Claude bloqueó la descarga masiva. El texto leído sí está
+completo, así que todo lo que trabaja sobre palabras se puede correr; el visor no.
+
+### Lo que encontró el corpus real, y qué se hizo
+
+| # | Hallazgo (sólo cantidades) | Estado |
+|---|---|---|
+| R1 | «Actualizar análisis» iba a releer **750** fojas de un archivo que tenía 410 leídas y 340 sin leer: la lectura se ejecutaba por archivo | corregido (`fc291c5`): se leen 340, se reutilizan 1.288 |
+| R2 | 2 de las 6 revisiones humanas iban a pasar a «requiere reasociación»: verificaciones de campos sin valor, que no tienen foja; y le pasa a toda confirmación de ese tipo que se haga hoy | corregido (`bb77a62`): anclaje por pieza |
+| R3 | El panel decía «1.628 páginas leídas» con 340 sin leer | corregido (`ab35d32`): «1.288 / 1.628» |
+| R4 | 1.628 fojas producen **20 piezas**; el PDF de 750 fojas **no tiene ninguna foja clasificada**; 6 de 10 PDF de ~88 fojas, **0 piezas** | en curso: se está corriendo la actualización completa sobre la copia de Claude para medir |
+| R5 | Fojas que mencionan orden de compra 81, oferta 72, adjudicación 48, orden de pago 17 — **no hay tipo documental** para ninguna | tarea de Codex (7a) |
+| R6 | El detector de tablas encuentra tablas en **41 fojas** de todo el legajo | tarea de Codex (7a) |
+| R7 | Los identificadores exactos casi no aparecen en el OCR real: «ORDEN DE COMPRA N°» en 8 fojas de 81, números de factura en 0; el CUIT sí (37 distintos, 10 repetidos) | tarea de Codex (7b) |
+| R8 | Nunca corrieron en producción tablas, entidades, menciones, cronología ni relaciones (todas en 0) | se aplican con «Actualizar análisis» |
