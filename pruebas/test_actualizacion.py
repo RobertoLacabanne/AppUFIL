@@ -140,6 +140,39 @@ class UnaCorreccionNoSeMudaDeDocumento(unittest.TestCase):
                       "y tiene que ser el valor que cargó la persona, no el leído")
         self.assertEqual(factura["estado"], "corregido")
 
+    def test_confirmar_que_un_campo_falta_sobrevive_al_reparto_nuevo(self):
+        """
+        Encontrado en un legajo real: dos verificaciones de campos sin valor iban a pasar
+        a «requiere reasociación» en la primera actualización. Un campo que no está en el
+        papel no tiene foja ni recuadro, así que su revisión no tenía anclaje de foja; sí
+        tiene el de su pieza —tramo de fojas y tipo—, y con eso alcanza.
+        """
+        doc = _pieza(self.cx, 1, 3, 3, "factura", con_campo=None)
+        campo = self.cx.execute(
+            """INSERT INTO campo (documento_id,nombre,nulo_motivo,estado)
+               VALUES (?,'monto','ausente','no_revisado')""", (doc,)).lastrowid
+        self.cx.commit()
+        aplicar(self.cx, campo, "ausente", None, "perez.ana")
+        self.assertEqual(ac.plan(self.cx)["revisiones"]["sin_ancla"], 0,
+                         "anclada a su pieza no es una revisión sin anclaje")
+
+        # Aparece una pieza nueva adelante: la factura pasa del 1º al 2º lugar.
+        _borrar_piezas(self.cx)
+        d1 = _pieza(self.cx, 1, 1, 2, "contrato_obra", con_campo=None)
+        d2 = _pieza(self.cx, 2, 3, 3, "factura", con_campo=None)
+        for d in (d1, d2):
+            self.cx.execute("""INSERT INTO campo (documento_id,nombre,nulo_motivo,estado)
+                               VALUES (?,'monto','ausente','no_revisado')""", (d,))
+        self.cx.commit()
+        piezas = [{"id": d1, "orden": 1, "pagina_desde": 1, "pagina_hasta": 2, "tipo": "contrato_obra"},
+                  {"id": d2, "orden": 2, "pagina_desde": 3, "pagina_hasta": 3, "tipo": "factura"}]
+        r = reaplicar_revisiones(self.cx, SHA, piezas)
+
+        self.assertEqual(r["reaplicadas"], 1, r)
+        estados = dict(self.cx.execute("SELECT documento_id, estado FROM campo").fetchall())
+        self.assertEqual(estados[d2], "ausente_confirmado", "la confirmación sigue a su pieza")
+        self.assertEqual(estados[d1], "no_revisado", "y no se muda a la que ocupó su lugar")
+
     def test_si_no_se_puede_saber_a_cual_corresponde_no_se_aplica_a_ninguna(self):
         """
         Perder trabajo humano es malo; aplicarlo al documento equivocado es peor.

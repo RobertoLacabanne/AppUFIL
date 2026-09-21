@@ -368,8 +368,11 @@ def _resumen_revisiones(cx: sqlite3.Connection, *, va_a_resegmentar: bool) -> di
     marcadas = cx.execute(
         "SELECT COUNT(*) FROM revision_humana WHERE estado='requiere_reasociacion'"
     ).fetchone()[0]
+    # Anclada a la foja o, si el campo no tiene valor, a la pieza: ver
+    # `capa2_extraccion.reaplicar_revisiones`.
     sin_ancla = cx.execute(
         "SELECT COUNT(*) FROM revision_humana WHERE ancla_pagina IS NULL "
+        "AND (ancla_desde IS NULL OR ancla_tipo IS NULL) "
         "AND estado <> 'requiere_reasociacion'").fetchone()[0]
     en_riesgo = sin_ancla if va_a_resegmentar else 0
     return {

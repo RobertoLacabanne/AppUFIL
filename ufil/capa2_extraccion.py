@@ -935,9 +935,13 @@ def segmentar_piezas(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "aut
     if cambio:
         # Ver el encabezado: sin anclaje no hay forma de saber si la pieza que ocupa
         # ese lugar sigue siendo la que la persona miró.
+        # Sin anclaje quiere decir sin foja Y sin pieza: una revisión anclada a su pieza
+        # (la de un campo sin valor) la reencuentra `reaplicar_revisiones` por tramo y tipo.
         cx.execute("""UPDATE revision_humana
                          SET estado='requiere_reasociacion', motivo=?
-                       WHERE sha256=? AND ancla_pagina IS NULL AND estado='vigente'""",
+                       WHERE sha256=? AND ancla_pagina IS NULL
+                         AND (ancla_desde IS NULL OR ancla_tipo IS NULL)
+                         AND estado='vigente'""",
                    ("es una revisión anterior al anclaje y el reparto del archivo en "
                     "piezas cambió, así que su posición ya no la identifica", sha))
     if len(tramos) > 1:
@@ -1182,7 +1186,24 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list) -> dict
         nombre = r["campo"]
         ancla = (r["ancla_x0"], r["ancla_y0"], r["ancla_x1"], r["ancla_y1"])
 
-        if r["ancla_pagina"] is None:
+        if r["ancla_pagina"] is None and r["ancla_desde"] is not None and r["ancla_tipo"]:
+            # Anclada a la pieza y no a una foja: pasa con las revisiones de un campo SIN
+            # valor —«no está en el papel», «ilegible»—, que no tienen foja ni recuadro
+            # porque no hay nada escrito que señalar. La pieza sí: mismo tramo de fojas y
+            # mismo tipo es la misma pieza aunque haya cambiado de lugar en la fila.
+            # Encontrado en un legajo real: dos verificaciones de este tipo iban a pasar
+            # a «requiere reasociación» en la primera actualización.
+            candidatas = [p for p in piezas
+                          if p["pagina_desde"] == r["ancla_desde"]
+                          and (p["pagina_hasta"] or p["pagina_desde"]) == (
+                              r["ancla_hasta"] or r["ancla_desde"])
+                          and p["tipo"] == r["ancla_tipo"]]
+            if not candidatas:
+                decisiones.append([r, None, None,
+                                   f"ya no hay una pieza de tipo {r['ancla_tipo']} en las "
+                                   f"fojas {r['ancla_desde']}-{r['ancla_hasta']}"])
+                continue
+        elif r["ancla_pagina"] is None:
             # Revisión anterior al anclaje: sólo se puede aplicar por posición.
             #
             # Que haya llegado hasta acá como vigente significa que la segmentación no
