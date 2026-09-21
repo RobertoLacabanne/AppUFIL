@@ -135,7 +135,10 @@ Reglas, en orden:
 2. **Bloqueantes → `no_comparable`**: unidad normalizada conocida en los dos lados y
    distinta; moneda conocida y distinta; marca conocida y distinta; modelo conocido y
    distinto; categoría conocida y distinta; similitud de descripción menor que
-   `SIMILITUD_MINIMA`.
+   `SIMILITUD_MINIMA`; y **números distintos en la descripción** («bomba 1 HP» contra
+   «bomba 2 HP», «cable 2,5 mm» contra «cable 4 mm»): los números son la especificación,
+   y como texto se parecen demasiado para confiar en la similitud. Si sólo uno de los dos
+   trae números, la especificación *falta* y no puede ser `fuerte`.
 3. **`fuerte`** exige: descripción normalizada igual o similitud ≥ `SIMILITUD_FUERTE`,
    unidad y moneda conocidas e iguales, marca y modelo iguales o ausentes en los dos,
    IVA conocido e igual, y ninguna condición comercial conocida de un solo lado.
@@ -162,7 +165,7 @@ La calidad de una referencia no es la misma siempre. Para A analizado y B refere
 | nivel | cuándo |
 |---|---|
 | **A** | comparabilidad `fuerte`, **misma contratación**, documento primario (oferta, adjudicación, orden de compra, factura, remito, orden de pago), fechas a ≤ `DIAS_CERCANA` |
-| **B** | `fuerte`, **otra contratación pública**, documento primario, fechas a ≤ `DIAS_PROXIMA` |
+| **B** | `fuerte`, documento primario, fechas a ≤ `DIAS_PROXIMA` — típicamente **otra contratación pública**; también la misma contratación con fechas más separadas que A |
 | **C** | `fuerte` o `probable`, B es un **presupuesto o cotización**, fechas a ≤ `DIAS_CERCANA` |
 | **D** | `probable` (similar, no idéntico), fechas a ≤ `DIAS_PROXIMA` |
 | **E** | el resto de lo comparable: `dudoso`, fechas más lejanas, fecha desconocida, o una referencia cargada a mano sin documento |
