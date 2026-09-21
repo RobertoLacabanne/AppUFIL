@@ -28,7 +28,7 @@ from . import config
 from . import huella as hu
 from .capa0_ingesta import _metadatos_pdf
 from .db import ahora
-from .exclusion import conexion
+from .exclusion import conexion_carga
 
 MAX_BYTES = 200 * 1024 * 1024          # un PDF de más de 200 MB no es un contrato
 
@@ -64,7 +64,7 @@ def raiz_originales() -> Path:
     return d
 
 
-@conexion
+@conexion_carga
 def guardar(cx: sqlite3.Connection, datos: bytes, nombre: str, *, lote: str,
             legajo: str | None = None, acta: str | None = None,
             domicilio: str | None = None, operador: str | None = None,

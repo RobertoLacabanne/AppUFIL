@@ -199,20 +199,20 @@ class Procesador:
         config.activar_legajo(self.legajo)
         cx = db.abrir(self.ruta_base)
         try:
-            pendientes = [r["sha256"] for r in cx.execute(
-"""SELECT DISTINCT a.sha256 FROM archivo a
-             JOIN pagina p ON p.sha256 = a.sha256
-            WHERE NOT EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id = p.id)
-            ORDER BY a.nombre""")]
-            # El progreso va por PÁGINA, que es la unidad real de trabajo: un lote de
-            # cincuenta archivos donde uno tiene treinta fojas avanzaba a los saltos.
-            paginas = cx.execute("""SELECT COUNT(*) FROM pagina p
-                                     WHERE NOT EXISTS (SELECT 1 FROM lectura l
-                                                        WHERE l.pagina_id = p.id)"""
-                                 ).fetchone()[0] if pendientes else 0
+            # Una única consulta fija archivos y páginas pendientes en el mismo
+            # snapshot. Lo subido después espera otra corrida, también en capa 2.
+            archivos = cx.execute("""SELECT a.sha256,
+                (SELECT COUNT(*) FROM pagina p WHERE p.sha256=a.sha256
+                 AND NOT EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id=p.id))
+                AS pendientes FROM archivo a ORDER BY a.ingerido_en, a.nombre""").fetchall()
+            shas = [r["sha256"] for r in archivos]
+            pendientes = [r["sha256"] for r in archivos if r["pendientes"]]
+            paginas = sum(r["pendientes"] for r in archivos)
             self._fase("leyendo los escaneos", paginas)
 
             def avance(hechas, total):
+                # No sostener una escritura SQLite mientras llega otra página OCR.
+                cx.commit()
                 with self._lock:
                     self.estado.hecho = hechas
                     self.estado.total = total
@@ -226,8 +226,6 @@ class Procesador:
                 except Exception as e:
                     self._error(cx, pendientes[0], "lectura", e)
 
-            shas = [r["sha256"] for r in cx.execute(
-                "SELECT sha256 FROM archivo ORDER BY ingerido_en, nombre")]
             self._fase("extrayendo los campos", len(shas))
             totales = {"documentos": 0, "campos": 0, "conflictos": 0,
                        "a_revisar": 0, "sin_perfil": 0}

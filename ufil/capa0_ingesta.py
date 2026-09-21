@@ -22,7 +22,7 @@ import fitz  # PyMuPDF
 from . import config
 from . import huella as hu
 from .db import ahora
-from .exclusion import conexion
+from .exclusion import conexion_carga
 
 EXTENSIONES = {".pdf"}
 
@@ -84,7 +84,7 @@ def _metadatos_pdf(ruta: Path) -> tuple[int, list[tuple[float, float, bool, str]
         return doc.page_count, paginas, MARCA_SINTETICO in meta
 
 
-@conexion
+@conexion_carga
 def ingerir(
     cx: sqlite3.Connection,
     origen: Path,
