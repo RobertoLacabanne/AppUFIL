@@ -102,6 +102,8 @@ HALLAZGOS = (
     ("facturado_vs_adjudicado", "Facturado distinto de lo adjudicado u ordenado",
      "Precio, cantidad, producto, proveedor o total de la factura no coinciden con la "
      "adjudicación o la orden de compra."),
+    ("facturado_vs_entregado", "Facturado distinto de lo entregado",
+     "Cantidad o producto de la factura no coinciden con el remito asociado."),
     ("subtotal_incorrecto", "Subtotal que no coincide con su cuenta",
      "Cantidad por precio unitario no da el subtotal impreso."),
     ("total_inconsistente", "Total que no coincide con la suma",

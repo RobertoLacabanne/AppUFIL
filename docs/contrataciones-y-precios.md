@@ -173,6 +173,19 @@ La calidad de una referencia no es la misma siempre. Para A analizado y B refere
 `no_comparable` no es referencia de ningún nivel: se lista aparte, con el motivo, para que
 se vea que se descartó y por qué.
 
+**Qué cuenta como referencia.** Una referencia tiene que ser *independiente* del precio
+analizado. Para un renglón de la contratación K, **no** son referencias los renglones de
+las etapas de ejecución de la misma K (adjudicación, orden de compra, remito, factura,
+orden de pago, pago): son la misma compra, y se comparan entre sí por
+`facturado_vs_adjudicado` y `facturado_vs_entregado`, no como mercado. **Sí** lo son las
+ofertas de K —de cualquier oferente, incluido el adjudicado: que alguien ofrezca 104.000
+y se le adjudique a 165.000 es exactamente lo que hay que ver—, los presupuestos de K, y
+los renglones de cualquier etapa primaria de otras contrataciones.
+
+**Qué renglones se analizan.** Los precios comprometidos o cobrados: los de adjudicación,
+orden de compra y factura. Un hallazgo `diferencia_precio` por renglón analizado; la
+interfaz los agrupa por ítem.
+
 **Los niveles no se mezclan sin advertencia.** Los estadísticos se calculan por nivel; la
 comparación principal usa el mejor nivel disponible con al menos `MIN_REFERENCIAS`
 referencias, y si hay que bajar de nivel o juntar niveles, el resultado lo dice en
@@ -229,7 +242,8 @@ Catálogo inicial (extensible; lo sirve el backend con nombre y explicación neu
 | tipo | qué detecta |
 |---|---|
 | `diferencia_precio` | precio unitario por encima de la mediana de referencias en más de `DIFERENCIA_SEÑALABLE_PCT` |
-| `facturado_vs_adjudicado` | precio, cantidad, producto, proveedor o total facturado distinto del adjudicado u ordenado |
+| `facturado_vs_adjudicado` | precio, cantidad, producto, proveedor o total facturado distinto de la orden de compra, o de la adjudicación si no hay orden |
+| `facturado_vs_entregado` | cantidad o producto de la factura distinto del remito asociado |
 | `subtotal_incorrecto` | cantidad × precio unitario ≠ subtotal (con la cuenta) |
 | `total_inconsistente` | suma de subtotales ≠ total impreso |
 | `precio_ausente` | renglón sin precio unitario ni forma de derivarlo |
@@ -382,3 +396,52 @@ de más, más la reaplicación sobre una base ya cargada sin volver a subir nada
 ningún número de las pantallas nuevas salga de otro lado que el JSON, que toda cifra
 tenga un enlace a su fuente, y que ningún texto use un término de
 `terminos_prohibidos` (Gemini).
+
+## 11. Corpus de aceptación y resultado esperado
+
+`pruebas/corpus_contratacion.py` genera una contratación entera, inventada —organismo,
+expediente, proveedores, CUIT y precios—, en doce PDF con texto nativo. Cada documento
+tiene encabezado, datos del proveedor, una planilla de renglones y, si corresponde, el
+total, como el papel de verdad. `pruebas/test_aceptacion_contratacion.py` la sube por
+HTTP, la procesa, actualiza el análisis y verifica, sólo contra la API de §9:
+
+| qué | esperado |
+|---|---|
+| contrataciones | 1, con el expediente del corpus |
+| etapas presentes | pedido, presupuesto, oferta, adjudicación, orden de compra, remito, factura, orden de pago |
+| etapas faltantes | entre ellas `pago`: hay orden de pago, no constancia |
+| oferentes | los tres; B adjudicado |
+| totales | adjudicado `466000.00`; facturado `497000.00` |
+| renglones con precio | presupuestos 9, ofertas 9, adjudicación 3, orden 3, factura 3 |
+| comparación del renglón 1 de la factura (180.000) | nivel A, n = 3 (las ofertas), mediana `102500.00`, diferencia `77500.00` / `75.61` %; los tres presupuestos como nivel C; la adjudicación y la orden de la misma compra, excluidas con su motivo |
+| hallazgos | **exactamente** `diferencia_precio` 3 (renglón 1 de adjudicación, orden y factura), `facturado_vs_adjudicado` 2 (precio del renglón 1 y total), `facturado_vs_entregado` 1 (renglón 3: facturadas 10, remitidas 8), `subtotal_incorrecto` 1 (renglón 2: 4 × 21.000 = `84000.00`, impreso 85.000) |
+| revisión | un hallazgo marcado `relevante` sigue `relevante`, con su nota, después de recalcular |
+
+Los renglones 2 y 3 adjudicados quedan a +2,44 % y +1,96 % de la mediana de las ofertas:
+**por debajo del umbral, no son hallazgo.** `precio_ausente` sólo aplica a etapas que
+llevan precio: un pedido o un remito sin precio no son un faltante.
+
+### Lo que el corpus encontró antes de que hubiera backend
+
+**El detector de tablas no ve una planilla dentro de una foja con otras cosas.**
+`ufil/tablas.py` exige que una columna aparezca en el 60 % de los renglones de **toda la
+foja**. En una factura o una orden de compra —encabezado, datos del proveedor, planilla de
+pocos renglones, total— la planilla no llega a esa proporción, y no se detecta: sobre los
+doce PDF del corpus, ninguna planilla salió completa (lo mejor fueron cinco de cuatro
+filas por dos columnas, que eran el margen izquierdo). **Sin tablas no hay renglones, y
+sin renglones no hay nada que comparar**: arreglarlo es la primera tarea del backend. Las
+columnas se tienen que buscar por **bloque de renglones consecutivos**, no por foja,
+conservando la desconfianza que hoy impide tomar un párrafo con números por planilla (las
+pruebas de `pruebas/test_tablas.py` siguen valiendo).
+
+Riesgo aparte, anotado y no resuelto en este incremento: el blanco mínimo entre columnas
+(`MIN_HUECO`, 18 pt) deja afuera encabezados largos y pegados, que son comunes.
+
+### Ajuste al reparto de §10
+
+Codex toma también `ufil/tablas.py` (la detección por bloque, con sus pruebas) y
+`ufil/clasificacion.py` (los tipos que faltan para una contratación: pedido o solicitud,
+presupuesto, oferta, cuadro comparativo, dictamen o preadjudicación, adjudicación, orden
+de compra, orden de pago, constancia de pago o transferencia). Cambiar la clasificación
+cambia su firma y desactualiza esa etapa en el material ya cargado, que es lo que se
+quiere.
