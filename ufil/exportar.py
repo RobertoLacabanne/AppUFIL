@@ -144,9 +144,10 @@ def cronologia(cx: sqlite3.Connection) -> tuple[list, list]:
     """La línea de tiempo, con qué clase de fecha es cada una y de dónde sale."""
     encabezados = ["Fecha", "Qué es", "Como dice el papel", "Archivo", "Foja",
                    "Tipo de pieza", "De dónde sale"]
+    # Todos los hechos: un informe que corta sin decirlo afirma que no hay más.
     filas = [[e["fecha"], e["que_es"], e["literal"] or "", e["archivo"] or "",
               e["pagina_nro"] or "", e["tipo"] or "", e["origen"]]
-             for e in cr.linea(cx, limite=5000)]
+             for e in cr.linea(cx, limite=None)]
     return encabezados, filas
 
 
@@ -213,18 +214,38 @@ INFORMES = {
 }
 
 
+# Qué trae cada informe, para que la pantalla lo diga sin escribirlo ella. Describen
+# el contenido y no lo que prueba, por la misma regla que el resto del módulo.
+DESCRIPCIONES = {
+    "indice": "Cada pieza del legajo con su archivo, sus fojas del PDF, la foliatura del "
+              "papel, su tipo y su estado, incluidas las que el sistema todavía no sabe "
+              "leer.",
+    "cronologia": "Todos los hechos fechados, en orden de fecha, con qué clase de fecha es "
+                  "cada uno, cómo lo dice el papel y de qué archivo y foja sale.",
+    "fichas": "Cada ficha del legajo —personas, empresas, organismos y las demás clases— "
+              "con su clave y en cuántas menciones y documentos aparece.",
+    "coleccion": "Las piezas de una colección en el orden que le dio quien la armó, con "
+                 "archivo, fojas y nota de cada una.",
+    "seleccion": "Las piezas elegidas, con cada dato leído, su estado y la foja de donde "
+                 "sale.",
+}
+
+
 class NoSePuede(ValueError):
     """Lo pedido no se puede hacer, y el motivo es para leer."""
 
 
 def disponibles() -> list[dict]:
     """Qué se puede exportar y en qué formatos. Para ofrecerlo sin escribirlo a mano."""
-    return [{"clave": k, "nombre": n, "formatos": ["csv", "pdf"]}
+    return [{"clave": k, "nombre": n, "formatos": ["csv", "pdf"],
+             "descripcion": DESCRIPCIONES[k]}
             for k, (n, _) in INFORMES.items()] + [
         {"clave": "coleccion", "nombre": "Punteo de una colección",
-         "formatos": ["csv", "pdf"], "necesita": "coleccion_id"},
+         "formatos": ["csv", "pdf"], "necesita": "coleccion_id",
+         "descripcion": DESCRIPCIONES["coleccion"]},
         {"clave": "seleccion", "nombre": "Selección de piezas",
-         "formatos": ["csv", "pdf"], "necesita": "documento_ids"}]
+         "formatos": ["csv", "pdf"], "necesita": "documento_ids",
+         "descripcion": DESCRIPCIONES["seleccion"]}]
 
 
 def generar(cx: sqlite3.Connection, clave: str, destino: Path, *, formato: str = "csv",

@@ -1,0 +1,99 @@
+{
+  "contrato": {},
+  "apostrofe": {
+    "errores": [
+      "Uncaught SyntaxError: Failed to execute 'click' on 'HTMLElement': missing ) after argument list"
+    ],
+    "dialogos": 0
+  },
+  "xss": {
+    "codigoEjecutado": true,
+    "handler": "pedirQuitarArchivo('1ac63700a6cb31d46cf44e7cb5668d0291a877f8ccaeee1c95c33e4d41bcf13d', 'x',globalThis.__revisionXss=1,'z.pdf', 'QUITAR 1ac63700a6cb31d46cf44e7cb5668d0291a877f8ccaeee1c95c33e4d41bcf13d', false, 1)"
+  },
+  "quitar": [
+    {
+      "ruta": "/api/archivo/quitar",
+      "body": "{\"sha256\":\"e4c155d9a9ca8e1540bac58520930207c8936d6acf0c741502d8f3d88f8ebb0f\",\"confirmacion\":\"QUITAR e4c155d9a9ca8e1540bac58520930207c8936d6acf0c741502d8f3d88f8ebb0f\"}",
+      "status": 200
+    }
+  ],
+  "navegacion": {
+    "seccion": "documentos",
+    "enlaceVisible": false,
+    "titulo": "Análisis documental · UFIL Paraná"
+  },
+  "dobleRestauracion": {
+    "peticiones": [
+      {
+        "ruta": "/api/archivo/restaurar",
+        "body": "{\"sha256\":\"e4c155d9a9ca8e1540bac58520930207c8936d6acf0c741502d8f3d88f8ebb0f\"}",
+        "status": 200
+      },
+      {
+        "ruta": "/api/archivo/restaurar",
+        "body": "{\"sha256\":\"e4c155d9a9ca8e1540bac58520930207c8936d6acf0c741502d8f3d88f8ebb0f\"}",
+        "status": 409
+      }
+    ],
+    "texto": "\n    \n      No se pudo completar la acci\\u00f3n\n      ErrorEl archivo no está en papelera (puede estar ya restaurado).\n      Si es un conflicto de estado (409), el sistema evit\\u00f3 el cambio porque podr\\u00eda pisar informaci\\u00f3n actual o reutilizar referencias.\n      \n        Cerrar\n      \n    \n  "
+  },
+  "destruir": [
+    {
+      "ruta": "/api/archivo/destruir",
+      "body": "{\"sha256\":\"e4c155d9a9ca8e1540bac58520930207c8936d6acf0c741502d8f3d88f8ebb0f\",\"confirmacion\":\"DESTRUIR e4c155d9a9ca8e1540bac58520930207c8936d6acf0c741502d8f3d88f8ebb0f\"}",
+      "status": 200
+    }
+  ],
+  "shaInvalido": {
+    "respuesta": {
+      "ruta": "/api/archivo/quitar",
+      "body": "{\"sha256\":\"invalido\",\"confirmacion\":\"QUITAR invalido\"}",
+      "status": 400
+    },
+    "mensaje": "No se pudo completar la acci\\u00f3n\n      Errorsha256 debe tener 64 caracteres hexadecimales en minúscula.\n      Si es un conflicto de estado (409), el sistema evit\\u00f3 el cambio porque podr\\u00eda pisar informaci\\u00f3n actual o reutilizar referencias.\n      \n        Cerrar"
+  },
+  "procesando": "Archivo en procesamiento\n        El archivo sintetico est\\u00e1 siendo procesado en este momento.\n        BloqueadoEsper\\u00e1 a que el sistema termine de leerlo antes de quitarlo.\n        \n          Cerrar",
+  "vacia": true,
+  "respuestaIncompleta": true,
+  "baseSuelta": {
+    "muestraArchivo": false,
+    "texto": "f. 0000Sin legajo\n    \n    Papelera de archivos\n    \n    Primero hay que abrir un legajo\n    Cada legajo es una causa y tiene su propia base de datos: sus documentos, sus personas y sus totales viven en un archivo aparte. Hasta que no haya "
+  },
+  "errorRed": true,
+  "refrescoSinCatch": {
+    "promesas": [
+      "Error: GET posterior falló"
+    ],
+    "dialogos": 0
+  },
+  "perdidaContexto": {
+    "hash": "#/informes",
+    "vista": "f. 0000Papelera\n    Papelera de archivos\n    La papelera está vacía\n    Los archivos que quites del legajo van a aparecer acá.\n    Cargar escaneos"
+  },
+  "dobleDestruccion": {
+    "peticiones": 2,
+    "botonHabilitado": false
+  },
+  "listaGrande": {
+    "filas": 1500,
+    "botones": 3000,
+    "ms": 50,
+    "paginador": false,
+    "buscador": false
+  },
+  "zoomAntes": {
+    "imagenAncho": 600,
+    "marcoX": 120,
+    "marcoY": 160,
+    "esperadoX": 120,
+    "esperadoY": 160
+  },
+  "zoomDespues": {
+    "imagenAncho": 1200,
+    "marcoX": 120,
+    "marcoY": 160,
+    "esperadoX": 240,
+    "esperadoY": 320
+  },
+  "clasesVisor": "visor-controles"
+}

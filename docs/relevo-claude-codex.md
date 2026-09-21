@@ -376,3 +376,213 @@ vez corregido el bug que ellas mismas habían encontrado, así que se recuperó 
   Roto un rato, corregido, con su prueba.
 - **Un archivo roto obligaba a rehacer los demás.** La invalidación por dependencia era
   por etapa entera y no por archivo.
+
+---
+
+## Incremento 6 — Papelera de archivos: integración de Codex y Gemini, y correcciones
+
+Tercer agente en el reparto: **Gemini** (Antigravity CLI, `gemini-3.1-pro-high`) toma la
+interfaz; **Codex** el backend y sus pruebas; **Claude** coordina, integra y revisa.
+
+**Commit base de las correcciones.** `c324fce` en `claude/integracion-codex-gemini`: la
+rama de integración con `codex/post-1464f24` y `gemini/appufil-agent` ya mergeadas, en
+ese orden, **sin conflictos** (Codex tocó backend y `servidor.py`; Gemini sólo `ufil/web/*`
+y una prueba nueva).
+
+**Suite, con `PYTHONUTF8=1` y Tesseract en el PATH:**
+
+| Punto | Resultado |
+|---|---|
+| `1464f24` (base) | `699 tests · 0 failures · 14 errors · 1 skipped` — los 14 son `WinError 32` de `tearDown` |
+| + Codex (`af54f8a`) | `733 tests · OK · 1 skipped` — Codex además cerró los 14 errores de fixtures |
+| + Gemini (`c324fce`) | `736 tests · OK · 1 skipped` |
+
+La suite no ve los problemas de abajo: salen de la revisión cruzada, no de las pruebas.
+
+### E. Ramas y worktrees
+
+| Agente | Rama | Worktree |
+|---|---|---|
+| Claude | `claude/integracion-codex-gemini` | `C:\Users\rober\AppUFIL` |
+| Codex | `codex/papelera-escala` (desde la integración, con este documento) | `C:\Users\rober\AppUFIL-codex-next` |
+| Gemini | `gemini/papelera-correcciones` (ídem) | `C:\Users\rober\AppUFIL-gemini` |
+
+Codex se invoca con `codex exec` desde su worktree y Gemini con `agy -p` desde el suyo,
+cada uno con su `TASK_*.md` sin versionar. El plugin `/codex:*` no se usa: su runtime
+compartido no levanta en Windows (`connect ENOENT \\.\pipe\cxc-…-codex-app-server`),
+aunque `codex login status` confirma la sesión. `codex exec` 0.155 no acepta
+`--ask-for-approval`: la política va por `-c approval_policy="never"`.
+
+### Revisión cruzada — lo que encontró cada uno
+
+**Codex → Gemini** (navegador real por CDP contra el frontend de `7b7c43c` sin modificar,
+backend actual y datos sintéticos; evidencia en `AppUFIL-codex-next`,
+`docs/revision-gemini-evidencia.json`):
+
+| # | Hallazgo | Evidencia |
+|---|---|---|
+| G1 | **Inyección de código.** Los botones de la papelera y de «Quitar del legajo» arman `onclick="f('${esc(nombre)}')"`. `esc` convierte `'` en `&#39;`, pero el navegador decodifica la entidad antes de parsear el JS: un archivo llamado `x',globalThis.__revisionXss=1,'z.pdf` ejecuta código. | `xss.codigoEjecutado: true` |
+| G2 | Un nombre con apóstrofo (`O'Brien.pdf`) rompe el botón: `SyntaxError`. | `apostrofe.errores` |
+| G3 | El zoom escala el marco de la región desde su propia esquina, no desde la imagen: al duplicar el zoom el resaltado queda en (120,160) y debería estar en (240,320). Señala otro lugar del papel. | `zoomDespues` |
+| G4 | Restaurar dos veces seguidas manda dos pedidos; el segundo da 409 y la pantalla muestra un error sobre una restauración que salió bien. | `dobleRestauracion` |
+| G5 | Si el refresco posterior falla, queda una promesa rechazada sin manejar y ningún mensaje. | `refrescoSinCatch` |
+| G6 | Al terminar una acción se redibuja la papelera aunque la persona ya se haya ido a otra pantalla (`#/informes` mostrando la papelera), y quitar desde otra pantalla hace `location.reload()`. Pierde el lugar (§20). | `perdidaContexto` |
+| G7 | Una respuesta incompleta (`{}`) se muestra como «La papelera está vacía». No saber no es lo mismo que no haber. | `respuestaIncompleta` |
+| G8 | 1.500 archivos en papelera: 1.500 filas y 3.000 botones, sin paginar. | `listaGrande` |
+| G9 | En `#/papelera` la navegación marca «Documentos», donde el enlace no está: la ruta figura en `tambien` de esa sección y como ítem de «Sistema». | `navegacion` |
+
+**Claude → Gemini:**
+
+| # | Hallazgo |
+|---|---|
+| G10 | **Todos los diálogos de la papelera muestran escapes en vez de letras**: «acci\u00f3n», «est\u00e1», «Destrucci\u00f3n f\u00edsica». El código escribe `\\u00f3` dentro de template literals, que produce la barra literal. Codex lo capturó sin nombrarlo (`procesando`, `dobleRestauracion.texto`). |
+| G11 | **La pantalla inventa un número**: `f.revisiones` con `1` por omisión hace decir «1 revisiones» a un archivo con decisiones humanas y cero filas en `revision_humana`. |
+| G12 | Las descripciones de los informes están escritas en el JS por `clave`, y la rama por omisión describe Índice, Cronología y Fichas como «datos consolidados de todo el legajo», que no es lo que ninguno de los tres hace. Un informe nuevo heredaría esa frase. |
+| G13 | `class="visor-controles" class="acciones-fila"`: el segundo atributo se ignora. |
+| G14 | `pruebas/test_papelera_web.py` no protege lo que dice: `test_pedir_quitar` no afirma nada, las pruebas usan un `esc` propio que no escapa `'` (no podían ver G1) y `test_revisiones_humanas_se_informan` **exige** el escape roto de G10. |
+
+**Gemini → Codex** (`docs/revision-codex-por-gemini.md`): la papelera no expone `paginas`
+(C1) ni `lote` (C2), y `revisiones` cuenta sólo `revision_humana` mientras
+`tiene_revisiones_humanas` mira diez tablas (C3). Los tres son ciertos.
+
+**Claude → Codex:**
+
+| # | Hallazgo |
+|---|---|
+| C4 | **Quitar un archivo lee la base entera.** `_instantanea` hace `SELECT *` de **todas** las tablas del legajo —incluida `palabra`, una fila por palabra de OCR— y recorre todas las filas en cada vuelta del punto fijo, por cada FK. Con miles de fojas son millones de diccionarios en memoria para retirar un PDF. Es el mismo defecto que la FASE 10 había cerrado (103 MB → 1 MB) y contradice §22. |
+| C5 | Los PNG de las fojas van dentro del JSON de la instantánea en base64, y `listar` hace `json_extract` sobre ese JSON en cada fila: mirar la papelera parsea todas las instantáneas enteras. |
+| C6 | `restaurar` compara **toda** la fila de cada padre compartido. Si después de quitar cambia una columna cualquiera de una entidad compartida, la restauración queda en 409 para siempre. Hay que reproducirlo antes de corregirlo: puede que ninguna columna de los padres actuales cambie en uso normal. |
+| C7 | `/api/archivos` hace doce consultas por archivo (`COUNT`, diez `EXISTS`, `_ocupado`). |
+
+**Claude → Claude:** el informe de Cronología corta en 5.000 hechos sin decirlo
+(`cr.linea(cx, limite=5000)`). Es la misma clase de defecto que la búsqueda que cortaba
+en sesenta.
+
+### A. Contrato
+
+**`GET /api/papelera/archivos?limite=&desde=`** (Codex) — paginado, lo más reciente primero:
+
+```python
+{"archivos": [{"sha256": str, "nombre": str, "quitado_en": str,
+               "paginas": int | None,        # None si no se sabe; nunca 0 por no saber
+               "lote": str | None,
+               "documentos": int, "bytes": int,
+               "revisiones": int,            # filas de revision_humana, como hasta ahora
+               "decisiones_humanas": int,    # todas las que mira tiene_revisiones_humanas
+               "tiene_revisiones_humanas": bool,   # == decisiones_humanas > 0
+               "confirmacion_destruir": "DESTRUIR <sha>"}],
+ "total": int, "desde": int, "limite": int}
+```
+
+`limite` por omisión 100, máximo 500; `desde` por omisión 0. Fuera de rango o no entero: 400.
+
+**`GET /api/archivos`** (Codex): cada archivo agrega `decisiones_humanas` con la misma
+definición. `revisiones` y el resto no cambian de nombre ni de forma.
+
+**`GET /api/informes`** (Claude): cada informe agrega `descripcion: str`, qué contiene, en
+castellano. La pantalla la muestra tal cual; no escribe ninguna.
+
+### B/C/D. Archivos
+
+- **Codex:** `ufil/papelera.py`, `ufil/esquema.sql`, `ufil/db.py`, `ufil/exclusion.py`,
+  `ufil/respaldo.py`, y en `ufil/servidor.py` **sólo** `api_archivos` y los bloques de
+  papelera; `pruebas/test_papelera_*.py` salvo `test_papelera_web.py`,
+  `pruebas/test_auditoria_backend.py`, `docs/papelera-archivos-backend.md`, y su revisión
+  (`docs/revision-gemini-por-codex.md`, `docs/revision-gemini-evidencia.json`,
+  `scripts/revision_gemini_*`).
+- **Gemini:** `ufil/web/app.js`, `ufil/web/index.html`, `ufil/web/estilo.css`,
+  `pruebas/test_papelera_web.py` y pruebas nuevas propias `pruebas/test_*_web*.py`.
+- **Claude:** `ufil/exportar.py`, `ufil/cronologia.py`, sus pruebas, y los tres documentos
+  vivos.
+- **Nadie:** el resto de `ufil/servidor.py` y toda prueba existente no nombrada arriba.
+
+### F. Pruebas
+
+- **Codex:** quitar un archivo de un legajo grande no lee filas de otros archivos (medido,
+  no supuesto); la papelera se lista sin parsear instantáneas; `paginas` y `lote`
+  correctos y `None` cuando no se saben; `decisiones_humanas` coincide con
+  `tiene_revisiones_humanas`; C6 reproducido o descartado con una prueba; paginación con
+  400 en los bordes; la suite entera sin regresiones.
+- **Gemini:** un nombre con `'`, `"`, `<`, `&` y la carga de G1 no ejecuta nada y el botón
+  funciona; los diálogos no contienen `\u`; ningún número que no esté en el JSON; el zoom
+  deja el resaltado sobre la región; doble clic manda un solo pedido; una acción que
+  termina en otra pantalla no la pisa; respuesta incompleta ≠ vacía; paginación; y las
+  pruebas usan el `esc` real de `app.js`.
+- **Combinadas:** la suite entera, más la revisión de Codex (`scripts/revision_gemini_*`)
+  vuelta a correr contra el frontend corregido.
+
+## Resultado del incremento 6
+
+| | Claude | Codex | Gemini |
+|---|---|---|---|
+| Rama | `claude/integracion-codex-gemini` | `codex/papelera-escala` | `gemini/papelera-correcciones` |
+| Commits | `5c1319b`, y los de integración | `daa9e0d`, `228e08a` (commiteados por Claude) | `16d9dfe` |
+| Qué hizo | descripción de informes desde el backend, cronología entera, G9 y la navegación con query, G5, dos pruebas que dependían de la forma y no del comportamiento, y la revisión en navegador sobre la integración | C1–C7, la migración v24 → v25 de la papelera y el cierre de su revisión de Gemini | G1–G4, G6–G8, G10–G14, con 13 pruebas que fallan con la interfaz anterior |
+
+**Integración, segunda vuelta:** Codex primero (`06f233f`), después Gemini (`4e66fc0`),
+sin conflictos de merge. Sí hubo dos incompatibilidades que sólo aparecen al correr la
+suite combinada, y ninguna era de comportamiento:
+
+- `test_carga` leía los primeros 3.000 caracteres de `api_archivos`; la agregación por
+  lote de Codex empujó el orden de los estados fuera de esa ventana. Ahora lee la función
+  entera (`0233e69`).
+- `test_taller` buscaba la línea literal que espera la carga de la imagen antes de
+  desplazarse; Gemini la envolvió para aplicar el zoom primero. Ahora exige las dos cosas
+  y en ese orden (`f44a428`).
+
+**Suite final:** `765 tests · OK · 1 skipped` (base `1464f24`: 699 · 14 errors).
+
+**Revisión en navegador real, repetida sobre la interfaz integrada**
+(`docs/revision-gemini-evidencia-integrada.json`, `app.js` `7a30a2f9…`, 3 de 3 corridas):
+
+| | Interfaz de `7b7c43c` | Integrada |
+|---|---|---|
+| G1 código inyectado por el nombre | se ejecuta | no se ejecuta |
+| G2 nombre con apóstrofo | `SyntaxError` | sin errores |
+| G3 marco con zoom 2 (esperado 240,320) | 120,160 | 240,320 |
+| G4 doble restauración / doble destrucción | 200 + 409 / 2 pedidos | 1 pedido / 1 pedido |
+| G5 falla el refresco después de restaurar | promesa sin manejar, nada visible | 1 diálogo, sin promesas sueltas |
+| G6 acción que termina en `#/informes` | pinta la papelera | queda en Informes |
+| G7 respuesta `{}` | «La papelera está vacía» | error dicho como error |
+| G8 1.500 archivos | 1.500 filas, sin paginador | 100 filas, paginador |
+| G9 sección marcada / enlace visible | Documentos / no | Sistema / sí |
+| G10 escapes en diálogos | sí | no |
+
+**Lo que dijo cada informe y lo que se comprobó.** El informe final de Gemini describe G9,
+G12 y G13 como otros problemas («reset del formulario», «parpadeo del visor», «IDs
+repetidos») y da G9 por cerrado cuando seguía abierto. Las correcciones de G12 y G13 sí
+estaban en el código; G9 lo cerró Claude. **Un informe no reemplaza mirar el diff.**
+
+### Desvíos del reparto, anotados
+
+- Claude commiteó por Codex: su sandbox no puede crear `index.lock` en `.git`, ni
+  siquiera con `--add-dir` sobre esa carpeta. También repuso el docstring de
+  `api_archivos`, que Codex había reducido a dos líneas.
+- Claude tocó `ufil/web/app.js` y `pruebas/test_papelera_web.py`, que son de Gemini, para
+  G9, la navegación con query y G5, después de que Gemini terminó. Y
+  `scripts/revision_gemini_browser.cjs`, de Codex: el arnés cerraba diálogos sin sacarlos
+  del DOM y a veces el paso siguiente pulsaba el botón de uno ya cerrado. Con la interfaz
+  vieja no pasaba porque esos diálogos ni se abrían.
+
+### Lo que salió mal en la coordinación, para no repetirlo
+
+- **Antigravity CLI manda a segundo plano los comandos largos y los mata al salir**,
+  aunque se le pida lo contrario. Las dos primeras sesiones de Gemini terminaron sin
+  commit ni informe porque dejaron la suite corriendo de fondo. A Gemini se le pide
+  correr sólo sus pruebas y commitear; la suite entera la corre Claude al integrar.
+- **El sandbox de Codex en Windows no escribe en `.git`.** Codex deja los cambios y los
+  comandos de commit en su informe; Claude revisa el diff, corre la suite fuera del
+  sandbox y commitea en su rama.
+- **C8, la regresión que dejó la primera papelera:** desde `863fc2b`, subir un PDF
+  mientras el pipeline procesaba daba 409, porque `guardar` pedía el mismo cerrojo
+  exclusivo que el trabajador sostiene toda la corrida. Lo reprodujo Claude; lo corrigió
+  Codex en `codex/subir-durante-proceso` (`8af5d00`) con cerrojos de dos niveles.
+  **Codex se quedó sin cuota** («try again at 11:15 PM») con el código y 18 pruebas
+  escritas, sin haber corrido la suite ni commiteado. Claude verificó que las pruebas de
+  carga fallan con el código anterior por el mismo `Ocupado` de C8 y pasan con el nuevo,
+  corrió la suite (783 · OK) y commiteó por él. Integrado en `3cdd2eb`.
+
+**Suite después de C8:** `783 tests · OK · 1 skipped`. La revisión en navegador, repetida
+12 veces después de C8: 11 bien y 1 fallo cuya causa no quedó registrada. Pasó justo
+después de la suite entera, con la máquina cargada, y el arnés espera como máximo 6 s
+por paso: es lo más probable, pero es inferido.

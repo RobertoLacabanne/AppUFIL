@@ -155,12 +155,14 @@ def poblar_desde_campos(cx: sqlite3.Connection) -> dict:
 
 
 def linea(cx: sqlite3.Connection, *, desde: str | None = None, hasta: str | None = None,
-          clases: tuple = (), limite: int = 500) -> list[dict]:
+          clases: tuple = (), limite: int | None = 500) -> list[dict]:
     """
     La línea de tiempo, en orden de fecha y NO de foja.
 
     Cada hecho viene con su fuente: de qué pieza salió, de qué foja, de qué campo, y con
     qué confianza. Sin eso una cronología es una lista de afirmaciones sin respaldo.
+
+    `limite=None` es «todos»: lo usa el informe, que no puede cortar sin decirlo.
     """
     where, args = ["1=1"], []
     if desde:
@@ -173,7 +175,7 @@ def linea(cx: sqlite3.Connection, *, desde: str | None = None, hasta: str | None
             raise NoSePuede(f"clase de fecha desconocida: {', '.join(malas)}")
         where.append("e.clase IN (" + ",".join("?" * len(clases)) + ")")
         args.extend(clases)
-    args.append(limite)
+    args.append(-1 if limite is None else limite)  # LIMIT -1: sin tope, en SQLite
     return [{"fecha": f["fecha"], "clase": f["clase"],
              "que_es": ETIQUETAS.get(f["clase"], f["clase"]),
              "literal": f["literal"], "documento_id": f["documento_id"],

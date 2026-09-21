@@ -30,6 +30,8 @@ from . import capa3_identidad as c3
 from . import capa4_analisis as c4
 from . import capa5_interpretacion as c5
 from . import busqueda
+from . import papelera
+from .exclusion import Ocupado
 from .almacen import ArchivoInvalido, guardar
 from .aplicar_revision import DecisionDesactualizada
 from .db import ahora
@@ -377,7 +379,7 @@ MOTIVOS = {
 }
 
 
-def api_archivos(cx) -> dict:
+def api_archivos(cx, *, procesando=False) -> dict:
     """
     Qué hay cargado y en qué estado está cada archivo.
 
@@ -391,22 +393,43 @@ def api_archivos(cx) -> dict:
     Acá van los tres números que hacen falta para saber dónde está cada archivo:
     cuántas fojas tiene, cuántas se leyeron y cuántas se clasificaron. De ahí sale el
     estado, y de los estados sale qué falta hacer.
+
+    Todo se agrega por lote —fojas, piezas, revisiones, decisiones humanas y qué se
+    está procesando— y no con consultas por archivo: con cientos de PDF eran doce
+    consultas por cada uno en cada vistazo a la pantalla de carga.
     """
+    decisiones = papelera.decisiones_por_archivo(cx)
+    revisiones = dict(cx.execute('SELECT sha256,COUNT(*) FROM revision_humana GROUP BY sha256'))
+    corriendo = cx.execute("SELECT alcance,alcance_id FROM resultado_etapa WHERE estado='corriendo'").fetchall()
+    global_ocupado = procesando or any(r['alcance'] == 'legajo' for r in corriendo)
+    ocupados = {r['alcance_id'] for r in corriendo if r['alcance'] == 'archivo'}
+    unidades = {(r['alcance'], r['alcance_id']) for r in corriendo}
+    if not global_ocupado and any(a in ('pagina', 'documento') for a, _ in unidades):
+        for tabla in ('pagina', 'documento'):
+            ocupados.update(r['sha256'] for r in cx.execute(f"""SELECT DISTINCT p.sha256 FROM {tabla} p
+                JOIN resultado_etapa e ON e.alcance_id=CAST(p.id AS TEXT)
+                WHERE e.alcance=? AND e.estado='corriendo'""", (tabla,)))
     filas = []
     for a in cx.execute("""
-            SELECT a.sha256, a.nombre, a.paginas, a.bytes, a.ingerido_en,
-                   p.lote,
-                   (SELECT COUNT(*) FROM pagina g WHERE g.sha256=a.sha256) AS fojas,
-                   (SELECT COUNT(DISTINCT g.id) FROM pagina g
-                     WHERE g.sha256=a.sha256
-                       AND EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id=g.id)) AS leidas,
-                   (SELECT COUNT(*) FROM pagina g
-                     WHERE g.sha256=a.sha256 AND g.clasificacion IS NOT NULL) AS clasificadas,
-                   (SELECT COUNT(*) FROM documento d WHERE d.sha256=a.sha256) AS documentos
-              FROM archivo a
-              LEFT JOIN procedencia p ON p.sha256 = a.sha256
-             ORDER BY a.ingerido_en DESC, a.nombre"""):
+            WITH fojas AS (
+                SELECT g.sha256,COUNT(*) fojas,
+                       SUM(CASE WHEN l.pagina_id IS NOT NULL THEN 1 ELSE 0 END) leidas,
+                       SUM(CASE WHEN g.clasificacion IS NOT NULL THEN 1 ELSE 0 END) clasificadas
+                FROM pagina g LEFT JOIN (SELECT DISTINCT pagina_id FROM lectura) l ON l.pagina_id=g.id
+                GROUP BY g.sha256
+            ), docs AS (SELECT sha256,COUNT(*) documentos FROM documento GROUP BY sha256)
+            SELECT a.sha256,a.nombre,a.paginas,a.bytes,a.ingerido_en,p.lote,
+                   COALESCE(f.fojas,0) fojas,COALESCE(f.leidas,0) leidas,
+                   COALESCE(f.clasificadas,0) clasificadas,COALESCE(d.documentos,0) documentos
+              FROM archivo a LEFT JOIN procedencia p ON p.sha256=a.sha256
+              LEFT JOIN fojas f ON f.sha256=a.sha256 LEFT JOIN docs d ON d.sha256=a.sha256
+             ORDER BY a.ingerido_en DESC,a.nombre"""):
         f = dict(a)
+        f['revisiones'] = revisiones.get(f['sha256'], 0)
+        f['decisiones_humanas'] = decisiones.get(f['sha256'], 0)
+        f['tiene_revisiones_humanas'] = f['decisiones_humanas'] > 0
+        f['procesando'] = global_ocupado or f['sha256'] in ocupados
+        f['confirmacion_quitar'] = 'QUITAR ' + f['sha256']
         fojas, leidas, clasif = f["fojas"] or 0, f["leidas"] or 0, f["clasificadas"] or 0
         # El orden importa: lo que FALTA manda sobre lo que ya se hizo. Un archivo con
         # ochenta fojas leídas y ocho sin leer está «a medio leer», no «leído».
@@ -1473,7 +1496,15 @@ class Manejador(BaseHTTPRequestHandler):
                     if ruta == "/api/fojas":
                         return self._json(api_fojas(cx))
                     if ruta == "/api/archivos":
-                        return self._json(api_archivos(cx))
+                        return self._json(api_archivos(cx, procesando=_procesador().ocupado()))
+                    if ruta == "/api/papelera/archivos":
+                        try:
+                            parametros = parse_qs(u.query, keep_blank_values=True)
+                            return self._json(papelera.listar(cx,
+                                limite=parametros.get('limite', ['100'])[0],
+                                desde=parametros.get('desde', ['0'])[0]))
+                        except ValueError as e:
+                            return self._json({'error': str(e)}, 400)
                     if ruta == "/api/yaestan":
                         return self._json(api_ya_esta(
                             cx, [s for s in (q.get("sha", [""])[0] or "").split(",") if s]))
@@ -1512,6 +1543,8 @@ class Manejador(BaseHTTPRequestHandler):
             return self._json({"error": "no encontrado"}, 404)
         except NoEncontrado as e:
             return self._json({"error": str(e), "no_encontrado": True}, 404)
+        except Ocupado as e:
+            return self._json({'ok': False, 'error': str(e)}, 409)
         except FileNotFoundError as e:
             return self._json({"error": str(e), "no_encontrado": True}, 404)
         except (KeyError, IndexError):
@@ -1557,7 +1590,8 @@ class Manejador(BaseHTTPRequestHandler):
         # La subida manda el PDF crudo en el cuerpo, con los metadatos en la URL. Es a
         # propósito: evita parsear multipart (que salió de la biblioteca estándar) y da
         # progreso archivo por archivo sin esfuerzo.
-        if u.path in ("/api/subir", "/api/procesar", "/api/actualizar"):
+        if u.path in ("/api/subir", "/api/procesar", "/api/actualizar",
+                      "/api/archivo/quitar", "/api/archivo/restaurar", "/api/archivo/destruir"):
             falta = _falta_abrir_legajo()
             if falta:
                 return self._json({"ok": False, "sin_legajo": True, "error": falta}, 409)
@@ -1565,7 +1599,10 @@ class Manejador(BaseHTTPRequestHandler):
         if u.path == "/api/subir":
             q = parse_qs(u.query)
             datos = self.rfile.read(largo) if largo else b""
-            cx = _cx()
+            try:
+                cx = _cx()
+            except Ocupado as e:
+                return self._json({'ok': False, 'error': str(e)}, 409)
             try:
                 g = guardar(cx, datos, q.get("nombre", ["sin-nombre.pdf"])[0],
                             lote=(q.get("lote", ["sin-lote"])[0] or "sin-lote").strip(),
@@ -1582,6 +1619,8 @@ class Manejador(BaseHTTPRequestHandler):
                                    "motivo": g.motivo, "cotejo": g.cotejo})
             except ArchivoInvalido as e:
                 return self._json({"ok": False, "error": str(e)}, 400)
+            except Ocupado as e:
+                return self._json({"ok": False, "error": str(e)}, 409)
             except Exception as e:
                 traceback.print_exc()
                 return self._json({"ok": False, "error": f"{type(e).__name__}: {e}"}, 500)
@@ -1632,11 +1671,8 @@ class Manejador(BaseHTTPRequestHandler):
                 return self._json({"ok": False, "error":
                     f"Para reemplazar la base hay que escribir el número del legajo: "
                     f"{l.numero}"}, 400)
-            t = _procesador().estado.como_dict()
-            if t.get("estado") == "corriendo":
-                return self._json({"ok": False, "error":
-                    "Hay un procesamiento en curso. Paralo antes de reemplazar la base."},
-                    409)
+            # respaldo.restaurar protege la BASE DESTINO, que puede ser distinta
+            # del legajo de la cookie. Consultar el trabajador activo era insuficiente.
             if not crudo:
                 return self._json({"ok": False, "error": "no llegó ningún archivo"}, 400)
             with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tf:
@@ -1646,6 +1682,8 @@ class Manejador(BaseHTTPRequestHandler):
                 r = rp.restaurar(temporal, legajos.carpeta_de(slug) / "ufil.sqlite")
             except rp.RespaldoInvalido as e:
                 return self._json({"ok": False, "error": str(e)}, 400)
+            except (Ocupado, OSError) as e:
+                return self._json({'ok': False, 'error': str(e)}, 409)
             finally:
                 temporal.unlink(missing_ok=True)
             legajos.tocar(slug)
@@ -1653,7 +1691,7 @@ class Manejador(BaseHTTPRequestHandler):
 
         try:
             cuerpo = json.loads(self.rfile.read(largo) or b"{}")
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             return self._json({"error": "cuerpo JSON inválido"}, 400)
         # ── legajos ──
         # Antes de abrir ninguna base: elegir legajo es justamente lo que se hace
@@ -1747,8 +1785,28 @@ class Manejador(BaseHTTPRequestHandler):
                 return self._json({"ok": False, "error": str(e)}, 400)
             return self._json({"ok": True, **evento})
 
-        cx = _cx()
         try:
+            cx = _cx()
+        except Ocupado as e:
+            return self._json({'ok': False, 'error': str(e)}, 409)
+        try:
+            if u.path in ('/api/archivo/quitar', '/api/archivo/restaurar', '/api/archivo/destruir'):
+                if not isinstance(cuerpo, dict):
+                    raise ValueError('El pedido tiene que ser un objeto JSON.')
+                p = _procesador()
+                # El mismo candado que arrancar/actualizar: evita la carrera entre
+                # comprobar ocupado y comenzar la transacción de papelera.
+                with p._lock:
+                    if p.ocupado():
+                        raise Ocupado('Hay un procesamiento en curso en este legajo.')
+                    sha = cuerpo.get('sha256')
+                    if u.path.endswith('/restaurar'):
+                        r = papelera.restaurar(cx, sha)
+                    elif u.path.endswith('/quitar'):
+                        r = papelera.quitar(cx, sha, cuerpo.get('confirmacion'))
+                    else:
+                        r = papelera.destruir(cx, sha, cuerpo.get('confirmacion'))
+                return self._json(r)
             # Todo lo que recibe un objeto JSON con campos obligatorios entra por acá:
             # comparten los validadores `entero` y `texto` de abajo, que son los que
             # convierten un cuerpo mal armado en un 400 con un mensaje en castellano.
@@ -1914,6 +1972,8 @@ class Manejador(BaseHTTPRequestHandler):
                 destino = config.EXPORT
                 return self._json({"archivos": c7.exportar(cx, destino)})
             return self._json({"error": "ruta desconocida"}, 404)
+        except (papelera.ConflictoPapelera, Ocupado) as e:
+            return self._json({'ok': False, 'error': str(e)}, 409)
         except NoEncontrado as e:
             return self._json({"error": str(e), "no_encontrado": True}, 404)
         except (ValueError, KeyError) as e:

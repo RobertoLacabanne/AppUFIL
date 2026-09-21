@@ -247,3 +247,75 @@ Windows. Ninguno se tocó.
 3. Volumen: 500 / 2.000 / 5.000 fojas.
 4. FASE 6 (entidades más allá de personas), 8 (colecciones y consultas guardadas),
    9 (exportaciones nuevas) y 10 (rendimiento) no se empezaron.
+
+---
+
+# 7. Incremento 6 — papelera de archivos, lo medido
+
+Windows 11, Python 3.13, Tesseract con `spa` en el PATH, `PYTHONUTF8=1`. Corpus
+sintético generado por las pruebas; **no se usó el acervo real**.
+
+## Suite
+
+| | `1464f24` (base) | + Codex | + Gemini | + correcciones | + C8, final |
+|---|---|---|---|---|---|
+| Tests | 699 | 733 | 736 | 765 | **783** |
+| Failures | 0 | 0 | 0 | 0 | 0 |
+| Errors | 14 | 0 | 0 | 0 | 0 |
+| Skipped | 1 | 1 | 1 | 1 | 1 |
+
+Los 14 `errors` de siempre (`PermissionError` al borrar temporales con conexiones
+abiertas) los cerró Codex en los tres fixtures que no cerraban su conexión. El `failure`
+de `test_taller.py` por `cp1252` no aparece con `PYTHONUTF8=1`.
+
+## COMPROBADO ejecutando
+
+- **Quitar es proporcional al archivo.** Con un archivo A y otro B de 101 y de 20.101
+  palabras de OCR, quitar A materializa **1 fila de `palabra` en los dos casos**, la suya
+  (`test_papelera_escala`, visto al correr la suite). Codex informó 102 y 20.102 con el
+  código anterior; eso no lo volvió a medir Claude.
+- **`/api/archivos` no crece con los archivos**: 4 sentencias con 1 archivo y con 31.
+- **Una papelera v24 migra a v25 y se restaura** con su revisión humana, sus PNG y la
+  integridad referencial (`test_migracion_v24_con_papelera_restaurable`); una migración
+  que falla no sube la versión ni pierde la instantánea.
+- **C6 reproducido antes de corregirlo**: confirmar el mismo tipo de una pieza compartida
+  bloqueaba restaurar; ahora restaura y conserva esa decisión. Cambiar la identidad de la
+  pieza sigue dando conflicto.
+- **Subir durante un procesamiento vuelve a funcionar** (C8). Con el código anterior,
+  subir o ingerir con una corrida o una actualización en curso levantaba `Ocupado` (y
+  409 por HTTP): lo reprodujo Claude y lo muestran las pruebas de
+  `test_subir_durante_proceso.py` corridas contra ese código. Con el nuevo, las 18 pasan:
+  la carga se guarda, la corrida en curso no la toma y la próxima sí; papelera y
+  restauración de respaldo siguen excluyendo cargas y corridas, también entre procesos,
+  y los cerrojos se liberan si el proceso muere.
+- **Revisión de la interfaz en navegador real** (Edge headless por CDP, backend real):
+  G1–G10 y G13 pasan de defecto a correcto sobre la interfaz integrada. Después de C8,
+  11 corridas bien de 12; la que falló no dejó registrada su causa (ver INFERIDO).
+  Evidencia en `docs/revision-gemini-evidencia-integrada.json`, contra la original en
+  `docs/revision-gemini-evidencia.json`.
+- **Las pruebas nuevas prueban**: de las 14 de `test_papelera_web.py` (13 de Gemini y la
+  de G5 de Claude), 11 fallan con el `app.js` de `fefba22`; las otras 3 cubren conductas
+  que ya estaban bien (entre ellas, redibujar después de restaurar en la página 2: el
+  código viejo redibujaba siempre). Las 3 de navegación fallan con el `app.js` que dejó
+  Gemini. Las del informe de cronología y de descripciones fallan con el `exportar.py`
+  anterior (`5000 != 6001`).
+
+## INFERIDO, no medido
+
+- Que el tiempo de quitar también sea proporcional al archivo. Se midieron filas
+  materializadas, no tiempo. Las columnas grandes que recorre (`palabra.lectura_id`,
+  `lectura.pagina_id`, `pagina.sha256`) tienen índice; las que no lo tienen son de tablas
+  chicas.
+- Que la papelera se porte igual sobre el acervo real y con miles de fojas.
+- Que la corrida fallida de la revisión en navegador haya sido por tiempo: fue justo
+  después de la suite entera, con la máquina cargada, y el arnés espera como máximo 6 s
+  por paso. No quedó el error.
+
+## PENDIENTE
+
+1. Papelera sobre el acervo real y a 2.000 / 5.000 fojas.
+2. La revisión en navegador corre fuera del discovery (`scripts/revision_gemini_runner.py`):
+   hay que acordarse de correrla cuando se toque la papelera o el visor. Sus esperas de
+   6 s por paso son justas para una máquina cargada.
+3. Subir durante una corrida larga se probó con corridas sintéticas cortas, no con un
+   OCR real de horas.

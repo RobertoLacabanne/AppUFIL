@@ -7,38 +7,6 @@
 
 PRAGMA foreign_keys = ON;
 
--- Instantánea autocontenida: PDF y registros salen del acervo en un solo COMMIT.
-CREATE TABLE IF NOT EXISTS papelera_archivo (
-  sha256 TEXT PRIMARY KEY,
-  nombre TEXT NOT NULL,
-  quitado_en TEXT NOT NULL,
-  version INTEGER NOT NULL,
-  registros TEXT NOT NULL,
-  pdf BLOB NOT NULL,
-  revisiones INTEGER NOT NULL,
-  documentos INTEGER NOT NULL,
-  paginas INTEGER,
-  lote TEXT,
-  decisiones_humanas INTEGER NOT NULL DEFAULT 0,
-  tiene_revisiones_humanas INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE INDEX IF NOT EXISTS ix_papelera_fecha ON papelera_archivo(quitado_en DESC,sha256);
-CREATE TABLE IF NOT EXISTS papelera_derivado (
-  sha256 TEXT NOT NULL REFERENCES papelera_archivo(sha256) ON DELETE CASCADE,
-  ruta TEXT NOT NULL,
-  contenido BLOB NOT NULL,
-  PRIMARY KEY (sha256,ruta)
-);
-
--- Limpieza física reintentable después del COMMIT de quitar. Sólo rutas relativas
--- a la carpeta de esta base, nunca rutas del corpus ni recibidas por HTTP.
-CREATE TABLE IF NOT EXISTS papelera_limpieza (
-  sha256 TEXT PRIMARY KEY REFERENCES papelera_archivo(sha256) ON DELETE CASCADE,
-  rutas TEXT NOT NULL
-);
-
-
 -- ─────────────────────────────────────────────────────────── CAPA 0: INGESTA ──
 CREATE TABLE IF NOT EXISTS archivo (
   sha256        TEXT PRIMARY KEY,
@@ -50,11 +18,6 @@ CREATE TABLE IF NOT EXISTS archivo (
   paginas       INTEGER,
   ingerido_en   TEXT NOT NULL
 );
-
-CREATE TRIGGER IF NOT EXISTS archivo_no_reingresar_papelera
-BEFORE INSERT ON archivo
-WHEN EXISTS (SELECT 1 FROM papelera_archivo WHERE sha256=NEW.sha256)
-BEGIN SELECT RAISE(ABORT, 'El archivo está en papelera: restauralo primero.'); END;
 
 -- Copias exactas del mismo contenido en otras rutas. No se borra ninguna:
 -- el original es inmutable, así que se registra el hecho y se sigue.
@@ -159,41 +122,18 @@ CREATE VIRTUAL TABLE IF NOT EXISTS pagina_texto USING fts5(
 -- Antes esto era `sha256 UNIQUE`, o sea un contrato por archivo, y un PDF con cinco
 -- contratos producía un solo registro mezclando campos de contratos distintos. Un
 -- registro inventado, y sin marca. Es la razón por la que existe `orden`.
--- `clave` es la IDENTIDAD de la pieza, y no es lo mismo que `id` ni que `orden`.
---
--- `orden` es una posición en una fila que se rearma en cada resegmentación: sirve para
--- ordenar y no para identificar. `id` lo asigna SQLite y se pierde apenas la pieza se
--- borra y se vuelve a crear, que es justamente lo que pasa al resegmentar.
---
--- `clave` es el archivo y la foja donde la pieza EMPIEZA. Las fojas de un PDF no se
--- mueven, así que una pieza que sigue empezando en la misma foja es la misma pieza
--- aunque haya cambiado de tipo, de largo o de posición. Eso es lo que permite que una
--- resegmentación conserve la pieza —y con ella las revisiones que cuelgan— en vez de
--- destruirla y tener que reasociar todo a mano.
---
--- `estado` distingue lo que el sistema sabe de lo que todavía no:
---   segmentado  — la pieza existe; los campos no se extrajeron todavía
---   extraido    — se le pasó un perfil y se le sacaron los campos
---   sin_perfil  — ningún extractor la reconoce. NO es un error y no se descarta:
---                 es un documento que el sistema todavía no sabe leer, y tiene que
---                 poder verse, buscarse, clasificarse a mano y recibir un extractor
---                 más adelante sin volver a subir nada.
 CREATE TABLE IF NOT EXISTS documento (
   id            INTEGER PRIMARY KEY,
   sha256        TEXT NOT NULL REFERENCES archivo(sha256),
   orden         INTEGER NOT NULL DEFAULT 1,   -- 1º, 2º… contrato dentro del archivo
-  clave         TEXT,                         -- identidad estable: <sha256>:<foja inicial>
   pagina_desde  INTEGER,
   pagina_hasta  INTEGER,
   tipo          TEXT NOT NULL,
   perfil        TEXT NOT NULL,
   camara        TEXT,
   estado        TEXT NOT NULL DEFAULT 'extraido',
-  clasificado_por TEXT,                       -- si una persona dijo qué es esta pieza
-  clasificado_en  TEXT,
   UNIQUE (sha256, orden)
 );
-CREATE INDEX IF NOT EXISTS ix_documento_clave ON documento(clave);
 
 -- EL CARRIL DE DATOS.
 -- Regla dura: o hay valor_literal, o hay nulo_motivo. Nunca los dos, nunca ninguno.
@@ -307,24 +247,6 @@ CREATE TABLE IF NOT EXISTS excepcion (
 -- sobrevive a que se vuelva a correr el pipeline: se indexa por el hash del archivo y
 -- el nombre del campo, no por ids que se regeneran. Si mejoramos el perfil de
 -- extracción y reprocesamos el lote, el equipo NO pierde la revisión que ya hizo.
--- EL ANCLAJE, y por qué `orden` no alcanza.
---
--- `orden` es la posición de la pieza adentro del archivo: 1ª, 2ª, 3ª. Se recalcula en
--- cada reproceso contando los tramos que salieron de la clasificación. Eso significa
--- que NO identifica a la pieza: identifica a un lugar en una fila que se rearma.
---
--- El día que el sistema aprende un tipo documental nuevo, una foja que antes era
--- `continuacion` pasa a ser una pieza propia, todas las de atrás se corren un lugar, y
--- la corrección que una persona hizo sobre la 2ª pieza se reaplica sobre otra. Con
--- estado `corregido` y confianza 1,0, o sea entrando como firme en los totales. Está
--- reproducido en pruebas/test_actualizacion.py.
---
--- Por eso se guarda además DÓNDE estaba lo que la persona miró: la foja y el recuadro
--- del campo, y el tramo de la pieza en ese momento. La foja es el ancla fuerte —las
--- páginas de un PDF no se mueven— y el recuadro desempata cuando hay varias piezas en
--- la misma foja. Cuando el anclaje no alcanza para decidir, la revisión NO se aplica:
--- queda marcada `requiere_reasociacion` y la mira una persona. Perder trabajo humano es
--- malo; aplicarlo al documento equivocado en silencio es peor.
 CREATE TABLE IF NOT EXISTS revision_humana (
   sha256 TEXT NOT NULL,
   orden  INTEGER NOT NULL DEFAULT 1,
@@ -333,366 +255,8 @@ CREATE TABLE IF NOT EXISTS revision_humana (
   valor  TEXT,
   quien  TEXT NOT NULL,
   cuando TEXT NOT NULL,
-  -- Anclaje estable. Nulo en las filas anteriores a que esto existiera: ver
-  -- `_anclar_revisiones_viejas` en ufil/db.py, que las completa con lo que haya.
-  ancla_pagina INTEGER,              -- foja donde estaba el campo que se revisó
-  ancla_x0 REAL, ancla_y0 REAL, ancla_x1 REAL, ancla_y1 REAL,
-  ancla_desde  INTEGER,              -- tramo de la pieza en el momento de revisar
-  ancla_hasta  INTEGER,
-  ancla_tipo   TEXT,                 -- qué era la pieza cuando se la revisó
-  estado TEXT NOT NULL DEFAULT 'vigente',   -- vigente | requiere_reasociacion
-  motivo TEXT,                       -- por qué necesita que alguien la mire
   PRIMARY KEY (sha256, orden, campo)
 );
-CREATE INDEX IF NOT EXISTS ix_revision_ancla ON revision_humana(sha256, ancla_pagina);
-
--- ─────────────────────────── LO QUE ALGUIEN QUIERE VOLVER A MIRAR ──
--- Dos cosas que hoy se pierden al cerrar el navegador y que cuestan caro rehacer.
---
--- Una CONSULTA GUARDADA es una búsqueda con sus filtros, con nombre. En un legajo que
--- se trabaja durante meses, «los comprobantes de este proveedor entre marzo y julio» se
--- vuelve a escribir veinte veces, y cada vez con una variante distinta, así que dos
--- personas comparando sus resultados no están mirando lo mismo.
---
--- Una COLECCIÓN es un conjunto de piezas elegidas A MANO: lo que alguien apartó para
--- un escrito, para una audiencia, para revisar mañana. No es el resultado de una
--- consulta —eso cambia cuando cambian los datos— sino una lista que una persona armó y
--- que tiene que quedar igual hasta que ella la cambie.
-CREATE TABLE IF NOT EXISTS consulta_guardada (
-  id        INTEGER PRIMARY KEY,
-  nombre    TEXT NOT NULL,
-  consulta  TEXT NOT NULL,
-  filtros   TEXT,                   -- JSON: lo que acota la búsqueda
-  quien     TEXT NOT NULL,
-  creado_en TEXT NOT NULL,
-  usada_en  TEXT,
-  veces     INTEGER NOT NULL DEFAULT 0,
-  UNIQUE (nombre)
-);
-
-CREATE TABLE IF NOT EXISTS coleccion (
-  id        INTEGER PRIMARY KEY,
-  nombre    TEXT NOT NULL,
-  nota      TEXT,
-  quien     TEXT NOT NULL,
-  creado_en TEXT NOT NULL,
-  UNIQUE (nombre)
-);
-
--- Una colección junta piezas, fojas o entidades: lo que alguien necesite apartar. Por
--- eso la referencia es (clase, referencia) y no una clave foránea a una sola tabla.
-CREATE TABLE IF NOT EXISTS coleccion_item (
-  coleccion_id INTEGER NOT NULL REFERENCES coleccion(id) ON DELETE CASCADE,
-  clase        TEXT NOT NULL,       -- documento | foja | entidad
-  referencia   TEXT NOT NULL,       -- id de la pieza, «sha:foja», id de la entidad
-  nota         TEXT,
-  orden        INTEGER NOT NULL DEFAULT 1,
-  quien        TEXT NOT NULL,
-  cuando       TEXT NOT NULL,
-  PRIMARY KEY (coleccion_id, clase, referencia)
-);
-CREATE INDEX IF NOT EXISTS ix_coleccion_item ON coleccion_item(coleccion_id, orden);
-
--- ──────────────────────────── LO QUE EL PAPEL DICE Y QUIÉN ES EN REALIDAD ──
--- Son dos cosas distintas y el sistema no puede confundirlas.
---
--- Una MENCIÓN es lo que un documento dice: «VIALIDAD PROVINCIAL», «Vialidad», «D.P.V.».
--- Una ENTIDAD es el organismo del que se habla. Tres menciones, una entidad —o quizá
--- dos, si una de ellas resulta ser otra repartición—. Guardar sólo la entidad pierde
--- cómo lo dice cada papel, que es lo que después hay que poder citar; guardar sólo la
--- mención obliga a reconstruir a mano quién es quién en cada consulta.
---
--- Por eso la mención SIEMPRE existe y apunta a su documento, su foja y su recuadro. La
--- entidad es opcional: una mención sin entidad asignada no es un error, es una mención
--- que todavía nadie resolvió.
-CREATE TABLE IF NOT EXISTS entidad (
-  id           INTEGER PRIMARY KEY,
-  clase        TEXT NOT NULL,   -- empresa|organismo|obra|bien|expediente|comprobante|persona
-  -- El identificador que no se discute: CUIT, número de expediente, número de
-  -- comprobante. NULL cuando no hay ninguno, que es lo normal en una obra o un bien.
-  clave_fuerte TEXT,
-  nombre       TEXT NOT NULL,   -- el nombre con el que se la muestra
-  nombre_norm  TEXT NOT NULL,   -- para comparar sin tildes ni mayúsculas
-  nota         TEXT,
-  creado_en    TEXT NOT NULL,
-  -- Quién la creó: NULL = la propuso el sistema a partir de las menciones.
-  quien        TEXT,
-  UNIQUE (clase, clave_fuerte)
-);
-CREATE INDEX IF NOT EXISTS ix_entidad_norm ON entidad(clase, nombre_norm);
-
-CREATE TABLE IF NOT EXISTS mencion (
-  id           INTEGER PRIMARY KEY,
-  clase        TEXT NOT NULL,
-  -- NULL = todavía no se resolvió a quién se refiere. No es un error.
-  entidad_id   INTEGER REFERENCES entidad(id) ON DELETE SET NULL,
-  literal      TEXT NOT NULL,   -- tal como lo dice el papel
-  norm         TEXT NOT NULL,
-  -- Dónde lo dice. Sin esto una mención no se puede citar, y una mención que no se
-  -- puede citar no sirve para nada en un legajo.
-  documento_id INTEGER REFERENCES documento(id) ON DELETE CASCADE,
-  campo_id     INTEGER REFERENCES campo(id) ON DELETE SET NULL,
-  sha256       TEXT, pagina_nro INTEGER,
-  x0 REAL, y0 REAL, x1 REAL, y1 REAL,
-  origen       TEXT NOT NULL,   -- campo:<nombre> | texto | humano
-  confianza    REAL,
-  quien        TEXT, cuando TEXT,
-  UNIQUE (documento_id, clase, norm, origen)
-);
-CREATE INDEX IF NOT EXISTS ix_mencion_entidad ON mencion(entidad_id);
-CREATE INDEX IF NOT EXISTS ix_mencion_norm    ON mencion(clase, norm);
-
--- ─────────────────────────────── LO QUE UN DOCUMENTO DICE DE OTRO ──
--- «Esta factura corresponde a aquella orden de compra». «Este decreto aprueba aquel
--- contrato». Son afirmaciones, y una afirmación sin fuente no vale nada: por eso
--- `fuente` es obligatoria y dice de dónde salió.
---
--- Y por eso tienen estado. El sistema puede PROPONER que dos documentos se refieren al
--- mismo comprobante porque el número coincide; de ahí a afirmarlo hay una distancia que
--- la tiene que recorrer una persona.
-CREATE TABLE IF NOT EXISTS relacion (
-  id            INTEGER PRIMARY KEY,
-  tipo          TEXT NOT NULL,
-  desde_doc     INTEGER REFERENCES documento(id) ON DELETE CASCADE,
-  hasta_doc     INTEGER REFERENCES documento(id) ON DELETE CASCADE,
-  desde_entidad INTEGER REFERENCES entidad(id) ON DELETE CASCADE,
-  hasta_entidad INTEGER REFERENCES entidad(id) ON DELETE CASCADE,
-  -- De dónde sale la afirmación: `campo:<nombre>`, `comprobante:<nro>`, `humano`…
-  fuente        TEXT NOT NULL,
-  campo_id      INTEGER REFERENCES campo(id) ON DELETE SET NULL,
-  estado        TEXT NOT NULL DEFAULT 'propuesta',  -- propuesta|confirmada|rechazada
-  confianza     REAL,
-  nota          TEXT,
-  quien         TEXT, cuando TEXT,
-  creado_en     TEXT NOT NULL,
-  UNIQUE (tipo, desde_doc, hasta_doc, desde_entidad, hasta_entidad, fuente)
-);
-CREATE INDEX IF NOT EXISTS ix_relacion_desde ON relacion(desde_doc, estado);
-CREATE INDEX IF NOT EXISTS ix_relacion_hasta ON relacion(hasta_doc, estado);
-
--- Las fusiones de entidades que una persona ya decidió. Igual que `fusion_decidida`
--- para personas: sobrevive a que se vuelva a correr todo, porque se indexa por la
--- identidad y no por ids que se regeneran.
-CREATE TABLE IF NOT EXISTS entidad_fusion (
-  clase    TEXT NOT NULL,
-  ident_a  TEXT NOT NULL,
-  ident_b  TEXT NOT NULL,
-  decision TEXT NOT NULL,          -- aceptada | rechazada
-  quien    TEXT NOT NULL,
-  cuando   TEXT NOT NULL,
-  PRIMARY KEY (clase, ident_a, ident_b)
-);
-
--- ─────────────────────────────────────────────────────── LA CRONOLOGÍA ──
--- Un documento no tiene «una fecha»: tiene varias, y son cosas distintas.
---
---   documento     — la que el papel lleva arriba, cuando se labró
---   firma         — cuando se firmó, que puede no ser la misma
---   recepcion     — el sello de mesa de entradas
---   notificacion  — cuando se le hizo saber a alguien
---   hecho         — cuando pasó lo que el documento relata
---   incorporacion — cuando entró al expediente
---
--- Mezclarlas arma una línea de tiempo que no corresponde a nada: un acta que relata
--- un hecho de marzo, firmada en abril y recibida en mayo aparecería tres veces o, peor,
--- una sola vez en la fecha equivocada.
---
--- El orden cronológico NO es el orden físico del expediente. Un expediente se arma por
--- incorporación, y lo que se incorpora último puede relatar lo que pasó primero. Por eso
--- esta tabla existe aparte de `pagina.nro` y de `documento.orden`.
---
--- Toda fecha conserva de dónde salió: el campo que la trajo, o quién la cargó a mano.
-CREATE TABLE IF NOT EXISTS evento (
-  id           INTEGER PRIMARY KEY,
-  documento_id INTEGER REFERENCES documento(id) ON DELETE CASCADE,
-  sha256       TEXT REFERENCES archivo(sha256),
-  pagina_nro   INTEGER,
-  clase        TEXT NOT NULL,          -- documento|firma|recepcion|notificacion|hecho|incorporacion
-  fecha        TEXT NOT NULL,          -- ISO, normalizada
-  literal      TEXT,                   -- tal como está en el papel
-  campo_id     INTEGER REFERENCES campo(id) ON DELETE SET NULL,
-  -- De dónde salió: `campo:<nombre>` cuando la trajo la extracción, `humano` cuando la
-  -- cargó una persona. Una fecha sin fuente no entra: es la misma regla que sostiene
-  -- el resto del sistema.
-  origen       TEXT NOT NULL,
-  confianza    REAL,
-  nota         TEXT,
-  quien        TEXT, cuando TEXT,
-  UNIQUE (documento_id, clase, fecha, origen)
-);
-CREATE INDEX IF NOT EXISTS ix_evento_fecha ON evento(fecha);
-CREATE INDEX IF NOT EXISTS ix_evento_doc   ON evento(documento_id, clase);
-
--- ──────────────────────────────────────────── LAS TABLAS DEL DOCUMENTO ──
--- Una planilla de obra, un remito o una orden de compra dicen lo que dicen POR RENGLÓN:
--- artículo, descripción, unidad, cantidad, precio, subtotal. Aplanar eso a texto
--- corrido pierde justamente lo que hace falta para comparar lo pactado con lo entregado
--- y con lo facturado, que es la pregunta que trae a alguien a mirar estos papeles.
---
--- Se guarda la estructura, no sólo el texto: filas, columnas, celdas, celdas combinadas
--- y encabezados. Y cada celda con SU recuadro, para poder ir a verla en el original:
--- una cifra de una planilla que no se puede señalar en la foja no sirve como prueba.
---
--- `continua_de` es la tabla que sigue en la página siguiente. Una planilla larga se
--- corta al pie de la hoja y sigue arriba de la otra, muchas veces repitiendo el
--- encabezado; son UNA tabla y hay que poder leerlas juntas.
-CREATE TABLE IF NOT EXISTS tabla (
-  id           INTEGER PRIMARY KEY,
-  sha256       TEXT NOT NULL REFERENCES archivo(sha256),
-  pagina_nro   INTEGER NOT NULL,
-  orden        INTEGER NOT NULL DEFAULT 1,   -- 1ª, 2ª tabla de esa foja
-  documento_id INTEGER REFERENCES documento(id),
-  filas        INTEGER NOT NULL DEFAULT 0,
-  columnas     INTEGER NOT NULL DEFAULT 0,
-  x0 REAL, y0 REAL, x1 REAL, y1 REAL,
-  continua_de  INTEGER REFERENCES tabla(id),
-  -- quién dijo que continúa: NULL = lo propuso el sistema y nadie lo confirmó todavía
-  union_quien  TEXT, union_cuando TEXT,
-  origen       TEXT NOT NULL DEFAULT 'ocr',  -- ocr | humano
-  confianza    REAL,
-  creado_en    TEXT NOT NULL,
-  UNIQUE (sha256, pagina_nro, orden)
-);
-CREATE INDEX IF NOT EXISTS ix_tabla_pagina ON tabla(sha256, pagina_nro);
-CREATE INDEX IF NOT EXISTS ix_tabla_documento ON tabla(documento_id);
-
-CREATE TABLE IF NOT EXISTS tabla_celda (
-  id             INTEGER PRIMARY KEY,
-  tabla_id       INTEGER NOT NULL REFERENCES tabla(id) ON DELETE CASCADE,
-  fila           INTEGER NOT NULL,           -- 0 = primera fila de la tabla
-  columna        INTEGER NOT NULL,
-  filas_ocupa    INTEGER NOT NULL DEFAULT 1, -- celdas combinadas
-  columnas_ocupa INTEGER NOT NULL DEFAULT 1,
-  es_encabezado  INTEGER NOT NULL DEFAULT 0,
-  texto          TEXT,
-  -- El recuadro de ESTA celda, no el de la tabla. Es lo que permite mostrar de dónde
-  -- salió cada número sin obligar a nadie a buscarlo en la hoja.
-  x0 REAL, y0 REAL, x1 REAL, y1 REAL,
-  lectura_id     INTEGER REFERENCES lectura(id),
-  confianza      REAL,
-  UNIQUE (tabla_id, fila, columna)
-);
-CREATE INDEX IF NOT EXISTS ix_celda_tabla ON tabla_celda(tabla_id, fila, columna);
-
--- ───────────────────────────────────── LA FOLIATURA QUE TIENE EL PAPEL ──
--- Cuatro numeraciones distintas conviven en un expediente y NO son la misma:
---
---   1. la página del PDF          — `pagina.nro`, la posición en el archivo
---   2. la posición global          — en qué lugar del conjunto documental cae
---   3. la FOLIATURA VISIBLE        — el número escrito o sellado en el papel
---   4. la numeración interna       — «hoja 2 de 5» adentro de una pieza
---
--- Confundirlas es la forma más fácil de citar mal una prueba: un escrito que dice
--- «a fojas 47» se refiere a la tercera, y si el sistema contesta con la primera manda
--- a alguien a mirar otro papel.
---
--- Un mismo papel puede tener VARIAS foliaturas —se refolió al incorporarlo a otro
--- expediente, y quedan las dos— así que hay una `serie` por cada una. Y admite lo que
--- el papel de verdad trae: bis, ter, vuelta, tachaduras, ilegibles y ausencias.
---
--- Que no haya fila NO significa que la foja no esté foliada: significa que no se
--- detectó. Decir «sin foliar» es una afirmación sobre el papel y la hace una persona,
--- con `estado='ausente'`.
-CREATE TABLE IF NOT EXISTS foliatura (
-  id        INTEGER PRIMARY KEY,
-  pagina_id INTEGER NOT NULL REFERENCES pagina(id) ON DELETE CASCADE,
-  serie     TEXT NOT NULL DEFAULT 'principal',  -- una por cada foliatura del papel
-  literal   TEXT,                   -- tal como está escrito: «47», «47 bis», «47 vta.»
-  numero    INTEGER,                -- la parte numérica, si se pudo leer
-  sufijo    TEXT,                   -- bis | ter | ...
-  cara      TEXT,                   -- anverso | reverso
-  estado    TEXT NOT NULL,          -- leida | ilegible | ausente | corregida
-  origen    TEXT NOT NULL,          -- ocr | humano
-  confianza REAL,
-  x0 REAL, y0 REAL, x1 REAL, y1 REAL,   -- dónde está en la foja, para poder ir a verlo
-  quien     TEXT, cuando TEXT,
-  UNIQUE (pagina_id, serie)
-);
-CREATE INDEX IF NOT EXISTS ix_foliatura_numero ON foliatura(numero);
-CREATE INDEX IF NOT EXISTS ix_foliatura_pagina ON foliatura(pagina_id);
-
--- ───────────────────────────────────────────────── EL CONJUNTO DOCUMENTAL ──
--- Un escaneo o una entrega no es un archivo: es un CONJUNTO de archivos con un orden.
--- La oficina que responde un oficio manda nueve PDF, y el noveno sigue donde terminó
--- el octavo. Ese orden es información del expediente, no del sistema de archivos: se
--- pierde apenas alguien renombra un archivo, y con él se pierde la única pista de que
--- una pieza sigue en la parte siguiente.
---
--- Se guarda aparte del archivo a propósito: el mismo PDF puede llegar dos veces, en
--- dos entregas distintas, y eso es un hecho del expediente que hay que poder ver.
-CREATE TABLE IF NOT EXISTS conjunto (
-  id         INTEGER PRIMARY KEY,
-  nombre     TEXT NOT NULL,
-  organismo  TEXT,
-  expediente TEXT,                    -- número del expediente o actuación de origen
-  anio       INTEGER,
-  nota       TEXT,
-  creado_en  TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS conjunto_archivo (
-  conjunto_id INTEGER NOT NULL REFERENCES conjunto(id),
-  sha256      TEXT NOT NULL REFERENCES archivo(sha256),
-  orden       INTEGER NOT NULL,       -- la parte 1, la parte 2… como llegaron
-  PRIMARY KEY (conjunto_id, sha256)
-);
-CREATE INDEX IF NOT EXISTS ix_conjunto_orden ON conjunto_archivo(conjunto_id, orden);
-
--- ─────────────────────────── UNA PIEZA QUE SIGUE EN OTRO ARCHIVO ──
--- El límite de un PDF no es el límite de un documento. Un remito de cuatro fojas puede
--- quedar partido entre dos archivos porque así salió del escáner, y son UNA pieza.
---
--- El tramo principal sigue estando en `documento` (sha256, pagina_desde, pagina_hasta):
--- no se movió nada, para no romper lo que ya anda. Acá se agregan los tramos QUE SIGUEN,
--- en otro archivo o en fojas no contiguas del mismo.
-CREATE TABLE IF NOT EXISTS pieza_tramo (
-  id           INTEGER PRIMARY KEY,
-  documento_id INTEGER NOT NULL REFERENCES documento(id) ON DELETE CASCADE,
-  sha256       TEXT NOT NULL REFERENCES archivo(sha256),
-  pagina_desde INTEGER NOT NULL,
-  pagina_hasta INTEGER NOT NULL,
-  orden        INTEGER NOT NULL DEFAULT 1,   -- en qué orden se leen los tramos
-  quien        TEXT,                          -- quién dijo que continúa; NULL = lo dedujo el sistema
-  cuando       TEXT,
-  UNIQUE (documento_id, sha256, pagina_desde)
-);
-CREATE INDEX IF NOT EXISTS ix_pieza_tramo ON pieza_tramo(documento_id, orden);
-
--- ────────────────────────────── QUÉ ETAPA PRODUJO ESTO, Y SI SIGUE VIGENTE ──
--- El acervo se carga durante años y el sistema aprende cosas nuevas en el medio. Cuando
--- eso pasa, lo ya cargado tiene que poder aprovecharlas SIN volver a subirlo y sin
--- volver a leerlo entero.
---
--- Para eso hay que poder contestar una pregunta que antes no se podía: «esto que está
--- guardado, ¿lo produjo el algoritmo que tengo ahora?». Hasta acá la respuesta salía de
--- mirar si existía una fila, y eso contesta otra cosa: que ALGUNA vez se procesó. Con
--- ese criterio, mejorar el OCR no vuelve a leer nada y agregar un extractor no alcanza
--- a lo viejo, porque la fila ya está.
---
--- Acá queda el SELLO de cada resultado: qué etapa, con qué versión de algoritmo y con
--- qué configuración. Un resultado cuyo sello no es el vigente está viejo, y se sabe sin
--- adivinarlo. Ver ufil/versiones.py.
---
--- `alcance_id` es texto a propósito: según la etapa es un SHA-256, el id de una página o
--- el de un documento, y una sola tabla para todas es lo que permite preguntar «qué
--- quedó viejo» de una vez en lugar de recorrer diez tablas distintas.
-CREATE TABLE IF NOT EXISTS resultado_etapa (
-  etapa      TEXT NOT NULL,
-  alcance    TEXT NOT NULL,          -- archivo | pagina | documento | legajo
-  alcance_id TEXT NOT NULL,          -- sha256 | pagina.id | documento.id | '' (legajo)
-  version    INTEGER NOT NULL,       -- versión del algoritmo que lo produjo
-  firma      TEXT NOT NULL,          -- huella de la configuración que lo produjo
-  estado     TEXT NOT NULL,          -- pendiente|corriendo|parcial|terminado|
-                                     -- desactualizado|fallido|detenido
-  cuando     TEXT NOT NULL,
-  -- `heredado` cuando el resultado ya estaba en la base antes de que existiera el
-  -- sellado y se lo adoptó en vez de recalcularlo. Es distinto de haber comprobado que
-  -- coincide, y la interfaz tiene que poder decir cuál de las dos cosas es.
-  origen     TEXT,
-  detalle    TEXT,
-  PRIMARY KEY (etapa, alcance, alcance_id)
-);
-CREATE INDEX IF NOT EXISTS ix_resultado_etapa ON resultado_etapa(etapa, estado);
 
 -- ───────────────────────────────── CAPA 3: NORMALIZACIÓN E IDENTIDAD (APARTE) ──
 -- No pisa el literal. Es una tabla satélite, auditable y reversible sin volver
@@ -893,10 +457,6 @@ LEFT JOIN normalizacion n ON n.campo_id = c.id
 -- Es a propósito que no esté escrita acá: una lista repetida en dos archivos se separa
 -- el día que alguien agrega un tipo, y lo que se rompe es un total.
 WHERE d.tipo IN ({{TIPOS_CONTRATO}})
-  -- Una pieza que ningún extractor reconoce se ve y se cuenta (ver `v_documento_todo`)
-  -- pero NO entra acá: esta vista alimenta acumulados y totales, y un documento sin
-  -- campos leídos no puede sumar ni figurar como contrato firme.
-  AND d.estado <> 'sin_perfil'
 GROUP BY d.id;
 
 -- Todos los documentos, de cualquier familia, con el estado de cada campo al lado y
@@ -919,15 +479,10 @@ SELECT
   -- el tipo no está en ninguna familia conocida, que es como tiene que salir: un
   -- documento sin clasificar se ve y se cuenta, no se acomoda en la familia más
   -- probable. Ver `familia()` en ufil/clasificacion.py.
-  CASE WHEN d.estado = 'sin_perfil'           THEN NULL
-       WHEN d.tipo IN ({{TIPOS_CONTRATO}})    THEN 'contrato'
+  CASE WHEN d.tipo IN ({{TIPOS_CONTRATO}})    THEN 'contrato'
        WHEN d.tipo IN ({{TIPOS_COMPROBANTE}}) THEN 'comprobante'
        WHEN d.tipo IN ({{TIPOS_ACTO}})        THEN 'acto'
   END             AS familia,
-  -- Qué tanto sabe el sistema de esta pieza. `sin_perfil` es un documento que existe y
-  -- que todavía no sabemos leer: se ve, se cuenta y se puede clasificar a mano.
-  d.estado        AS estado,
-  d.clave         AS clave,
   a.nombre        AS archivo,
   MAX(CASE WHEN c.nombre='nombre'        THEN c.valor_literal END) AS nombre_literal,
   MAX(CASE WHEN c.nombre='nombre'        THEN c.estado        END) AS nombre_estado,
@@ -1008,5 +563,4 @@ LEFT JOIN campo c
                          AND k.estado = 'abierto')
 LEFT JOIN normalizacion n ON n.campo_id = c.id
 WHERE d.tipo IN ({{TIPOS_COMPROBANTE}})
-  AND d.estado <> 'sin_perfil'      -- misma razón que en `v_contrato`
 GROUP BY d.id;

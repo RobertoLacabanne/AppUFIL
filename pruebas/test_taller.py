@@ -479,7 +479,11 @@ class LaFojaSeAbreParaLeerla(unittest.TestCase):
         _hay(self, "const alCampo = ()", APP, "el visor abre en la esquina de arriba")
         _hay(self, "caja.scrollTop +=", APP,
              "el visor no se desplaza al recuadro")
-        _hay(self, "if (img.complete && img.naturalWidth) alCampo();", APP,
+        # Con zoom, primero se dimensiona el lienzo y después se desplaza: al revés, el
+        # desplazamiento se calcularía sobre una hoja que todavía no tiene su tamaño.
+        _hay(self, "const alCargar = () => { aplicarZoomVisor(); alCampo(); };", APP,
+             "el visor se desplaza antes de dimensionar la hoja con el zoom")
+        _hay(self, "if (img.complete && img.naturalWidth) alCargar();", APP,
              "sin esperar a que cargue la imagen no hay a dónde desplazarse")
 
     def test_cambiar_de_pantalla_lo_cierra(self):

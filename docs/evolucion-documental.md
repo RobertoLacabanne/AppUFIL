@@ -291,3 +291,58 @@ extraccion → normalizacion → identidad → cronologia → indice → interpr
 
 La normalización sigue pegada a la extracción —la escribe la misma pasada— y se
 contabiliza aparte. Es la única que queda fusionada, contra las cinco que había.
+
+---
+
+# 9. La papelera de archivos (incremento 6)
+
+Quitar un archivo del legajo por error no puede costar el trabajo de las personas sobre
+él. La papelera (`ufil/papelera.py`, esquema 25, de Codex; la interfaz de Gemini) saca un
+archivo del análisis **sin borrar nada**, y lo devuelve entero.
+
+## Cómo está hecha
+
+- **Una instantánea por archivo, en una transacción.** El PDF, las filas que dependen de
+  él y sus derivados salen del acervo en el mismo `COMMIT` en que entran a
+  `papelera_archivo`. Las FK reales definen qué depende de qué; las referencias sin FK
+  (`resultado_etapa`, `coleccion_item`, `interpretacion`, `pagina_texto`…) se declaran
+  aparte. Los padres compartidos —entidades, personas, conjuntos— **no** se retiran.
+- **Proporcional al archivo, no a la base.** La primera versión leía todas las tablas del
+  legajo, incluida `palabra`, para retirar un PDF. Ahora sigue las FK por valor y en
+  tandas: quitar un archivo de 1 palabra al lado de otro de 20.101 palabras materializa
+  1 palabra (medido; ver `docs/validacion-documental.md`).
+- **Los derivados van en BLOB** (`papelera_derivado`), no en base64 dentro del JSON, y la
+  pantalla lee columnas reales (`paginas`, `lote`, `decisiones_humanas`), paginadas: mirar
+  la papelera no abre ninguna instantánea.
+- **Restaurar es conservador.** Sin `REPLACE`: si un ID se reutilizó o un padre compartido
+  cambió de un modo que importa, 409 y la papelera queda intacta. Que una persona haya
+  confirmado después el mismo tipo de una pieza compartida **no** cuenta como cambio: esa
+  decisión posterior se conserva y la restauración sigue.
+- **Destruir** exige una confirmación con el hash completo y sólo opera sobre lo que ya
+  está en papelera. No es un borrado forense ni toca respaldos anteriores.
+- **Exclusión entre procesos** por cerrojos del sistema operativo (`ufil/exclusion.py`),
+  que se liberan si el proceso muere, en dos niveles: papelera y restauración de
+  respaldos excluyen todo; pipeline y actualización excluyen otra corrida; una subida
+  excluye otra subida. **Subir mientras se procesa está permitido**: lo subido espera a
+  la próxima corrida.
+
+## Decisiones que conviene recordar
+
+- **«Decisiones humanas» es una sola definición**, usada por `/api/archivos`, por la
+  papelera y por la advertencia antes de quitar: revisiones, auditoría, clasificación
+  manual, campos revisados, foliaturas, eventos, menciones, uniones de tablas, tramos y
+  relaciones confirmadas. `revisiones` sigue contando sólo `revision_humana`, por
+  compatibilidad.
+- **La papelera se versiona con el esquema.** Una instantánea v24 se migra a v25 en la
+  misma transacción que sube el número de versión; si algo falla, la v24 queda intacta y
+  la migración se reintenta.
+- **Los informes describen desde el backend** (`descripcion` en `/api/informes`); la
+  pantalla no escribe ninguna frase sobre lo que trae un informe.
+
+## Lo que falta
+
+- La papelera no se probó sobre el acervo real ni con un legajo de miles de fojas: la
+  escala está medida con datos sintéticos.
+- La primera papelera había dejado sin poder subir durante un procesamiento (C8). Quedó
+  corregido con los cerrojos de dos niveles; se anota para que no vuelva: **un cerrojo
+  que sostiene el trabajador no puede ser el mismo que pide la carga.**

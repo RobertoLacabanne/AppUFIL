@@ -77,6 +77,9 @@ def correr(cx: sqlite3.Connection, *, con_integridad: bool = True) -> list[str]:
     comprobación de originales va aparte, con un botón que la pide.
     """
     fallas: list[str] = []
+    referencias = cx.execute('PRAGMA foreign_key_check').fetchall()
+    if referencias:
+        fallas.append(f'{len(referencias)} referencias foráneas inválidas (integridad referencial)')
 
     # ── Restricción 3: o valor, o motivo. Nunca las dos, nunca ninguna ──
     n = cx.execute("""SELECT COUNT(*) FROM campo
