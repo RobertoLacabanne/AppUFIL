@@ -1127,7 +1127,7 @@ table td{overflow-wrap:normal; word-break:normal; hyphens:none}
 /* ── Carril de interpretación ─────────────────────────────────────────── */
 .interp{background:var(--interp); border-left:3px solid var(--interp-filete);
         padding:13px 16px; margin-bottom:10px}
-.interp .texto{font-family:var(--serif); font-style:italic; font-size:15px;
+.interp .texto{font-family:var(--serif); font-style:italic; font-size:15px; overflow-wrap:anywhere; word-break:break-word;
                line-height:1.58; color:var(--tinta); margin:8px 0 10px; max-width:74ch}
 .interp .fuentes{display:flex; flex-wrap:wrap; gap:5px; padding-top:9px;
                  border-top:1px solid var(--interp-filete)}

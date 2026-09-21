@@ -302,12 +302,21 @@ function celdaValor(c) {
 
 /* Estado vacío: en vez de una grilla de ceros, qué es esto y qué hacer ahora. */
 /* Una vista entera en estado vacío, con la misma retícula que las demás. */
+/* Estado vacío: en vez de una grilla de ceros, qué es esto y qué hacer ahora. */
+/* Una vista entera en estado vacío, con la misma retícula que las demás. */
 function vistaVacia(folio, rotulo, titulo, cabeza, texto) {
   // El paso siguiente depende de dónde está parada la persona: sin legajo, cargar
   // escaneos no es el paso siguiente sino el error que se está tratando de evitar.
-  const accion = sinLegajo()
+  let accion = sinLegajo()
     ? {href:'#/legajos', texto:'Elegir o crear un legajo'}
     : {href:'#/ingesta', texto:'Cargar escaneos'};
+
+  if (typeof TRABAJO !== 'undefined' && TRABAJO && TRABAJO.estado === 'corriendo') {
+    cabeza = 'Procesando documentos';
+    texto = 'El sistema está extrayendo datos en este momento. Los resultados van a aparecer acá cuando termine.';
+    accion = null;
+  }
+
   vista.innerHTML = bloque(folio, rotulo,
     `<h2>${esc(titulo)}</h2>` + vacio(cabeza, esc(texto), accion));
 }
@@ -1293,8 +1302,8 @@ async function vPanel() {
         ${p.campos_criticos_total === 1 ? 'campo crítico' : 'campos críticos'}
         de los contratos, <strong>${n(p.campos_criticos_firmes)}</strong>
         ${p.campos_criticos_firmes === 1 ? 'está firme' : 'están firmes'}
-        (${fmtPct(p.cobertura_pct)}) y <strong>${n(p.a_revisar)}</strong>
-        ${p.a_revisar === 1 ? 'espera' : 'esperan'} revisión${p.excluidos ? `, y
+        (${fmtPct(p.cobertura_pct)}). En todo el legajo, <strong>${n(p.a_revisar)}</strong>
+        ${p.a_revisar === 1 ? 'campo espera' : 'campos esperan'} revisión${p.excluidos ? `, y
         <strong>${n(p.excluidos)}</strong>
         ${p.excluidos === 1 ? 'contrato queda afuera' : 'contratos quedan afuera'}
           del cruce por faltarle${p.excluidos === 1 ? '' : 's'} algún dato firme` : ''}.
@@ -1779,7 +1788,7 @@ async function vDocumento(id) {
       ${doc.camara ? 'Cámara de ' + esc(camaraTexto(doc.camara)) + ' · ' : ''}perfil <span class="mono">${esc(doc.perfil)}</span> ·
       lote ${esc(doc.lote || '—')} ·
       fojas <span class="mono">${doc.pagina_desde}–${doc.pagina_hasta}</span><br>
-      <span class="mono menor">sha256 ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
+      <span class="mono menor">huella digital ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
     ${enderezadas.length ? `<div class="aviso info"><span class="sello">Enderezado</span>
       <span>${enderezadas.length === 1 ? 'La foja' : 'Las fojas'}
       ${enderezadas.map(p => `${p.nro} (${p.rotacion}°)`).join(', ')} llegó girada en el
@@ -4312,18 +4321,33 @@ async function vFojas() {
       <p class="prosa"><strong>${fmtNum.format(a.de_trabajo)}</strong> ${
         a.de_trabajo === 1 ? 'foja de trabajo' : 'fojas de trabajo'} ·
         ${fmtNum.format(a.apartadas)} apartadas de ${fmtNum.format(a.total)} escaneadas.</p>
-      ${tabla(cols(a.sha256), trabajo, {lista:'fojas'})}
+      <div id="f-trabajo-${a.sha256}"></div>
       ${apartadas.length ? `<details class="apartadas">
         <summary>Ver las ${fmtNum.format(apartadas.length)} fojas apartadas</summary>
-        ${tabla(cols(a.sha256), apartadas, {lista:'apartadas'})}
+        <div id="f-apartadas-${a.sha256}"></div>
       </details>` : ''}`;
     }).join('')}`);
 
-  // Abrir la foja es abrir EL PAPEL, con la misma pieza a pantalla completa que usa
-  // la cola. Acá no hay documento al que pedírsela: se pide por archivo.
-  vista.querySelectorAll('[data-sha]').forEach(a => a.onclick = ev => {
-    ev.preventDefault();
-    abrirFojaSuelta(a.dataset.sha, +a.dataset.nro);
+  r.archivos.forEach(a => {
+    const trabajo = a.fojas.filter(f => !f.apartada);
+    const apartadas = a.fojas.filter(f => f.apartada);
+    const cols = sha => [
+      {t:'Foja', c:'num', k:'nro', r:f => String(f.nro)},
+      {t:'Qué es', k:'etiqueta', r:f => cuño(f.clase, f.etiqueta)},
+      {t:'', r:f => `<button type="button" class="ancla falso-enlace">ver la foja</button>`}
+    ];
+    
+    tablaBuscable($(`#f-trabajo-${a.sha256}`), cols(a.sha256), trabajo, {
+        lista:'fojas',
+        alClic: f => abrirFojaSuelta(a.sha256, f.nro)
+    });
+    
+    if (apartadas.length) {
+      tablaBuscable($(`#f-apartadas-${a.sha256}`), cols(a.sha256), apartadas, {
+          lista:'apartadas',
+          alClic: f => abrirFojaSuelta(a.sha256, f.nro)
+      });
+    }
   });
 }
 
