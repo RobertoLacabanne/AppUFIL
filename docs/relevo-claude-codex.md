@@ -586,3 +586,27 @@ estaban en el código; G9 lo cerró Claude. **Un informe no reemplaza mirar el d
 12 veces después de C8: 11 bien y 1 fallo cuya causa no quedó registrada. Pasó justo
 después de la suite entera, con la máquina cargada, y el arnés espera como máximo 6 s
 por paso: es lo más probable, pero es inferido.
+
+---
+
+# Incremento 7 — Contrataciones y precios
+
+**Cambio de foco (Roberto, 21/09/2026).** El objetivo analítico central pasa a ser asistir
+investigaciones de posibles sobreprecios y anomalías en contrataciones públicas:
+reconstruir la contratación, comparar precios, relacionar documentos, detectar
+inconsistencias y mostrarlas con su fuente, **sin concluir**. El contrato completo
+—semántica, modelo, comparabilidad, niveles de referencia, cálculos, hallazgos,
+trazabilidad, etapas y API— está en `docs/contrataciones-y-precios.md`, y es la referencia
+de este incremento.
+
+**Commit base.** `172c5cf` (incremento 6 integrado en la rama principal).
+
+| | Rama | Worktree |
+|---|---|---|
+| Claude | `claude/contrataciones-precios` (integración) | `C:\Users\rober\AppUFIL` |
+| Codex | `codex/contrataciones-backend` | `C:\Users\rober\AppUFIL-codex-next` |
+| Gemini | `gemini/contrataciones-interfaz` | `C:\Users\rober\AppUFIL-gemini` |
+
+Codex no tiene cuota hasta las 23:15. Mientras tanto Claude escribe el núcleo semántico
+(`ufil/comparabilidad.py`) y Gemini programa la interfaz contra el contrato con datos
+simulados; el backend de Codex arranca cuando vuelve la cuota, sobre ese núcleo.
