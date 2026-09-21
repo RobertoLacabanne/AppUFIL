@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from . import config, db
+from .exclusion import trabajador
 from . import capa1_texto as c1
 from . import capa2_extraccion as c2
 from . import capa3_identidad as c3
@@ -135,6 +136,7 @@ class Procesador:
             self._hilo.start()
         return {"ok": True}
 
+    @trabajador
     def _correr_actualizacion(self, forzar: tuple, perfil: str, con_vlm: bool) -> None:
         config.activar_legajo(self.legajo)
         cx = db.abrir(self.ruta_base)
@@ -187,6 +189,7 @@ class Procesador:
         return {"ok": True}
 
     # ── el trabajo propiamente dicho ──
+    @trabajador
     def _correr(self, perfil: str, con_vlm: bool) -> None:
         # LO PRIMERO. Sin esta línea el hilo trabajador no tiene legajo activo y
         # `config.DERIVADOS` le resuelve a la carpeta suelta: las imágenes de página de

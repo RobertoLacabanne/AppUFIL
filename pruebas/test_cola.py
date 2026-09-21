@@ -373,6 +373,7 @@ class ElAvanceDeLaColaNoMiente(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        self.addCleanup(self.cx.close)
         self.cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,
                                                 paginas,ingerido_en)
                            VALUES ('aa','/x/aa.pdf','contrato-12.pdf',1,1,?)""", (ahora(),))

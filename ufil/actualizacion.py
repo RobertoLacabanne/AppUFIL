@@ -37,6 +37,7 @@ import sqlite3
 
 from . import versiones as vs
 from .db import ahora
+from .exclusion import conexion
 
 # Las etapas que se ejecutan por archivo, cada una por su cuenta. El orden importa:
 # es el de dependencia, y es el orden en que se corren.
@@ -178,7 +179,8 @@ def _estado_unidad(etapa: vs.Etapa, guardado, hay_salida: bool, firma_actual: st
             return "nunca"
         return "heredada" if etapa.adopta else "desactualizada"
     version, firma, estado, _origen = guardado
-    if estado in (vs.DESACTUALIZADO, vs.FALLIDO, vs.DETENIDO, vs.PARCIAL):
+    if estado in (vs.DESACTUALIZADO, vs.FALLIDO, vs.DETENIDO, vs.PARCIAL,
+                  'corriendo', 'pendiente'):
         return "desactualizada"
     if version != etapa.version or firma != firma_actual:
         return "desactualizada"
@@ -229,7 +231,8 @@ def plan(cx: sqlite3.Connection, *, forzar: tuple = ()) -> dict:
     firmas = {e.clave: e.firma() for e in vs.ETAPAS}
     etapas, archivos_viejos = [], {}
     desactualizadas: set[str] = set()
-    viejas_ejecucion: dict[str, list[str]] = {}
+    # El plan y la ejecución deben aplicar la MISMA propagación por unidad.
+    viejas_ejecucion = desactualizadas_por_etapa(cx, forzar=forzar)
 
     for e in vs.ETAPAS:
         unidades = _unidades(cx, e.clave)
@@ -240,10 +243,8 @@ def plan(cx: sqlite3.Connection, *, forzar: tuple = ()) -> dict:
         vigentes, viejas, heredadas, nuevas = 0, 0, 0, 0
         for alcance_id, hay_salida in unidades:
             est = _estado_unidad(e, guardados.get(alcance_id), hay_salida, firmas[e.clave])
-            if (e.clave in arrastradas or por_dependencia) and est in ("vigente", "heredada"):
+            if alcance_id in viejas_ejecucion.get(e.clave, ()) and est in ("vigente", "heredada"):
                 est = "desactualizada"
-            if est in ("desactualizada", "nunca"):
-                viejas_ejecucion.setdefault(e.clave, []).append(alcance_id)
             if est == "vigente":
                 vigentes += 1
             elif est == "heredada":
@@ -420,11 +421,16 @@ def desactualizadas_por_etapa(cx: sqlite3.Connection, *, forzar: tuple = ()
         # ahí sí vale la regla vieja: si cambió algo arriba, esta etapa se rehace entera.
         arrastre_global = any(
             d in con_cambio and vs.POR_CLAVE[d].alcance != e.alcance
+            and not (vs.POR_CLAVE[d].alcance == 'pagina' and e.alcance == 'archivo')
             for d in e.depende_de)
         de_arriba = set()
         for d in e.depende_de:
             if d in con_cambio and vs.POR_CLAVE[d].alcance == e.alcance:
                 de_arriba.update(viejas.get(d, ()))
+            elif d in con_cambio and vs.POR_CLAVE[d].alcance == 'pagina' and e.alcance == 'archivo':
+                paginas = set(viejas.get(d, ()))
+                de_arriba.update(r['sha256'] for r in cx.execute('SELECT id,sha256 FROM pagina')
+                                if str(r['id']) in paginas)
         pendientes = []
         for alcance_id, hay_salida in _unidades(cx, e.clave):
             est = _estado_unidad(e, guardados.get(alcance_id), hay_salida, firmas[e.clave])
@@ -453,6 +459,7 @@ def _borrar_lecturas_de(cx: sqlite3.Connection, sha: str) -> int:
     dentro = """SELECT l.id FROM lectura l JOIN pagina p ON p.id = l.pagina_id
                  WHERE p.sha256 = ?"""
     cx.execute(f"UPDATE campo SET lectura_id=NULL WHERE lectura_id IN ({dentro})", (sha,))
+    cx.execute(f"UPDATE tabla_celda SET lectura_id=NULL WHERE lectura_id IN ({dentro})", (sha,))
     cx.execute(f"DELETE FROM palabra WHERE lectura_id IN ({dentro})", (sha,))
     n = cx.execute(f"DELETE FROM lectura WHERE id IN ({dentro})", (sha,)).rowcount
     cx.execute("""DELETE FROM resultado_etapa
@@ -461,6 +468,7 @@ def _borrar_lecturas_de(cx: sqlite3.Connection, sha: str) -> int:
     return n
 
 
+@conexion
 def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
             con_vlm: bool = False, avance=None, seguir=None, fase=None) -> dict:
     """

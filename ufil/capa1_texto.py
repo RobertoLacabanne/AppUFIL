@@ -191,10 +191,12 @@ def leer_nativo(ruta_pdf: Path, nro: int) -> Lectura:
 
 
 # ───────────────────────────────────────────────────────────────── ruta: OCR ──
-_VER_TESS = str(pytesseract.get_tesseract_version()).split()[0]
+# Consultar el ejecutable al usar OCR, no al importar el backend: lectura nativa,
+# papelera y restauración deben funcionar aunque Tesseract no esté instalado.
 
 
 def leer_ocr(png: Path, escala: float, ruta: str) -> Lectura:
+    version_tess = str(pytesseract.get_tesseract_version()).split()[0]
     t0 = time.perf_counter()
     cfg = config.OCR_CONFIG[ruta]
     with Image.open(png) as im:
@@ -220,7 +222,7 @@ def leer_ocr(png: Path, escala: float, ruta: str) -> Lectura:
         palabras.append(Palabra(texto, x, y, x + w, y + h, conf))
         confs.append(conf)
     media = sum(confs) / len(confs) if confs else 0.0
-    return Lectura(ruta, "tesseract", _VER_TESS, palabras, media,
+    return Lectura(ruta, "tesseract", version_tess, palabras, media,
                    int((time.perf_counter() - t0) * 1000))
 
 
