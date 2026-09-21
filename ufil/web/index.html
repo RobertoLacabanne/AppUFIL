@@ -196,9 +196,10 @@
 <div id="visor" hidden role="dialog" aria-modal="true" aria-labelledby="visor-rotulo">
   <div class="visor-barra">
     <span id="visor-rotulo" class="mono"></span>
-    <div class="visor-controles" class="acciones-fila">
-      <button class="boton gris" id="visor-zoom-out" type="button" title="Alejar">-</button>
-      <button class="boton gris" id="visor-zoom-in" type="button" title="Acercar">+</button>
+    <div class="visor-controles acciones-fila">
+      <button class="boton gris" id="visor-zoom-out" type="button" title="Alejar" aria-label="Alejar">-</button>
+      <span id="visor-zoom-texto" class="visor-zoom-texto">100%</span>
+      <button class="boton gris" id="visor-zoom-in" type="button" title="Acercar" aria-label="Acercar">+</button>
       <button class="boton gris" id="visor-cerrar" type="button">Cerrar</button>
     </div>
   </div>

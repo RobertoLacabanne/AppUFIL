@@ -2565,8 +2565,9 @@ function abrirFoja(f) {
     caja.scrollTop += (r.top - c.top) - (c.height - r.height) / 2;
     caja.scrollLeft += (r.left - c.left) - (c.width - r.width) / 2;
   };
-  if (img.complete && img.naturalWidth) alCampo();
-  else img.onload = alCampo;
+  const alCargar = () => { aplicarZoomVisor(); alCampo(); };
+  if (img.complete && img.naturalWidth) alCargar();
+  else img.onload = alCargar;
 }
 
 /* La misma foja a pantalla completa, pero pedida por ARCHIVO y no por documento.
@@ -3789,7 +3790,7 @@ async function vIngesta() {
           : `<span class="marca">${fmtNum.format(f.leidas || 0)}</span>`},
         {t:'En qué está', r:f => ESTADO_CARGA[f.estado] || f.estado},
         {t:'Lote', r:f => esc(f.lote || '—')},
-        {t:'', r:f => f.estado !== 'papelera' ? `<button type="button" class="mini" onclick="pedirQuitarArchivo('${esc(f.sha256)}', '${esc(f.nombre)}', '${esc(f.confirmacion_quitar)}', ${f.procesando}, ${f.tiene_revisiones_humanas ? (f.revisiones||1) : 0})">Quitar del legajo</button>` : ''}
+        {t:'', r:f => f.estado !== 'papelera' ? `<button type="button" class="mini b-quitar-arch" data-sha="${esc(f.sha256)}">Quitar del legajo</button>` : ''}
       ], ar.archivos, {lista:'archivos'})}` : ''}
 
     <details class="consejo" id="c-escaneo">
@@ -3815,6 +3816,13 @@ async function vIngesta() {
         {t:'Páginas', k:'paginas', c:'num'},
         {t:'Última carga', c:'fol', r:f => esc(String(f.ultimo || '').slice(0,16).replace('T',' '))},
       ], t.lotes)}` : ''}`);
+
+  vista.querySelectorAll('.b-quitar-arch').forEach(b => {
+    b.addEventListener('click', () => {
+      const f = ar.archivos.find(a => a.sha256 === b.dataset.sha);
+      if (f) pedirQuitarArchivo(f.sha256, f.nombre, f.confirmacion_quitar, f.procesando, f.tiene_revisiones_humanas ? (f.decisiones_humanas !== undefined ? f.decisiones_humanas : (f.revisiones !== undefined ? f.revisiones : -1)) : 0);
+    });
+  });
 
   const zona = $('#soltar'), input = $('#i-archivos');
   zona.onclick = () => input.click();
@@ -5128,11 +5136,7 @@ function htmlInformes(informes, colecciones) {
       la foja de donde sale, para poder verificarla contra el papel.</p>
     ${informes.map(i => `<article class="nucleo-ficha">
       <h3>${esc(i.nombre)}</h3>
-      <p class="prosa nota explicacion-informe">
-        ${i.clave === 'coleccion' ? 'Se exportar\u00e1n las piezas de la colecci\u00f3n seleccionada, detallando su anclaje al expediente.' :
-          i.clave === 'seleccion' ? 'Se exportar\u00e1n los resultados marcados individualmente en b\u00fasquedas.' :
-          'Se exportar\u00e1n los datos consolidados de todo el legajo, incluyendo valores verificados y provisorios.'}
-      </p>
+      ${i.descripcion ? `<p class="prosa nota explicacion-informe">${esc(i.descripcion)}</p>` : ''}
       ${i.necesita === 'coleccion_id' ? (colecciones.length
         ? `<label>Colecci\u00f3n
              <select data-coleccion-de="${esc(i.clave)}">${colecciones.map(c =>
@@ -5187,7 +5191,7 @@ const rutas = [
   [/^#\/cronologia(\?.*)?$/, vCronologia],
   [/^#\/conjuntos$/, vConjuntos],
   [/^#\/legajos$/,               vLegajos],
-  [/^#\/papelera$/,              vPapelera],
+  [/^#\/papelera(\?.*)?$/,              vPapelera],
   [/^#\/panel$/,                 vPanel],
   [/^#\/reasociaciones$/,       vReasociaciones],
   [/^#\/actualizacion$/,         vActualizacion],
@@ -5450,10 +5454,19 @@ async function vPapelera() {
   const c = await api('/api/cuentas');
   if (!c.legajo && !c.documentos) return vistaSinLegajo('Papelera de archivos');
 
-  const d = await api('/api/papelera/archivos');
-  const archivos = d.archivos || [];
+  const limite = 100;
+  const q = location.hash.split('?')[1] || '';
+  const desde = parseInt(new URLSearchParams(q).get('desde') || '0', 10);
+  const d = await api(`/api/papelera/archivos?limite=${limite}&desde=${desde}`);
+  if (!d.archivos) {
+    return vistaVacia('f. 0000', 'Error', 'Papelera de archivos', 'No se pudo cargar la papelera', 'El servidor devolvió una respuesta incompleta.');
+  }
+  const archivos = d.archivos;
 
   if (!archivos.length) {
+    if (d.total > 0 && desde > 0) {
+      return vistaVacia('f. 0000', 'Papelera', 'Papelera de archivos', 'No hay archivos en esta página', 'Volvé a la <a href="#/papelera">primera página</a>.');
+    }
     return vistaVacia('f. 0000', 'Papelera', 'Papelera de archivos', 'La papelera está vacía', 'Los archivos que quites del legajo van a aparecer acá.');
   }
 
@@ -5465,28 +5478,45 @@ async function vPapelera() {
   vista.innerHTML = bloque('f. 0000', 'Papelera', `
     <h2>Papelera de archivos</h2>
     <p class="prosa">Estos archivos fueron quitados del legajo. Ya no participan en el análisis, pero se conservan acá por si fue un error.</p>
+    <div class="paginacion-env">
+      ${d.total !== undefined ? `Mostrando ${desde + 1}–${Math.min(desde + limite, d.total)} de ${fmtNum.format(d.total)}` : ''}
+      ${desde > 0 ? `<a href="#/papelera?desde=${Math.max(0, desde - limite)}" class="paginacion-link">Anterior</a>` : ''}
+      ${(d.total !== undefined && desde + limite < d.total) || (d.total === undefined && archivos.length === limite) ? `<a href="#/papelera?desde=${desde + limite}" class="paginacion-link">Siguiente</a>` : ''}
+    </div>
     ${tabla([
       {t:'Archivo', c:'mono fol', r:f => esc(f.nombre)},
       {t:'Fecha de baja', c:'fol', r:f => f.quitado_en ? esc(fmtFechaHora(f.quitado_en)) : '—'},
+      {t:'Páginas', c:'num', r:f => f.paginas != null ? fmtNum.format(f.paginas) : '—'},
       {t:'Documentos', c:'num', k:'documentos'},
-      {t:'Revisiones', c:'num', r:f => f.tiene_revisiones_humanas ? esc(f.revisiones || 'Sí') : '—'},
+      {t:'Lote', r:f => esc(f.lote || '—')},
+      {t:'Revisiones', c:'num', r:f => f.tiene_revisiones_humanas ? (f.decisiones_humanas !== undefined ? esc(fmtNum.format(f.decisiones_humanas)) + ' ' + plural(f.decisiones_humanas, 'revisión', 'revisiones') : (f.revisiones !== undefined ? esc(fmtNum.format(f.revisiones)) + ' ' + plural(f.revisiones, 'revisión', 'revisiones') : 'decisiones humanas')) : '—'},
       {t:'Tamaño', c:'num', r:f => tamano(f.bytes)},
       {t:'Acciones', r:f => `
         <div class="acciones-fila">
-          <button type="button" class="mini" onclick="pedirRestaurarArchivo('${esc(f.sha256)}')">Restaurar</button>
-          <button type="button" class="mini peligro" onclick="pedirDestruirArchivo('${esc(f.sha256)}', '${esc(f.nombre)}', '${esc(f.confirmacion_destruir)}')">Destruir definitivamente</button>
+          <button type="button" class="mini b-restaurar" data-sha="${esc(f.sha256)}">Restaurar</button>
+          <button type="button" class="mini peligro b-destruir" data-sha="${esc(f.sha256)}">Destruir definitivamente</button>
         </div>
       `}
     ], archivos)}
   `);
+
+  vista.querySelectorAll('.b-restaurar').forEach(b => {
+    b.addEventListener('click', () => pedirRestaurarArchivo(b.dataset.sha));
+  });
+  vista.querySelectorAll('.b-destruir').forEach(b => {
+    b.addEventListener('click', () => {
+      const arch = archivos.find(a => a.sha256 === b.dataset.sha);
+      if (arch) pedirDestruirArchivo(arch.sha256, arch.nombre, arch.confirmacion_destruir);
+    });
+  });
 }
 
 function mostrarErrorDialogo(d, error) {
   d.innerHTML = `
     <form method="dialog">
-      <h3>No se pudo completar la acci\\u00f3n</h3>
+      <h3>No se pudo completar la acción</h3>
       <div class="aviso">${sello('alerta', 'Error')}<span>${esc(error.message)}</span></div>
-      <p class="prosa separador-arriba">Si es un conflicto de estado (409), el sistema evit\\u00f3 el cambio porque podr\\u00eda pisar informaci\\u00f3n actual o reutilizar referencias.</p>
+      <p class="prosa separador-arriba">Si es un conflicto de estado (409), el sistema evitó el cambio porque podría pisar información actual o reutilizar referencias.</p>
       <div class="botonera separador-arriba">
         <button class="boton" type="submit">Cerrar</button>
       </div>
@@ -5494,13 +5524,14 @@ function mostrarErrorDialogo(d, error) {
   `;
 }
 
+let quitarProcesando = false;
 async function pedirQuitarArchivo(sha, nombre, confirmacion_quitar, procesando, revisiones_humanas) {
   if (procesando) {
     const d = dialogo(`
       <form method="dialog">
         <h3>Archivo en procesamiento</h3>
-        <p class="prosa">El archivo <strong class="mono">${esc(nombre)}</strong> est\\u00e1 siendo procesado en este momento.</p>
-        <div class="aviso">${sello('atencion', 'Bloqueado')}<span>Esper\\u00e1 a que el sistema termine de leerlo antes de quitarlo.</span></div>
+        <p class="prosa">El archivo <strong class="mono">${esc(nombre)}</strong> está siendo procesado en este momento.</p>
+        <div class="aviso">${sello('atencion', 'Bloqueado')}<span>Esperá a que el sistema termine de leerlo antes de quitarlo.</span></div>
         <div class="botonera separador-arriba">
           <button class="boton" type="submit">Cerrar</button>
         </div>
@@ -5510,16 +5541,17 @@ async function pedirQuitarArchivo(sha, nombre, confirmacion_quitar, procesando, 
   }
 
   let msjRev = '';
-  if (revisiones_humanas > 0) {
-     msjRev = `<div class="aviso separador-arriba">${sello('atencion', 'Hay decisiones humanas')}<span>Este archivo tiene ${esc(fmtNum.format(revisiones_humanas))} revisiones o confirmaciones humanas. Se conservar\\u00e1n en la papelera y volver\\u00e1n si restaur\\u00e1s el archivo.</span></div>`;
+  if (revisiones_humanas !== 0) {
+     const strRev = revisiones_humanas > 0 ? `${esc(fmtNum.format(revisiones_humanas))} ${plural(revisiones_humanas, 'revisión', 'revisiones')}` : 'decisiones humanas';
+     msjRev = `<div class="aviso separador-arriba">${sello('atencion', 'Hay decisiones humanas')}<span>Este archivo tiene ${strRev}. Se conservarán en la papelera y volverán si restaurás el archivo.</span></div>`;
   }
 
   const d = dialogo(`
     <form method="dialog" id="f-quitar-arch">
       <h3>Quitar archivo</h3>
       <p class="prosa">Vas a quitar el archivo <strong class="mono">${esc(nombre)}</strong>.</p>
-      <div class="aviso">${sello('atencion', 'Atenci\\u00f3n')}
-        <span>Este archivo dejar\\u00e1 de participar en el legajo y sus resultados derivados dejar\\u00e1n de mostrarse. El original se conservar\\u00e1 en la papelera y podr\\u00e1 restaurarse.</span>
+      <div class="aviso">${sello('atencion', 'Atención')}
+        <span>Este archivo dejará de participar en el legajo y sus resultados derivados dejarán de mostrarse. El original se conservará en la papelera y podrá restaurarse.</span>
       </div>
       ${msjRev}
       <div class="botonera separador-arriba">
@@ -5530,7 +5562,10 @@ async function pedirQuitarArchivo(sha, nombre, confirmacion_quitar, procesando, 
   `);
 
   d.querySelector('#b-quitar').onclick = async () => {
+    if (quitarProcesando) return;
+    quitarProcesando = true;
     d.querySelector('#b-quitar').disabled = true;
+    const currentHash = location.hash;
     try {
       const r = await api('/api/archivo/quitar', {
         method: 'POST',
@@ -5538,22 +5573,29 @@ async function pedirQuitarArchivo(sha, nombre, confirmacion_quitar, procesando, 
         body: JSON.stringify({sha256: sha, confirmacion: confirmacion_quitar})
       });
       d.close();
-      if (location.hash === '#/ingesta') {
-        vIngesta();
-      } else {
-        location.reload();
+      if (location.hash === currentHash) {
+        if (location.hash === '#/ingesta') {
+          await vIngesta();
+        } else {
+          await rutear();
+        }
       }
     } catch (e) {
       mostrarErrorDialogo(d, e);
+    } finally {
+      quitarProcesando = false;
     }
   };
 }
 
+let procesandoAccion = false;
 async function pedirRestaurarArchivo(sha) {
+  if (procesandoAccion) return;
+  procesandoAccion = true;
   const d = dialogo(`
     <form method="dialog">
       <h3>Restaurando archivo...</h3>
-      <p class="prosa">Por favor esper\\u00e1...</p>
+      <p class="prosa">Por favor esperá...</p>
     </form>
   `);
 
@@ -5564,9 +5606,11 @@ async function pedirRestaurarArchivo(sha) {
       body: JSON.stringify({sha256: sha})
     });
     d.close();
-    vPapelera();
+    if (location.hash.split('?')[0] === '#/papelera') await vPapelera();
   } catch (e) {
     mostrarErrorDialogo(d, e);
+  } finally {
+    procesandoAccion = false;
   }
 }
 
@@ -5575,10 +5619,10 @@ async function pedirDestruirArchivo(sha, nombre, confirmacion_destruir) {
     <form method="dialog" id="f-destruir-arch">
       <h3>Destruir archivo definitivamente</h3>
       <p class="prosa">Vas a destruir el archivo <strong class="mono">${esc(nombre)}</strong> para siempre.</p>
-      <div class="aviso">${sello('alerta', 'Destrucci\\u00f3n f\\u00edsica')}
-        <span>Esta acci\\u00f3n no se puede deshacer. El archivo se borrar\\u00e1 del disco y todo su trabajo asociado se perder\\u00e1.</span>
+      <div class="aviso">${sello('alerta', 'Destrucción física')}
+        <span>Esta acción no se puede deshacer. El archivo se borrará del disco y todo su trabajo asociado se perderá.</span>
       </div>
-      <p class="prosa separador-arriba"><label for="conf-destruir">Para confirmar, escrib\\u00ed DESTRUIR:</label></p>
+      <p class="prosa separador-arriba"><label for="conf-destruir">Para confirmar, escribí DESTRUIR:</label></p>
       <input type="text" id="conf-destruir" autocomplete="off" class="campo-buscar" >
       <div class="botonera separador-arriba">
         <button class="boton gris" value="no" type="submit">Cancelar</button>
@@ -5594,7 +5638,10 @@ async function pedirDestruirArchivo(sha, nombre, confirmacion_destruir) {
     btn.disabled = input.value !== 'DESTRUIR';
   };
 
+  let destruirProcesando = false;
   btn.onclick = async () => {
+    if (destruirProcesando) return;
+    destruirProcesando = true;
     btn.disabled = true;
     try {
       const r = await api('/api/archivo/destruir', {
@@ -5603,9 +5650,11 @@ async function pedirDestruirArchivo(sha, nombre, confirmacion_destruir) {
         body: JSON.stringify({sha256: sha, confirmacion: confirmacion_destruir})
       });
       d.close();
-      vPapelera();
+      if (location.hash.split('?')[0] === '#/papelera') await vPapelera();
     } catch (e) {
       mostrarErrorDialogo(d, e);
+    } finally {
+      destruirProcesando = false;
     }
   };
 }
@@ -5613,14 +5662,34 @@ async function pedirDestruirArchivo(sha, nombre, confirmacion_destruir) {
 let visorZoom = 1;
 function aplicarZoomVisor() {
   const img = $('#visor-img');
-  const marco = $('#visor-marco');
-  if (!img) return;
-  img.style.transform = `scale(${visorZoom})`;
-  img.style.transformOrigin = 'top left';
-  if (marco) {
-    marco.style.transform = `scale(${visorZoom})`;
-    marco.style.transformOrigin = 'top left';
+  const lienzo = document.querySelector('.visor-lienzo');
+  if (!img || !lienzo) return;
+  
+  if ($('#visor-zoom-texto')) {
+    $('#visor-zoom-texto').textContent = Math.round(visorZoom * 100) + '%';
   }
+
+  // Si no está cargada, esperamos.
+  if (!img.naturalWidth) {
+    img.addEventListener('load', aplicarZoomVisor, {once: true});
+    return;
+  }
+
+  if (visorZoom === 1) {
+    lienzo.style.width = '';
+    lienzo.style.height = '';
+    img.style.width = '';
+    img.style.height = '';
+  } else {
+    lienzo.style.width = (img.naturalWidth * visorZoom) + 'px';
+    lienzo.style.height = (img.naturalHeight * visorZoom) + 'px';
+    img.style.width = '100%';
+    img.style.height = '100%';
+  }
+  img.style.transform = '';
+  
+  const marco = $('#visor-marco');
+  if (marco) marco.style.transform = '';
 }
 
 if ($('#visor-zoom-in')) {
