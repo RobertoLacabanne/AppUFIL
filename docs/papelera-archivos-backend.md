@@ -82,9 +82,22 @@ queda conservado y bloquea la destrucción. Se incluyen también copias publicad
 por una restauración abortada antes del commit.
 
 La exclusión entre procesos usa cerrojos del sistema operativo por ruta de base:
-se liberan al morir el proceso. Ingesta, subida, pipeline, actualización y papelera
-participan. El endpoint comparte además el candado de arranque del trabajador para
-evitar la carrera entre consultar `ocupado` e iniciar la operación.
+se liberan al morir el proceso. El endpoint comparte además el candado de arranque
+del trabajador para evitar la carrera entre consultar `ocupado` e iniciar la operación.
+
+Los cerrojos tienen niveles (C8, `8af5d00`). La primera versión usaba uno solo, y
+como el trabajador lo sostiene durante toda la corrida, subir un PDF mientras se
+procesaba daba 409. Ahora:
+
+| Quién | `.operacion.lock` | además |
+|---|---|---|
+| papelera, restauración de respaldo | exclusivo | — |
+| pipeline, actualización | compartido | `.proceso.lock` exclusivo: una corrida por legajo |
+| subida, ingesta | compartido | `.carga.lock` exclusivo: una carga a la vez |
+
+Una carga convive con una corrida; ninguna de las dos con la papelera ni con
+reemplazar la base. La corrida fija al empezar qué archivos procesa: lo subido
+durante ella espera a la próxima.
 
 ## Actualización y límites
 

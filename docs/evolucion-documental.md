@@ -321,8 +321,10 @@ archivo del análisis **sin borrar nada**, y lo devuelve entero.
 - **Destruir** exige una confirmación con el hash completo y sólo opera sobre lo que ya
   está en papelera. No es un borrado forense ni toca respaldos anteriores.
 - **Exclusión entre procesos** por cerrojos del sistema operativo (`ufil/exclusion.py`),
-  que se liberan si el proceso muere: papelera, pipeline, actualización y restauración de
-  respaldos no se pisan.
+  que se liberan si el proceso muere, en dos niveles: papelera y restauración de
+  respaldos excluyen todo; pipeline y actualización excluyen otra corrida; una subida
+  excluye otra subida. **Subir mientras se procesa está permitido**: lo subido espera a
+  la próxima corrida.
 
 ## Decisiones que conviene recordar
 
@@ -339,7 +341,8 @@ archivo del análisis **sin borrar nada**, y lo devuelve entero.
 
 ## Lo que falta
 
-- **C8:** desde la papelera, subir un PDF mientras el pipeline procesa da 409, porque la
-  subida pide el mismo cerrojo que el trabajador sostiene toda la corrida. En curso.
 - La papelera no se probó sobre el acervo real ni con un legajo de miles de fojas: la
   escala está medida con datos sintéticos.
+- La primera papelera había dejado sin poder subir durante un procesamiento (C8). Quedó
+  corregido con los cerrojos de dos niveles; se anota para que no vuelva: **un cerrojo
+  que sostiene el trabajador no puede ser el mismo que pide la carga.**

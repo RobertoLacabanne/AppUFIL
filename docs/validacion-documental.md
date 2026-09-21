@@ -257,12 +257,12 @@ sintético generado por las pruebas; **no se usó el acervo real**.
 
 ## Suite
 
-| | `1464f24` (base) | + Codex | + Gemini | Integrada final |
-|---|---|---|---|---|
-| Tests | 699 | 733 | 736 | **765** |
-| Failures | 0 | 0 | 0 | 0 |
-| Errors | 14 | 0 | 0 | 0 |
-| Skipped | 1 | 1 | 1 | 1 |
+| | `1464f24` (base) | + Codex | + Gemini | + correcciones | + C8, final |
+|---|---|---|---|---|---|
+| Tests | 699 | 733 | 736 | 765 | **783** |
+| Failures | 0 | 0 | 0 | 0 | 0 |
+| Errors | 14 | 0 | 0 | 0 | 0 |
+| Skipped | 1 | 1 | 1 | 1 | 1 |
 
 Los 14 `errors` de siempre (`PermissionError` al borrar temporales con conexiones
 abiertas) los cerró Codex en los tres fixtures que no cerraban su conexión. El `failure`
@@ -281,11 +281,17 @@ de `test_taller.py` por `cp1252` no aparece con `PYTHONUTF8=1`.
 - **C6 reproducido antes de corregirlo**: confirmar el mismo tipo de una pieza compartida
   bloqueaba restaurar; ahora restaura y conserva esa decisión. Cambiar la identidad de la
   pieza sigue dando conflicto.
-- **Subir durante un procesamiento da 409** (C8): con el cerrojo del trabajador tomado,
-  `almacen.guardar` levanta `Ocupado`. Reproducido por Claude; en corrección.
+- **Subir durante un procesamiento vuelve a funcionar** (C8). Con el código anterior,
+  subir o ingerir con una corrida o una actualización en curso levantaba `Ocupado` (y
+  409 por HTTP): lo reprodujo Claude y lo muestran las pruebas de
+  `test_subir_durante_proceso.py` corridas contra ese código. Con el nuevo, las 18 pasan:
+  la carga se guarda, la corrida en curso no la toma y la próxima sí; papelera y
+  restauración de respaldo siguen excluyendo cargas y corridas, también entre procesos,
+  y los cerrojos se liberan si el proceso muere.
 - **Revisión de la interfaz en navegador real** (Edge headless por CDP, backend real):
-  G1–G10 y G13 pasan de defecto a correcto sobre la interfaz integrada, en 3 corridas de
-  3. Evidencia en `docs/revision-gemini-evidencia-integrada.json`, contra la original en
+  G1–G10 y G13 pasan de defecto a correcto sobre la interfaz integrada. Después de C8,
+  11 corridas bien de 12; la que falló no dejó registrada su causa (ver INFERIDO).
+  Evidencia en `docs/revision-gemini-evidencia-integrada.json`, contra la original en
   `docs/revision-gemini-evidencia.json`.
 - **Las pruebas nuevas prueban**: de las 14 de `test_papelera_web.py` (13 de Gemini y la
   de G5 de Claude), 11 fallan con el `app.js` de `fefba22`; las otras 3 cubren conductas
@@ -301,10 +307,15 @@ de `test_taller.py` por `cp1252` no aparece con `PYTHONUTF8=1`.
   `lectura.pagina_id`, `pagina.sha256`) tienen índice; las que no lo tienen son de tablas
   chicas.
 - Que la papelera se porte igual sobre el acervo real y con miles de fojas.
+- Que la corrida fallida de la revisión en navegador haya sido por tiempo: fue justo
+  después de la suite entera, con la máquina cargada, y el arnés espera como máximo 6 s
+  por paso. No quedó el error.
 
 ## PENDIENTE
 
-1. C8 (subir durante el procesamiento).
-2. Papelera sobre el acervo real y a 2.000 / 5.000 fojas.
-3. La revisión en navegador corre fuera del discovery (`scripts/revision_gemini_runner.py`):
-   hay que acordarse de correrla cuando se toque la papelera o el visor.
+1. Papelera sobre el acervo real y a 2.000 / 5.000 fojas.
+2. La revisión en navegador corre fuera del discovery (`scripts/revision_gemini_runner.py`):
+   hay que acordarse de correrla cuando se toque la papelera o el visor. Sus esperas de
+   6 s por paso son justas para una máquina cargada.
+3. Subir durante una corrida larga se probó con corridas sintéticas cortas, no con un
+   OCR real de horas.

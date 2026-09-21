@@ -11,7 +11,7 @@
   "quitar": [
     {
       "ruta": "/api/archivo/quitar",
-      "body": "{\"sha256\":\"f47164805ab22d8b4cb7231ae5b1de28698bdaf4bc85728728cb20c8199840fc\",\"confirmacion\":\"QUITAR f47164805ab22d8b4cb7231ae5b1de28698bdaf4bc85728728cb20c8199840fc\"}",
+      "body": "{\"sha256\":\"907f54b56053e932afb5bbb75aab6f9a8978f9aec0e7e94f6d3044ec31701dd1\",\"confirmacion\":\"QUITAR 907f54b56053e932afb5bbb75aab6f9a8978f9aec0e7e94f6d3044ec31701dd1\"}",
       "status": 200
     }
   ],
@@ -24,7 +24,7 @@
     "peticiones": [
       {
         "ruta": "/api/archivo/restaurar",
-        "body": "{\"sha256\":\"f47164805ab22d8b4cb7231ae5b1de28698bdaf4bc85728728cb20c8199840fc\"}",
+        "body": "{\"sha256\":\"907f54b56053e932afb5bbb75aab6f9a8978f9aec0e7e94f6d3044ec31701dd1\"}",
         "status": 200
       }
     ]
@@ -32,7 +32,7 @@
   "destruir": [
     {
       "ruta": "/api/archivo/destruir",
-      "body": "{\"sha256\":\"f47164805ab22d8b4cb7231ae5b1de28698bdaf4bc85728728cb20c8199840fc\",\"confirmacion\":\"DESTRUIR f47164805ab22d8b4cb7231ae5b1de28698bdaf4bc85728728cb20c8199840fc\"}",
+      "body": "{\"sha256\":\"907f54b56053e932afb5bbb75aab6f9a8978f9aec0e7e94f6d3044ec31701dd1\",\"confirmacion\":\"DESTRUIR 907f54b56053e932afb5bbb75aab6f9a8978f9aec0e7e94f6d3044ec31701dd1\"}",
       "status": 200
     }
   ],
@@ -67,7 +67,7 @@
   "listaGrande": {
     "filas": 100,
     "botones": 200,
-    "ms": 4,
+    "ms": 6,
     "paginador": true,
     "buscador": false
   },
@@ -93,7 +93,7 @@
   "ejecucion": {
     "web": "C:\\Users\\rober\\AppUFIL\\ufil\\web",
     "app_js_sha256": "7a30a2f98cc7a7f26480ae20a4de0865778755e94faaf66e1f442c07abcd9585",
-    "fecha": "2026-09-21T18:56:12-03:00",
+    "fecha": "2026-09-21T19:19:48-03:00",
     "esquema_backend": 25,
     "navegador": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
     "metodo": "Navegador headless por CDP, backend real y casos sintéticos; fallos de red y carreras simulados"

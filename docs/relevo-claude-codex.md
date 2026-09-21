@@ -573,7 +573,16 @@ estaban en el código; G9 lo cerró Claude. **Un informe no reemplaza mirar el d
 - **El sandbox de Codex en Windows no escribe en `.git`.** Codex deja los cambios y los
   comandos de commit en su informe; Claude revisa el diff, corre la suite fuera del
   sandbox y commitea en su rama.
-- **C8, reproducido y todavía abierto al cerrar esta sección:** desde `863fc2b`, subir un
-  PDF mientras el pipeline procesa da 409. `guardar` pide el mismo cerrojo exclusivo que
-  el trabajador sostiene durante toda la corrida. Antes se podía seguir cargando mientras
-  se procesaba. Se le delegó a Codex en `codex/subir-durante-proceso`.
+- **C8, la regresión que dejó la primera papelera:** desde `863fc2b`, subir un PDF
+  mientras el pipeline procesaba daba 409, porque `guardar` pedía el mismo cerrojo
+  exclusivo que el trabajador sostiene toda la corrida. Lo reprodujo Claude; lo corrigió
+  Codex en `codex/subir-durante-proceso` (`8af5d00`) con cerrojos de dos niveles.
+  **Codex se quedó sin cuota** («try again at 11:15 PM») con el código y 18 pruebas
+  escritas, sin haber corrido la suite ni commiteado. Claude verificó que las pruebas de
+  carga fallan con el código anterior por el mismo `Ocupado` de C8 y pasan con el nuevo,
+  corrió la suite (783 · OK) y commiteó por él. Integrado en `3cdd2eb`.
+
+**Suite después de C8:** `783 tests · OK · 1 skipped`. La revisión en navegador, repetida
+12 veces después de C8: 11 bien y 1 fallo cuya causa no quedó registrada. Pasó justo
+después de la suite entera, con la máquina cargada, y el arnés espera como máximo 6 s
+por paso: es lo más probable, pero es inferido.
