@@ -510,3 +510,70 @@ castellano. La pantalla la muestra tal cual; no escribe ninguna.
   pruebas usan el `esc` real de `app.js`.
 - **Combinadas:** la suite entera, más la revisión de Codex (`scripts/revision_gemini_*`)
   vuelta a correr contra el frontend corregido.
+
+## Resultado del incremento 6
+
+| | Claude | Codex | Gemini |
+|---|---|---|---|
+| Rama | `claude/integracion-codex-gemini` | `codex/papelera-escala` | `gemini/papelera-correcciones` |
+| Commits | `5c1319b`, y los de integración | `daa9e0d`, `228e08a` (commiteados por Claude) | `16d9dfe` |
+| Qué hizo | descripción de informes desde el backend, cronología entera, G9 y la navegación con query, G5, dos pruebas que dependían de la forma y no del comportamiento, y la revisión en navegador sobre la integración | C1–C7, la migración v24 → v25 de la papelera y el cierre de su revisión de Gemini | G1–G4, G6–G8, G10–G14, con 13 pruebas que fallan con la interfaz anterior |
+
+**Integración, segunda vuelta:** Codex primero (`06f233f`), después Gemini (`4e66fc0`),
+sin conflictos de merge. Sí hubo dos incompatibilidades que sólo aparecen al correr la
+suite combinada, y ninguna era de comportamiento:
+
+- `test_carga` leía los primeros 3.000 caracteres de `api_archivos`; la agregación por
+  lote de Codex empujó el orden de los estados fuera de esa ventana. Ahora lee la función
+  entera (`0233e69`).
+- `test_taller` buscaba la línea literal que espera la carga de la imagen antes de
+  desplazarse; Gemini la envolvió para aplicar el zoom primero. Ahora exige las dos cosas
+  y en ese orden (`f44a428`).
+
+**Suite final:** `765 tests · OK · 1 skipped` (base `1464f24`: 699 · 14 errors).
+
+**Revisión en navegador real, repetida sobre la interfaz integrada**
+(`docs/revision-gemini-evidencia-integrada.json`, `app.js` `7a30a2f9…`, 3 de 3 corridas):
+
+| | Interfaz de `7b7c43c` | Integrada |
+|---|---|---|
+| G1 código inyectado por el nombre | se ejecuta | no se ejecuta |
+| G2 nombre con apóstrofo | `SyntaxError` | sin errores |
+| G3 marco con zoom 2 (esperado 240,320) | 120,160 | 240,320 |
+| G4 doble restauración / doble destrucción | 200 + 409 / 2 pedidos | 1 pedido / 1 pedido |
+| G5 falla el refresco después de restaurar | promesa sin manejar, nada visible | 1 diálogo, sin promesas sueltas |
+| G6 acción que termina en `#/informes` | pinta la papelera | queda en Informes |
+| G7 respuesta `{}` | «La papelera está vacía» | error dicho como error |
+| G8 1.500 archivos | 1.500 filas, sin paginador | 100 filas, paginador |
+| G9 sección marcada / enlace visible | Documentos / no | Sistema / sí |
+| G10 escapes en diálogos | sí | no |
+
+**Lo que dijo cada informe y lo que se comprobó.** El informe final de Gemini describe G9,
+G12 y G13 como otros problemas («reset del formulario», «parpadeo del visor», «IDs
+repetidos») y da G9 por cerrado cuando seguía abierto. Las correcciones de G12 y G13 sí
+estaban en el código; G9 lo cerró Claude. **Un informe no reemplaza mirar el diff.**
+
+### Desvíos del reparto, anotados
+
+- Claude commiteó por Codex: su sandbox no puede crear `index.lock` en `.git`, ni
+  siquiera con `--add-dir` sobre esa carpeta. También repuso el docstring de
+  `api_archivos`, que Codex había reducido a dos líneas.
+- Claude tocó `ufil/web/app.js` y `pruebas/test_papelera_web.py`, que son de Gemini, para
+  G9, la navegación con query y G5, después de que Gemini terminó. Y
+  `scripts/revision_gemini_browser.cjs`, de Codex: el arnés cerraba diálogos sin sacarlos
+  del DOM y a veces el paso siguiente pulsaba el botón de uno ya cerrado. Con la interfaz
+  vieja no pasaba porque esos diálogos ni se abrían.
+
+### Lo que salió mal en la coordinación, para no repetirlo
+
+- **Antigravity CLI manda a segundo plano los comandos largos y los mata al salir**,
+  aunque se le pida lo contrario. Las dos primeras sesiones de Gemini terminaron sin
+  commit ni informe porque dejaron la suite corriendo de fondo. A Gemini se le pide
+  correr sólo sus pruebas y commitear; la suite entera la corre Claude al integrar.
+- **El sandbox de Codex en Windows no escribe en `.git`.** Codex deja los cambios y los
+  comandos de commit en su informe; Claude revisa el diff, corre la suite fuera del
+  sandbox y commitea en su rama.
+- **C8, reproducido y todavía abierto al cerrar esta sección:** desde `863fc2b`, subir un
+  PDF mientras el pipeline procesa da 409. `guardar` pide el mismo cerrojo exclusivo que
+  el trabajador sostiene durante toda la corrida. Antes se podía seguir cargando mientras
+  se procesaba. Se le delegó a Codex en `codex/subir-durante-proceso`.

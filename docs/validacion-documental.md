@@ -247,3 +247,64 @@ Windows. Ninguno se tocó.
 3. Volumen: 500 / 2.000 / 5.000 fojas.
 4. FASE 6 (entidades más allá de personas), 8 (colecciones y consultas guardadas),
    9 (exportaciones nuevas) y 10 (rendimiento) no se empezaron.
+
+---
+
+# 7. Incremento 6 — papelera de archivos, lo medido
+
+Windows 11, Python 3.13, Tesseract con `spa` en el PATH, `PYTHONUTF8=1`. Corpus
+sintético generado por las pruebas; **no se usó el acervo real**.
+
+## Suite
+
+| | `1464f24` (base) | + Codex | + Gemini | Integrada final |
+|---|---|---|---|---|
+| Tests | 699 | 733 | 736 | **765** |
+| Failures | 0 | 0 | 0 | 0 |
+| Errors | 14 | 0 | 0 | 0 |
+| Skipped | 1 | 1 | 1 | 1 |
+
+Los 14 `errors` de siempre (`PermissionError` al borrar temporales con conexiones
+abiertas) los cerró Codex en los tres fixtures que no cerraban su conexión. El `failure`
+de `test_taller.py` por `cp1252` no aparece con `PYTHONUTF8=1`.
+
+## COMPROBADO ejecutando
+
+- **Quitar es proporcional al archivo.** Con un archivo A y otro B de 101 y de 20.101
+  palabras de OCR, quitar A materializa **1 fila de `palabra` en los dos casos**, la suya
+  (`test_papelera_escala`, visto al correr la suite). Codex informó 102 y 20.102 con el
+  código anterior; eso no lo volvió a medir Claude.
+- **`/api/archivos` no crece con los archivos**: 4 sentencias con 1 archivo y con 31.
+- **Una papelera v24 migra a v25 y se restaura** con su revisión humana, sus PNG y la
+  integridad referencial (`test_migracion_v24_con_papelera_restaurable`); una migración
+  que falla no sube la versión ni pierde la instantánea.
+- **C6 reproducido antes de corregirlo**: confirmar el mismo tipo de una pieza compartida
+  bloqueaba restaurar; ahora restaura y conserva esa decisión. Cambiar la identidad de la
+  pieza sigue dando conflicto.
+- **Subir durante un procesamiento da 409** (C8): con el cerrojo del trabajador tomado,
+  `almacen.guardar` levanta `Ocupado`. Reproducido por Claude; en corrección.
+- **Revisión de la interfaz en navegador real** (Edge headless por CDP, backend real):
+  G1–G10 y G13 pasan de defecto a correcto sobre la interfaz integrada, en 3 corridas de
+  3. Evidencia en `docs/revision-gemini-evidencia-integrada.json`, contra la original en
+  `docs/revision-gemini-evidencia.json`.
+- **Las pruebas nuevas prueban**: de las 14 de `test_papelera_web.py` (13 de Gemini y la
+  de G5 de Claude), 11 fallan con el `app.js` de `fefba22`; las otras 3 cubren conductas
+  que ya estaban bien (entre ellas, redibujar después de restaurar en la página 2: el
+  código viejo redibujaba siempre). Las 3 de navegación fallan con el `app.js` que dejó
+  Gemini. Las del informe de cronología y de descripciones fallan con el `exportar.py`
+  anterior (`5000 != 6001`).
+
+## INFERIDO, no medido
+
+- Que el tiempo de quitar también sea proporcional al archivo. Se midieron filas
+  materializadas, no tiempo. Las columnas grandes que recorre (`palabra.lectura_id`,
+  `lectura.pagina_id`, `pagina.sha256`) tienen índice; las que no lo tienen son de tablas
+  chicas.
+- Que la papelera se porte igual sobre el acervo real y con miles de fojas.
+
+## PENDIENTE
+
+1. C8 (subir durante el procesamiento).
+2. Papelera sobre el acervo real y a 2.000 / 5.000 fojas.
+3. La revisión en navegador corre fuera del discovery (`scripts/revision_gemini_runner.py`):
+   hay que acordarse de correrla cuando se toque la papelera o el visor.
