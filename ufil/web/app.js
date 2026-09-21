@@ -551,7 +551,7 @@ const SECCIONES = [
     {hash: '#/guardadas', rotulo: 'Consultas guardadas'},
     {hash: '#/colecciones', rotulo: 'Colecciones'},
     {hash: '#/informes', rotulo: 'Informes'},
-  ], tambien: ['#/documento', '#/persona', '#/entidad', '#/coleccion', '#/papelera']},
+  ], tambien: ['#/documento', '#/persona', '#/entidad', '#/coleccion']},
   {id: 'hallazgos', rotulo: 'Hallazgos', items: [
     {hash: '#/superposiciones', rotulo: 'Superposiciones'},
     {hash: '#/cruce',           rotulo: 'Facturado vs. contratado'},
@@ -579,7 +579,9 @@ const SECCIONES = [
 let cuentas = {};
 
 const seccionDe = hash => {
-  const base = '#/' + String(hash || '').split('/')[1];
+  // Sin la query: `#/papelera?desde=100` es la papelera, página 2, y tiene que
+  // marcar su sección igual que la página 1.
+  const base = '#/' + String(hash || '').split('?')[0].split('/')[1];
   return SECCIONES.find(s => s.hash === base
       || (s.items || []).some(i => i.hash === base)
       || (s.tambien || []).includes(base));
