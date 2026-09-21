@@ -202,7 +202,9 @@ class QueFaltaProcesar(unittest.TestCase):
     def test_lo_que_falta_manda_sobre_lo_que_ya_se_hizo(self):
         """Ochenta fojas leídas y ocho sin leer es «a medio leer», no «leído»."""
         i = self.SRV.index("def api_archivos")
-        cuerpo = self.SRV[i:i + 3000]
+        # Hasta la función siguiente, no hasta un largo fijo: la agregación por lote
+        # hizo crecer el cuerpo y el corte en 3.000 caracteres dejaba el estado afuera.
+        cuerpo = self.SRV[i:self.SRV.index("\ndef ", i + 1)]
         self.assertLess(cuerpo.index('"a_medio_leer"'), cuerpo.index('"listo"'),
                         "el estado se decide por lo que ya se hizo y no por lo que falta")
 
