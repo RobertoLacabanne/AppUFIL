@@ -15,7 +15,7 @@ import sqlite3
 from pathlib import Path
 
 from . import db
-from .exclusion import conexion
+from .exclusion import conexion_exclusiva as conexion
 
 
 class ConflictoPapelera(ValueError):
