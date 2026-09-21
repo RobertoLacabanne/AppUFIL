@@ -85,7 +85,7 @@ class PapeleraArchivos(unittest.TestCase):
         self.reiniciar()
         a = self.cx.execute('SELECT * FROM archivo').fetchone()
         self.assertEqual(hashlib.sha256(Path(a['ruta_original']).read_bytes()).hexdigest(), sha)
-        self.assertEqual(pa.listar(self.cx), {'archivos': []})
+        self.assertEqual(pa.listar(self.cx), {'archivos': [], 'total': 0, 'desde': 0, 'limite': 100})
 
     def test_completo_con_revisiones_y_derivados(self):
         sha = sembrar(self.cx, self.raiz, completo=True)

@@ -393,26 +393,42 @@ def api_archivos(cx, *, procesando=False) -> dict:
     Acá van los tres números que hacen falta para saber dónde está cada archivo:
     cuántas fojas tiene, cuántas se leyeron y cuántas se clasificaron. De ahí sale el
     estado, y de los estados sale qué falta hacer.
+
+    Todo se agrega por lote —fojas, piezas, revisiones, decisiones humanas y qué se
+    está procesando— y no con consultas por archivo: con cientos de PDF eran doce
+    consultas por cada uno en cada vistazo a la pantalla de carga.
     """
+    decisiones = papelera.decisiones_por_archivo(cx)
+    revisiones = dict(cx.execute('SELECT sha256,COUNT(*) FROM revision_humana GROUP BY sha256'))
+    corriendo = cx.execute("SELECT alcance,alcance_id FROM resultado_etapa WHERE estado='corriendo'").fetchall()
+    global_ocupado = procesando or any(r['alcance'] == 'legajo' for r in corriendo)
+    ocupados = {r['alcance_id'] for r in corriendo if r['alcance'] == 'archivo'}
+    unidades = {(r['alcance'], r['alcance_id']) for r in corriendo}
+    if not global_ocupado and any(a in ('pagina', 'documento') for a, _ in unidades):
+        for tabla in ('pagina', 'documento'):
+            ocupados.update(r['sha256'] for r in cx.execute(f"""SELECT DISTINCT p.sha256 FROM {tabla} p
+                JOIN resultado_etapa e ON e.alcance_id=CAST(p.id AS TEXT)
+                WHERE e.alcance=? AND e.estado='corriendo'""", (tabla,)))
     filas = []
     for a in cx.execute("""
-            SELECT a.sha256, a.nombre, a.paginas, a.bytes, a.ingerido_en,
-                   p.lote,
-                   (SELECT COUNT(*) FROM pagina g WHERE g.sha256=a.sha256) AS fojas,
-                   (SELECT COUNT(DISTINCT g.id) FROM pagina g
-                     WHERE g.sha256=a.sha256
-                       AND EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id=g.id)) AS leidas,
-                   (SELECT COUNT(*) FROM pagina g
-                     WHERE g.sha256=a.sha256 AND g.clasificacion IS NOT NULL) AS clasificadas,
-                   (SELECT COUNT(*) FROM documento d WHERE d.sha256=a.sha256) AS documentos
-              FROM archivo a
-              LEFT JOIN procedencia p ON p.sha256 = a.sha256
-             ORDER BY a.ingerido_en DESC, a.nombre"""):
+            WITH fojas AS (
+                SELECT g.sha256,COUNT(*) fojas,
+                       SUM(CASE WHEN l.pagina_id IS NOT NULL THEN 1 ELSE 0 END) leidas,
+                       SUM(CASE WHEN g.clasificacion IS NOT NULL THEN 1 ELSE 0 END) clasificadas
+                FROM pagina g LEFT JOIN (SELECT DISTINCT pagina_id FROM lectura) l ON l.pagina_id=g.id
+                GROUP BY g.sha256
+            ), docs AS (SELECT sha256,COUNT(*) documentos FROM documento GROUP BY sha256)
+            SELECT a.sha256,a.nombre,a.paginas,a.bytes,a.ingerido_en,p.lote,
+                   COALESCE(f.fojas,0) fojas,COALESCE(f.leidas,0) leidas,
+                   COALESCE(f.clasificadas,0) clasificadas,COALESCE(d.documentos,0) documentos
+              FROM archivo a LEFT JOIN procedencia p ON p.sha256=a.sha256
+              LEFT JOIN fojas f ON f.sha256=a.sha256 LEFT JOIN docs d ON d.sha256=a.sha256
+             ORDER BY a.ingerido_en DESC,a.nombre"""):
         f = dict(a)
-        f['revisiones'] = cx.execute(
-            'SELECT COUNT(*) FROM revision_humana WHERE sha256=?', (f['sha256'],)).fetchone()[0]
-        f['tiene_revisiones_humanas'] = papelera.tiene_revisiones_humanas(cx, f['sha256'])
-        f['procesando'] = procesando or papelera._ocupado(cx, f['sha256'])
+        f['revisiones'] = revisiones.get(f['sha256'], 0)
+        f['decisiones_humanas'] = decisiones.get(f['sha256'], 0)
+        f['tiene_revisiones_humanas'] = f['decisiones_humanas'] > 0
+        f['procesando'] = global_ocupado or f['sha256'] in ocupados
         f['confirmacion_quitar'] = 'QUITAR ' + f['sha256']
         fojas, leidas, clasif = f["fojas"] or 0, f["leidas"] or 0, f["clasificadas"] or 0
         # El orden importa: lo que FALTA manda sobre lo que ya se hizo. Un archivo con
@@ -1482,7 +1498,13 @@ class Manejador(BaseHTTPRequestHandler):
                     if ruta == "/api/archivos":
                         return self._json(api_archivos(cx, procesando=_procesador().ocupado()))
                     if ruta == "/api/papelera/archivos":
-                        return self._json(papelera.listar(cx))
+                        try:
+                            parametros = parse_qs(u.query, keep_blank_values=True)
+                            return self._json(papelera.listar(cx,
+                                limite=parametros.get('limite', ['100'])[0],
+                                desde=parametros.get('desde', ['0'])[0]))
+                        except ValueError as e:
+                            return self._json({'error': str(e)}, 400)
                     if ruta == "/api/yaestan":
                         return self._json(api_ya_esta(
                             cx, [s for s in (q.get("sha", [""])[0] or "").split(",") if s]))

@@ -16,7 +16,19 @@ CREATE TABLE IF NOT EXISTS papelera_archivo (
   registros TEXT NOT NULL,
   pdf BLOB NOT NULL,
   revisiones INTEGER NOT NULL,
-  documentos INTEGER NOT NULL
+  documentos INTEGER NOT NULL,
+  paginas INTEGER,
+  lote TEXT,
+  decisiones_humanas INTEGER NOT NULL DEFAULT 0,
+  tiene_revisiones_humanas INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS ix_papelera_fecha ON papelera_archivo(quitado_en DESC,sha256);
+CREATE TABLE IF NOT EXISTS papelera_derivado (
+  sha256 TEXT NOT NULL REFERENCES papelera_archivo(sha256) ON DELETE CASCADE,
+  ruta TEXT NOT NULL,
+  contenido BLOB NOT NULL,
+  PRIMARY KEY (sha256,ruta)
 );
 
 -- Limpieza física reintentable después del COMMIT de quitar. Sólo rutas relativas

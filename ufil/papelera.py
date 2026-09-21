@@ -8,7 +8,6 @@ REPLACE, porque eso podría destruir trabajo realizado después de quitar.
 from __future__ import annotations
 
 import hashlib
-import base64
 import json
 import os
 import re
@@ -41,65 +40,74 @@ def _catalogo(cx):
             for t in tablas}
 
 
+def _por_valores(cx, tabla, columna, valores, condicion='1'):
+    """Consultas acotadas, incluso por encima del límite de parámetros SQLite."""
+    valores = list(set(valores) - {None})
+    for inicio in range(0, len(valores), 400):
+        lote = valores[inicio:inicio + 400]
+        yield from cx.execute(f'SELECT rowid AS __rid,* FROM {_q(tabla)} '
+            f'WHERE {_q(columna)} IN ({",".join("?" for _ in lote)}) AND ({condicion})', lote)
+
+
 def _instantanea(cx, sha):
     catalogo = _catalogo(cx)
-    filas = {t: {r['__rid']: dict(r) for r in cx.execute(
-        f'SELECT rowid AS __rid, * FROM {_q(t)}')} for t in catalogo}
-    seleccion = {t: set() for t in catalogo}
-    for t, rs in filas.items():
-        seleccion[t].update(i for i, r in rs.items() if r.get('sha256') == sha)
+    filas = {t: {} for t in catalogo}
+    consultados = {}
 
+    def agregar(t, columna, valores, condicion='1'):
+        vistos = consultados.setdefault((t, columna, condicion), set())
+        nuevos = set(valores) - vistos - {None}
+        vistos.update(nuevos)
+        for r in _por_valores(cx, t, columna, nuevos, condicion):
+            filas[t][r['__rid']] = dict(r)
+
+    for t, fks in catalogo.items():
+        columnas = {r['name'] for r in cx.execute(f'PRAGMA table_info({_q(t)})')}
+        if 'sha256' in columnas:
+            agregar(t, 'sha256', [sha])
+        for fk in fks:
+            if fk['table'] not in catalogo or fk['seq'] != 0 or fk['to'] is None:
+                raise ConflictoPapelera(f'FK compuesta, implícita o no soportada: {t}.')
+
+    agregar('resultado_etapa', 'alcance_id', [sha], "alcance='archivo'")
+    for r in cx.execute("SELECT rowid AS __rid,* FROM coleccion_item "
+                        "WHERE clase='foja' AND referencia LIKE ?", (sha + ':%',)):
+        filas['coleccion_item'][r['__rid']] = dict(r)
     while True:
-        antes = sum(map(len, seleccion.values()))
+        antes = sum(map(len, filas.values()))
         for t, fks in catalogo.items():
             for fk in fks:
-                padre = fk['table']
-                if padre not in seleccion:
-                    raise ConflictoPapelera(f'FK no soportada: {t} → {padre}.')
-                if fk['seq'] != 0 or fk['to'] is None:
-                    raise ConflictoPapelera(f'FK compuesta o implícita no soportada: {t}.')
-                valores = {filas[padre][i][fk['to']] for i in seleccion[padre]}
-                seleccion[t].update(i for i, r in filas[t].items()
-                                    if r[fk['from']] is not None and r[fk['from']] in valores)
-        # Una conclusión que perdió parte de su sustento debe salir completa,
-        # incluyendo sus otras fuentes, para no publicar una conclusión engañosa.
-        seleccion['interpretacion'].update(
-            filas['interpretacion_fuente'][i]['interpretacion_id']
-            for i in seleccion['interpretacion_fuente'])
-        docs = {filas['documento'][i]['id'] for i in seleccion['documento']}
-        paginas = {filas['pagina'][i]['id'] for i in seleccion['pagina']}
-        seleccion['interpretacion'].update(i for i, r in filas['interpretacion'].items()
-            if r['alcance'] == 'documento' and r['alcance_id'] in {str(d) for d in docs})
-        seleccion['resultado_etapa'].update(i for i, r in filas['resultado_etapa'].items()
-            if (r['alcance'] == 'archivo' and r['alcance_id'] == sha)
-            or (r['alcance'] == 'pagina' and r['alcance_id'] in {str(p) for p in paginas})
-            or (r['alcance'] == 'documento' and r['alcance_id'] in {str(d) for d in docs}))
-        seleccion['coleccion_item'].update(i for i, r in filas['coleccion_item'].items()
-            if (r['clase'] == 'documento' and r['referencia'] in {str(d) for d in docs})
-            or (r['clase'] == 'foja' and r['referencia'].startswith(sha + ':')))
-        if sum(map(len, seleccion.values())) == antes:
+                agregar(t, fk['from'], [r[fk['to']] for r in filas[fk['table']].values()])
+        # Una conclusión afectada sale completa, con TODAS sus fuentes.
+        agregar('interpretacion', 'id', [r['interpretacion_id']
+                                        for r in filas['interpretacion_fuente'].values()])
+        docs = [str(r['id']) for r in filas['documento'].values()]
+        paginas = [str(r['id']) for r in filas['pagina'].values()]
+        agregar('interpretacion', 'alcance_id', docs, "alcance='documento'")
+        agregar('resultado_etapa', 'alcance_id', docs, "alcance='documento'")
+        agregar('resultado_etapa', 'alcance_id', paginas, "alcance='pagina'")
+        agregar('coleccion_item', 'referencia', docs, "clase='documento'")
+        if sum(map(len, filas.values())) == antes:
             break
 
-    # Nunca retirar contenido propio de otro archivo por una referencia cruzada.
-    # Los vínculos (relación, tramo, evento) sí salen y quedan recuperables.
     for t in ('archivo', 'pagina', 'documento', 'tabla'):
-        if any(filas[t][i]['sha256'] != sha for i in seleccion[t]):
+        if any(r['sha256'] != sha for r in filas[t].values()):
             raise ConflictoPapelera(f'{t} de otro archivo depende de éste; separá esa dependencia primero.')
     for t in ('campo', 'tabla_celda'):
         padre, columna = ('documento', 'documento_id') if t == 'campo' else ('tabla', 'tabla_id')
-        if any(filas[t][i][columna] not in seleccion[padre] for i in seleccion[t]):
+        if any(r[columna] not in filas[padre] for r in filas[t].values()):
             raise ConflictoPapelera(f'{t} de otro archivo depende de esta lectura.')
 
     padres = {}
-    for t, ids in seleccion.items():
+    for t, rs in filas.items():
         for fk in catalogo[t]:
             p = fk['table']
-            valores = {filas[t][i][fk['from']] for i in ids}
-            for i, r in filas[p].items():
-                if i not in seleccion[p] and r[fk['to']] in valores:
-                    padres.setdefault(p, {})[i] = r
+            propios = {r[fk['to']] for r in filas[p].values()}
+            valores = {r[fk['from']] for r in rs.values()} - propios
+            for r in _por_valores(cx, p, fk['to'], valores):
+                padres.setdefault(p, {})[r['__rid']] = dict(r)
     return {
-        'filas': {t: [filas[t][i] for i in sorted(ids)] for t, ids in seleccion.items() if ids},
+        'filas': {t: [rs[i] for i in sorted(rs)] for t, rs in filas.items() if rs},
         'padres': {t: list(rs.values()) for t, rs in padres.items()},
         'fts': [dict(r) for r in cx.execute('SELECT * FROM pagina_texto WHERE sha256=?', (sha,))],
     }
@@ -122,33 +130,82 @@ def _ocupado(cx, sha):
         (sha, sha, sha)).fetchone())
 
 
-def listar(cx):
-    filas = [dict(r) for r in cx.execute('''SELECT sha256,nombre,quitado_en,
-        revisiones,documentos,length(pdf) AS bytes,
-        json_extract(registros,'$.tiene_revisiones_humanas') AS tiene_revisiones_humanas
-        FROM papelera_archivo ORDER BY quitado_en,sha256''')]
+def listar(cx, *, limite=100, desde=0):
+    def entero(valor, nombre, minimo, maximo):
+        if isinstance(valor, bool) or not re.fullmatch(r'[0-9]+', str(valor)):
+            raise ValueError(f'{nombre} debe ser un número entero entre {minimo} y {maximo}.')
+        # Acotar antes de int también evita enteros arbitrariamente largos por HTTP.
+        if len(str(valor)) > 19 or not minimo <= int(valor) <= maximo:
+            raise ValueError(f'{nombre} debe estar entre {minimo} y {maximo}.')
+        return int(valor)
+    limite = entero(limite, 'El límite', 1, 500)
+    desde = entero(desde, 'El desplazamiento', 0, 9223372036854775807)
+    filas = [dict(r) for r in cx.execute("""SELECT sha256,nombre,quitado_en,
+        paginas,lote,revisiones,documentos,length(pdf) AS bytes,
+        decisiones_humanas,tiene_revisiones_humanas
+        FROM papelera_archivo ORDER BY quitado_en DESC,sha256
+        LIMIT ? OFFSET ?""", (limite, desde))]
     for r in filas:
         r['tiene_revisiones_humanas'] = bool(r['tiene_revisiones_humanas'])
         r['confirmacion_destruir'] = 'DESTRUIR ' + r['sha256']
-    return {'archivos': filas}
+    return {'archivos': filas, 'total': cx.execute('SELECT COUNT(*) FROM papelera_archivo').fetchone()[0],
+            'desde': desde, 'limite': limite}
+
+
+# Cada fila calificante cuenta una vez por archivo, aunque cumpla dos condiciones
+# o una relación tenga sus dos extremos en el mismo archivo. No son personas ni
+# acciones únicas: historial y estado revisado conservan la definición anterior.
+_DECISIONES = {
+    'revision_humana': (), 'auditoria': (),
+    'documento': (('clasificado_por', None),),
+    'campo': (('revisado_por', None),),
+    'foliatura': (('origen', 'humano'), ('quien', None)),
+    'evento': (('origen', 'humano'), ('quien', None)),
+    'mencion': (('origen', 'humano'), ('quien', None)),
+    'tabla': (('origen', 'humano'), ('union_quien', None)),
+    'pieza_tramo': (('quien', None),),
+    'relacion': (('fuente', 'humano'), ('quien', None)),
+}
+
+
+def decisiones_por_archivo(cx):
+    consultas = []
+    for t, condiciones in _DECISIONES.items():
+        condicion = ' OR '.join(f't.{_q(c)} IS NOT NULL' if v is None else
+                               f"t.{_q(c)}='humano'" for c, v in condiciones) or '1'
+        origen, sha = f'{t} t', 't.sha256'
+        if t in ('campo', 'foliatura'):
+            padre, fk = ('documento', 'documento_id') if t == 'campo' else ('pagina', 'pagina_id')
+            origen += f' JOIN {padre} p ON p.id=t.{fk}'
+            sha = 'p.sha256'
+        elif t == 'relacion':
+            origen += ' JOIN documento p ON p.id=t.desde_doc OR p.id=t.hasta_doc'
+            sha = 'p.sha256'
+        consultas.append(f'SELECT {sha} sha256, COUNT(DISTINCT t.rowid) n FROM {origen} '
+                         f'WHERE ({condicion}) GROUP BY {sha}')
+    return {r['sha256']: r['n'] for r in cx.execute(
+        'SELECT sha256,SUM(n) n FROM (' + ' UNION ALL '.join(consultas) + ') GROUP BY sha256')}
+
+
+def _decisiones_instantanea(datos, sha):
+    filas = datos['filas']
+    docs = {r['id'] for r in filas.get('documento', []) if r['sha256'] == sha}
+    paginas = {r['id'] for r in filas.get('pagina', []) if r['sha256'] == sha}
+    total = 0
+    for t, condiciones in _DECISIONES.items():
+        for r in filas.get(t, []):
+            propio = (r.get('documento_id') in docs if t == 'campo' else
+                      r.get('pagina_id') in paginas if t == 'foliatura' else
+                      r.get('desde_doc') in docs or r.get('hasta_doc') in docs if t == 'relacion' else
+                      r.get('sha256') == sha)
+            if propio and (not condiciones or any(r.get(c) is not None if v is None
+                                                  else r.get(c) == v for c, v in condiciones)):
+                total += 1
+    return total
 
 
 def tiene_revisiones_humanas(cx, sha):
-    return bool(cx.execute('''SELECT
-        EXISTS(SELECT 1 FROM revision_humana WHERE sha256=:sha) OR
-        EXISTS(SELECT 1 FROM auditoria WHERE sha256=:sha) OR
-        EXISTS(SELECT 1 FROM documento WHERE sha256=:sha AND clasificado_por IS NOT NULL) OR
-        EXISTS(SELECT 1 FROM campo c JOIN documento d ON d.id=c.documento_id
-               WHERE d.sha256=:sha AND c.revisado_por IS NOT NULL) OR
-        EXISTS(SELECT 1 FROM foliatura f JOIN pagina p ON p.id=f.pagina_id
-               WHERE p.sha256=:sha AND (f.origen='humano' OR f.quien IS NOT NULL)) OR
-        EXISTS(SELECT 1 FROM evento WHERE sha256=:sha AND (origen='humano' OR quien IS NOT NULL)) OR
-        EXISTS(SELECT 1 FROM mencion WHERE sha256=:sha AND (origen='humano' OR quien IS NOT NULL)) OR
-        EXISTS(SELECT 1 FROM tabla WHERE sha256=:sha AND (origen='humano' OR union_quien IS NOT NULL)) OR
-        EXISTS(SELECT 1 FROM pieza_tramo WHERE sha256=:sha AND quien IS NOT NULL) OR
-        EXISTS(SELECT 1 FROM relacion WHERE (fuente='humano' OR quien IS NOT NULL)
-               AND (desde_doc IN (SELECT id FROM documento WHERE sha256=:sha)
-                 OR hasta_doc IN (SELECT id FROM documento WHERE sha256=:sha)))''', {'sha':sha}).fetchone()[0])
+    return decisiones_por_archivo(cx).get(sha, 0) > 0
 
 
 def _base(cx):
@@ -181,7 +238,7 @@ def _fisicos(cx, a):
             relativa = ruta.relative_to(base).as_posix()
             _ruta_segura(base, relativa, sha)
             if ruta.is_file():
-                assets[relativa] = base64.b64encode(ruta.read_bytes()).decode('ascii')
+                assets[relativa] = ruta.read_bytes()
                 if not cx.execute('SELECT 1 FROM pagina WHERE render=? AND sha256<>?',
                                   (str(ruta),sha)).fetchone():
                     limpiar.append(relativa)
@@ -196,9 +253,10 @@ def limpiar_pendientes(cx):
     cx.execute('BEGIN IMMEDIATE')
     try:
         for r in cx.execute('SELECT * FROM papelera_limpieza').fetchall():
-            a = cx.execute('SELECT pdf,registros FROM papelera_archivo WHERE sha256=?',
+            a = cx.execute('SELECT pdf FROM papelera_archivo WHERE sha256=?',
                            (r['sha256'],)).fetchone()
-            datos = json.loads(a['registros'])
+            assets = dict(cx.execute('SELECT ruta,contenido FROM papelera_derivado WHERE sha256=?',
+                                     (r['sha256'],)))
             for relativa in json.loads(r['rutas']):
                 ruta = _ruta_segura(_base(cx), relativa, r['sha256'])
                 if ruta.exists():
@@ -206,8 +264,7 @@ def limpiar_pendientes(cx):
                                   'SELECT 1 FROM pagina WHERE render=?',
                                   (str(ruta),str(ruta))).fetchone():
                         continue  # Otra referencia activa conserva su copia.
-                    esperado = (base64.b64decode(datos['assets'][relativa])
-                                if relativa in datos.get('assets', {}) else a['pdf'])
+                    esperado = assets.get(relativa, a['pdf'])
                     if ruta.read_bytes() != esperado:
                         raise ConflictoPapelera('Cambió un archivo físico pendiente de limpieza; se conserva.')
                     ruta.chmod(0o600)
@@ -238,13 +295,18 @@ def quitar(cx, sha, confirmacion):
         if hashlib.sha256(pdf).hexdigest() != sha:
             raise ConflictoPapelera('El original no coincide con su SHA-256; no se quitó nada.')
         datos = _instantanea(cx, sha)
-        datos['tiene_revisiones_humanas'] = tiene_revisiones_humanas(cx, sha)
-        datos['assets'], limpiar = _fisicos(cx, a)
+        decisiones = _decisiones_instantanea(datos, sha)
+        assets, limpiar = _fisicos(cx, a)
+        lote = (cx.execute('SELECT lote FROM procedencia WHERE sha256=?', (sha,)).fetchone() or [None])[0]
         revisiones = len(datos['filas'].get('revision_humana', []))
-        cx.execute('INSERT INTO papelera_archivo VALUES (?,?,?,?,?,?,?,?)',
+        cx.execute('''INSERT INTO papelera_archivo
+            (sha256,nombre,quitado_en,version,registros,pdf,revisiones,documentos,
+             paginas,lote,decisiones_humanas,tiene_revisiones_humanas) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
             (sha, a['nombre'], db.ahora(), db.ESQUEMA_VERSION,
              json.dumps(datos, ensure_ascii=False), pdf, revisiones,
-             len(datos['filas'].get('documento', []))))
+             len(datos['filas'].get('documento', [])), a['paginas'], lote, decisiones, decisiones > 0))
+        cx.executemany('INSERT INTO papelera_derivado VALUES (?,?,?)',
+                       [(sha, ruta, contenido) for ruta, contenido in assets.items()])
         cx.execute('INSERT INTO papelera_limpieza VALUES (?,?)', (sha, json.dumps(limpiar)))
         # FK diferidas, pero CASCADE/SET NULL siguen inmediatas. Borrar hojas primero
         # evita alterar filas antes de retirarlas; la instantánea ya está completa.
@@ -293,11 +355,18 @@ def restaurar(cx, sha):
         if hashlib.sha256(a['pdf']).hexdigest() != sha:
             raise ConflictoPapelera('El PDF de papelera no supera el control de integridad.')
         datos = json.loads(a['registros'])
+        assets = dict(cx.execute('SELECT ruta,contenido FROM papelera_derivado WHERE sha256=?', (sha,)))
         for t, rs in datos['padres'].items():
             for r in rs:
                 actual = cx.execute(f'SELECT rowid AS __rid,* FROM {_q(t)} WHERE rowid=?',
                                     (r['__rid'],)).fetchone()
-                if actual is None or dict(actual) != r:
+                # Confirmar el MISMO tipo de una pieza citada sólo cambia quién
+                # la clasificó y cuándo. No modifica identidad, fuente ni tipo,
+                # y esa decisión posterior debe permanecer al restaurar.
+                # El resto se valida conservadoramente, incluyendo toda clave
+                # referenciada, ubicación, contenido y asignación a otro padre.
+                informativas = {'clasificado_por', 'clasificado_en'} if t == 'documento' else set()
+                if actual is None or any(actual[k] != v for k, v in r.items() if k not in informativas):
                     raise ConflictoPapelera(f'Cambió una referencia compartida ({t}); la papelera se conserva.')
         # Primero probar TODAS las inserciones dentro de la transacción. Un ID
         # reutilizado genera un conflicto explícito, nunca un INSERT OR REPLACE.
@@ -323,9 +392,8 @@ def restaurar(cx, sha):
                 raise ConflictoPapelera('Hay otro contenido en el destino de restauración.')
         else:
             _escribir(destino, a['pdf'])
-        for relativa, contenido in datos.get('assets', {}).items():
+        for relativa, contenido in assets.items():
             ruta = _ruta_segura(base, relativa, sha)
-            contenido = base64.b64decode(contenido, validate=True)
             if ruta.exists() and ruta.read_bytes() != contenido:
                 raise ConflictoPapelera('Un derivado cambió; la papelera se conserva.')
             if not ruta.exists():
@@ -337,7 +405,7 @@ def restaurar(cx, sha):
                 partes = Path(p['render']).parts
                 if 'derivados' in partes:
                     relativa = Path(*partes[partes.index('derivados'):]).as_posix()
-                    if relativa in datos.get('assets', {}):
+                    if relativa in assets:
                         cx.execute('UPDATE pagina SET render=? WHERE id=?',
                                    (str(base / relativa), p['id']))
         cx.execute('UPDATE archivo SET ruta_original=? WHERE sha256=?', (str(destino), sha))
@@ -361,11 +429,11 @@ def destruir(cx, sha, confirmacion):
     # Reconstituir el trabajo de limpieza evita dejarlas atrás al destruir.
     _iniciar(cx)
     try:
-        a = cx.execute('SELECT registros FROM papelera_archivo WHERE sha256=?', (sha,)).fetchone()
+        a = cx.execute('SELECT sha256 FROM papelera_archivo WHERE sha256=?', (sha,)).fetchone()
         if not a or cx.execute('SELECT 1 FROM archivo WHERE sha256=?', (sha,)).fetchone():
             raise ConflictoPapelera('Sólo se pueden destruir archivos que ya están en papelera.')
-        datos = json.loads(a['registros'])
-        rutas = [f'originales/{sha[:2]}/{sha}.pdf', *datos.get('assets', {})]
+        rutas = [f'originales/{sha[:2]}/{sha}.pdf',
+                 *(r[0] for r in cx.execute('SELECT ruta FROM papelera_derivado WHERE sha256=?', (sha,)))]
         cx.execute('INSERT OR REPLACE INTO papelera_limpieza VALUES (?,?)', (sha,json.dumps(rutas)))
         cx.commit()
     except Exception:
