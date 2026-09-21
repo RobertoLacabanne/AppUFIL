@@ -277,6 +277,12 @@ def api_panel(cx) -> dict:
         "archivos": uno("SELECT COUNT(*) FROM archivo"),
         "duplicados": uno("SELECT COUNT(*) FROM duplicado"),
         "paginas": uno("SELECT COUNT(*) FROM pagina"),
+        # Las que tienen al menos una lectura. La pantalla decía «1.628 páginas leídas»
+        # sobre el total de fojas de un legajo real en el que 340 no se habían leído
+        # nunca: afirmaba que todo estaba leído cuando faltaba un quinto.
+        "paginas_leidas": uno("""SELECT COUNT(*) FROM pagina p
+                                  WHERE EXISTS (SELECT 1 FROM lectura l
+                                                 WHERE l.pagina_id = p.id)"""),
         # `documentos` es TODO lo que se extrajo: contratos, facturas, decretos y lo que
         # no se pudo clasificar. Los tres de abajo lo desagregan, porque la pantalla
         # decía «N contratos» sobre este número y adentro había facturas.

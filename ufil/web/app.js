@@ -1329,7 +1329,7 @@ async function vPanel() {
       <h2>Estado del lote</h2>
       <div class="cifras">
         <div class="cifra"><b>${n(p.documentos)}</b><span>documentos</span></div>
-        <div class="cifra"><b>${n(p.paginas)}</b><span>páginas leídas</span></div>
+        <div class="cifra"><b>${n(p.paginas_leidas)} / ${n(p.paginas)}</b><span>páginas leídas</span></div>
         <!-- El denominador va con el número y no en el rótulo. Decía «campos firmes
              de 250» y ese «de 250» caía solo al segundo renglón, partiendo una frase
              al medio y dejando esta celda más alta que las de al lado. Con «213 / 250»
