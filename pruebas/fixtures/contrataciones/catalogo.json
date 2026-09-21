@@ -1,0 +1,12 @@
+{
+  "etapas": [
+    {"clave": "pedido", "nombre": "Pedido", "explicacion": ""},
+    {"clave": "factura", "nombre": "Factura", "explicacion": ""}
+  ],
+  "comparabilidad": [{"clave": "fuerte", "nombre": "Fuerte", "explicacion": ""}, {"clave": "dudoso", "nombre": "Dudoso", "explicacion": ""}],
+  "niveles": [{"clave": "A", "nombre": "Nivel A", "explicacion": ""}, {"clave": "B", "nombre": "Nivel B", "explicacion": ""}],
+  "hallazgos": [{"clave": "diferencia_precio", "nombre": "Diferencia de precio detectada", "explicacion": ""}],
+  "revision": [{"clave": "pendiente", "nombre": "Pendiente", "explicacion": ""}],
+  "umbrales": {},
+  "terminos_prohibidos": [{"clave": "fraude", "nombre": "fraude", "explicacion": ""}, {"clave": "irregularidad", "nombre": "irregularidad", "explicacion": ""}]
+}

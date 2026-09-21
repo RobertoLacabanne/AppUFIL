@@ -1,0 +1,79 @@
+{
+  "renglon": {
+      "id": 1,
+      "fecha": {"valor": "2026-01-01", "literal": "01/01/2026", "fuente": null},
+      "contratacion": {"id": 1, "nombre": "Licitación 1/2026"},
+      "expediente": "EXP-123",
+      "etapa": "oferta",
+      "proveedor": {"entidad_id": 10, "nombre": "Empresa A", "cuit": "30-12345678-9"},
+      "descripcion": {"literal": "Resma", "normalizada": "Resma A4"},
+      "item": {"id": 1, "nombre": "Resma A4", "comparabilidad": "fuerte"},
+      "marca": "Ledesma",
+      "modelo": null,
+      "cantidad": {"literal": "100", "valor": "100.00"},
+      "unidad": {"literal": "u", "normalizada": "unidad"},
+      "precio_unitario": {"valor": "1000.00", "moneda": "ARS", "fuente": null, "estado": "firme"},
+      "subtotal": null,
+      "fuente": {"documento_id": 102, "pagina_nro": 1, "sha256": "def", "archivo": "oferta.pdf", "pagina": {"ancho_pt": 600, "alto_pt": 800}, "region": null, "etiqueta": "Oferta"},
+      "estado": "firme",
+      "comparacion": {"nivel": "A", "diferencia_pct": "20.00", "n": 5, "calidad": "alta"}
+  },
+  "referencias": [
+    {
+      "renglon": {
+        "id": 2,
+        "fecha": {"valor": "2026-01-02", "literal": "02/01/2026", "fuente": null},
+        "contratacion": null,
+        "expediente": null,
+        "etapa": "presupuesto",
+        "proveedor": {"entidad_id": 11, "nombre": "Empresa B", "cuit": "30-87654321-9"},
+        "descripcion": {"literal": "Resmas de papel", "normalizada": "Resma A4"},
+        "item": {"id": 1, "nombre": "Resma A4", "comparabilidad": "fuerte"},
+        "marca": "Ledesma",
+        "modelo": null,
+        "cantidad": {"literal": "50", "valor": "50.00"},
+        "unidad": {"literal": "u", "normalizada": "unidad"},
+        "precio_unitario": {"valor": "800.00", "moneda": "ARS", "fuente": null, "estado": "firme"},
+        "subtotal": null,
+        "fuente": {"documento_id": 103, "pagina_nro": 1, "sha256": "ghi", "archivo": "presupuesto.pdf", "pagina": {"ancho_pt": 600, "alto_pt": 800}, "region": null, "etiqueta": "Presupuesto"},
+        "estado": "firme",
+        "comparacion": null
+      },
+      "nivel": "A",
+      "comparabilidad": {"estado": "fuerte", "motivos": [{"atributo": "marca", "a": "Ledesma", "b": "Ledesma", "efecto": "coincide"}]},
+      "dias": 1
+    }
+  ],
+  "excluidas": [
+    {
+      "renglon": {
+        "id": 3,
+        "fecha": null,
+        "contratacion": null,
+        "expediente": null,
+        "etapa": null,
+        "proveedor": null,
+        "descripcion": {"literal": "Resma Oficio", "normalizada": "Resma Oficio"},
+        "item": null,
+        "marca": null,
+        "modelo": null,
+        "cantidad": null,
+        "unidad": null,
+        "precio_unitario": {"valor": "500.00", "moneda": "ARS", "fuente": null, "estado": "firme"},
+        "subtotal": null,
+        "fuente": {"documento_id": 104, "pagina_nro": 1, "sha256": "jkl", "archivo": "otro.pdf", "pagina": {"ancho_pt": 600, "alto_pt": 800}, "region": null, "etiqueta": "Otro"},
+        "estado": "firme",
+        "comparacion": null
+      },
+      "motivo": "Distinto producto"
+    }
+  ],
+  "estadisticas": {
+    "nivel": "A", "n": 1, "minimo": "800.00", "maximo": "800.00", "media": "800.00", "mediana": "800.00", "desvio": null, "rango_intercuartil": "0.00"
+  },
+  "diferencia": {"absoluta": "200.00", "porcentual": "25.00", "contra": "mediana"},
+  "calculo": {"formula": "1000 - 800", "operandos": [{"nombre": "analizado", "valor": "1000.00", "fuente": null}, {"nombre": "mediana", "valor": "800.00", "fuente": null}], "resultado": "200"},
+  "calidad": {"nivel": "media", "motivos": ["n = 1"]},
+  "advertencias": ["Pocas referencias"],
+  "hallazgo": null
+}

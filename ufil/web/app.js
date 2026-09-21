@@ -533,32 +533,39 @@ function interpHTML(i) {
    Las cuentas de trabajo pendiente suben a la sección: si «Revisión» esconde 88 campos
    esperando, la barra tiene que decir 88 sin que haya que entrar. */
 const SECCIONES = [
-  {id: 'panel',    rotulo: 'Panel',           hash: '#/panel'},
-  {id: 'ingesta',  rotulo: 'Cargar escaneos', hash: '#/ingesta'},
-  {id: 'documentos', rotulo: 'Documentos', items: [
-    {hash: '#/sin-reconocer', rotulo: 'Todav\u00eda sin reconocer'},
-    {hash: '#/conjuntos', rotulo: 'Conjuntos documentales'},
-    {hash: '#/contratos',     rotulo: 'Contratos'},
-    {hash: '#/comprobantes',  rotulo: 'Facturas y recibos'},
-    {hash: '#/personas',      rotulo: 'Personas'},
-    {hash: '#/fojas',         rotulo: 'Fojas del expediente'},
-    {hash: '#/foliatura',     rotulo: 'Foliatura del papel'},
-    {hash: '#/tablas',        rotulo: 'Tablas'},
-    {hash: '#/cronologia',    rotulo: 'Cronolog\u00eda'},
-    {hash: '#/buscar',        rotulo: 'Buscar'},
-    {hash: '#/entidades', rotulo: 'Entidades y menciones'},
-    {hash: '#/relaciones', rotulo: 'Relaciones'},
-    {hash: '#/guardadas', rotulo: 'Consultas guardadas'},
-    {hash: '#/colecciones', rotulo: 'Colecciones'},
-    {hash: '#/informes', rotulo: 'Informes'},
-  ], tambien: ['#/documento', '#/persona', '#/entidad', '#/coleccion']},
+  {id: 'panel', rotulo: 'Resumen', hash: '#/panel'},
+  {id: 'contrataciones', rotulo: 'Contrataciones', hash: '#/contrataciones', tambien: ['#/contratacion']},
+  {id: 'precios', rotulo: 'Ítems y precios', hash: '#/precios', tambien: ['#/renglon']},
+  {id: 'proveedores', rotulo: 'Proveedores', items: [
+    {hash: '#/entidades', rotulo: 'Empresas y entidades'},
+    {hash: '#/personas', rotulo: 'Personas'}
+  ], tambien: ['#/entidad', '#/persona']},
   {id: 'hallazgos', rotulo: 'Hallazgos', items: [
+    {hash: '#/hallazgos', rotulo: 'De contrataciones'},
     {hash: '#/superposiciones', rotulo: 'Superposiciones'},
     {hash: '#/cruce',           rotulo: 'Facturado vs. contratado'},
     {hash: '#/interpretacion',  rotulo: 'Interpretación'},
     {hash: '#/numeros',         rotulo: 'Números escritos dos veces'},
     {hash: '#/consultas',       rotulo: 'Consultas'},
   ]},
+  {id: 'documentos', rotulo: 'Documentos', items: [
+    {hash: '#/ingesta',       rotulo: 'Cargar escaneos'},
+    {hash: '#/sin-reconocer', rotulo: 'Todavía sin reconocer'},
+    {hash: '#/conjuntos',     rotulo: 'Conjuntos documentales'},
+    {hash: '#/contratos',     rotulo: 'Contratos'},
+    {hash: '#/comprobantes',  rotulo: 'Facturas y recibos'},
+    {hash: '#/fojas',         rotulo: 'Fojas del expediente'},
+    {hash: '#/foliatura',     rotulo: 'Foliatura del papel'},
+    {hash: '#/tablas',        rotulo: 'Tablas'},
+  ], tambien: ['#/documento']},
+  {id: 'cronologia', rotulo: 'Cronología', hash: '#/cronologia'},
+  {id: 'relaciones', rotulo: 'Relaciones', hash: '#/relaciones'},
+  {id: 'busqueda', rotulo: 'Búsqueda', items: [
+    {hash: '#/buscar', rotulo: 'Buscar'},
+    {hash: '#/guardadas', rotulo: 'Consultas guardadas'}
+  ]},
+  {id: 'colecciones', rotulo: 'Colecciones', hash: '#/colecciones', tambien: ['#/coleccion']},
+  {id: 'informes', rotulo: 'Informes', hash: '#/informes'},
   {id: 'revision', rotulo: 'Revisión', items: [
     {hash: '#/cola',      rotulo: 'Cola de revisión', cuenta: 'a_revisar'},
     {hash: '#/identidad', rotulo: 'Identidad',        cuenta: 'fusiones'},
@@ -567,7 +574,7 @@ const SECCIONES = [
     {hash: '#/equipo',    rotulo: 'Trabajo del equipo'},
   ]},
   {id: 'sistema', rotulo: 'Sistema', items: [
-    {hash: '#/actualizacion', rotulo: 'Actualizar an\u00e1lisis'},
+    {hash: '#/actualizacion', rotulo: 'Actualizar análisis'},
     {hash: '#/legajos',       rotulo: 'Legajos'},
     {hash: '#/papelera',      rotulo: 'Papelera de archivos'},
     {hash: '#/como-funciona', rotulo: 'Cómo funciona'},
@@ -4550,16 +4557,21 @@ function vComoFunciona() {
 
 /* ── ruteo ─────────────────────────────────────────────────────────────── */
 const TITULOS = {
+  '#/contrataciones': 'Contrataciones',
+  '#/contratacion': 'Contratación',
+  '#/precios': 'Ítems y precios',
+  '#/renglon': 'Posible sobreprecio',
+  '#/hallazgos': 'Hallazgos',
   '#/acerca': 'Acerca del sistema',
   '#/equipo': 'Trabajo del equipo',
-  '#/sin-reconocer':'Todav\u00eda sin reconocer',
+  '#/sin-reconocer':'Todavía sin reconocer',
   '#/informes':'Informes',
   '#/foliatura':'Foliatura del papel',
   '#/tablas':'Tablas',
-  '#/cronologia':'Cronolog\u00eda',
+  '#/cronologia':'Cronología',
   '#/conjuntos':'Conjuntos documentales',
   '#/reasociaciones':'Revisiones desplazadas',
-  '#/actualizacion':'Actualizar an\u00e1lisis',
+  '#/actualizacion':'Actualizar análisis',
   '#/panel':'Panel', '#/ingesta':'Cargar escaneos', '#/buscar':'Buscar',
   '#/contratos':'Contratos', '#/personas':'Personas',
   '#/superposiciones':'Superposiciones', '#/cola':'Cola de revisión',
@@ -5180,6 +5192,11 @@ async function vInformes() {
 }
 
 const rutas = [
+  [/^#\/contrataciones$/, vContrataciones],
+  [/^#\/contratacion\?id=(\d+)$/, vContratacion],
+  [/^#\/precios$/, vPrecios],
+  [/^#\/renglon\?id=(\d+)$/, vRenglon],
+  [/^#\/hallazgos(\?.*)?$/, vHallazgosContrataciones],
   [/^#\/entidades(\?.*)?$/, vEntidades],
   [/^#\/entidad\/(\d+)$/, vEntidad],
   [/^#\/relaciones$/, vRelaciones],
@@ -5717,3 +5734,347 @@ if ($('#visor-zoom-in')) {
 if ($('#visor-zoom-out')) {
   $('#visor-zoom-out').onclick = () => { visorZoom = Math.max(0.25, visorZoom - 0.25); aplicarZoomVisor(); };
 }
+
+
+  } else {
+    if (lienzo2) lienzo2.hidden = true;
+  }
+
+  visor.hidden = false;
+  document.body.classList.add('con-visor');
+}
+
+function abrirDosFojas(f1, f2) {
+  if (!f1) return;
+  const nro1 = fojaDe(f1);
+  if (!nro1) return;
+  const nro2 = f2 ? fojaDe(f2) : null;
+  
+  visorZoom = 1; aplicarZoomVisor(); 
+  const visor = document.getElementById('visor'), img1 = document.getElementById('visor-img'), marco1 = document.getElementById('visor-marco');
+  const img2 = document.getElementById('visor-img-2'), marco2 = document.getElementById('visor-marco-2'), lienzo2 = document.getElementById('visor-lienzo-2');
+  
+  if (!visor) return;
+  img1.src = '/pagina?doc=' + f1.documento_id + '&nro=' + nro1;
+  document.getElementById('visor-rotulo').textContent =
+    [f1.archivo || 'documento', 'f. ' + nro1,
+     f1.etiqueta || ''].filter(Boolean).join(' · ');
+  
+  const pag1 = f1.pagina || f1.pagina_respaldo;
+  const hayCaja1 = pag1 && pag1.ancho_pt && f1.region && f1.region.x0 != null && f1.region.x1 != null;
+  marco1.hidden = !hayCaja1;
+  if (hayCaja1) {
+    marco1.style.left = (100 * f1.region.x0 / pag1.ancho_pt) + '%';
+    marco1.style.top = (100 * f1.region.y0 / pag1.alto_pt) + '%';
+    marco1.style.width = (100 * Math.max(f1.region.x1 - f1.region.x0, 2) / pag1.ancho_pt) + '%';
+    marco1.style.height = (100 * Math.max(f1.region.y1 - f1.region.y0, 2) / pag1.alto_pt) + '%';
+  }
+
+  if (f2 && nro2) {
+    lienzo2.hidden = false;
+    img2.src = '/pagina?doc=' + f2.documento_id + '&nro=' + nro2;
+    document.getElementById('visor-rotulo-2').textContent = [f2.archivo || 'documento', 'f. ' + nro2, f2.etiqueta || ''].filter(Boolean).join(' · ');
+    const pag2 = f2.pagina || f2.pagina_respaldo;
+    const hayCaja2 = pag2 && pag2.ancho_pt && f2.region && f2.region.x0 != null && f2.region.x1 != null;
+    marco2.hidden = !hayCaja2;
+    if (hayCaja2) {
+      marco2.style.left = (100 * f2.region.x0 / pag2.ancho_pt) + '%';
+      marco2.style.top = (100 * f2.region.y0 / pag2.alto_pt) + '%';
+      marco2.style.width = (100 * Math.max(f2.region.x1 - f2.region.x0, 2) / pag2.ancho_pt) + '%';
+      marco2.style.height = (100 * Math.max(f2.region.y1 - f2.region.y0, 2) / pag2.alto_pt) + '%';
+    }
+  } else {
+    if (lienzo2) lienzo2.hidden = true;
+  }
+
+  visor.hidden = false;
+  document.body.classList.add('con-visor');
+}
+let catalogoContrataciones = null;
+async function cargarCatalogoContrataciones() {
+  if (!catalogoContrataciones) {
+    catalogoContrataciones = await api('/catalogo/contrataciones');
+  }
+  return catalogoContrataciones;
+}
+
+function formatearMonto(monto) {
+  if (!monto || monto.valor == null) return 'no consta';
+  const val = parseFloat(monto.valor);
+  if (isNaN(val)) return 'no consta';
+  let t = fmtNum.format(val);
+  if (monto.moneda) t = monto.moneda + ' ' + t;
+  return t;
+}
+
+function montoHTML(monto) {
+  if (!monto || monto.valor == null) return '<span class="nulo">no consta</span>';
+  let t = formatearMonto(monto);
+  if (monto.fuente) {
+    t = `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(monto.fuente))}' class="enlace-fuente">${t}</a>`;
+  }
+  return t;
+}
+
+async function vContrataciones() {
+  const cat = await cargarCatalogoContrataciones();
+  const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
+  const limite = 100;
+  const d = await api(`/contrataciones?desde=${desde}&limite=${limite}`);
+  
+  if (!d.contrataciones || !d.contrataciones.length) {
+    return vistaVacia('f. 0000', 'Contrataciones', 'Contrataciones', 'No hay contrataciones para mostrar', '');
+  }
+
+  const etapasCat = cat.etapas || [];
+  
+  vista.innerHTML = bloque('f. 0000', 'Contrataciones', `
+    <h1>Contrataciones</h1>
+    <div class="paginacion-env">
+      ${d.total !== undefined ? `Mostrando ${desde + 1}–${Math.min(desde + limite, d.total)} de ${fmtNum.format(d.total)}` : ''}
+      ${desde > 0 ? `<a href="#/contrataciones?desde=${Math.max(0, desde - limite)}" class="paginacion-link">Anterior</a>` : ''}
+      ${(d.total !== undefined && desde + limite < d.total) || (d.total === undefined && d.contrataciones.length === limite) ? `<a href="#/contrataciones?desde=${desde + limite}" class="paginacion-link">Siguiente</a>` : ''}
+    </div>
+    ${tabla([
+      {t:'ID', c:'num', r: c => `<a href="#/contratacion?id=${c.id}">${c.id}</a>`},
+      {t:'Nombre', r: c => esc(c.nombre)},
+      {t:'Expediente', r: c => esc(c.expediente || 'no consta')},
+      {t:'Objeto', r: c => esc(c.objeto || 'no consta')},
+      {t:'Proveedores', r: c => c.proveedores && c.proveedores.length ? c.proveedores.map(p => esc(p.nombre)).join(', ') : '<span class="nulo">no consta</span>'},
+      {t:'Etapas', r: c => {
+         const eDict = Object.fromEntries((c.etapas || []).map(e => [e.clave, e.presente]));
+         return etapasCat.map(ec => eDict[ec.clave] ? `<span class="sello ok" title="${esc(ec.nombre)}">✓</span>` : `<span class="sello neutro" title="Falta ${esc(ec.nombre)}">Ø</span>`).join(' ');
+      }},
+      {t:'Adjudicado', c:'num', r: c => c.totales && c.totales.adjudicado ? montoHTML(c.totales.adjudicado) : '<span class="nulo">no consta</span>'},
+      {t:'Hallazgos', c:'num', r: c => c.hallazgos ? `${c.hallazgos} requiere revisión` : '0'}
+    ], d.contrataciones)}
+  `);
+}
+
+async function vContratacion() {
+  const id = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
+  if (!id) return;
+  const d = await api(`/contratacion/${id}`);
+  const c = d.contratacion;
+  
+  const htmlEtapas = (d.etapas || []).map(e => {
+    if (!e.presente) return `<li><span class="sello neutro">Falta ${esc(e.nombre)}</span></li>`;
+    return `<li><span class="sello ok">${esc(e.nombre)}</span>
+      <ul>${e.documentos.map(doc => `<li><a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(doc.fuente))}' class="enlace-fuente">${esc(doc.etiqueta || doc.tipo)}</a></li>`).join('')}</ul>
+    </li>`;
+  }).join('');
+
+  const matriz = d.matriz || {columnas: [], filas: []};
+  const htmlOfertas = tabla([
+    {t: 'Ítem', r: f => esc(f.descripcion ? f.descripcion.normalizada || f.descripcion.literal : 'no consta')},
+    ...matriz.columnas.map(col => ({
+      t: col.titulo,
+      c: 'num',
+      r: f => {
+        const val = f.valores[col.clave];
+        if (!val) return '<span class="nulo">no cotizó</span>';
+        let html = montoHTML(val);
+        if (f.menor === col.clave) html = `<strong>${html}</strong>`;
+        return html;
+      }
+    }))
+  ], matriz.filas);
+  
+  const cronoHTML = (d.cronologia || []).map(ev => `
+    <div class="crono-item">
+      <span class="mono">${esc(fmtFechaHora(ev.fecha))}</span>
+      <span>${esc(ev.etiqueta || ev.etapa)}</span>
+      ${ev.fuente ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(ev.fuente))}' class="enlace-fuente">Ver documento</a>` : ''}
+    </div>
+  `).join('');
+
+  vista.innerHTML = bloque('f. 0000', 'Contratación', `
+    <h1>${esc(c.nombre)}</h1>
+    <p>Expediente: ${esc(c.expediente || 'no consta')} · Procedimiento: ${esc(c.procedimiento || 'no consta')}</p>
+    <h2>Etapas</h2>
+    <ul>${htmlEtapas}</ul>
+    <h2>Matriz de ofertas</h2>
+    ${htmlOfertas}
+    <p>Total adjudicado: ${c.totales && c.totales.adjudicado ? montoHTML(c.totales.adjudicado) : '<span class="nulo">no consta</span>'}</p>
+    <p>Total facturado: ${c.totales && c.totales.facturado ? montoHTML(c.totales.facturado) : '<span class="nulo">no consta</span>'}</p>
+    <p>Total pagado: ${c.totales && c.totales.pagado ? montoHTML(c.totales.pagado) : '<span class="nulo">no consta</span>'}</p>
+    <h2>Cronología</h2>
+    <div class="cronologia">${cronoHTML}</div>
+  `);
+}
+
+async function vPrecios() {
+  const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
+  const limite = 100;
+  const d = await api(`/precios?desde=${desde}&limite=${limite}`);
+  
+  if (!d.renglones || !d.renglones.length) {
+    return vistaVacia('f. 0000', 'Ítems y precios', 'Ítems y precios', 'No hay ítems para mostrar', '');
+  }
+
+  vista.innerHTML = bloque('f. 0000', 'Ítems y precios', `
+    <h1>Ítems y precios</h1>
+    <div class="paginacion-env">
+      ${d.total !== undefined ? `Mostrando ${desde + 1}–${Math.min(desde + limite, d.total)} de ${fmtNum.format(d.total)}` : ''}
+      ${desde > 0 ? `<a href="#/precios?desde=${Math.max(0, desde - limite)}" class="paginacion-link">Anterior</a>` : ''}
+      ${(d.total !== undefined && desde + limite < d.total) || (d.total === undefined && d.renglones.length === limite) ? `<a href="#/precios?desde=${desde + limite}" class="paginacion-link">Siguiente</a>` : ''}
+    </div>
+    ${tabla([
+      {t:'Fecha', c:'mono', r: r => r.fecha ? esc(r.fecha.literal) : '<span class="nulo">no consta</span>'},
+      {t:'Contratación', r: r => r.contratacion ? `<a href="#/contratacion?id=${r.contratacion.id}">${esc(r.contratacion.nombre)}</a>` : '<span class="nulo">no consta</span>'},
+      {t:'Expediente', r: r => esc(r.expediente || 'no consta')},
+      {t:'Ítem original', r: r => esc(r.descripcion.literal)},
+      {t:'Ítem normalizado', r: r => esc(r.descripcion.normalizada || 'no consta')},
+      {t:'Cantidad', c:'num', r: r => r.cantidad ? esc(r.cantidad.literal) : '<span class="nulo">no consta</span>'},
+      {t:'Unidad', r: r => r.unidad ? esc(r.unidad.literal) : '<span class="nulo">no consta</span>'},
+      {t:'Proveedor', r: r => r.proveedor ? esc(r.proveedor.nombre) : '<span class="nulo">no consta</span>'},
+      {t:'Precio unitario', c:'num', r: r => montoHTML(r.precio_unitario)},
+      {t:'Subtotal', c:'num', r: r => montoHTML(r.subtotal)},
+      {t:'Documento/Foja', r: r => r.fuente ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(r.fuente))}' class="enlace-fuente">Ver fuente</a>` : '<span class="nulo">no consta</span>'},
+      {t:'Comparación', r: r => r.comparacion ? `<a href="#/renglon?id=${r.id}">Ver comparación</a>` : '<span class="nulo">no consta</span>'}
+    ], d.renglones)}
+  `);
+}
+
+async function vRenglon() {
+  const id = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
+  if (!id) return;
+  const d = await api(`/renglon/${id}/comparacion?niveles=A,B,C,D,E`);
+  const r = d.renglon;
+  
+  const renderMotivos = motivos => (motivos || []).map(m => `<li>${esc(m.atributo)}: ${esc(m.a)} vs ${esc(m.b)} (${esc(m.efecto)})</li>`).join('');
+  const renderRefs = refs => tabla([
+    {t:'Fecha', c:'mono', r: x => x.renglon.fecha ? esc(x.renglon.fecha.literal) : '<span class="nulo">no consta</span>'},
+    {t:'Proveedor', r: x => x.renglon.proveedor ? esc(x.renglon.proveedor.nombre) : '<span class="nulo">no consta</span>'},
+    {t:'Precio', c:'num', r: x => montoHTML(x.renglon.precio_unitario)},
+    {t:'Nivel', r: x => esc(x.nivel)},
+    {t:'Comparabilidad', r: x => `Estado: ${esc(x.comparabilidad.estado)}<ul>${renderMotivos(x.comparabilidad.motivos)}</ul>`}
+  ], refs);
+
+  const refsPorNivel = {};
+  (d.referencias || []).forEach(ref => {
+    if (!refsPorNivel[ref.nivel]) refsPorNivel[ref.nivel] = [];
+    refsPorNivel[ref.nivel].push(ref);
+  });
+  
+  const nivelesHTML = Object.keys(refsPorNivel).sort().map(nivel => `
+    <h3>Nivel ${esc(nivel)}</h3>
+    ${renderRefs(refsPorNivel[nivel])}
+  `).join('');
+  
+  const excluidasHTML = (d.excluidas || []).length > 0 ? `
+    <h3>Excluidas</h3>
+    ${tabla([
+      {t:'Ítem original', r: x => esc(x.renglon.descripcion.literal)},
+      {t:'Precio', c:'num', r: x => montoHTML(x.renglon.precio_unitario)},
+      {t:'Motivo', r: x => esc(x.motivo)}
+    ], d.excluidas)}
+  ` : '';
+
+  const ads = (d.advertencias || []).map(a => `<li><span class="sello atencion">${esc(a)}</span></li>`).join('');
+
+  vista.innerHTML = bloque('f. 0000', 'Posible sobreprecio', `
+    <h1>Análisis de precio: ${esc(r.descripcion.literal)}</h1>
+    <p>Precio analizado: ${montoHTML(r.precio_unitario)}</p>
+    ${d.calidad && d.calidad.nivel === 'baja' || (r.comparacion && r.comparacion.nivel === 'E') ? '<div class="sello alerta">Esta comparación tiene calidad baja o dudosa y requiere revisión. No es una conclusión firme.</div>' : ''}
+    ${ads ? `<ul>${ads}</ul>` : ''}
+    
+    <h2>Cálculo y Estadísticas</h2>
+    ${d.estadisticas ? `
+      <p>Nivel usado: ${esc(d.estadisticas.nivel)}</p>
+      <p>n: ${d.estadisticas.n}</p>
+      <p>Mediana: ${esc(d.estadisticas.mediana)}</p>
+      <p>Diferencia absoluta: ${esc(d.diferencia.absoluta)}</p>
+      <p>Diferencia porcentual: ${esc(d.diferencia.porcentual)}%</p>
+    ` : '<p>No hay estadísticas calculables.</p>'}
+    
+    ${d.calculo ? `
+      <p>Fórmula: ${esc(d.calculo.formula)}</p>
+      <ul>
+        ${d.calculo.operandos.map(op => `<li>${esc(op.nombre)}: ${op.fuente ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(op.fuente))}' class="enlace-fuente">${esc(op.valor)}</a>` : esc(op.valor)}</li>`).join('')}
+      </ul>
+    ` : ''}
+    
+    <p>Calidad: ${esc(d.calidad ? d.calidad.nivel : 'desconocida')}</p>
+    ${d.calidad && d.calidad.motivos ? `<ul>${d.calidad.motivos.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
+
+    <h2>Referencias</h2>
+    ${nivelesHTML}
+    ${excluidasHTML}
+  `);
+}
+
+async function vHallazgosContrataciones() {
+  const cat = await cargarCatalogoContrataciones();
+  const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
+  const limite = 100;
+  const d = await api(`/hallazgos?desde=${desde}&limite=${limite}`);
+  
+  if (!d.hallazgos || !d.hallazgos.length) {
+    return vistaVacia('f. 0000', 'Hallazgos', 'Hallazgos', 'No hay hallazgos para mostrar', '');
+  }
+
+  const tiposCat = cat.hallazgos || [];
+  const tiposDict = Object.fromEntries(tiposCat.map(t => [t.clave, t.nombre]));
+  const revisionCat = cat.revision || [];
+
+  vista.innerHTML = bloque('f. 0000', 'Hallazgos', `
+    <h1>Hallazgos de contrataciones</h1>
+    <div class="paginacion-env">
+      ${d.total !== undefined ? `Mostrando ${desde + 1}–${Math.min(desde + limite, d.total)} de ${fmtNum.format(d.total)}` : ''}
+      ${desde > 0 ? `<a href="#/hallazgos?desde=${Math.max(0, desde - limite)}" class="paginacion-link">Anterior</a>` : ''}
+      ${(d.total !== undefined && desde + limite < d.total) || (d.total === undefined && d.hallazgos.length === limite) ? `<a href="#/hallazgos?desde=${desde + limite}" class="paginacion-link">Siguiente</a>` : ''}
+    </div>
+    ${tabla([
+      {t:'ID', c:'num', r: h => h.id},
+      {t:'Tipo', r: h => esc(tiposDict[h.tipo] || h.tipo)},
+      {t:'Descripción', r: h => esc(h.descripcion)},
+      {t:'Fuentes', r: h => h.fuentes ? h.fuentes.map((f, i) => `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(f))}' class="enlace-fuente">Fuente ${i+1}</a>`).join(', ') : '<span class="nulo">no consta</span>'},
+      {t:'Confianza', r: h => {
+         let txt = esc(h.confianza ? h.confianza.nivel : 'no consta');
+         if (h.confianza && h.confianza.motivos && h.confianza.motivos.length) {
+            txt += ` <ul>${h.confianza.motivos.map(m => `<li>${esc(m)}</li>`).join('')}</ul>`;
+         }
+         return txt;
+      }},
+      {t:'Revisión', r: h => {
+         const estadoActual = h.revision ? h.revision.estado : 'pendiente';
+         const nota = h.revision ? h.revision.nota || '' : '';
+         const revOpciones = revisionCat.map(rc => `<option value="${esc(rc.clave)}" ${estadoActual === rc.clave ? 'selected' : ''}>${esc(rc.nombre)}</option>`).join('');
+         return `
+           <select id="rev-estado-${h.id}">${revOpciones}</select>
+           <input type="text" id="rev-nota-${h.id}" value="${esc(nota)}" placeholder="Nota">
+           <button class="boton btn-guardar-hallazgo" data-id="${h.id}">Guardar</button>
+         `;
+      }}
+    ], d.hallazgos)}
+  `);
+}
+
+document.addEventListener('click', async e => {
+  if (e.target.classList.contains('enlace-fuente')) {
+    const fuente = JSON.parse(e.target.dataset.fuente);
+    abrirDosFojas(fuente);
+  }
+});
+
+document.addEventListener('dblclick', async e => {
+  if (e.target.classList.contains('btn-guardar-hallazgo')) {
+    const id = e.target.dataset.id;
+    const select = document.getElementById('rev-estado-' + id);
+    const nota = document.getElementById('rev-nota-' + id);
+    if (e.target.disabled) return;
+    e.target.disabled = true;
+    try {
+      await api(`/hallazgo/${id}/revision`, {
+        method: 'POST',
+        body: { estado: select.value, nota: nota.value }
+      });
+      await redibujarTrasAccion('Revisión guardada', vHallazgosContrataciones);
+    } catch (err) {
+      alert('Falló: ' + err.message);
+    } finally {
+      e.target.disabled = false;
+    }
+  }
+});

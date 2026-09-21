@@ -2028,7 +2028,7 @@ body.con-visor{background-color:var(--fondo)}
 .visor-barra .boton{border-color:var(--barra-txt-2); color:var(--barra-txt);
   background:transparent; flex:none}
 .visor-barra .boton:hover{background:var(--barra-txt); color:var(--barra)}
-.visor-hoja{flex:1; min-height:0; overflow:auto; padding:16px; display:flex;
+.visor-hoja{flex:1; min-height:0; overflow:auto; padding:16px; display:flex; gap:16px;
   justify-content:center; align-items:flex-start}
 .visor-lienzo{position:relative; flex:none; background:#fff;
   box-shadow:var(--sombra-alta)}
@@ -2615,3 +2615,6 @@ details.consejo[open]>summary{border-bottom:1px solid var(--filete-2); margin-bo
 .visor-zoom-texto { color: var(--barra-txt); margin: 0 8px; font-variant-numeric: tabular-nums; }
 .paginacion-env { margin-bottom: 1em; }
 .paginacion-link { margin-left: 1em; }
+
+#visor-rotulo-2{position:absolute; top:-24px; left:0; font-size:var(--t-12); color:var(--tinta-2)}
+#visor-img-2{display:block; max-width:none}
