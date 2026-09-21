@@ -161,6 +161,17 @@ class LosArchivosQueSalen(unittest.TestCase):
         self.assertIn("coleccion", claves)
         self.assertTrue(all("csv" in x["formatos"] for x in d))
 
+    def test_cada_informe_dice_que_trae_sin_que_lo_escriba_la_pantalla(self):
+        # La pantalla muestra `descripcion` tal cual. Un informe nuevo sin descripción
+        # tiene que romper acá, no heredar en la interfaz una frase de otro.
+        d = ex.disponibles()
+        self.assertEqual({x["clave"] for x in d}, set(ex.DESCRIPCIONES))
+        for x in d:
+            self.assertTrue(x["descripcion"].strip(), x["clave"])
+            for prohibido in ("responsab", "irregular", "sospech", "ilícit", "prueba que"):
+                self.assertNotIn(prohibido, x["descripcion"].lower(),
+                                 "describen lo que traen, no lo que concluyen")
+
 
 class ElPunteoConservaElOrdenQueLeDioLaPersona(unittest.TestCase):
 
@@ -235,6 +246,22 @@ class LaCronologiaYLasFichasSalenConSuFuente(unittest.TestCase):
         self.assertEqual(filas[0][enc.index("Qué es")], "fecha del documento")
         self.assertEqual(filas[0][enc.index("Como dice el papel")], "10/03/2019")
         self.assertTrue(filas[0][enc.index("De dónde sale")].startswith("campo:"))
+
+    def test_la_cronologia_sale_entera_y_no_hasta_un_tope(self):
+        # Cortaba en 5.000 sin decirlo: un informe así afirma que no hay más hechos.
+        from datetime import date, timedelta
+        inicio = date(1990, 1, 1)
+        self.cx.executemany(
+            """INSERT INTO evento (documento_id, sha256, clase, fecha, origen)
+               VALUES (?,?,'documento',?,'campo:fecha')""",
+            [(self.d1, SHA, (inicio + timedelta(days=i)).isoformat())
+             for i in range(6000)])
+        self.cx.commit()
+        total = self.cx.execute("SELECT COUNT(*) FROM evento").fetchone()[0]
+        enc, filas = ex.cronologia(self.cx)
+        self.assertEqual(len(filas), total)
+        self.assertEqual(len(cr.linea(self.cx)), 500,
+                         "la pantalla sigue paginando; sólo el informe pide todos")
 
     def test_las_fichas_cuentan_sin_interpretar(self):
         enc, filas = ex.fichas(self.cx)
