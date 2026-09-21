@@ -204,7 +204,28 @@ class PapeleraRender(unittest.TestCase):
             api = oldApi;
         })();
         """)
-        
+
+    def test_g5_si_falla_el_refresco_se_dice_sin_decir_que_fallo_la_accion(self):
+        # Codex lo vio en el navegador: la restauración salía bien, fallaba el pedido
+        # de la lista y el error se escribía en el diálogo ya cerrado. Nadie lo veía.
+        render("""
+        (async () => {
+            location.hash = '#/papelera';
+            procesandoAccion = false;
+            const oldApi = api;
+            api = async (route) => {
+                if (route === '/api/archivo/restaurar') return {ok: true};
+                throw new Error('GET posterior falló');
+            };
+            await pedirRestaurarArchivo('abc');
+            api = oldApi;
+            assert.ok(lastDialogoHtml.includes('El archivo se restauró'), lastDialogoHtml);
+            assert.ok(lastDialogoHtml.includes('GET posterior falló'), lastDialogoHtml);
+            assert.ok(!lastDialogoHtml.includes('No se pudo completar la acción'),
+                      'la restauración salió bien: no se puede decir que falló');
+        })();
+        """)
+
     def test_g6_no_perder_lugar(self):
         render("""
         (async () => {

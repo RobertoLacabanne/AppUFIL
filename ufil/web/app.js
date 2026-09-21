@@ -5513,6 +5513,25 @@ async function vPapelera() {
   });
 }
 
+/* La acción ya se hizo; lo que puede fallar después es volver a pedir la pantalla. Eso
+   se dice, y se dice sin dar a entender que la acción falló. Va en un diálogo nuevo: el
+   de la acción ya se cerró, y un error escrito ahí no lo ve nadie. */
+async function redibujarTrasAccion(hecho, redibujar) {
+  try {
+    await redibujar();
+  } catch (e) {
+    dialogo(`
+      <form method="dialog">
+        <h3>${esc(hecho)}</h3>
+        <div class="aviso">${sello('atencion', 'Atención')}<span>Pero no se pudo actualizar la pantalla: ${esc(e.message)}</span></div>
+        <div class="botonera separador-arriba">
+          <button class="boton" type="submit">Cerrar</button>
+        </div>
+      </form>
+    `);
+  }
+}
+
 function mostrarErrorDialogo(d, error) {
   d.innerHTML = `
     <form method="dialog">
@@ -5575,13 +5594,9 @@ async function pedirQuitarArchivo(sha, nombre, confirmacion_quitar, procesando, 
         body: JSON.stringify({sha256: sha, confirmacion: confirmacion_quitar})
       });
       d.close();
-      if (location.hash === currentHash) {
-        if (location.hash === '#/ingesta') {
-          await vIngesta();
-        } else {
-          await rutear();
-        }
-      }
+      if (location.hash === currentHash)
+        await redibujarTrasAccion('El archivo se quitó del legajo',
+                                  location.hash === '#/ingesta' ? vIngesta : rutear);
     } catch (e) {
       mostrarErrorDialogo(d, e);
     } finally {
@@ -5608,7 +5623,8 @@ async function pedirRestaurarArchivo(sha) {
       body: JSON.stringify({sha256: sha})
     });
     d.close();
-    if (location.hash.split('?')[0] === '#/papelera') await vPapelera();
+    if (location.hash.split('?')[0] === '#/papelera')
+      await redibujarTrasAccion('El archivo se restauró', vPapelera);
   } catch (e) {
     mostrarErrorDialogo(d, e);
   } finally {
@@ -5652,7 +5668,8 @@ async function pedirDestruirArchivo(sha, nombre, confirmacion_destruir) {
         body: JSON.stringify({sha256: sha, confirmacion: confirmacion_destruir})
       });
       d.close();
-      if (location.hash.split('?')[0] === '#/papelera') await vPapelera();
+      if (location.hash.split('?')[0] === '#/papelera')
+        await redibujarTrasAccion('El archivo se destruyó', vPapelera);
     } catch (e) {
       mostrarErrorDialogo(d, e);
     } finally {

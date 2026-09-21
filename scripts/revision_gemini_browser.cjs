@@ -31,7 +31,7 @@ const pausa = ms => new Promise(r => setTimeout(r, ms));
     window.__fetch=fetch; window.__api=api; window.__vPapelera=vPapelera;
     window.__vIngesta=vIngesta;
     window.fetch=async (...args)=>{const r=await __fetch(...args);__peticiones.push({ruta:String(args[0]),body:args[1]?.body,status:r.status});return r;};
-    window.__cerrar=()=>document.querySelectorAll('dialog').forEach(d=>d.close());`);
+    window.__cerrar=()=>document.querySelectorAll('dialog').forEach(d=>{d.close();d.remove();});  // close() encola el evento que la app usa para sacar el diálogo; sin quitarlo acá, el siguiente paso podía encontrar el #b-quitar de un diálogo ya cerrado.`);
   const selector = sha => `Array.from(document.querySelectorAll('button')).find(b=>b.dataset.sha===${JSON.stringify(sha)} || (b.getAttribute('onclick')||'').includes(${JSON.stringify(sha)}))`;
   evidencia.contrato = await evaluar(`(async()=>{const a=await api('/api/archivos');return a.archivos.map(f=>({nombre:f.nombre,confirmacion:f.confirmacion_quitar,procesando:f.procesando,revisiones:f.revisiones}));})()`);
 

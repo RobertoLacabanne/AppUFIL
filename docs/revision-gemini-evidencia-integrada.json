@@ -1,0 +1,101 @@
+{
+  "contrato": {},
+  "apostrofe": {
+    "errores": [],
+    "dialogos": 1
+  },
+  "xss": {
+    "codigoEjecutado": false,
+    "handler": null
+  },
+  "quitar": [
+    {
+      "ruta": "/api/archivo/quitar",
+      "body": "{\"sha256\":\"f47164805ab22d8b4cb7231ae5b1de28698bdaf4bc85728728cb20c8199840fc\",\"confirmacion\":\"QUITAR f47164805ab22d8b4cb7231ae5b1de28698bdaf4bc85728728cb20c8199840fc\"}",
+      "status": 200
+    }
+  ],
+  "navegacion": {
+    "seccion": "sistema",
+    "enlaceVisible": true,
+    "titulo": "Análisis documental · UFIL Paraná"
+  },
+  "dobleRestauracion": {
+    "peticiones": [
+      {
+        "ruta": "/api/archivo/restaurar",
+        "body": "{\"sha256\":\"f47164805ab22d8b4cb7231ae5b1de28698bdaf4bc85728728cb20c8199840fc\"}",
+        "status": 200
+      }
+    ]
+  },
+  "destruir": [
+    {
+      "ruta": "/api/archivo/destruir",
+      "body": "{\"sha256\":\"f47164805ab22d8b4cb7231ae5b1de28698bdaf4bc85728728cb20c8199840fc\",\"confirmacion\":\"DESTRUIR f47164805ab22d8b4cb7231ae5b1de28698bdaf4bc85728728cb20c8199840fc\"}",
+      "status": 200
+    }
+  ],
+  "shaInvalido": {
+    "respuesta": {
+      "ruta": "/api/archivo/quitar",
+      "body": "{\"sha256\":\"invalido\",\"confirmacion\":\"QUITAR invalido\"}",
+      "status": 400
+    },
+    "mensaje": "No se pudo completar la acción\n      Errorsha256 debe tener 64 caracteres hexadecimales en minúscula.\n      Si es un conflicto de estado (409), el sistema evitó el cambio porque podría pisar información actual o reutilizar referencias.\n      \n        Cerrar"
+  },
+  "procesando": "Archivo en procesamiento\n        El archivo sintetico está siendo procesado en este momento.\n        BloqueadoEsperá a que el sistema termine de leerlo antes de quitarlo.\n        \n          Cerrar",
+  "vacia": true,
+  "respuestaIncompleta": false,
+  "baseSuelta": {
+    "muestraArchivo": false,
+    "texto": "f. 0000Sin legajo\n    \n    Papelera de archivos\n    \n    Primero hay que abrir un legajo\n    Cada legajo es una causa y tiene su propia base de datos: sus documentos, sus personas y sus totales viven en un archivo aparte. Hasta que no haya "
+  },
+  "errorRed": true,
+  "refrescoSinCatch": {
+    "promesas": [],
+    "dialogos": 1
+  },
+  "perdidaContexto": {
+    "hash": "#/informes",
+    "vista": "Informes elegidos por la persona"
+  },
+  "dobleDestruccion": {
+    "peticiones": 1,
+    "botonHabilitado": true
+  },
+  "listaGrande": {
+    "filas": 100,
+    "botones": 200,
+    "ms": 4,
+    "paginador": true,
+    "buscador": false
+  },
+  "zoomAntes": {
+    "imagenAncho": 600,
+    "marcoX": 120,
+    "marcoY": 160,
+    "esperadoX": 120,
+    "esperadoY": 160
+  },
+  "zoomDespues": {
+    "imagenAncho": 1200,
+    "marcoX": 240,
+    "marcoY": 320,
+    "esperadoX": 240,
+    "esperadoY": 320
+  },
+  "erroresObservados": {
+    "errores": [],
+    "promesas": []
+  },
+  "clasesVisor": "visor-controles acciones-fila",
+  "ejecucion": {
+    "web": "C:\\Users\\rober\\AppUFIL\\ufil\\web",
+    "app_js_sha256": "7a30a2f98cc7a7f26480ae20a4de0865778755e94faaf66e1f442c07abcd9585",
+    "fecha": "2026-09-21T18:56:12-03:00",
+    "esquema_backend": 25,
+    "navegador": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+    "metodo": "Navegador headless por CDP, backend real y casos sintéticos; fallos de red y carreras simulados"
+  }
+}
