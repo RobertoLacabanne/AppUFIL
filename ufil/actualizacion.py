@@ -297,7 +297,7 @@ def plan(cx: sqlite3.Connection, *, forzar: tuple = ()) -> dict:
         cx, viejas_ejecucion.get("lectura", []))
     lecturas = cx.execute("SELECT COUNT(*) FROM lectura").fetchone()[0]
 
-    # La lectura se cuenta por foja, pero se ejecuta por archivo: para la tabla de la
+    # La lectura se cuenta y se ejecuta por foja; para la tabla de la
     # pantalla hay que saber de qué archivo es cada foja que quedó vieja.
     if paginas_ocr_viejas:
         for r in cx.execute("""SELECT DISTINCT p.sha256 FROM pagina p
@@ -338,29 +338,20 @@ def plan(cx: sqlite3.Connection, *, forzar: tuple = ()) -> dict:
 
 def _cuenta_de_fojas(cx: sqlite3.Connection, paginas_viejas: list) -> tuple[int, int]:
     """
-    (fojas a releer, fojas que se reutilizan), contando por ARCHIVO.
+    (fojas a releer, fojas que se reutilizan), contando por FOJA.
 
-    La lectura se ejecuta por archivo: si una foja quedó vieja, se relee el archivo
-    entero. Así que las fojas a releer son todas las de esos archivos, no sólo las
-    marcadas, y las reutilizadas son las de los demás. Es la cuenta que corresponde
-    informarle a alguien que va a decidir si espera.
+    Se relee exactamente lo que quedó viejo o nunca se leyó, y se reutiliza toda otra
+    foja con lectura, aunque sea del mismo archivo. Es la cuenta que corresponde
+    informarle a alguien que va a decidir si espera, y es la misma que ejecuta `aplicar`.
     """
     leidas = """SELECT COUNT(*) FROM pagina p
                  WHERE EXISTS (SELECT 1 FROM lectura l WHERE l.pagina_id = p.id)"""
     if not paginas_viejas:
         return 0, cx.execute(leidas).fetchone()[0]
     marcas = ','.join('?' * len(paginas_viejas))
-    shas = [r["sha256"] for r in cx.execute(
-        f"SELECT DISTINCT sha256 FROM pagina WHERE CAST(id AS TEXT) IN ({marcas})",
-        paginas_viejas)]
-    if not shas:
-        return len(paginas_viejas), cx.execute(leidas).fetchone()[0]
-    ms = ','.join('?' * len(shas))
-    a_releer = cx.execute(
-        f"SELECT COUNT(*) FROM pagina WHERE sha256 IN ({ms})", shas).fetchone()[0]
     reutiliza = cx.execute(
-        f"{leidas} AND p.sha256 NOT IN ({ms})", shas).fetchone()[0]
-    return a_releer, reutiliza
+        f"{leidas} AND CAST(p.id AS TEXT) NOT IN ({marcas})", paginas_viejas).fetchone()[0]
+    return len(set(paginas_viejas)), reutiliza
 
 
 def _resumen_revisiones(cx: sqlite3.Connection, *, va_a_resegmentar: bool) -> dict:
@@ -446,9 +437,14 @@ def desactualizadas_por_etapa(cx: sqlite3.Connection, *, forzar: tuple = ()
     return viejas
 
 
-def _borrar_lecturas_de(cx: sqlite3.Connection, sha: str) -> int:
+def _borrar_lecturas_de(cx: sqlite3.Connection, sha: str,
+                        paginas: list[str] | None = None) -> int:
     """
-    Saca las lecturas de un archivo para que se vuelva a leer.
+    Saca las lecturas de un archivo —o sólo las de `paginas`— para que se vuelvan a leer.
+
+    Con `paginas`, se tocan sólo esas fojas: las demás conservan su lectura, y
+    `c1.leer_lote` lee únicamente las que quedan sin ninguna. Es lo que evita pagar el OCR
+    de un archivo entero porque le faltaba una parte.
 
     No se tocan los documentos ni los campos: `campo.lectura_id` se pone en nulo y la
     extracción, que corre después porque depende de la lectura, los rehace con la
@@ -456,15 +452,22 @@ def _borrar_lecturas_de(cx: sqlite3.Connection, sha: str) -> int:
     que es justamente lo que necesita `reaplicar_revisiones` para no mudar una
     corrección a la pieza equivocada.
     """
-    dentro = """SELECT l.id FROM lectura l JOIN pagina p ON p.id = l.pagina_id
-                 WHERE p.sha256 = ?"""
-    cx.execute(f"UPDATE campo SET lectura_id=NULL WHERE lectura_id IN ({dentro})", (sha,))
-    cx.execute(f"UPDATE tabla_celda SET lectura_id=NULL WHERE lectura_id IN ({dentro})", (sha,))
-    cx.execute(f"DELETE FROM palabra WHERE lectura_id IN ({dentro})", (sha,))
-    n = cx.execute(f"DELETE FROM lectura WHERE id IN ({dentro})", (sha,)).rowcount
-    cx.execute("""DELETE FROM resultado_etapa
-                   WHERE etapa='lectura' AND alcance_id IN
-                         (SELECT CAST(id AS TEXT) FROM pagina WHERE sha256=?)""", (sha,))
+    if paginas is None:
+        de_paginas, args = "SELECT id FROM pagina WHERE sha256 = ?", (sha,)
+    else:
+        if not paginas:
+            return 0
+        de_paginas = (f"SELECT id FROM pagina WHERE sha256 = ? AND CAST(id AS TEXT) IN "
+                      f"({','.join('?' * len(paginas))})")
+        args = (sha, *paginas)
+    dentro = f"SELECT id FROM lectura WHERE pagina_id IN ({de_paginas})"
+    cx.execute(f"UPDATE campo SET lectura_id=NULL WHERE lectura_id IN ({dentro})", args)
+    cx.execute(f"UPDATE tabla_celda SET lectura_id=NULL WHERE lectura_id IN ({dentro})", args)
+    cx.execute(f"DELETE FROM palabra WHERE lectura_id IN ({dentro})", args)
+    n = cx.execute(f"DELETE FROM lectura WHERE id IN ({dentro})", args).rowcount
+    cx.execute(f"""DELETE FROM resultado_etapa
+                    WHERE etapa='lectura' AND alcance_id IN
+                          (SELECT CAST(id AS TEXT) FROM ({de_paginas}))""", args)
     return n
 
 
@@ -523,11 +526,20 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
     if paginas_viejas:
         shas = shas_a_releer
         _fase("leyendo las fojas que quedaron viejas", len(paginas_viejas))
+        # Por foja y no por archivo: un archivo cuyo procesamiento se cortó a la mitad
+        # tiene cientos de fojas bien leídas, y releerlas es pagar horas de OCR por nada.
+        # Medido en un legajo real: 750 fojas a releer donde faltaban 340.
+        por_archivo: dict[str, list[str]] = {}
+        for r in cx.execute(
+                f"""SELECT sha256, CAST(id AS TEXT) AS id FROM pagina
+                     WHERE CAST(id AS TEXT) IN ({','.join('?' * len(paginas_viejas))})""",
+                paginas_viejas):
+            por_archivo.setdefault(r["sha256"], []).append(r["id"])
         for sha in shas:
             if not _sigo():
                 hecho["cortado"] = True
                 break
-            _borrar_lecturas_de(cx, sha)
+            _borrar_lecturas_de(cx, sha, por_archivo.get(sha, []))
             cx.commit()
         if not hecho["cortado"]:
             try:

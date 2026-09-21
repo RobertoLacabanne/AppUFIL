@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -300,31 +301,65 @@ class LoQueQuedoViejoYLoQueNo(unittest.TestCase):
         self.assertEqual(p["reutiliza"]["paginas_ocr"], 3)
         self.assertEqual(p["recalcula"]["paginas_ocr"], 0)
 
-    def test_no_promete_reutilizar_fojas_que_va_a_releer(self):
-        """
-        La lectura se cuenta por foja pero se EJECUTA por archivo: una sola foja vieja
-        se lleva puesto el archivo entero.
+    def _aplicar_contando_fojas_leidas(self) -> set:
+        """Corre la actualización con un OCR simulado y devuelve qué fojas leyó."""
+        leidas = set()
 
-        Si el plan contara «fojas leídas menos fojas viejas», prometería reutilizar las
-        vecinas de la foja vieja, que se releen igual. Es decirle a alguien que no va a
-        esperar un OCR que sí va a esperar, y esta pantalla existe justamente para
-        contestar esa pregunta.
+        def leer_lote(cx, shas, **_):
+            for r in cx.execute("""SELECT id FROM pagina p WHERE NOT EXISTS
+                                     (SELECT 1 FROM lectura l WHERE l.pagina_id=p.id)""").fetchall():
+                cx.execute("""INSERT INTO lectura (pagina_id,ruta,motor,version,confianza,ms,creado_en)
+                              VALUES (?,'ocr_a','tesseract','5.4.0',0.9,10,?)""", (r["id"], ahora()))
+                leidas.add(r["id"])
+            cx.commit()
+            return {"paginas": len(leidas)}
+
+        from ufil import capa1_texto
+        with patch.object(capa1_texto, "leer_lote", side_effect=leer_lote):
+            ac.aplicar(self.cx)
+        return leidas
+
+    def test_una_foja_vieja_se_relee_sola(self):
+        """
+        Antes una sola foja vieja se llevaba puesto el archivo entero. El plan lo decía
+        con honestidad, pero en un legajo real eso era releer cientos de fojas bien
+        leídas. Ahora se relee la foja vieja y nada más, y el plan dice exactamente eso:
+        no puede prometer reutilizar lo que va a releer, ni al revés.
         """
         _leer_todo(self.cx)
         for p in self.cx.execute("SELECT id FROM pagina").fetchall():
             ac.sellar(self.cx, "lectura", str(p["id"]))
-        # Se ensucia UNA sola de las tres fojas del archivo.
-        una = self.cx.execute("SELECT id FROM pagina ORDER BY nro LIMIT 1").fetchone()
+        una = self.cx.execute("SELECT id FROM pagina ORDER BY nro LIMIT 1").fetchone()["id"]
         self.cx.execute("UPDATE resultado_etapa SET firma='otra' "
-                        "WHERE etapa='lectura' AND alcance_id=?", (str(una["id"]),))
+                        "WHERE etapa='lectura' AND alcance_id=?", (str(una),))
         self.cx.commit()
+        otras = {r[0] for r in self.cx.execute(
+            "SELECT id FROM lectura WHERE pagina_id<>?", (una,))}
 
         p = ac.plan(self.cx)
-        self.assertEqual(p["reutiliza"]["paginas_ocr"], 0,
-                         "las otras dos fojas son del mismo archivo y se releen igual: "
-                         "no se pueden ofrecer como reutilizadas")
-        self.assertEqual(p["recalcula"]["paginas_ocr"], 3,
-                         "se relee el archivo entero, que son tres fojas, no una")
+        self.assertEqual(p["recalcula"]["paginas_ocr"], 1)
+        self.assertEqual(p["reutiliza"]["paginas_ocr"], 2)
+
+        self.assertEqual(self._aplicar_contando_fojas_leidas(), {una})
+        self.assertTrue(otras <= {r[0] for r in self.cx.execute("SELECT id FROM lectura")},
+                        "las lecturas de las otras dos fojas siguen siendo las mismas")
+
+    def test_un_archivo_leido_a_medias_lee_sólo_lo_que_falta(self):
+        # Medido en un legajo real: un archivo con 410 fojas leídas y 340 sin leer iba a
+        # releer las 750. La forma mínima del caso: tres fojas, dos leídas.
+        pids = [r[0] for r in self.cx.execute("SELECT id FROM pagina ORDER BY nro")]
+        for pid in pids[:2]:
+            self.cx.execute("""INSERT INTO lectura (pagina_id,ruta,motor,version,confianza,ms,creado_en)
+                               VALUES (?,'ocr_a','tesseract','5.4.0',0.9,10,?)""", (pid, ahora()))
+        self.cx.commit()
+        antes = {r[0] for r in self.cx.execute("SELECT id FROM lectura")}
+
+        p = ac.plan(self.cx)
+        self.assertEqual(p["recalcula"]["paginas_ocr"], 1)
+        self.assertEqual(p["reutiliza"]["paginas_ocr"], 2)
+
+        self.assertEqual(self._aplicar_contando_fojas_leidas(), {pids[2]})
+        self.assertTrue(antes <= {r[0] for r in self.cx.execute("SELECT id FROM lectura")})
 
     def test_cambiar_una_etapa_de_arriba_no_toca_el_ocr(self):
         """
