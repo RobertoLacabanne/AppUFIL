@@ -50,6 +50,32 @@ class PapeleraHTTP(unittest.TestCase):
             self.assertTrue(self.pedir('/api/archivos')[1]['archivos'][0]['procesando'])
             self.assertEqual(self.pedir('/api/archivo/quitar',{'sha256':sha,'confirmacion':'QUITAR '+sha},'POST')[0],409)
 
+    def test_paginacion_y_validacion_de_bordes(self):
+        shas = [self.archivo() for _ in range(3)]
+        for sha in shas:
+            self.assertEqual(self.pedir('/api/archivo/quitar', {'sha256': sha, 'confirmacion': 'QUITAR ' + sha}, 'POST')[0], 200)
+        cx = db.abrir(self.base)
+        try:
+            for i, sha in enumerate(shas):
+                cx.execute('UPDATE papelera_archivo SET quitado_en=? WHERE sha256=?', (f'2026-01-0{i+1}', sha))
+            cx.commit()
+        finally:
+            cx.close()
+        estado, r = self.pedir('/api/papelera/archivos?limite=1&desde=1')
+        self.assertEqual(estado, 200)
+        self.assertEqual((r['total'], r['desde'], r['limite']), (3, 1, 1))
+        self.assertEqual(r['archivos'][0]['sha256'], shas[1])
+        r = self.pedir('/api/papelera/archivos')[1]
+        self.assertEqual([f['sha256'] for f in r['archivos']], list(reversed(shas)))
+        self.assertEqual((r['desde'], r['limite']), (0, 100))
+        self.assertEqual(self.pedir('/api/papelera/archivos?limite=500&desde=3')[1]['archivos'], [])
+        for query in ('limite=0', 'limite=501', 'limite=-1', 'limite=1.5', 'limite=x',
+                      'limite=', 'desde=', 'desde=-1', 'desde=1.2', 'desde=x', 'desde=99999999999999999999'):
+            with self.subTest(query=query):
+                estado, r = self.pedir('/api/papelera/archivos?' + query)
+                self.assertEqual(estado, 400)
+                self.assertIn('debe', r['error'])
+
 
 if __name__ == '__main__':
     unittest.main()

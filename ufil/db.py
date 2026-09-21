@@ -11,7 +11,7 @@ from . import clasificacion as cl
 # Se sube cuando cambia `esquema.sql`. Sirve para no reejecutar el script en cada
 # conexión: con el servidor multihilo y el trabajador de fondo, dos conexiones que
 # corrían el esquema a la vez chocaban al recrear la vista `v_contrato`.
-ESQUEMA_VERSION = 24
+ESQUEMA_VERSION = 25
 
 _candado = threading.Lock()
 
@@ -65,8 +65,10 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
     if cx.execute('PRAGMA user_version').fetchone()[0] > ESQUEMA_VERSION:
         raise ValueError('La base requiere una versión más nueva de AppUFIL; no se modificó.')
     objetos = {r[0] for r in cx.execute("SELECT name FROM sqlite_master WHERE name IN "
-        "('papelera_archivo','papelera_limpieza','archivo_no_reingresar_papelera')")}
-    forzar = forzar or len(objetos) != 3
+        "('papelera_archivo','papelera_limpieza','papelera_derivado','archivo_no_reingresar_papelera')")}
+    columnas_papelera = {r[1] for r in cx.execute('PRAGMA table_info(papelera_archivo)')}
+    forzar = (forzar or len(objetos) != 4 or
+              not {'paginas', 'lote', 'decisiones_humanas', 'tiene_revisiones_humanas'} <= columnas_papelera)
     # Las columnas que faltan se chequean SIEMPRE, aunque la versión ya esté al día.
     # Si no, una base que quedó a mitad de camino —el número subió pero el ALTER no
     # llegó a correr— se queda rota para siempre y sin forma de arreglarse sola. Son
@@ -83,12 +85,44 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
         if not forzar and cx.execute("PRAGMA user_version").fetchone()[0] == ESQUEMA_VERSION:
             return False
         try:
-            cx.executescript('BEGIN IMMEDIATE;\n' + esquema_sql() +
-                             f'\nPRAGMA user_version={ESQUEMA_VERSION};\nCOMMIT;')
+            cx.executescript('BEGIN IMMEDIATE;\n' + esquema_sql())
+            _migrar_papelera_25(cx)
+            cx.execute(f'PRAGMA user_version={ESQUEMA_VERSION}')
+            cx.commit()
         except Exception:
             cx.rollback()
             raise
     return True
+
+
+def _migrar_papelera_25(cx):
+    """La v25 cambia el sobre, no las filas activas de la instantánea v24.
+
+    Columnas, BLOB, JSON y versión se confirman juntos. Un fallo deja la v24
+    intacta y reintentable; versiones anteriores/desconocidas no se etiquetan 25.
+    """
+    import base64
+    import json
+    from .papelera import _decisiones_instantanea
+    columnas = {r[1] for r in cx.execute('PRAGMA table_info(papelera_archivo)')}
+    for nombre, tipo in (('paginas', 'INTEGER'), ('lote', 'TEXT'),
+                         ('decisiones_humanas', 'INTEGER NOT NULL DEFAULT 0'),
+                         ('tiene_revisiones_humanas', 'INTEGER NOT NULL DEFAULT 0')):
+        if nombre not in columnas:
+            cx.execute(f'ALTER TABLE papelera_archivo ADD COLUMN {nombre} {tipo}')
+    for a in cx.execute('SELECT sha256,registros FROM papelera_archivo WHERE version=24'):
+        datos = json.loads(a['registros'])
+        archivo = datos['filas']['archivo'][0]
+        procedencia = datos['filas'].get('procedencia', [{}])[0]
+        decisiones = _decisiones_instantanea(datos, a['sha256'])
+        for ruta, contenido in datos.pop('assets', {}).items():
+            cx.execute('INSERT INTO papelera_derivado VALUES (?,?,?)',
+                       (a['sha256'], ruta, base64.b64decode(contenido, validate=True)))
+        datos.pop('tiene_revisiones_humanas', None)
+        cx.execute('''UPDATE papelera_archivo SET registros=?,paginas=?,lote=?,
+                      decisiones_humanas=?,tiene_revisiones_humanas=?,version=25 WHERE sha256=?''',
+                   (json.dumps(datos, ensure_ascii=False), archivo.get('paginas'), procedencia.get('lote'),
+                    decisiones, decisiones > 0, a['sha256']))
 
 
 # Columnas que se sumaron a tablas que ya existían. `CREATE TABLE IF NOT EXISTS` no las
