@@ -551,7 +551,7 @@ const SECCIONES = [
     {hash: '#/guardadas', rotulo: 'Consultas guardadas'},
     {hash: '#/colecciones', rotulo: 'Colecciones'},
     {hash: '#/informes', rotulo: 'Informes'},
-  ], tambien: ['#/documento', '#/persona', '#/entidad', '#/coleccion']},
+  ], tambien: ['#/documento', '#/persona', '#/entidad', '#/coleccion', '#/papelera']},
   {id: 'hallazgos', rotulo: 'Hallazgos', items: [
     {hash: '#/superposiciones', rotulo: 'Superposiciones'},
     {hash: '#/cruce',           rotulo: 'Facturado vs. contratado'},
@@ -569,6 +569,7 @@ const SECCIONES = [
   {id: 'sistema', rotulo: 'Sistema', items: [
     {hash: '#/actualizacion', rotulo: 'Actualizar an\u00e1lisis'},
     {hash: '#/legajos',       rotulo: 'Legajos'},
+    {hash: '#/papelera',      rotulo: 'Papelera de archivos'},
     {hash: '#/como-funciona', rotulo: 'Cómo funciona'},
     {hash: '#/salud',         rotulo: 'Estado del sistema'},
   ]},
@@ -883,6 +884,8 @@ async function vLegajos() {
 
   $('#f-legajo').onsubmit = async ev => {
     ev.preventDefault();
+    const btn = ev.target.querySelector('button[type="submit"]');
+    if (btn) btn.disabled = true;
     const d = Object.fromEntries(new FormData(ev.target));
     const err = $('#err-legajo');
     try {
@@ -893,6 +896,9 @@ async function vLegajos() {
     } catch (e) {
       err.textContent = e.message;
       err.hidden = false;
+    } finally {
+      const btn = ev.target.querySelector('button[type="submit"]');
+      if (btn) btn.disabled = false;
     }
   };
 }
@@ -1638,7 +1644,7 @@ async function vCruce() {
    La geometría va en `style` porque sale del dato —es la excepción que §4 declara
    legítima, y la única—. */
 function pistaSolape(f) {
-  const dia = t => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t || ''); 
+  const dia = t => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t || '');
     return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null; };
   const ia = dia(f.inicio_a), fa = dia(f.fin_a);
   const ib = dia(f.inicio_b), fb = dia(f.fin_b);
@@ -2516,7 +2522,7 @@ function fojaDe(f) {
 function abrirFoja(f) {
   const nro = fojaDe(f);
   if (!nro) return;
-  const visor = $('#visor'), img = $('#visor-img'), marco = $('#visor-marco');
+  visorZoom = 1; aplicarZoomVisor(); const visor = $('#visor'), img = $('#visor-img'), marco = $('#visor-marco');
   if (!visor) return;
   img.src = `/pagina?doc=${f.documento_id}&nro=${nro}`;
   $('#visor-rotulo').textContent =
@@ -2569,7 +2575,7 @@ function abrirFoja(f) {
    donde por fin se ve un expediente no podría abrir una sola de sus fojas, que es lo
    único que sirve de un expediente: mirar el papel. */
 function abrirFojaSuelta(sha, nro, rotulo) {
-  const visor = $('#visor'), img = $('#visor-img'), marco = $('#visor-marco');
+  visorZoom = 1; aplicarZoomVisor(); const visor = $('#visor'), img = $('#visor-img'), marco = $('#visor-marco');
   if (!visor || !sha || !nro) return;
   img.src = `/pagina?sha=${encodeURIComponent(sha)}&nro=${nro}`;
   $('#visor-rotulo').textContent = [rotulo || 'expediente', 'f. ' + nro].join(' · ');
@@ -3145,8 +3151,9 @@ function resultadosHTML(r) {
   if (r.aviso) return `<div class="aviso"><span class="sello alerta">Atención</span>
     <span>${esc(r.aviso)}</span></div>`;
   const total = (r.campos_total ?? r.campos.length) + (r.paginas_total ?? r.paginas.length);
+  const mostrados = r.campos.length + r.paginas.length;
   const hallazgos = total
-    ? `<strong>${plural(total, 'coincidencia', 'coincidencias')}</strong>`
+    ? (mostrados < total ? `Se están mostrando <strong>${fmtNum.format(mostrados)}</strong> de <strong>${plural(total, 'coincidencia', 'coincidencias')}</strong>` : `Hay <strong>${plural(total, 'coincidencia', 'coincidencias')}</strong>`)
     : `<strong>No aparece</strong>`;
   const cob = htmlResumenBusqueda(r) + coberturaHTML(r.cobertura, hallazgos);
   const nada = !r.campos.length && !r.paginas.length;
@@ -3782,6 +3789,7 @@ async function vIngesta() {
           : `<span class="marca">${fmtNum.format(f.leidas || 0)}</span>`},
         {t:'En qué está', r:f => ESTADO_CARGA[f.estado] || f.estado},
         {t:'Lote', r:f => esc(f.lote || '—')},
+        {t:'', r:f => f.estado !== 'papelera' ? `<button type="button" class="mini" onclick="pedirQuitarArchivo('${esc(f.sha256)}', '${esc(f.nombre)}', '${esc(f.confirmacion_quitar)}', ${f.procesando}, ${f.tiene_revisiones_humanas ? (f.revisiones||1) : 0})">Quitar del legajo</button>` : ''}
       ], ar.archivos, {lista:'archivos'})}` : ''}
 
     <details class="consejo" id="c-escaneo">
@@ -4589,7 +4597,7 @@ function avisarSiHayVersionNueva(version) {
 }
 
 /* Pinta el legajo abierto en la barra de arriba.
-   
+
    Antes también redirigía a `#/legajos` cuando no había ninguno. Se sacó: el salto
    era silencioso —pedías Contratos y te aparecía otra pantalla, sin una palabra— y
    encima sólo pasaba en la primera carga, así que la mitad de las pantallas saltaba
@@ -5120,6 +5128,11 @@ function htmlInformes(informes, colecciones) {
       la foja de donde sale, para poder verificarla contra el papel.</p>
     ${informes.map(i => `<article class="nucleo-ficha">
       <h3>${esc(i.nombre)}</h3>
+      <p class="prosa nota explicacion-informe">
+        ${i.clave === 'coleccion' ? 'Se exportar\u00e1n las piezas de la colecci\u00f3n seleccionada, detallando su anclaje al expediente.' :
+          i.clave === 'seleccion' ? 'Se exportar\u00e1n los resultados marcados individualmente en b\u00fasquedas.' :
+          'Se exportar\u00e1n los datos consolidados de todo el legajo, incluyendo valores verificados y provisorios.'}
+      </p>
       ${i.necesita === 'coleccion_id' ? (colecciones.length
         ? `<label>Colecci\u00f3n
              <select data-coleccion-de="${esc(i.clave)}">${colecciones.map(c =>
@@ -5174,6 +5187,7 @@ const rutas = [
   [/^#\/cronologia(\?.*)?$/, vCronologia],
   [/^#\/conjuntos$/, vConjuntos],
   [/^#\/legajos$/,               vLegajos],
+  [/^#\/papelera$/,              vPapelera],
   [/^#\/panel$/,                 vPanel],
   [/^#\/reasociaciones$/,       vReasociaciones],
   [/^#\/actualizacion$/,         vActualizacion],
@@ -5430,3 +5444,188 @@ pintarIdentidad();
 refrescarCuentas().then(rutear);
 vigilarTrabajo();
 latir();
+
+
+async function vPapelera() {
+  const c = await api('/api/cuentas');
+  if (!c.legajo && !c.documentos) return vistaSinLegajo('Papelera de archivos');
+
+  const d = await api('/api/papelera/archivos');
+  const archivos = d.archivos || [];
+
+  if (!archivos.length) {
+    return vistaVacia('f. 0000', 'Papelera', 'Papelera de archivos', 'La papelera está vacía', 'Los archivos que quites del legajo van a aparecer acá.');
+  }
+
+  const tamano = bytes => {
+    if (!bytes) return '—';
+    return (bytes / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB';
+  };
+
+  vista.innerHTML = bloque('f. 0000', 'Papelera', `
+    <h2>Papelera de archivos</h2>
+    <p class="prosa">Estos archivos fueron quitados del legajo. Ya no participan en el análisis, pero se conservan acá por si fue un error.</p>
+    ${tabla([
+      {t:'Archivo', c:'mono fol', r:f => esc(f.nombre)},
+      {t:'Fecha de baja', c:'fol', r:f => f.quitado_en ? esc(fmtFechaHora(f.quitado_en)) : '—'},
+      {t:'Documentos', c:'num', k:'documentos'},
+      {t:'Revisiones', c:'num', r:f => f.tiene_revisiones_humanas ? esc(f.revisiones || 'Sí') : '—'},
+      {t:'Tamaño', c:'num', r:f => tamano(f.bytes)},
+      {t:'Acciones', r:f => `
+        <div class="acciones-fila">
+          <button type="button" class="mini" onclick="pedirRestaurarArchivo('${esc(f.sha256)}')">Restaurar</button>
+          <button type="button" class="mini peligro" onclick="pedirDestruirArchivo('${esc(f.sha256)}', '${esc(f.nombre)}', '${esc(f.confirmacion_destruir)}')">Destruir definitivamente</button>
+        </div>
+      `}
+    ], archivos)}
+  `);
+}
+
+function mostrarErrorDialogo(d, error) {
+  d.innerHTML = `
+    <form method="dialog">
+      <h3>No se pudo completar la acci\\u00f3n</h3>
+      <div class="aviso">${sello('alerta', 'Error')}<span>${esc(error.message)}</span></div>
+      <p class="prosa separador-arriba">Si es un conflicto de estado (409), el sistema evit\\u00f3 el cambio porque podr\\u00eda pisar informaci\\u00f3n actual o reutilizar referencias.</p>
+      <div class="botonera separador-arriba">
+        <button class="boton" type="submit">Cerrar</button>
+      </div>
+    </form>
+  `;
+}
+
+async function pedirQuitarArchivo(sha, nombre, confirmacion_quitar, procesando, revisiones_humanas) {
+  if (procesando) {
+    const d = dialogo(`
+      <form method="dialog">
+        <h3>Archivo en procesamiento</h3>
+        <p class="prosa">El archivo <strong class="mono">${esc(nombre)}</strong> est\\u00e1 siendo procesado en este momento.</p>
+        <div class="aviso">${sello('atencion', 'Bloqueado')}<span>Esper\\u00e1 a que el sistema termine de leerlo antes de quitarlo.</span></div>
+        <div class="botonera separador-arriba">
+          <button class="boton" type="submit">Cerrar</button>
+        </div>
+      </form>
+    `);
+    return;
+  }
+
+  let msjRev = '';
+  if (revisiones_humanas > 0) {
+     msjRev = `<div class="aviso separador-arriba">${sello('atencion', 'Hay decisiones humanas')}<span>Este archivo tiene ${esc(fmtNum.format(revisiones_humanas))} revisiones o confirmaciones humanas. Se conservar\\u00e1n en la papelera y volver\\u00e1n si restaur\\u00e1s el archivo.</span></div>`;
+  }
+
+  const d = dialogo(`
+    <form method="dialog" id="f-quitar-arch">
+      <h3>Quitar archivo</h3>
+      <p class="prosa">Vas a quitar el archivo <strong class="mono">${esc(nombre)}</strong>.</p>
+      <div class="aviso">${sello('atencion', 'Atenci\\u00f3n')}
+        <span>Este archivo dejar\\u00e1 de participar en el legajo y sus resultados derivados dejar\\u00e1n de mostrarse. El original se conservar\\u00e1 en la papelera y podr\\u00e1 restaurarse.</span>
+      </div>
+      ${msjRev}
+      <div class="botonera separador-arriba">
+        <button class="boton gris" value="no" type="submit">Cancelar</button>
+        <button class="boton peligro" id="b-quitar" type="button">Quitar del legajo</button>
+      </div>
+    </form>
+  `);
+
+  d.querySelector('#b-quitar').onclick = async () => {
+    d.querySelector('#b-quitar').disabled = true;
+    try {
+      const r = await api('/api/archivo/quitar', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sha256: sha, confirmacion: confirmacion_quitar})
+      });
+      d.close();
+      if (location.hash === '#/ingesta') {
+        vIngesta();
+      } else {
+        location.reload();
+      }
+    } catch (e) {
+      mostrarErrorDialogo(d, e);
+    }
+  };
+}
+
+async function pedirRestaurarArchivo(sha) {
+  const d = dialogo(`
+    <form method="dialog">
+      <h3>Restaurando archivo...</h3>
+      <p class="prosa">Por favor esper\\u00e1...</p>
+    </form>
+  `);
+
+  try {
+    const r = await api('/api/archivo/restaurar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sha256: sha})
+    });
+    d.close();
+    vPapelera();
+  } catch (e) {
+    mostrarErrorDialogo(d, e);
+  }
+}
+
+async function pedirDestruirArchivo(sha, nombre, confirmacion_destruir) {
+  const d = dialogo(`
+    <form method="dialog" id="f-destruir-arch">
+      <h3>Destruir archivo definitivamente</h3>
+      <p class="prosa">Vas a destruir el archivo <strong class="mono">${esc(nombre)}</strong> para siempre.</p>
+      <div class="aviso">${sello('alerta', 'Destrucci\\u00f3n f\\u00edsica')}
+        <span>Esta acci\\u00f3n no se puede deshacer. El archivo se borrar\\u00e1 del disco y todo su trabajo asociado se perder\\u00e1.</span>
+      </div>
+      <p class="prosa separador-arriba"><label for="conf-destruir">Para confirmar, escrib\\u00ed DESTRUIR:</label></p>
+      <input type="text" id="conf-destruir" autocomplete="off" class="campo-buscar" >
+      <div class="botonera separador-arriba">
+        <button class="boton gris" value="no" type="submit">Cancelar</button>
+        <button class="boton peligro" id="b-destruir" type="button" disabled>Destruir para siempre</button>
+      </div>
+    </form>
+  `);
+
+  const input = d.querySelector('#conf-destruir');
+  const btn = d.querySelector('#b-destruir');
+
+  input.oninput = () => {
+    btn.disabled = input.value !== 'DESTRUIR';
+  };
+
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      const r = await api('/api/archivo/destruir', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sha256: sha, confirmacion: confirmacion_destruir})
+      });
+      d.close();
+      vPapelera();
+    } catch (e) {
+      mostrarErrorDialogo(d, e);
+    }
+  };
+}
+
+let visorZoom = 1;
+function aplicarZoomVisor() {
+  const img = $('#visor-img');
+  const marco = $('#visor-marco');
+  if (!img) return;
+  img.style.transform = `scale(${visorZoom})`;
+  img.style.transformOrigin = 'top left';
+  if (marco) {
+    marco.style.transform = `scale(${visorZoom})`;
+    marco.style.transformOrigin = 'top left';
+  }
+}
+
+if ($('#visor-zoom-in')) {
+  $('#visor-zoom-in').onclick = () => { visorZoom += 0.25; aplicarZoomVisor(); };
+}
+if ($('#visor-zoom-out')) {
+  $('#visor-zoom-out').onclick = () => { visorZoom = Math.max(0.25, visorZoom - 0.25); aplicarZoomVisor(); };
+}
