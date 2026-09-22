@@ -865,8 +865,24 @@ def _borrar_campos(cx, doc_id: int) -> None:
     cx.execute("DELETE FROM campo     WHERE documento_id=?", (doc_id,))
 
 
+def _soltar_lo_que_no_cuelga(cx, doc_id: int) -> None:
+    """
+    Lo que apunta a la pieza pero NO es de la pieza: se suelta, no se borra.
+
+    Una tabla es de la foja, no de la pieza; que esté adentro de una pieza es una
+    conclusión que se rehace en cada corrida. Al borrar la pieza, su `documento_id`
+    quedaba apuntando a una fila que ya no estaba y SQLite abortaba el archivo entero
+    con «FOREIGN KEY constraint failed». Medido en el legajo real: dos archivos no se
+    podían resegmentar, y como la transacción se deshacía, tampoco se releían sus
+    precios. La tabla se queda; la próxima detección vuelve a decir de qué pieza es.
+    """
+    cx.execute("UPDATE tabla     SET documento_id=NULL WHERE documento_id=?", (doc_id,))
+    cx.execute("UPDATE excepcion SET documento_id=NULL WHERE documento_id=?", (doc_id,))
+
+
 def _borrar_pieza(cx, doc_id: int) -> None:
     """Borra UNA pieza y todo lo que cuelga, en orden de dependencias."""
+    _soltar_lo_que_no_cuelga(cx, doc_id)
     sub = "SELECT id FROM campo WHERE documento_id=?"
     cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
     cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
@@ -885,6 +901,7 @@ def _borrar_piezas(cx, sha: str) -> None:
     """Borra las piezas de un archivo y todo lo que cuelga, en orden de dependencias."""
     for f in cx.execute("SELECT id FROM documento WHERE sha256=?", (sha,)).fetchall():
         doc_id = f["id"]
+        _soltar_lo_que_no_cuelga(cx, doc_id)
         sub = "SELECT id FROM campo WHERE documento_id=?"
         cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
         cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
