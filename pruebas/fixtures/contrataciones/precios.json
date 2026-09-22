@@ -1,0 +1,26 @@
+{
+  "total": 1,
+  "desde": 0,
+  "limite": 100,
+  "renglones": [
+    {
+      "id": 1,
+      "fecha": {"valor": "2026-01-01", "literal": "01/01/2026", "fuente": null},
+      "contratacion": {"id": 1, "nombre": "Licitación 1/2026"},
+      "expediente": "EXP-123",
+      "etapa": "oferta",
+      "proveedor": {"entidad_id": 10, "nombre": "Empresa A", "cuit": "30-12345678-9"},
+      "descripcion": {"literal": "Resma", "normalizada": "Resma A4"},
+      "item": {"id": 1, "nombre": "Resma A4", "comparabilidad": "fuerte"},
+      "marca": "Ledesma",
+      "modelo": null,
+      "cantidad": {"literal": "100", "valor": "100.00"},
+      "unidad": {"literal": "u", "normalizada": "unidad"},
+      "precio_unitario": {"valor": "1000.00", "moneda": "ARS", "fuente": null, "estado": "firme"},
+      "subtotal": null,
+      "fuente": {"documento_id": 102, "pagina_nro": 1, "sha256": "def", "archivo": "oferta.pdf", "pagina": {"ancho_pt": 600, "alto_pt": 800}, "region": null, "etiqueta": "Oferta"},
+      "estado": "firme",
+      "comparacion": {"nivel": "A", "diferencia_pct": "20.00", "n": 5, "calidad": "alta"}
+    }
+  ]
+}

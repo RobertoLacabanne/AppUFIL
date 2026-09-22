@@ -1,0 +1,28 @@
+{
+  "total": 1,
+  "desde": 0,
+  "limite": 100,
+  "contrataciones": [
+    {
+      "id": 1,
+      "nombre": "Licitación 1/2026",
+      "expediente": "EXP-123",
+      "organismo": "UFIL",
+      "procedimiento": "Licitación Pública",
+      "objeto": "Insumos",
+      "origen": "sistema",
+      "estado": "activa",
+      "proveedores": [
+        {"entidad_id": 10, "nombre": "Empresa A", "cuit": "30-12345678-9"}
+      ],
+      "totales": {
+        "adjudicado": {"valor": "180000.00", "moneda": "ARS"}
+      },
+      "hallazgos": 2,
+      "etapas": [
+        {"clave": "pedido", "nombre": "Pedido", "presente": true},
+        {"clave": "factura", "nombre": "Factura", "presente": false}
+      ]
+    }
+  ]
+}

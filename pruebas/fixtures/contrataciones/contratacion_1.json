@@ -1,0 +1,43 @@
+{
+  "contratacion": {
+    "id": 1, "nombre": "Licitación 1/2026", "expediente": "EXP-123", "organismo": "UFIL",
+    "procedimiento": "Licitación Pública", "objeto": "Insumos", "origen": "sistema", "estado": "activa"
+  },
+  "etapas": [
+    {"clave": "pedido", "nombre": "Pedido", "presente": true, "documentos": [
+      {"documento_id": 101, "tipo": "pedido", "fecha": "2026-01-01", "etiqueta": "Pedido 01", "fuente": {"documento_id": 101, "pagina_nro": 1, "sha256": "abc", "archivo": "pedido.pdf", "pagina": {"ancho_pt": 600, "alto_pt": 800}, "region": {"x0": 10, "y0": 10, "x1": 100, "y1": 50}, "etiqueta": "Pedido 01"}}
+    ]},
+    {"clave": "factura", "nombre": "Factura", "presente": false, "documentos": []}
+  ],
+  "oferentes": [
+    {"entidad_id": 10, "nombre": "Empresa A", "cuit": "30-12345678-9", "adjudicado": true}
+  ],
+  "matriz": {
+    "columnas": [
+      {"clave": "oferta_10", "titulo": "Oferta Empresa A", "entidad_id": 10},
+      {"clave": "adjudicado", "titulo": "Adjudicado", "entidad_id": null},
+      {"clave": "facturado", "titulo": "Facturado", "entidad_id": null}
+    ],
+    "filas": [
+      {
+        "item": {"id": 1, "nombre": "Resma A4"},
+        "descripcion": {"literal": "Resma", "normalizada": "Resma A4"},
+        "valores": {
+          "oferta_10": {"valor": "1000.00", "moneda": "ARS", "fuente": {"documento_id": 102, "pagina_nro": 1, "sha256": "def", "archivo": "oferta.pdf", "pagina": {"ancho_pt": 600, "alto_pt": 800}, "region": null, "etiqueta": "Oferta"}},
+          "adjudicado": {"valor": "1000.00", "moneda": "ARS", "fuente": null},
+          "facturado": null
+        },
+        "menor": "oferta_10"
+      }
+    ]
+  },
+  "totales": {
+    "adjudicado": {"valor": "1000.00", "moneda": "ARS", "fuente": null},
+    "facturado": null,
+    "pagado": null
+  },
+  "cronologia": [
+    {"fecha": "2026-01-01", "etapa": "pedido", "etiqueta": "Pedido emitido", "fuente": {"documento_id": 101, "pagina_nro": 1, "sha256": "abc", "archivo": "pedido.pdf", "pagina": {"ancho_pt": 600, "alto_pt": 800}, "region": null, "etiqueta": "Pedido 01"}}
+  ],
+  "hallazgos": []
+}

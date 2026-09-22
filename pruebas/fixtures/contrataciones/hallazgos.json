@@ -1,0 +1,20 @@
+{
+  "total": 1,
+  "desde": 0,
+  "limite": 100,
+  "hallazgos": [
+    {
+      "id": 1,
+      "tipo": "diferencia_precio",
+      "titulo": "Diferencia de precio detectada",
+      "descripcion": "El precio supera la mediana en más del 20%",
+      "datos": {"diferencia_pct": "25.00", "analizado": "1000.00", "referencia": "800.00"},
+      "calculo": {"formula": "(1000 - 800) / 800 * 100", "operandos": [], "resultado": "25.00"},
+      "fuentes": [
+        {"documento_id": 102, "pagina_nro": 1, "sha256": "def", "archivo": "oferta.pdf", "pagina": {"ancho_pt": 600, "alto_pt": 800}, "region": null, "etiqueta": "Oferta", "celdas": null, "campo_id": null, "tipo_documento": null}
+      ],
+      "confianza": {"nivel": "media", "motivos": ["n=1"]},
+      "revision": {"estado": "pendiente", "quien": null, "cuando": null, "nota": null}
+    }
+  ]
+}
