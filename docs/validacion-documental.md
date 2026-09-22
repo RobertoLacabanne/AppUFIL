@@ -388,8 +388,11 @@ Mismo banco de prueba que la sección 8: una copia de trabajo del legajo real (3
 | Renglones de órdenes de compra sin precio | 64 de 64, motivo «ilegible» | 19 de 77 | `689735c` |
 | Fojas con texto útil adentro de un documento | 400 de 990 | 502 de 990 | `0a24ae6` |
 | Archivos que fallaban al resegmentar | 2 (FOREIGN KEY) | 0 | `79a5470` |
-| Piezas | 302 | 332, con pliegos y especificaciones entre ellas | `88fcda3` |
-| Fojas adentro de un documento | 601 | 720 de 1.628 | `88fcda3` |
+| Piezas | 302 | 361, con pliegos, especificaciones y documentos sin reconocer | `88fcda3`, `a4cc3a3` |
+| Fojas adentro de un documento | 601 | 904 de 1.628 | `88fcda3`, `a4cc3a3` |
+| Tablas que no pertenecen a ninguna pieza | 268 | 166 | `a4cc3a3` |
+| Renglones de presupuesto | 0 | 8, con su importe impreso y sin afirmar de qué es | `392966b` |
+| Hallazgos de diferencia de precio | 18, todos de nivel E con una sola referencia | 0: ninguna comparación llega al mínimo | `af5076a` |
 
 - **Los precios estaban impresos y se tiraban.** Parte del legajo usa coma de miles y punto
   decimal (`5,087.30`); el lector asumía notación argentina y devolvía nada, así que el
@@ -409,7 +412,16 @@ Mismo banco de prueba que la sección 8: una copia de trabajo del legajo real (3
 - **El pliego y las especificaciones ahora son documentos.** Dicen qué se pidió, que es la
   base para afirmar que dos precios son comparables, y mientras no eran pieza sus fojas no
   colgaban de ninguna contratación ni se podían abrir desde un precio.
-- **Suite completa**: 914 pruebas, 0 fallas, 1 salteada (con Tesseract en el PATH).
+- **Una sola referencia aproximada no alcanza para señalar nada.** Al recuperarse los
+  precios, el legajo real pasó a producir 18 hallazgos de diferencia de precio, y los 18
+  eran de nivel E —referencia aproximada— con UNA referencia y comparabilidad dudosa; uno
+  daba 152.477 %, el síntoma de comparar un unitario contra un total. El contrato ya
+  fijaba `min_referencias` y no se estaba aplicando. Ahora se señala sólo con nivel A a D
+  y dos referencias o más; la comparación se sigue viendo en la pantalla del renglón.
+- **Lo que queda a la vista en el legajo real**: 26 renglones sin precio, 9 subtotales que
+  no cierran, 7 diferencias entre lo facturado y lo entregado, 3 documentos faltantes y 2
+  planillas con importes sin rol confirmado.
+- **Suite completa**: 921 pruebas, 0 fallas, 1 salteada (con Tesseract en el PATH).
 - **Desplegado y verificado** (`8221d0b`): producción responde y ya conoce las etapas de
   renglones, contrataciones y hallazgos, que marca como pendientes de recalcular.
 
@@ -432,8 +444,12 @@ Mismo banco de prueba que la sección 8: una copia de trabajo del legajo real (3
    Corrige una suposición mía: los pliegos, las especificaciones y las memorias de este
    legajo **no traen listas de precios** —0 tablas con importes sobre 29—, así que el
    cambio sirve para trazabilidad, no para sumar renglones.
-4. **Las listas de precios de los presupuestos se pierden enteras: 12 tablas de
-   presupuesto tienen descripción e importes y no dan un solo renglón.** La columna de
+4. ~~**Las listas de precios de los presupuestos se pierden enteras: 12 tablas de
+   presupuesto tienen descripción e importes y no dan un solo renglón.**~~ Resuelto en
+   `392966b`: 8 renglones de presupuesto con su importe impreso y `precio_motivo`
+   `rol_incierto`. Las otras planillas no cumplen la condición conservadora —moneda
+   explícita en cada fila— y siguen sin renglones.
+   Lo que decía el diagnóstico original: La columna de
    importes no se asigna porque no hay encabezado ni cantidad que la desambigüe. El
    presupuesto es nivel de referencia C: perderlo es perder con qué comparar. Preparado
    para Codex en `TASK_CODEX_7d.md`, con la regla: se crea el renglón con el importe
