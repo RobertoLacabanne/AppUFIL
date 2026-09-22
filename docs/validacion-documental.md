@@ -367,10 +367,60 @@ los otros diez sólo el texto leído.
 
 ## PENDIENTE
 
-1. **Renglones con precio en las planillas reales: 17 renglones, ninguno con precio
-   unitario.** Es lo que falta para que el comparador sirva sobre este legajo (R16, tarea
-   de Codex).
-2. Contrataciones y hallazgos (7b).
+1. ~~**Renglones con precio en las planillas reales: 17 renglones, ninguno con precio
+   unitario.**~~ Resuelto en la sección 9: 117 de 170 renglones con precio unitario.
+2. ~~Contrataciones y hallazgos (7b).~~ Integrado y medido en la sección 9.
 3. Una referencia humana mínima (qué es cada foja, en una muestra) para medir la
    clasificación con precisión y cobertura y no con señales indirectas.
+4. «Actualizar análisis» en producción: lo decide Roberto.
+
+# 9. Incremento 7b — contrataciones, precios y hallazgos sobre el legajo real
+
+Mismo banco de prueba que la sección 8: una copia de trabajo del legajo real (302 piezas,
+1.628 fojas). Nada de este material entra al repositorio; lo que se publica son números.
+
+## COMPROBADO ejecutando sobre el legajo real
+
+| Qué | Antes | Después | Commit |
+|---|---|---|---|
+| Contrataciones propuestas | 124, de las cuales 104 de una sola pieza | 20, todas de dos piezas o más, y las mismas 6 con tres etapas o más | `1276bc4` |
+| Renglones sin precio unitario | 98 de 157 | 53 de 170 | `689735c` |
+| Renglones de órdenes de compra sin precio | 64 de 64, motivo «ilegible» | 19 de 77 | `689735c` |
+| Fojas con texto útil adentro de un documento | 400 de 990 | 502 de 990 | `0a24ae6` |
+| Archivos que fallaban al resegmentar | 2 (FOREIGN KEY) | 0 | `79a5470` |
+
+- **Los precios estaban impresos y se tiraban.** Parte del legajo usa coma de miles y punto
+  decimal (`5,087.30`); el lector asumía notación argentina y devolvía nada, así que el
+  renglón quedaba «ilegible» con el número a la vista en la celda. Se lee sólo lo
+  inequívoco: con los dos separadores manda el último, tres decimales exactos son miles, y
+  un solo separador lo decide la tabla por sus tokens inequívocos. Una tabla con las dos
+  notaciones mezcladas no resuelve nada y lo ambiguo queda sin leer. Comprobación
+  aritmética sobre el legajo real: 2.998,10 × 450 = 1.349.145,00, los tres números leídos
+  de la misma fila.
+- **Un dorso en blanco terminaba el documento.** 406 fojas de continuación quedaban fuera
+  de toda pieza, y una tabla fuera de una pieza no da ningún renglón. Cruzar el blanco
+  —sólo si después sigue una continuación— mete 102 fojas con texto adentro de su documento.
+- **Una pieza sola no es una contratación.** El sistema proponía 124 contrataciones y 104
+  tenían un solo documento: tapaban a las que de verdad reconstruyen una compra. Ahora
+  propone únicamente las que unen dos piezas o más; el resto se sigue viendo en Documentos
+  y una persona puede agruparlas a mano.
+- **Suite completa**: 913 pruebas, 0 fallas, 1 salteada (con Tesseract en el PATH).
+
+## INFERIDO, no medido
+
+- Que los 19 renglones de órdenes de compra que siguen sin precio sean ilegibles de verdad
+  y no otra notación más: no se revisaron foja por foja.
+- Que las 20 contrataciones propuestas correspondan a 20 compras reales: hace falta que una
+  persona mire la ficha de cada una.
+
+## PENDIENTE
+
+1. **Ningún hallazgo de diferencia de precio sobre el legajo real todavía.** Con los precios
+   recuperados hay material para comparar; falta correr «Actualizar análisis» en producción
+   y mirar qué sale.
+2. Los remitos (23 renglones) y las órdenes de pago (7) siguen sin precio unitario, que es
+   lo que corresponde: un remito dice qué se entregó, no a cuánto.
+3. Que los tipos que hoy no arrancan pieza —pliego, especificaciones técnicas, memoria
+   descriptiva— pasen a arrancarla: son 276 fojas con texto que quedan fuera de todo
+   documento y definen qué se pidió, que es justo lo que hace comparables dos precios.
 4. «Actualizar análisis» en producción: lo decide Roberto.
