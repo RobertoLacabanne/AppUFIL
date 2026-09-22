@@ -388,6 +388,8 @@ Mismo banco de prueba que la sección 8: una copia de trabajo del legajo real (3
 | Renglones de órdenes de compra sin precio | 64 de 64, motivo «ilegible» | 19 de 77 | `689735c` |
 | Fojas con texto útil adentro de un documento | 400 de 990 | 502 de 990 | `0a24ae6` |
 | Archivos que fallaban al resegmentar | 2 (FOREIGN KEY) | 0 | `79a5470` |
+| Piezas | 302 | 332, con pliegos y especificaciones entre ellas | `88fcda3` |
+| Fojas adentro de un documento | 601 | 720 de 1.628 | `88fcda3` |
 
 - **Los precios estaban impresos y se tiraban.** Parte del legajo usa coma de miles y punto
   decimal (`5,087.30`); el lector asumía notación argentina y devolvía nada, así que el
@@ -404,7 +406,12 @@ Mismo banco de prueba que la sección 8: una copia de trabajo del legajo real (3
   tenían un solo documento: tapaban a las que de verdad reconstruyen una compra. Ahora
   propone únicamente las que unen dos piezas o más; el resto se sigue viendo en Documentos
   y una persona puede agruparlas a mano.
-- **Suite completa**: 913 pruebas, 0 fallas, 1 salteada (con Tesseract en el PATH).
+- **El pliego y las especificaciones ahora son documentos.** Dicen qué se pidió, que es la
+  base para afirmar que dos precios son comparables, y mientras no eran pieza sus fojas no
+  colgaban de ninguna contratación ni se podían abrir desde un precio.
+- **Suite completa**: 914 pruebas, 0 fallas, 1 salteada (con Tesseract en el PATH).
+- **Desplegado y verificado** (`8221d0b`): producción responde y ya conoce las etapas de
+  renglones, contrataciones y hallazgos, que marca como pendientes de recalcular.
 
 ## INFERIDO, no medido
 
@@ -420,7 +427,12 @@ Mismo banco de prueba que la sección 8: una copia de trabajo del legajo real (3
    y mirar qué sale.
 2. Los remitos (23 renglones) y las órdenes de pago (7) siguen sin precio unitario, que es
    lo que corresponde: un remito dice qué se entregó, no a cuánto.
-3. Que los tipos que hoy no arrancan pieza —pliego, especificaciones técnicas, memoria
-   descriptiva— pasen a arrancarla: son 276 fojas con texto que quedan fuera de todo
-   documento y definen qué se pidió, que es justo lo que hace comparables dos precios.
-4. «Actualizar análisis» en producción: lo decide Roberto.
+3. ~~Que el pliego, las especificaciones técnicas y la memoria descriptiva arranquen
+   pieza.~~ Hecho (`88fcda3`): 30 piezas nuevas y 119 fojas más adentro de un documento.
+   Falta que sus tablas den renglones: hoy no aportan ninguno.
+4. Las 3 fojas de pliego, especificaciones o memoria que caen en medio de otro documento
+   —un título citado adentro de una resolución— ahora lo parten en dos. Hace falta que una
+   persona pueda volver a unir dos piezas, como ya puede continuar una en otro archivo.
+5. «Actualizar análisis» en producción: lo decide Roberto. Con el despliegue nuevo, la
+   pantalla de actualización marca desactualizadas clasificación, segmentación, extracción,
+   renglones, contrataciones y hallazgos, y 340 fojas de OCR pendientes.
