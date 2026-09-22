@@ -429,10 +429,22 @@ Mismo banco de prueba que la sección 8: una copia de trabajo del legajo real (3
    lo que corresponde: un remito dice qué se entregó, no a cuánto.
 3. ~~Que el pliego, las especificaciones técnicas y la memoria descriptiva arranquen
    pieza.~~ Hecho (`88fcda3`): 30 piezas nuevas y 119 fojas más adentro de un documento.
-   Falta que sus tablas den renglones: hoy no aportan ninguno.
-4. Las 3 fojas de pliego, especificaciones o memoria que caen en medio de otro documento
+   Corrige una suposición mía: los pliegos, las especificaciones y las memorias de este
+   legajo **no traen listas de precios** —0 tablas con importes sobre 29—, así que el
+   cambio sirve para trazabilidad, no para sumar renglones.
+4. **Las listas de precios de los presupuestos se pierden enteras: 12 tablas de
+   presupuesto tienen descripción e importes y no dan un solo renglón.** La columna de
+   importes no se asigna porque no hay encabezado ni cantidad que la desambigüe. El
+   presupuesto es nivel de referencia C: perderlo es perder con qué comparar. Preparado
+   para Codex en `TASK_CODEX_7d.md`, con la regla: se crea el renglón con el importe
+   impreso y `precio_motivo='rol_incierto'`, sin afirmar si es unitario o total.
+   Lo mismo en 25 tablas de fojas que todavía no pertenecen a ninguna pieza, 6 de órdenes
+   de pago y 5 de órdenes de compra.
+5. **111 de las 113 tablas detectadas en resoluciones son ruido**: el detector arma tablas
+   sobre texto corrido. No rompen nada (no dan renglones), pero ensucian el recuento.
+6. Las 3 fojas de pliego, especificaciones o memoria que caen en medio de otro documento
    —un título citado adentro de una resolución— ahora lo parten en dos. Hace falta que una
    persona pueda volver a unir dos piezas, como ya puede continuar una en otro archivo.
-5. «Actualizar análisis» en producción: lo decide Roberto. Con el despliegue nuevo, la
+7. «Actualizar análisis» en producción: lo decide Roberto. Con el despliegue nuevo, la
    pantalla de actualización marca desactualizadas clasificación, segmentación, extracción,
    renglones, contrataciones y hallazgos, y 340 fojas de OCR pendientes.
