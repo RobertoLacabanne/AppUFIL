@@ -198,7 +198,7 @@ class PapeleraEscala(unittest.TestCase):
         sha, antes = self._papelera_historica_24()
         self.assertTrue(db.inicializar(self.cx))
         self.assertFalse(db.inicializar(self.cx))
-        self.assertEqual(self.cx.execute('PRAGMA user_version').fetchone()[0], 25)
+        self.assertEqual(self.cx.execute('PRAGMA user_version').fetchone()[0], db.ESQUEMA_VERSION)
         fila = pa.listar(self.cx)['archivos'][0]
         self.assertEqual((fila['paginas'], fila['lote'], fila['decisiones_humanas']), (1, 'Lote sintético', 4))
         self.assertNotIn('assets', json.loads(self.cx.execute('SELECT registros FROM papelera_archivo').fetchone()[0]))
