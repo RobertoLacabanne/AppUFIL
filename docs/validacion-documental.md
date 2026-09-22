@@ -345,7 +345,7 @@ los otros diez sólo el texto leído.
 | Fojas a releer con «Actualizar análisis» | 750 (el archivo entero) | 340 (las que faltaban) | `fc291c5` |
 | Revisiones humanas vigentes después de resegmentar | 4 de 6 | 6 de 6 | `bb77a62`, `e8c638f` |
 | Piezas | 54, todas facturas o contratos | 258, de ocho tipos | `2a055b2` |
-| Remitos con la leyenda «no válido como factura» bien clasificados | 0 de 13 | 13 de 13 | `4f932d4` |
+| Remitos con la leyenda «no válido como factura» bien clasificados | 0 de 13 (7 de 13 con el 7a) | 12 de 13 con la regla; 13 de 13 al tomar la leyenda de cualquier ruta de OCR | `4f932d4` y el siguiente |
 | Tablas detectadas | 61 en 41 fojas | 558, ninguna de ruido; las 82 con importes | 7a de Codex, `88ab54b` |
 | Archivos que fallaban al extraer | 2 (FOREIGN KEY) | 0 | `7fa1554` |
 | Panel: «páginas leídas» | 1.628 (todas) | 1.288 / 1.628 | `ab35d32` |

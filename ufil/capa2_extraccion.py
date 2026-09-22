@@ -684,6 +684,10 @@ def _clases_guardadas(cx: sqlite3.Connection, sha: str) -> dict:
 
 
 # ───────────────────────────────────────────────────── ETAPA: clasificación ──
+# La leyenda que todo remito lleva impresa y ninguna factura (ver clasificacion.py).
+LEYENDA_REMITO = "NO VALIDO COMO FACTURA"
+
+
 def clasificar_fojas(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict:
     """
     Qué es cada foja de este archivo. Depende de la lectura y de nada más.
@@ -719,7 +723,14 @@ def clasificar_fojas(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict
         # archivo, y distinguirlas es justamente para lo que sirve clasificar.
         vistas.add(nro)
         plano = normalizar_cotejo(" ".join(w.texto for w in pw[:120]))
-        if len(plano) > len(encabezados.get(nro, "")):
+        # Entre rutas gana el encabezado más largo, salvo que otra ruta haya leído la
+        # leyenda de remito y ésta no: esa leyenda decide el tipo, y en un legajo real una
+        # ruta la leyó entera y la otra —más larga— dañada, y la foja salía «orden de compra».
+        ya = encabezados.get(nro, "")
+        leyenda_nueva = cl.contiene_marca(plano, LEYENDA_REMITO)
+        leyenda_ya = bool(ya) and cl.contiene_marca(ya, LEYENDA_REMITO)
+        if (leyenda_nueva and not leyenda_ya) or (
+                len(plano) > len(ya) and (leyenda_nueva or not leyenda_ya)):
             encabezados[nro] = plano
         # Se juntan las rutas: lo más que alguna VIO y lo más que alguna LEYÓ. Quedarse
         # con la ruta de más útiles no alcanzaba: en un legajo real, una ruta devolvió

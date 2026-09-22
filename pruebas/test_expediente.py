@@ -217,6 +217,40 @@ class ElExpedienteTraeSusPropiasFojas(unittest.TestCase):
         factura = normalizar_cotejo("ORIGINAL FACTURA B PUNTO DE VENTA 0003 COMP NRO 00001234")
         self.assertEqual(cl.clasificar_pagina(factura)[0], "factura")
 
+    def test_si_una_ruta_leyo_la_leyenda_del_remito_vale(self):
+        """
+        Encontrado en un legajo real: una ruta de OCR leyó la leyenda entera y la otra,
+        con un encabezado más largo, dañada. Ganaba el encabezado más largo y la foja
+        salía «orden de compra».
+        """
+        import tempfile
+        from ufil import db
+        from ufil.capa1_texto import Palabra
+        from ufil.capa2_extraccion import clasificar_fojas
+        from ufil.db import ahora
+
+        def palabras(texto):
+            return [Palabra(w, 10 + 30 * i, 20, 38 + 30 * i, 30, 0.8) for i, w in enumerate(texto.split())]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cx = db.abrir(Path(tmp) / "t.sqlite")
+            try:
+                sha = "f" * 64
+                cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,paginas,ingerido_en)
+                              VALUES (?,'/x/a.pdf','a.pdf',1,1,?)""", (sha, ahora()))
+                cx.execute("INSERT INTO pagina (sha256,nro) VALUES (?,1)", (sha,))
+                cx.commit()
+                larga_danada = ("AN DOCUMENTO N0 VAL1D0 C0M0 FACTUR4 ORDEN DE COMPRA NUMERO 12 "
+                                "PROVEEDOR SINTETICO DOMICILIO CALLE FALSA 123 CIUDAD CODIGO POSTAL "
+                                "TELEFONO CORREO CANTIDAD DESCRIPCION BULTOS ENTREGADOS")
+                corta_buena = "DOCUMENTO NO VALIDO COMO FACTURA REMITO 0001-00004567"
+                r = clasificar_fojas(cx, sha, por_ruta={
+                    "ocr_a": [(1, None, palabras(larga_danada))],
+                    "ocr_b": [(1, None, palabras(corta_buena))]})
+                self.assertEqual(r["clases"][1], "remito")
+            finally:
+                cx.close()
+
     def test_una_resolucion_se_reconoce_por_su_cuerpo(self):
         """
         El título está arriba a la derecha, que es justo donde se apilan los sellos de
