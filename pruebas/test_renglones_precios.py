@@ -48,6 +48,37 @@ def vincular(cx):
 
 
 class DecimalesYEstadisticas(unittest.TestCase):
+    def test_importes_exigen_dos_decimales_o_moneda(self):
+        for t in ('1.234', '12.345', '1,234', '1.234.567', '100',
+                  '12,3', '12,3456', '1.234,567', '10,00%', '10,00 %',
+                  'abc1.234,00', '1.234,00abc', '1.23.45'):
+            with self.subTest(token=t):
+                self.assertEqual(rg.importes(t), [])
+        for t in ('5.087,30', '40,017.60', '$ 100', '$ 1.234',
+                  'ARS 100', 'USD 1,234', '100 ARS', '1.234 USD',
+                  '$ 1.234,567', 'ars 100', '-20,50'):
+            with self.subTest(token=t):
+                self.assertEqual(rg.importes(t), [t])
+        self.assertEqual(rg.importes('1905.60', '.'), ['1905.60'])
+        self.assertEqual(rg.decimal_argentino('1.234'), Decimal(1234))
+
+    def test_codigos_no_sostienen_cuentas_accidentales(self):
+        cs = [dict(fila=f, columna=c, texto=t, es_encabezado=0)
+              for f, fila in enumerate([
+                  ('1.234', '2 un Cable', '2.468,00'),
+                  ('2.345', '3 un Cinta', '7.035,00')])
+              for c, t in enumerate(fila)]
+        self.assertEqual(rg.filas_por_cuenta(cs), {})
+        # La misma cuenta sí sirve con precios enteros marcados como dinero.
+        for c in cs:
+            if c['columna'] == 0:
+                c['texto'] = '$ 100'
+            elif c['columna'] == 2:
+                c['texto'] = '$ 200' if c['fila'] == 0 else '$ 300'
+        filas = rg.filas_por_cuenta(cs)
+        self.assertEqual(len(filas), 2)
+        self.assertTrue(all(v['precio']['texto'] == '$ 100' for v in filas.values()))
+
     def test_importe_incierto_respeta_cantidad_y_exige_moneda_en_cada_fila(self):
         def celdas(filas):
             return [dict(fila=f, columna=c, texto=t, es_encabezado=0)
