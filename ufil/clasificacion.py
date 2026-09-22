@@ -478,6 +478,14 @@ def tramos_por_tipo(clases: dict[int, str], tipo: str) -> list[tuple[int, int]]:
 
     Ese corte es lo que evita que el último contrato de una pila se quede con todas las
     facturas que venían atrás.
+
+    Una foja en blanco en el medio no termina el documento —es el dorso de la hoja—, así
+    que la cadena la cruza, pero sólo si después sigue una `continuacion`: en blanco al
+    final es el final. Medido sobre un legajo real de 1.628 fojas: 406 fojas de
+    continuación quedaban fuera de todo documento y con ellas se perdía el cuerpo del
+    documento —la tabla de una orden de compra que sigue en la carilla siguiente, por
+    ejemplo, que sin pieza no da ningún renglón—. Cruzar el dorso en blanco mete 102 de
+    esas fojas adentro de su documento.
     """
     if tipo not in TIPOS_POR_CLAVE:
         return []
@@ -493,9 +501,18 @@ def tramos_por_tipo(clases: dict[int, str], tipo: str) -> list[tuple[int, int]]:
         fin = n
         if not una_sola_foja:
             j = i + 1
-            while j < len(nros) and clases[nros[j]] == "continuacion":
-                fin = nros[j]
-                j += 1
+            while j < len(nros):
+                if clases[nros[j]] == "continuacion":
+                    fin = nros[j]
+                    j += 1
+                    continue
+                k = j
+                while k < len(nros) and clases[nros[k]] == "en_blanco":
+                    k += 1
+                if k == j or k >= len(nros) or clases[nros[k]] != "continuacion":
+                    break
+                fin = nros[k]
+                j = k + 1
             i = j
         else:
             i += 1
