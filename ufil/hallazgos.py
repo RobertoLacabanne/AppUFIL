@@ -72,6 +72,28 @@ def _op(cx, r, campo):
     return dict(nombre=campo, valor=r[campo], fuente=rg.fuente(cx, r, rol))
 
 
+def _vale_senalar(estadisticas) -> bool:
+    """
+    Si la comparación no da para señalar nada, no se señala.
+
+    Un hallazgo dice «mirá esto». Sobre una sola referencia aproximada no hay nada que
+    mirar: la diferencia puede ser toda del lado de la referencia. El contrato ya fijaba
+    un mínimo de referencias (`min_referencias`) y nadie lo estaba aplicando acá.
+
+    Medido sobre el legajo real, con los precios recién recuperados: salían 18
+    diferencias de precio y las 18 eran de nivel E con UNA referencia y comparabilidad
+    dudosa; una daba 152.477 % —el síntoma clásico de comparar un unitario contra un
+    total—. Dieciocho avisos así entierran a los que valen y le hacen perder el tiempo a
+    quien los mire.
+
+    La comparación no desaparece: se sigue viendo en la pantalla del renglón, con su
+    nivel y sus motivos, para quien la vaya a buscar. Lo que no hace es salir sola a
+    decir que hay algo.
+    """
+    nivel, n = (estadisticas or {}).get('nivel'), (estadisticas or {}).get('n') or 0
+    return nivel in ('A', 'B', 'C', 'D') and n >= cp.UMBRALES['min_referencias']
+
+
 def recalcular(cx):
     docs = ct.documentos(cx)
     por_doc = {d['id']: d for d in docs}
@@ -105,7 +127,8 @@ def recalcular(cx):
         if r['etapa'] in ('adjudicacion', 'orden_compra', 'factura') and r['precio_unitario'] is not None:
             comp = precios.comparar(cx, r['id'])
             pct = (comp['diferencia'] or {}).get('porcentual')
-            if pct is not None and Decimal(pct) > Decimal(cp.UMBRALES['diferencia_senalable_pct']):
+            if pct is not None and Decimal(pct) > Decimal(cp.UMBRALES['diferencia_senalable_pct']) \
+                    and _vale_senalar(comp['estadisticas']):
                 claves = [r['clave']] + [rg.fila(cx, ref['renglon']['id'])['clave'] for ref in comp['referencias']
                                         if ref['nivel'] == comp['estadisticas']['nivel']]
                 agregar('diferencia_precio', cid, claves, [op['fuente'] for op in comp['calculo']['operandos']],

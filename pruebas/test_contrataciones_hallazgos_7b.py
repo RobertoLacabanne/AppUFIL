@@ -83,6 +83,23 @@ class ReconstruccionYHallazgos(unittest.TestCase):
         ha.recalcular(self.cx)
         return ha.listar(self.cx,limite=500)['hallazgos']
 
+    def test_una_sola_referencia_aproximada_no_es_un_hallazgo(self):
+        """
+        Sobre el legajo real, con los precios recién recuperados, salían 18 diferencias
+        de precio y las 18 eran de nivel E con UNA referencia y comparabilidad dudosa;
+        una daba 152.477 %, el síntoma de comparar un unitario contra un total. El
+        contrato ya fijaba `min_referencias` y nadie lo aplicaba acá.
+        """
+        self.assertFalse(ha._vale_senalar({'nivel': 'E', 'n': 1}))
+        self.assertFalse(ha._vale_senalar({'nivel': 'E', 'n': 9}), 'aproximada sigue siendo aproximada')
+        self.assertFalse(ha._vale_senalar({'nivel': 'A', 'n': 1}), 'una sola referencia no es una muestra')
+        self.assertTrue(ha._vale_senalar({'nivel': 'A', 'n': 2}))
+        self.assertTrue(ha._vale_senalar({'nivel': 'D', 'n': 3}))
+        self.assertFalse(ha._vale_senalar({}))
+        # Y la comparación no desaparece: se sigue pudiendo pedir para el renglón.
+        r = self.cx.execute("SELECT id FROM renglon WHERE etapa='factura' LIMIT 1").fetchone()[0]
+        self.assertIn('estadisticas', precios.comparar(self.cx, r))
+
     def test_un_importe_sin_rol_no_es_un_renglon_sin_precio(self):
         """
         En el legajo real hay doce planillas de presupuesto con descripción e importe por
