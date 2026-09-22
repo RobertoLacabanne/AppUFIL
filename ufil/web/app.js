@@ -5789,14 +5789,6 @@ if ($('#visor-zoom-out')) {
 }
 
 
-  } else {
-    if (lienzo2) lienzo2.hidden = true;
-  }
-
-  visor.hidden = false;
-  document.body.classList.add('con-visor');
-}
-
 function abrirDosFojas(f1, f2) {
   if (!f1) return;
   const nro1 = fojaDe(f1);
