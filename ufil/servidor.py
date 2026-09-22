@@ -1341,6 +1341,20 @@ class Manejador(BaseHTTPRequestHandler):
                 try:
                     # Incremento 7a: catálogo, precios y comparación trazable.
                     import re
+                    # Incremento 7b: contrataciones propuestas y hallazgos revisables.
+                    if ruta in ('/api/contrataciones', '/api/hallazgos') or re.fullmatch(r'/api/contratacion/\d+', ruta):
+                        from . import contrataciones, hallazgos, renglones
+                        try:
+                            filtros = {k: v[0] for k, v in q.items()}
+                            if ruta == '/api/contrataciones':
+                                return self._json(contrataciones.listar(cx, **filtros))
+                            if ruta == '/api/hallazgos':
+                                return self._json(hallazgos.listar(cx, **filtros))
+                            return self._json(contrataciones.ficha(cx, int(ruta.rsplit('/', 1)[1])))
+                        except renglones.NoEncontrado as e:
+                            return self._json({'error': str(e), 'no_encontrado': True}, 404)
+                        except ValueError as e:
+                            return self._json({'error': str(e)}, 400)
                     if ruta == "/api/catalogo/contrataciones":
                         from . import comparabilidad as cp
                         return self._json(cp.catalogo())
@@ -1818,6 +1832,13 @@ class Manejador(BaseHTTPRequestHandler):
         try:
             # Incremento 7a: decisión humana sobre el ítem, anclada al renglón.
             import re
+            m_revision = re.fullmatch(r'/api/hallazgo/(\d+)/revision', u.path)
+            if m_revision:
+                from . import hallazgos, renglones
+                try:
+                    return self._json(hallazgos.revisar(cx, int(m_revision[1]), cuerpo))
+                except renglones.NoEncontrado as e:
+                    return self._json({'error': str(e), 'no_encontrado': True}, 404)
             m_item = re.fullmatch(r"/api/renglon/(\d+)/item", u.path)
             if m_item:
                 from . import renglones

@@ -103,9 +103,11 @@ class RenglonesDelCorpus(unittest.TestCase):
         self.assertTrue(dato['precio_unitario']['fuente']['celdas'])
         self.assertEqual(dato['fecha']['valor'], '2023-08-24')
         self.assertIsNotNone(dato['fecha']['fuente']['region'])
-        # El corpus NO imprime moneda ni tratamiento de IVA en la factura.
-        self.assertIsNone(r['moneda'])
-        self.assertIsNone(r['iva'])
+        # La factura del corpus no dice «pesos» ni «IVA incluido», pero sí lo dice de
+        # las dos formas en que lo dice una factura argentina: el «$» de los importes y
+        # la letra B. Ver docs/contrataciones-y-precios.md §2.2.
+        self.assertEqual(r['moneda'], 'ARS')
+        self.assertEqual(r['iva'], 'incluido')
         self.assertEqual(r['estado'], 'pendiente_baja')
 
     def test_comparacion_nominal_con_atributos_explicitos(self):
@@ -127,6 +129,11 @@ class RenglonesDelCorpus(unittest.TestCase):
 
     def test_sin_atributos_no_inventa_fuerte(self):
         vincular(self.cx)
+        # Cuando el papel no dice nada —ni «$», ni letra de factura, ni «pesos»— no hay
+        # con qué afirmar que es el mismo producto: se borran los atributos del renglón
+        # analizado y de sus referencias.
+        self.cx.execute("UPDATE renglon SET moneda=NULL, iva=NULL")
+        self.cx.commit()
         c = precios.comparar(self.cx, self.factura()['id'])
         self.assertNotEqual(c['estadisticas']['nivel'], 'A')
         self.assertTrue(all(r['comparabilidad']['estado'] != 'fuerte' for r in c['referencias']))
