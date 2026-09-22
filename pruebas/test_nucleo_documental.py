@@ -240,12 +240,20 @@ class CadaDocumentoEsUnaPiezaAunqueNoHayaExtractor(unittest.TestCase):
         # mientras no existan los tipos de orden de compra, oferta o adjudicación muchas
         # pueden ser OTRO documento sin reconocer. Pegárselas mezclaría dos documentos.
         self.assertEqual(piezas_, [(1, 1, "factura"), (2, 2, "remito"), (4, 4, "resolucion"),
-                                   (5, 6, "presupuesto")])
+                                   (5, 6, "presupuesto"), (7, 7, "pliego")])
 
     def test_el_contexto_del_expediente_no_se_parte_en_pedazos(self):
+        """
+        El pliego SÍ forma pieza —dice qué se pidió, y sin pieza sus tablas no dan
+        renglones—, pero una foja en blanco no es un documento y el pase, el plano, la
+        póliza y la constancia siguen siendo contexto del expediente.
+        """
+        self.cx.execute("UPDATE pagina SET clasificacion='pase' WHERE sha256=? AND nro=8",
+                        (SHA_A,))
+        self.cx.commit()
         segmentar_piezas(self.cx, SHA_A, por_ruta={"ocr_a": []})
         tipos = {r[0] for r in self.cx.execute("SELECT tipo FROM documento")}
-        self.assertNotIn("pliego", tipos)
+        self.assertNotIn("pase", tipos)
         self.assertNotIn("en_blanco", tipos)
 
 

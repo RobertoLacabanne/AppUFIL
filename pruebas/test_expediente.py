@@ -187,15 +187,30 @@ class ElExpedienteTraeSusPropiasFojas(unittest.TestCase):
                           f"el expediente trae «{clave}» y el sistema no lo conoce")
             self.assertIn(clave, cl.ETIQUETAS, f"«{clave}» sin nombre en pantalla")
 
-    def test_ninguno_parte_el_expediente_en_pedazos(self):
-        """
-        Un expediente no es una pila de documentos independientes: es UNA actuación.
-        Si cada foja arrancara un documento, el expediente quedaría partido en cuarenta
-        documentos de una hoja que después habría que volver a pegar.
-        """
-        for clave in self.ESPERADOS:
+    # Lo que acompaña al expediente y no es un documento en sí: si cada una de estas
+    # fojas arrancara uno, el expediente quedaría partido en cuarenta documentos de una
+    # hoja que después habría que volver a pegar.
+    CONTEXTO = ("plano", "poliza", "constancia", "pase")
+    # Lo que sí es un documento: dice qué se pidió o a cuánto, y por eso tiene que poder
+    # colgar de una contratación y abrirse desde un precio.
+    DOCUMENTOS = ("pliego", "especificaciones", "memoria", "presupuesto", "acta_apertura")
+
+    def test_el_contexto_no_parte_el_expediente_en_pedazos(self):
+        for clave in self.CONTEXTO:
             self.assertFalse(cl.TIPOS_POR_CLAVE[clave].arranca,
                              f"«{clave}» parte el expediente en pedazos")
+            self.assertNotIn(clave, cl.TIPOS_PIEZA)
+
+    def test_lo_que_dice_que_se_pidio_o_a_cuanto_es_una_pieza(self):
+        """
+        Mientras el pliego y las especificaciones no eran pieza, sus fojas no
+        pertenecían a ningún documento: no se podían abrir desde una contratación y sus
+        tablas no daban un solo renglón. Y son justamente las que dicen QUÉ se pidió,
+        que es lo que permite después afirmar que dos precios son comparables.
+        """
+        for clave in self.DOCUMENTOS:
+            self.assertIn(clave, cl.TIPOS_PIEZA,
+                          f"«{clave}» no forma pieza y define qué se compró")
 
     def test_y_los_de_la_legislatura_siguen_arrancando(self):
         """Un contrato sí es un documento suelto adentro del PDF."""

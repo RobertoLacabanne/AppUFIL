@@ -94,13 +94,20 @@ TIPOS: tuple[Tipo, ...] = TIPOS_COMPRA + (
     # expediente no es una pila de documentos independientes, es UNA actuación. Por
     # eso van con `arranca=False`: identifican la foja sin partir el expediente en
     # pedazos que después habría que volver a pegar.
+    # El pliego, las especificaciones y la memoria SÍ arrancan un documento: dicen qué
+    # se pidió, que es lo que después permite afirmar que dos precios son comparables.
+    # Cuando no eran pieza, sus fojas no pertenecían a ningún documento, no se podían
+    # abrir desde una contratación y sus tablas no daban un solo renglón. Medido sobre
+    # el legajo real: 83 fojas con texto entraban a un documento al hacerlas pieza, y
+    # sólo 3 fojas de estos tres tipos caen en medio de otro documento —un título
+    # citado adentro de una resolución— y ahí sí lo parten en dos.
     Tipo("pliego", "Pliego de condiciones",
          ("PLIEGO DE CONDICIONES", "PLIEGO DE ESPECIFICACIONES",
-          "CONDICIONES PARA COTEJO DE PRECIOS"), arranca=False, fojas_tipicas=3),
+          "CONDICIONES PARA COTEJO DE PRECIOS"), fojas_tipicas=3),
     Tipo("especificaciones", "Especificaciones técnicas",
-         ("ESPECIFICACIONES TECNICAS",), arranca=False, fojas_tipicas=4),
+         ("ESPECIFICACIONES TECNICAS",), fojas_tipicas=4),
     Tipo("memoria", "Memoria descriptiva",
-         ("MEMORIA DESCRIPTIVA",), arranca=False, fojas_tipicas=2),
+         ("MEMORIA DESCRIPTIVA",), fojas_tipicas=2),
     Tipo("presupuesto", "Presupuesto",
          ("PRESUPUESTO OFICIAL", "COMPUTO Y PRESUPUESTO",
           "MATERIALES PARA SISTEMAS", "PRESUPUESTO", "COTIZACION"), arranca=False, fojas_tipicas=2),
