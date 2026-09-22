@@ -31,6 +31,7 @@ renglones en vez de sobre una sopa de palabras.
 from __future__ import annotations
 
 import sqlite3
+import math
 
 from .db import ahora
 
@@ -71,6 +72,42 @@ def _legible(celdas) -> bool:
     tokens = [w.strip("|¦[]{}()¡!¿?:;,'\"") for c in celdas for w in (c["texto"] or "").split()]
     m = medir(t for t in tokens if t)
     return m.palabras > 0 and m.proporcion_util >= UTILES_MINIMOS_TABLA
+
+
+def _estructurada(celdas) -> bool:
+    """Exige dos columnas de contenido que se repitan en las mismas filas.
+
+    Los índices asignados por el detector no prueban alineación: se comprueban
+    las cajas originales. Rayas y fragmentos OCR no sostienen una columna,
+    aunque estén al lado de un párrafo legible. Los números cortos sí cuentan.
+    Dos filas permiten validar listas ya guardadas; la detección sigue exigiendo
+    una semilla de MIN_FILAS. Sin coordenadas no se descarta evidencia antigua.
+    """
+    if not celdas:
+        return False
+    filas = {}
+    for c in celdas:
+        caja = c.get('caja') if 'caja' in c else (c.get('x0'), c.get('y0'), c.get('x1'), c.get('y1'))
+        if not caja or any(v is None for v in caja):
+            return True
+        filas.setdefault(c['fila'], []).append((c, caja))
+    minimo = max(2, math.ceil(len(filas) * PROPORCION_ALINEADA))
+    pares = []
+    for fila, cs in filas.items():
+        utiles = sorted((caja for c, caja in cs
+                         if any(ch.isdigit() for ch in c['texto']) or _legible([c])),
+                        key=lambda caja: caja[0])
+        for i, a in enumerate(utiles):
+            for b in utiles[i + 1:]:
+                if b[0] - a[2] >= MIN_HUECO:
+                    pares.append((fila, a[0], b[0]))
+    for _, x, y in pares:
+        coinciden = {f for f, a, b in pares
+                     if abs(a - x) <= TOLERANCIA_COLUMNA
+                     and abs(b - y) <= TOLERANCIA_COLUMNA}
+        if len(coinciden) >= minimo:
+            return True
+    return False
 
 
 def _renglones(palabras) -> list[list]:
@@ -183,7 +220,6 @@ def detectar_en_pagina(palabras, ancho: float = 0, alto: float = 0) -> list[dict
     for (inicio, fin, columnas), _ in sorted(candidatos.items(), key=lambda x: -x[1]):
         if usados.intersection(range(inicio, fin)):
             continue
-        usados.update(range(inicio, fin))
         celdas = []
         for n, r in enumerate(filas[inicio:fin]):
             for col, ps in sorted(_celdas_fila(r, columnas).items()):
@@ -198,8 +234,9 @@ def detectar_en_pagina(palabras, ancho: float = 0, alto: float = 0) -> list[dict
              "caja": (min(p.x0 for p in todas), min(p.y0 for p in todas),
                       max(p.x1 for p in todas), max(p.y1 for p in todas)),
              "confianza": 0.95}
-        if not _legible(celdas):
+        if not _legible(celdas) or not _estructurada(celdas):
             continue
+        usados.update(range(inicio, fin))
         _marcar_encabezado(t)
         tablas.append(t)
     return sorted(tablas, key=lambda t: t["caja"][1])
@@ -344,8 +381,9 @@ def confirmar_continuidad(cx: sqlite3.Connection, tabla_id: int, sigue_de: int |
 
 
 def de_archivo(cx: sqlite3.Connection, sha: str) -> list[dict]:
-    return [_arma(cx, f) for f in cx.execute(
+    candidatas = [_arma(cx, f) for f in cx.execute(
         """SELECT * FROM tabla WHERE sha256=? ORDER BY pagina_nro, orden""", (sha,))]
+    return [t for t in candidatas if t['origen'] == 'humano' or _estructurada(t['celdas'])]
 
 
 def ver(cx: sqlite3.Connection, tabla_id: int) -> dict:

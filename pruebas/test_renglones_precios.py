@@ -156,6 +156,23 @@ class RenglonesDelCorpus(unittest.TestCase):
     def factura(self):
         return dict(self.cx.execute("SELECT * FROM renglon WHERE etapa='factura' AND fila=1").fetchone())
 
+    def test_estructura_guardada_se_verifica_y_la_confirmacion_humana_se_respeta(self):
+        r = self.factura()
+        # Los índices permanecen perfectos, pero las cajas ya no se alinean.
+        self.cx.execute('''UPDATE tabla_celda SET x0=x0+fila*columna*1000,
+                           x1=x1+fila*columna*1000 WHERE tabla_id=?''', (r['tabla_id'],))
+        self.cx.commit()
+        rg.extraer_archivo(self.cx, r['sha256'])
+        self.assertEqual(self.cx.execute('''SELECT count(*) FROM renglon
+                            WHERE tabla_id=? AND vigente=1''', (r['tabla_id'],)).fetchone()[0], 0)
+        self.assertNotIn(r['tabla_id'], {t['id'] for t in tablas.de_archivo(self.cx, r['sha256'])})
+        self.cx.execute("UPDATE tabla SET origen='humano' WHERE id=?", (r['tabla_id'],))
+        self.cx.commit()
+        rg.extraer_archivo(self.cx, r['sha256'])
+        self.assertEqual(self.cx.execute('''SELECT count(*) FROM renglon
+                            WHERE tabla_id=? AND vigente=1''', (r['tabla_id'],)).fetchone()[0], 3)
+        self.assertIn(r['tabla_id'], {t['id'] for t in tablas.de_archivo(self.cx, r['sha256'])})
+
     def lista_sin_encabezado(self, filas):
         t = self.cx.execute("SELECT t.* FROM tabla t JOIN documento d ON d.id=t.documento_id WHERE d.tipo='presupuesto' LIMIT 1").fetchone()
         self.cx.execute('DELETE FROM tabla_celda WHERE tabla_id=?', (t['id'],))

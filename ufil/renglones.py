@@ -461,6 +461,8 @@ def extraer_archivo(cx, sha, *, por_ruta=None):
         cx.execute('UPDATE renglon SET vigente=0 WHERE sha256=?', (sha,))
         for t in cx.execute('SELECT * FROM tabla WHERE sha256=? ORDER BY pagina_nro,orden', (sha,)).fetchall():
             originales = [dict(c) for c in cx.execute('SELECT * FROM tabla_celda WHERE tabla_id=? ORDER BY fila,columna', (t['id'],))]
+            if t['origen'] != 'humano' and not tablas._estructurada(originales):
+                continue
             notacion = notacion_tabla(originales)
             cuentas = filas_por_cuenta(originales)
             doc = docs.get(t['documento_id'])

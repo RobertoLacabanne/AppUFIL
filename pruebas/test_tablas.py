@@ -88,6 +88,34 @@ def _lecturas(cx):
 
 class ReconocerUnaTablaYNoUnParrafo(unittest.TestCase):
 
+    def test_prosa_recortada_junto_a_rayas_no_forma_columnas(self):
+        palabras = []
+        for i, texto in enumerate(LINEAS[:3]):
+            palabras += _fila(100 + i * 20, [texto, '|'], cols=(60, 500))
+        self.assertEqual(tb.detectar_en_pagina(palabras), [])
+
+    def test_tres_filas_tres_columnas_sin_importes(self):
+        palabras = []
+        for i, textos in enumerate([('Nombre', 'Unidad', 'Destino'),
+                                    ('Cable', 'Metro', 'Deposito'),
+                                    ('Tornillo', 'Caja', 'Taller')]):
+            palabras += _fila(100 + i * 20, textos)
+        ts = tb.detectar_en_pagina(palabras)
+        self.assertEqual([(t['filas'], t['columnas']) for t in ts], [(3, 3)])
+
+    def test_indices_de_columna_no_reemplazan_coordenadas(self):
+        celdas = [dict(fila=f, columna=c, texto='contenido',
+                       caja=(60 + c * 200 + f * c * 40, f * 20,
+                             130 + c * 200 + f * c * 40, f * 20 + 11))
+                  for f in range(3) for c in range(3)]
+        self.assertFalse(tb._estructurada(celdas))
+
+    def test_cantidades_cortas_y_filas_incompletas(self):
+        celdas = [dict(fila=f, columna=c, texto=texto,
+                       caja=(60 + c * 200, f * 20, 130 + c * 200, f * 20 + 11))
+                  for f in range(4) for c, texto in enumerate(('Cable', '2'))]
+        self.assertTrue(tb._estructurada(celdas[:-1]))
+
     def test_una_planilla_se_reconoce_con_sus_filas_y_columnas(self):
         t = tb.detectar_en_pagina(_planilla(), 595, 842)
         self.assertEqual(len(t), 1, "esto es una tabla")
