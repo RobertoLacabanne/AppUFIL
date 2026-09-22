@@ -151,6 +151,7 @@ TIPOS_CON_PRECIO = frozenset({"presupuesto", "acta_apertura", "oferta", "cuadro_
 TIPOS_PIEZA = frozenset(t.clave for t in TIPOS if t.arranca) | TIPOS_CON_PRECIO
 ETIQUETAS["continuacion"] = "Continuación"
 ETIQUETAS["desconocida"] = "Sin reconocer"
+ETIQUETAS["desconocido"] = "Documento sin reconocer"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -524,6 +525,46 @@ def tramos_por_tipo(clases: dict[int, str], tipo: str) -> list[tuple[int, int]]:
         else:
             i += 1
         tramos.append((n, fin))
+    return tramos
+
+
+def tramos_sin_reconocer(clases: dict[int, str]) -> list[tuple[int, int]]:
+    """
+    Los documentos que empiezan en una foja que no se pudo leer.
+
+    Una foja `sin_texto_util` es un hueco: el escaneo no dejó texto suficiente para
+    decir qué es. Pero si atrás vienen fojas de continuación, ese hueco es la primera
+    carilla de un documento, y mientras no arranque ninguna pieza todo ese documento
+    —con sus tablas— no pertenece a nada y no da un solo renglón.
+
+    Se lo llama por su nombre: un documento sin reconocer, con sus fojas. Pegárselo a la
+    pieza anterior sería afirmar que son el mismo documento, y eso no se sabe. Medido
+    sobre un legajo real: 29 documentos, 184 fojas y 104 tablas —16 con importes— que no
+    pertenecían a ninguna pieza.
+
+    Una foja ilegible suelta, sin continuación atrás, sigue siendo un hueco: se la ve
+    entre las fojas del archivo y no se inventa un documento alrededor.
+    """
+    nros = sorted(clases)
+    tramos: list[tuple[int, int]] = []
+    for i, n in enumerate(nros):
+        if clases[n] != FOJA_SIN_TEXTO:
+            continue
+        fin, j = n, i + 1
+        while j < len(nros):
+            if clases[nros[j]] == "continuacion":
+                fin = nros[j]
+                j += 1
+                continue
+            k = j
+            while k < len(nros) and clases[nros[k]] == "en_blanco":
+                k += 1
+            if k == j or k >= len(nros) or clases[nros[k]] != "continuacion":
+                break
+            fin = nros[k]
+            j = k + 1
+        if fin != n:
+            tramos.append((n, fin))
     return tramos
 
 

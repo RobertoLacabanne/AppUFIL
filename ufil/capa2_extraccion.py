@@ -834,6 +834,12 @@ def _tramos_del_archivo(cx, sha: str, perfiles: list, por_ruta) -> tuple:
             if t not in perfil_de_tramo:
                 perfil_de_tramo[t] = []
                 tramos.append(t)
+    # Y los documentos que arrancan en una foja que no se pudo leer: existen aunque no
+    # se sepa qué son, y mientras no eran pieza sus tablas no pertenecían a nada.
+    for t in cl.tramos_sin_reconocer(clases):
+        if t not in perfil_de_tramo:
+            perfil_de_tramo[t] = []
+            tramos.append(t)
     tramos.sort()
     if not tramos:
         # Perfiles viejos de formulario, que no declaran un tipo de foja: se sigue
@@ -878,6 +884,20 @@ def _soltar_lo_que_no_cuelga(cx, doc_id: int) -> None:
     """
     cx.execute("UPDATE tabla     SET documento_id=NULL WHERE documento_id=?", (doc_id,))
     cx.execute("UPDATE excepcion SET documento_id=NULL WHERE documento_id=?", (doc_id,))
+
+
+def _tipo_de_pieza(clases: dict, desde: int) -> str:
+    """
+    El tipo de la pieza sale de la clasificación de la foja donde arranca.
+
+    Con una excepción: si esa foja no se pudo leer, la pieza no es «no se pudo leer»
+    —sus otras carillas pueden estar perfectas—, es un documento sin reconocer. El
+    sistema dice que hay algo y que no sabe qué es, que es la verdad.
+    """
+    clase = clases.get(desde)
+    if clase in (None, cl.FOJA_SIN_TEXTO, "desconocida"):
+        return "desconocido"
+    return clase
 
 
 def _borrar_pieza(cx, doc_id: int) -> None:
@@ -983,7 +1003,7 @@ def segmentar_piezas(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "aut
                                  tipo = CASE WHEN clasificado_por IS NULL
                                              THEN ? ELSE tipo END
                            WHERE id=?""",
-                       (i, hasta, clases.get(desde) or vieja["tipo"], vieja["id"]))
+                       (i, hasta, _tipo_de_pieza(clases, desde) or vieja["tipo"], vieja["id"]))
         else:
             # El tipo sale de la clasificación de la foja donde arranca. La extracción
             # lo precisa después con el perfil que gane; hasta entonces la pieza ya
@@ -992,8 +1012,7 @@ def segmentar_piezas(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "aut
                 """INSERT INTO documento (sha256, orden, clave, pagina_desde,
                                           pagina_hasta, tipo, perfil, estado)
                    VALUES (?,?,?,?,?,?,?,'segmentado')""",
-                (sha, i, clave, desde, hasta,
-                 clases.get(desde) or "desconocido", SIN_PERFIL))
+                (sha, i, clave, desde, hasta, _tipo_de_pieza(clases, desde), SIN_PERFIL))
 
     if cambio:
         # Ver el encabezado: sin anclaje no hay forma de saber si la pieza que ocupa

@@ -296,6 +296,47 @@ class UnaPiezaQueCambiaDeTipoNoRompeElArchivo(unittest.TestCase):
         self.assertEqual(self.cx.execute("PRAGMA foreign_key_check").fetchall(), [])
 
 
+class UnDocumentoQueEmpiezaEnUnaFojaIlegible(unittest.TestCase):
+    """
+    Encontrado en el legajo real: 29 documentos y 184 fojas no pertenecían a ninguna
+    pieza, y con ellas 104 tablas —16 con importes—, porque su primera carilla salió
+    `sin_texto_util` y una foja apartada no arranca nada. Pegárselas a la pieza anterior
+    sería afirmar que son el mismo documento, y eso no se sabe; lo que corresponde es
+    decir que hay un documento y que no se sabe qué es.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        _archivo(self.cx, SHA_A, "expediente.pdf", 6)
+
+    def tearDown(self):
+        self.cx.close()
+        try:
+            self.tmp.cleanup()
+        except PermissionError:
+            pass
+
+    def clasificar(self, clases):
+        for nro, clase in clases.items():
+            self.cx.execute("UPDATE pagina SET clasificacion=? WHERE sha256=? AND nro=?",
+                            (clase, SHA_A, nro))
+        self.cx.commit()
+        segmentar_piezas(self.cx, SHA_A, por_ruta={"ocr_a": []})
+        return [(r["pagina_desde"], r["pagina_hasta"], r["tipo"]) for r in self.cx.execute(
+            "SELECT pagina_desde, pagina_hasta, tipo FROM documento ORDER BY pagina_desde")]
+
+    def test_arranca_pieza_y_no_se_la_come_la_anterior(self):
+        piezas_ = self.clasificar({1: "factura", 2: "sin_texto_util", 3: "continuacion",
+                                   4: "continuacion", 5: "remito", 6: "en_blanco"})
+        self.assertEqual(piezas_, [(1, 1, "factura"), (2, 4, "desconocido"), (5, 5, "remito")])
+
+    def test_una_foja_ilegible_suelta_no_inventa_un_documento(self):
+        piezas_ = self.clasificar({1: "factura", 2: "sin_texto_util", 3: "remito",
+                                   4: "en_blanco", 5: "en_blanco", 6: "en_blanco"})
+        self.assertEqual(piezas_, [(1, 1, "factura"), (3, 3, "remito")])
+
+
 class UnaTablaNoImpideBorrarSuPieza(unittest.TestCase):
     """
     Encontrado en el legajo real: dos archivos no se podían resegmentar.
