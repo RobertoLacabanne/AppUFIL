@@ -393,6 +393,7 @@ Mismo banco de prueba que la sección 8: una copia de trabajo del legajo real (3
 | Tablas que no pertenecen a ninguna pieza | 268 | 166 | `a4cc3a3` |
 | Renglones de presupuesto | 0 | 8, con su importe impreso y sin afirmar de qué es | `392966b` |
 | Hallazgos de diferencia de precio | 18, todos de nivel E con una sola referencia | 0: ninguna comparación llega al mínimo | `af5076a` |
+| Tablas detectadas | 558 | 267, sin perder un solo renglón | `0644654` |
 
 - **Los precios estaban impresos y se tiraban.** Parte del legajo usa coma de miles y punto
   decimal (`5,087.30`); el lector asumía notación argentina y devolvía nada, así que el
@@ -456,11 +457,22 @@ Mismo banco de prueba que la sección 8: una copia de trabajo del legajo real (3
    impreso y `precio_motivo='rol_incierto'`, sin afirmar si es unitario o total.
    Lo mismo en 25 tablas de fojas que todavía no pertenecen a ninguna pieza, 6 de órdenes
    de pago y 5 de órdenes de compra.
-5. **111 de las 113 tablas detectadas en resoluciones son ruido**: el detector arma tablas
-   sobre texto corrido. No rompen nada (no dan renglones), pero ensucian el recuento.
-6. Las 3 fojas de pliego, especificaciones o memoria que caen en medio de otro documento
+5. ~~**111 de las 113 tablas detectadas en resoluciones son ruido**: el detector arma
+   tablas sobre texto corrido.~~ Resuelto en `0644654` con una compuerta de estructura
+   —dos columnas de contenido separadas cuyos arranques coincidan en varias filas—, no
+   por tipo documental: una resolución de adjudicación trae el cuadro de lo adjudicado.
+   De 558 tablas a 267, con los renglones, los precios y los hallazgos exactamente
+   iguales.
+6. **Vigilar**: al ampliar el lector de números, un entero agrupado en miles (`1.234`)
+   pasó a contar como importe. Sobre el legajo real no afecta a ninguno de los 228
+   importes guardados, pero es una puerta abierta a que un código numérico se tome por
+   dinero si la aritmética de una fila coincide por casualidad.
+7. Las 3 fojas de pliego, especificaciones o memoria que caen en medio de otro documento
    —un título citado adentro de una resolución— ahora lo parten en dos. Hace falta que una
    persona pueda volver a unir dos piezas, como ya puede continuar una en otro archivo.
-7. «Actualizar análisis» en producción: lo decide Roberto. Con el despliegue nuevo, la
+8. «Actualizar análisis» en producción: autorizado y corriendo. La instancia gratuita
+   de Render no aguanta el re-OCR de una sentada —se cayó tres veces—, pero lo leído
+   queda sellado foja por foja y cada corrida retoma donde iba: de 340 fojas pendientes
+   a 32. Con el despliegue nuevo, la
    pantalla de actualización marca desactualizadas clasificación, segmentación, extracción,
    renglones, contrataciones y hallazgos, y 340 fojas de OCR pendientes.
