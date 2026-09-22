@@ -114,6 +114,20 @@ TIPOS: tuple[Tipo, ...] = (
 
 TIPOS_POR_CLAVE = {t.clave: t for t in TIPOS}
 ETIQUETAS = {t.clave: t.etiqueta for t in TIPOS}
+
+# Los documentos que traen precios son piezas propias aunque viajen adentro de un
+# expediente: comparar precios es el objetivo central (docs/contrataciones-y-precios.md),
+# y un presupuesto pegado como contexto a la foja de al lado no tiene renglones que
+# comparar. Un acta de apertura lista las ofertas con sus importes.
+TIPOS_CON_PRECIO = frozenset({"presupuesto", "acta_apertura"})
+
+# Qué tipos de foja arrancan una pieza. Hasta acá las piezas salían sólo de los perfiles
+# de extracción —factura y contratos—, y `arranca` no lo consultaba nadie: en un legajo
+# real, 128 fojas de resoluciones, 48 de remitos y 19 de presupuestos, bien clasificadas,
+# no formaban ni una pieza. Una pieza sin extractor para su tipo sigue siendo una pieza:
+# se ve, se busca, se anota y se revisa. Los tipos de contexto de un expediente —pliego,
+# memoria, planos, pólizas, pases— siguen sin partirlo en pedazos.
+TIPOS_PIEZA = frozenset(t.clave for t in TIPOS if t.arranca) | TIPOS_CON_PRECIO
 ETIQUETAS["continuacion"] = "Continuación"
 ETIQUETAS["desconocida"] = "Sin reconocer"
 

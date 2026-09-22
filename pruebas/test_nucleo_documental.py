@@ -205,6 +205,50 @@ class LoQueElSistemaTodaviaNoSabeLeer(unittest.TestCase):
             piezas.clasificar_a_mano(self.cx, doc, "remito", "")
 
 
+class CadaDocumentoEsUnaPiezaAunqueNoHayaExtractor(unittest.TestCase):
+    """
+    Encontrado en un legajo real: 1.628 fojas producían 54 piezas, todas facturas o
+    contratos, porque las piezas salían sólo de los perfiles de extracción. 128 fojas de
+    resoluciones, 48 de remitos y 19 de presupuestos —bien clasificadas— no formaban
+    ninguna. Para reconstruir una contratación hacen falta justamente ésas.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        _archivo(self.cx, SHA_A, "expediente.pdf", 8)
+        clases = {1: "factura", 2: "remito", 3: "continuacion", 4: "resolucion",
+                  5: "presupuesto", 6: "continuacion", 7: "pliego", 8: "en_blanco"}
+        for nro, clase in clases.items():
+            self.cx.execute("UPDATE pagina SET clasificacion=? WHERE sha256=? AND nro=?",
+                            (clase, SHA_A, nro))
+        self.cx.commit()
+
+    def tearDown(self):
+        self.cx.close()
+        try:
+            self.tmp.cleanup()
+        except PermissionError:
+            pass
+
+    def test_remitos_resoluciones_y_presupuestos_son_piezas(self):
+        segmentar_piezas(self.cx, SHA_A, por_ruta={"ocr_a": []})
+        piezas_ = [(r["pagina_desde"], r["pagina_hasta"], r["tipo"]) for r in self.cx.execute(
+            "SELECT pagina_desde, pagina_hasta, tipo FROM documento ORDER BY pagina_desde")]
+        # El remito es de una foja (`fojas_tipicas=1`) y no absorbe la «continuación»:
+        # en el legajo real, detrás de facturas, remitos y recibos hay 36 fojas así, y
+        # mientras no existan los tipos de orden de compra, oferta o adjudicación muchas
+        # pueden ser OTRO documento sin reconocer. Pegárselas mezclaría dos documentos.
+        self.assertEqual(piezas_, [(1, 1, "factura"), (2, 2, "remito"), (4, 4, "resolucion"),
+                                   (5, 6, "presupuesto")])
+
+    def test_el_contexto_del_expediente_no_se_parte_en_pedazos(self):
+        segmentar_piezas(self.cx, SHA_A, por_ruta={"ocr_a": []})
+        tipos = {r[0] for r in self.cx.execute("SELECT tipo FROM documento")}
+        self.assertNotIn("pliego", tipos)
+        self.assertNotIn("en_blanco", tipos)
+
+
 class UnaPiezaPuedeSeguirEnOtroArchivo(unittest.TestCase):
     """El límite de un PDF no es el límite de un documento."""
 

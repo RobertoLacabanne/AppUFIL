@@ -815,6 +815,14 @@ def _tramos_del_archivo(cx, sha: str, perfiles: list, por_ruta) -> tuple:
                 perfil_de_tramo[t] = []
                 tramos.append(t)
             perfil_de_tramo[t].append(pf)
+    # Y las piezas de los tipos que no tienen extractor: existen igual (ver
+    # `cl.TIPOS_PIEZA`). Sólo se agregan si hay alguna pieza por perfil o algún tipo de
+    # pieza en el archivo; un archivo de formularios viejos sigue yendo por rótulos.
+    for tipo in sorted(set(clases.values()) & cl.TIPOS_PIEZA):
+        for t in tramos_por_tipo(clases, tipo):
+            if t not in perfil_de_tramo:
+                perfil_de_tramo[t] = []
+                tramos.append(t)
     tramos.sort()
     if not tramos:
         # Perfiles viejos de formulario, que no declaran un tipo de foja: se sigue
@@ -996,9 +1004,14 @@ def extraer_campos(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "auto"
         recorte = {r: pgs for r, pgs in recorte.items() if pgs}
 
         # Los perfiles que declaran este tipo de foja. Si ninguno lo declara —perfiles
-        # viejos de formulario, que no declaran tipo— se prueban todos, como antes.
+        # viejos de formulario, que no declaran tipo— se prueban todos, como antes; pero
+        # sólo para una pieza cuyo tipo no se conoce. Una resolución o un remito ya
+        # sabemos qué son: probarles el extractor de contratos es invitar a que una
+        # resolución que cita un contrato en su VISTO salga leída como contrato.
         candidatos = [pf for pf in perfiles
-                      if (pf.get("tipo_pagina") or pf.get("tipo")) == fila["tipo"]] or perfiles
+                      if (pf.get("tipo_pagina") or pf.get("tipo")) == fila["tipo"]]
+        if not candidatos and fila["tipo"] not in cl.TIPOS_POR_CLAVE:
+            candidatos = perfiles
 
         # Gana el que más campos saca. Con un solo perfil dado a mano, el bucle corre
         # una vez y decide lo mismo.
