@@ -197,9 +197,12 @@ class ReconstruccionYHallazgos(unittest.TestCase):
         self.assertIn('No indica relación',hs[0]['descripcion'])
 
     def test_varias_senales_sin_fusion_por_cuit_solo(self):
-        docs=ct.documentos(self.cx)[:2]
-        for d in docs:
-            d['claves']={('cuit','30712345670')};d['conjuntos']=set()
+        # Dos pares: dentro de cada par hay una orden de compra repetida que los une; entre
+        # pares sólo está el CUIT compartido, que por sí solo no alcanza para fusionar.
+        docs=ct.documentos(self.cx)[:4]
+        for i,d in enumerate(docs):
+            d['claves']={('cuit','30712345670'),('orden_compra',f'{111*(1+i//2)}/2023')}
+            d['conjuntos']=set()
         with patch.object(ct,'documentos',return_value=docs):ct.reconstruir(self.cx)
         self.assertEqual(ct.listar(self.cx)['total'],2)
         for d in docs:d['conjuntos']={1}
@@ -208,9 +211,11 @@ class ReconstruccionYHallazgos(unittest.TestCase):
         self.assertTrue(all(r[0]=='propuesta' for r in self.cx.execute('SELECT estado FROM contratacion_documento')))
 
     def test_expedientes_distintos_no_se_unen_por_orden(self):
-        docs=ct.documentos(self.cx)[:2]
+        # Dos piezas por expediente: el sistema no propone contrataciones de una sola pieza,
+        # así que para ver si dos expedientes se unen o no hay que darle algo que unir.
+        docs=ct.documentos(self.cx)[:4]
         for i,d in enumerate(docs):
-            d['claves']={('expediente',str(100+i)),('orden_compra','333/2023')}
+            d['claves']={('expediente',str(100+i//2)),('orden_compra','333/2023')}
         with patch.object(ct,'documentos',return_value=docs):ct.reconstruir(self.cx)
         self.assertEqual(ct.listar(self.cx)['total'],2)
 

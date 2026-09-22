@@ -149,7 +149,16 @@ def reconstruir(cx):
         humanos = {r[0] for r in cx.execute("SELECT documento_id FROM contratacion_documento WHERE origen='humano' OR estado!='propuesta'")}
         cx.execute("DELETE FROM contratacion_documento WHERE origen='sistema' AND estado='propuesta'")
         cx.execute('UPDATE renglon SET contratacion_id=NULL')
+        propuestas = 0
         for grupo in grupos.values():
+            # Una contratación que propone el sistema tiene que unir al menos dos piezas:
+            # una pieza sola no es una reconstrucción, es una pieza, y se la sigue viendo
+            # en Documentos. Medido en un legajo real: de 124 contrataciones propuestas,
+            # 104 eran de una sola pieza y sólo 6 tenían tres etapas o más. Una persona
+            # puede agrupar a mano lo que el sistema no se anima a proponer.
+            if len(grupo) < 2:
+                continue
+            propuestas += 1
             exps = sorted({v for d in grupo for k, v in d['claves'] if k == 'expediente'})
             exp = exps[0] if len(exps) == 1 else None
             clave = 'exp:' + exp if exp else 'pieza:' + min(d['clave'] or f"{d['sha256']}:{d['pagina_desde']}" for d in grupo)
@@ -172,7 +181,7 @@ def reconstruir(cx):
                                (cid, d['id'], d['etapa'], confianza[d['id']]))
         cx.execute("""UPDATE renglon SET contratacion_id=(SELECT min(contratacion_id) FROM contratacion_documento
                       WHERE documento_id=renglon.documento_id AND estado!='rechazada' HAVING count(DISTINCT contratacion_id)=1)""")
-    return {'contrataciones': len(grupos), 'identificadores': sum(len(d['identificadores']) for d in docs),
+    return {'contrataciones': propuestas, 'identificadores': sum(len(d['identificadores']) for d in docs),
             'anclas_repetidas': sum(n >= 2 for n in frecuencia.values())}
 
 
