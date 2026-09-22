@@ -388,6 +388,12 @@ def clasificar_pagina(texto_plano_normalizado: str,
     v = veredicto(medida)
     if v:
         return v, 1
+    # «Documento no válido como factura» es la leyenda que todo remito tiene que llevar
+    # impresa y que una factura no lleva nunca: es la señal más fuerte que hay para
+    # separarlos, y manda sobre los títulos. Medido en un legajo real: 13 fojas con la
+    # leyenda salían todas «factura», porque la palabra FACTURA está en la leyenda misma.
+    if contiene_marca(texto_plano_normalizado, "NO VALIDO COMO FACTURA"):
+        return "remito", 1
     # El primer título gana sobre referencias a documentos que aparecen después.
     # Conservamos el clasificador histórico como respaldo para OCR deteriorado.
     titulos = []

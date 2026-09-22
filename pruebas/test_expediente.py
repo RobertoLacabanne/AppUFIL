@@ -202,6 +202,21 @@ class ElExpedienteTraeSusPropiasFojas(unittest.TestCase):
         for clave in ("contrato_obra", "contrato_locacion", "factura"):
             self.assertTrue(cl.TIPOS_POR_CLAVE[clave].arranca)
 
+    def test_la_leyenda_del_remito_manda_sobre_la_palabra_factura(self):
+        """
+        Encontrado en un legajo real: 13 fojas con «DOCUMENTO NO VÁLIDO COMO FACTURA»
+        —la leyenda que todo remito lleva impresa y ninguna factura— salían «factura»,
+        porque la palabra está en la propia leyenda.
+        """
+        from ufil.capa2_campos import normalizar_cotejo
+        for texto in ("DOCUMENTO NO VALIDO COMO FACTURA REMITO N 0001-00004567 PROVEEDOR SINTETICO",
+                      "xx Qe DOCUMENTO NO VALIDO COMO FACTUR£-S 20 VIA ORDEN DE COMPRA N 12",
+                      "ORDEN DE COMPRA N 4 DOCUMENTO NO VALIDO COMO FACTURA"):
+            with self.subTest(texto=texto):
+                self.assertEqual(cl.clasificar_pagina(normalizar_cotejo(texto))[0], "remito")
+        factura = normalizar_cotejo("ORIGINAL FACTURA B PUNTO DE VENTA 0003 COMP NRO 00001234")
+        self.assertEqual(cl.clasificar_pagina(factura)[0], "factura")
+
     def test_una_resolucion_se_reconoce_por_su_cuerpo(self):
         """
         El título está arriba a la derecha, que es justo donde se apilan los sellos de
