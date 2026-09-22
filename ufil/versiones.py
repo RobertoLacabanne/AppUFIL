@@ -175,6 +175,10 @@ def _firma_tablas() -> str:
     return _fuente("tablas.py")
 
 
+def _firma_renglones() -> str:
+    return _fuente("renglones.py")
+
+
 def _firma_cotejo() -> str:
     return _fuente("cotejo_letras.py", "castellano.py")
 
@@ -265,6 +269,9 @@ ETAPAS: tuple[Etapa, ...] = (
     Etapa("normalizacion", "Fechas, importes y documentos normalizados", "archivo", 1,
           _firma_normalizacion, depende_de=("extraccion",), caro=False,
           explica="No pisa el literal: vive al lado."),
+    Etapa("renglones", "Renglones de precio", "archivo", 1, _firma_renglones,
+          depende_de=("tablas", "extraccion", "clasificacion"), caro=False,
+          explica="Cada fila con su literal, precio decimal y celdas de origen."),
     Etapa("identidad", "Personas y empresas consolidadas", "legajo", 1, _firma_identidad,
           depende_de=("normalizacion",), caro=False,
           explica="Quién es quién. Las fusiones dudosas se proponen, no se deciden solas."),
