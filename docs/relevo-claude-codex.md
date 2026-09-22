@@ -644,8 +644,20 @@ completo, así que todo lo que trabaja sobre palabras se puede correr; el visor 
 | R1 | «Actualizar análisis» iba a releer **750** fojas de un archivo que tenía 410 leídas y 340 sin leer: la lectura se ejecutaba por archivo | corregido (`fc291c5`): se leen 340, se reutilizan 1.288 |
 | R2 | 2 de las 6 revisiones humanas iban a pasar a «requiere reasociación»: verificaciones de campos sin valor, que no tienen foja; y le pasa a toda confirmación de ese tipo que se haga hoy | corregido (`bb77a62`): anclaje por pieza |
 | R3 | El panel decía «1.628 páginas leídas» con 340 sin leer | corregido (`ab35d32`): «1.288 / 1.628» |
-| R4 | 1.628 fojas producen **20 piezas**; el PDF de 750 fojas **no tiene ninguna foja clasificada**; 6 de 10 PDF de ~88 fojas, **0 piezas** | en curso: se está corriendo la actualización completa sobre la copia de Claude para medir |
+| R4 | 1.628 fojas producen **20 piezas**; el PDF de 750 fojas **no tiene ninguna foja clasificada**; 6 de 10 PDF de ~88 fojas, **0 piezas**. En producción corre un pipeline anterior (0 sellos de segmentación); con el de hoy, 54 piezas, todas facturas o contratos: las piezas salían sólo de los perfiles | corregido (`2a055b2`): 258 piezas (128 resoluciones, 48 remitos, 47 facturas, 19 presupuestos…) |
+| R9 | Dos correcciones humanas de contratos ancladas «en la foja 1» con numeración relativa a la pieza, de una versión anterior; si la foja 1 tuviera otra pieza con el mismo campo, la corrección se mudaba | corregido (`e8c638f`): las 6 revisiones reales vigentes tras resegmentar |
+| R10 | Una foja con 137 fragmentos ilegibles salía «en blanco» porque la otra ruta vio una palabra | corregido (`46ce524`) |
+| R11 | 589 fojas «en blanco» | verificado por tinta en el PDF de 750: 230/230 sin tinta; no es un problema |
+| R12 | 26 de 128 piezas de resolución pegadas a la anterior (¿una resolución partida?); 36 fojas «continuación» detrás de facturas, remitos y recibos sin pieza | tarea de Codex (7a), medido |
 | R5 | Fojas que mencionan orden de compra 81, oferta 72, adjudicación 48, orden de pago 17 — **no hay tipo documental** para ninguna | tarea de Codex (7a) |
 | R6 | El detector de tablas encuentra tablas en **41 fojas** de todo el legajo | tarea de Codex (7a) |
 | R7 | Los identificadores exactos casi no aparecen en el OCR real: «ORDEN DE COMPRA N°» en 8 fojas de 81, números de factura en 0; el CUIT sí (37 distintos, 10 repetidos) | tarea de Codex (7b) |
 | R8 | Nunca corrieron en producción tablas, entidades, menciones, cronología ni relaciones (todas en 0) | se aplican con «Actualizar análisis» |
+
+**Actualización completa sobre la copia de Claude** (con `fc291c5`): 42 minutos, 0 errores;
+1.628 fojas leídas (340 de OCR nuevo, 1.288 reutilizadas), 1.628 clasificadas, 61 tablas
+con 3.015 celdas, 644 menciones, 36 entidades, 5 hechos de cronología, 0 relaciones.
+
+**Máquina de desarrollo:** a la madrugada del 22/09 quedaban 0,5 GB de RAM libre de 7,7 y el
+sistema detuvo el lanzamiento programado de Codex por falta de memoria. No se relanzó sin
+pedido de Roberto.
