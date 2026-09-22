@@ -234,6 +234,12 @@ class Procesador:
                     return self._cortado(i, len(shas))
                 try:
                     r = c2.extraer_documento(cx, sha, perfil)
+                    from . import tablas, renglones, actualizacion
+                    tablas.detectar_archivo(cx, sha)
+                    actualizacion.sellar(cx, "tablas", sha)
+                    renglones.extraer_archivo(cx, sha)
+                    actualizacion.sellar(cx, "renglones", sha)
+                    cx.commit()
                     for k in totales:
                         totales[k] += r.get(k, 0)
                 except Exception as e:

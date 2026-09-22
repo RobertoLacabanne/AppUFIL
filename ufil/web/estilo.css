@@ -1127,7 +1127,7 @@ table td{overflow-wrap:normal; word-break:normal; hyphens:none}
 /* ── Carril de interpretación ─────────────────────────────────────────── */
 .interp{background:var(--interp); border-left:3px solid var(--interp-filete);
         padding:13px 16px; margin-bottom:10px}
-.interp .texto{font-family:var(--serif); font-style:italic; font-size:15px;
+.interp .texto{font-family:var(--serif); font-style:italic; font-size:15px; overflow-wrap:anywhere; word-break:break-word;
                line-height:1.58; color:var(--tinta); margin:8px 0 10px; max-width:74ch}
 .interp .fuentes{display:flex; flex-wrap:wrap; gap:5px; padding-top:9px;
                  border-top:1px solid var(--interp-filete)}
@@ -2028,7 +2028,7 @@ body.con-visor{background-color:var(--fondo)}
 .visor-barra .boton{border-color:var(--barra-txt-2); color:var(--barra-txt);
   background:transparent; flex:none}
 .visor-barra .boton:hover{background:var(--barra-txt); color:var(--barra)}
-.visor-hoja{flex:1; min-height:0; overflow:auto; padding:16px; display:flex;
+.visor-hoja{flex:1; min-height:0; overflow:auto; padding:16px; display:flex; gap:16px;
   justify-content:center; align-items:flex-start}
 .visor-lienzo{position:relative; flex:none; background:#fff;
   box-shadow:var(--sombra-alta)}
@@ -2615,3 +2615,19 @@ details.consejo[open]>summary{border-bottom:1px solid var(--filete-2); margin-bo
 .visor-zoom-texto { color: var(--barra-txt); margin: 0 8px; font-variant-numeric: tabular-nums; }
 .paginacion-env { margin-bottom: 1em; }
 .paginacion-link { margin-left: 1em; }
+
+#visor-rotulo-2{position:absolute; top:-24px; left:0; font-size:var(--t-12); color:var(--tinta-2)}
+#visor-img-2{display:block; max-width:none}
+
+/* ── Contrataciones y precios ─────────────────────────────────────────── */
+/* El enlace a la fuente de un dato es lo que permite verificarlo contra el papel: se
+   tiene que ver como enlace aunque sea un número adentro de una tabla. */
+.enlace-fuente{color:var(--sello); text-decoration:underline; text-underline-offset:2px;
+  text-decoration-thickness:1px; cursor:pointer}
+.enlace-fuente:hover{text-decoration-thickness:2px}
+.falso-enlace{cursor:pointer}
+.crono-item{display:grid; grid-template-columns:9em 1fr auto; gap:4px 12px; align-items:baseline;
+  padding:6px 0; border-bottom:1px solid var(--filete-2)}
+.crono-item:last-child{border-bottom:0}
+/* Estado de un campo que una persona cerró sin valor: no es alerta ni acierto. */
+.sello.neutro{color:var(--tinta-2)}

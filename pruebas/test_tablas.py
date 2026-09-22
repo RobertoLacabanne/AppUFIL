@@ -120,6 +120,30 @@ class ReconocerUnaTablaYNoUnParrafo(unittest.TestCase):
         self.assertTrue(all(c["fila"] == 0 for c in cabeza))
 
 
+class UnaManchaAlineadaNoEsUnaTabla(unittest.TestCase):
+    """
+    Encontrado en un legajo real: con la detección por bloque salían 859 «tablas» y 357
+    eran fragmentos de dos letras alineados sobre sellos y firmas. Lo que separa una
+    tabla de una mancha es lo mismo que separa una foja legible de una ilegible.
+    """
+
+    def test_fragmentos_alineados_no_son_una_tabla(self):
+        mancha = []
+        for y in (100, 120, 140, 160):
+            mancha += _fila(y, ["a ", "E l", "ss", "|"])
+        self.assertEqual(tb.detectar_en_pagina(mancha, 595, 842), [])
+
+    def test_las_rayas_de_la_planilla_no_la_vuelven_ilegible(self):
+        # El OCR lee las líneas verticales de una planilla escaneada como «|» pegado al
+        # número: «$1.638,65|». Esa tabla tiene importes y tiene que seguir siéndolo.
+        p = _fila(100, ["Descripcion", "Cantidad", "Unitario", "Importe"])
+        for i, y in enumerate((120, 140, 160), start=1):
+            p += _fila(y, [f"|Conductor{i}", f"{i * 10}|", f"$1.638,65|", f"|${i * 16}.386,50"])
+        tablas_ = tb.detectar_en_pagina(p, 595, 842)
+        self.assertEqual(len(tablas_), 1)
+        self.assertEqual(tablas_[0]["filas"], 4)
+
+
 class GuardarlaYLeerlaPorRenglon(unittest.TestCase):
 
     def setUp(self):

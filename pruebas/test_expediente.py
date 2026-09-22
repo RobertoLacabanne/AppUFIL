@@ -97,6 +97,35 @@ class UnaFojaQueNoSePuedeLeerLoDice(unittest.TestCase):
         self.assertIsNone(cl.veredicto(m),
                           "se aparta el presupuesto, que es la foja con los importes")
 
+    def test_si_una_ruta_vio_tinta_la_foja_no_esta_en_blanco(self):
+        """
+        Encontrado en un legajo real: una ruta de OCR devolvió 137 fragmentos sin nada
+        legible y la otra una sola palabra. Ganaba la ruta de una palabra —tenía más
+        útiles— y la foja salía «en blanco», escondida, cuando lo que corresponde es
+        «no se pudo leer», que es lo que manda a alguien a mirar el papel.
+        """
+        import tempfile
+        from ufil import db
+        from ufil.capa1_texto import Palabra
+        from ufil.capa2_extraccion import clasificar_fojas
+        from ufil.db import ahora
+        with tempfile.TemporaryDirectory() as tmp:
+            cx = db.abrir(Path(tmp) / "t.sqlite")
+            try:
+                sha = "e" * 64
+                cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,paginas,ingerido_en)
+                              VALUES (?,'/x/a.pdf','a.pdf',1,1,?)""", (sha, ahora()))
+                cx.execute("INSERT INTO pagina (sha256,nro) VALUES (?,1)", (sha,))
+                cx.commit()
+                ruido = [Palabra(t, 10 + i, 10, 14 + i, 14, 0.2)
+                         for i, t in enumerate(["~", "|", "-", "..", "'"] * 28)][:137]
+                una = [Palabra("Folio", 400, 20, 430, 30, 0.9)]
+                r = clasificar_fojas(cx, sha, por_ruta={"ocr_a": [(1, None, ruido)],
+                                                        "ocr_b": [(1, None, una)]})
+                self.assertEqual(r["clases"][1], cl.FOJA_SIN_TEXTO)
+            finally:
+                cx.close()
+
     def test_el_corte_esta_entre_los_dos_casos_medidos(self):
         """4,6 % la peor foja legible-para-nadie; 11,8 % el croquis, que sí se lee."""
         self.assertGreater(cl.UTILES_MINIMOS, 0.046)
@@ -172,6 +201,21 @@ class ElExpedienteTraeSusPropiasFojas(unittest.TestCase):
         """Un contrato sí es un documento suelto adentro del PDF."""
         for clave in ("contrato_obra", "contrato_locacion", "factura"):
             self.assertTrue(cl.TIPOS_POR_CLAVE[clave].arranca)
+
+    def test_la_leyenda_del_remito_manda_sobre_la_palabra_factura(self):
+        """
+        Encontrado en un legajo real: 13 fojas con «DOCUMENTO NO VÁLIDO COMO FACTURA»
+        —la leyenda que todo remito lleva impresa y ninguna factura— salían «factura»,
+        porque la palabra está en la propia leyenda.
+        """
+        from ufil.capa2_campos import normalizar_cotejo
+        for texto in ("DOCUMENTO NO VALIDO COMO FACTURA REMITO N 0001-00004567 PROVEEDOR SINTETICO",
+                      "xx Qe DOCUMENTO NO VALIDO COMO FACTUR£-S 20 VIA ORDEN DE COMPRA N 12",
+                      "ORDEN DE COMPRA N 4 DOCUMENTO NO VALIDO COMO FACTURA"):
+            with self.subTest(texto=texto):
+                self.assertEqual(cl.clasificar_pagina(normalizar_cotejo(texto))[0], "remito")
+        factura = normalizar_cotejo("ORIGINAL FACTURA B PUNTO DE VENTA 0003 COMP NRO 00001234")
+        self.assertEqual(cl.clasificar_pagina(factura)[0], "factura")
 
     def test_una_resolucion_se_reconoce_por_su_cuerpo(self):
         """

@@ -81,6 +81,7 @@ def _instantanea(cx, sha):
         # Una conclusión afectada sale completa, con TODAS sus fuentes.
         agregar('interpretacion', 'id', [r['interpretacion_id']
                                         for r in filas['interpretacion_fuente'].values()])
+        agregar('hallazgo', 'id', [r['hallazgo_id'] for r in filas.get('hallazgo_fuente', {}).values()])
         docs = [str(r['id']) for r in filas['documento'].values()]
         paginas = [str(r['id']) for r in filas['pagina'].values()]
         agregar('interpretacion', 'alcance_id', docs, "alcance='documento'")
@@ -157,6 +158,9 @@ def listar(cx, *, limite=100, desde=0):
 # acciones únicas: historial y estado revisado conservan la definición anterior.
 _DECISIONES = {
     'revision_humana': (), 'auditoria': (),
+    'renglon_item': (('quien', None),),
+    'contratacion_documento': (('quien', None),),
+    'hallazgo': (('quien', None),),
     'documento': (('clasificado_por', None),),
     'campo': (('revisado_por', None),),
     'foliatura': (('origen', 'humano'), ('quien', None)),
@@ -178,6 +182,12 @@ def decisiones_por_archivo(cx):
             padre, fk = ('documento', 'documento_id') if t == 'campo' else ('pagina', 'pagina_id')
             origen += f' JOIN {padre} p ON p.id=t.{fk}'
             sha = 'p.sha256'
+        elif t == 'contratacion_documento':
+            origen += ' JOIN documento p ON p.id=t.documento_id'
+            sha = 'p.sha256'
+        elif t == 'hallazgo':
+            origen += ' JOIN hallazgo_fuente p ON p.hallazgo_id=t.id'
+            sha = 'p.sha256'
         elif t == 'relacion':
             origen += ' JOIN documento p ON p.id=t.desde_doc OR p.id=t.hasta_doc'
             sha = 'p.sha256'
@@ -191,10 +201,12 @@ def _decisiones_instantanea(datos, sha):
     filas = datos['filas']
     docs = {r['id'] for r in filas.get('documento', []) if r['sha256'] == sha}
     paginas = {r['id'] for r in filas.get('pagina', []) if r['sha256'] == sha}
+    hallazgos = {r['hallazgo_id'] for r in filas.get('hallazgo_fuente', []) if r['sha256'] == sha}
     total = 0
     for t, condiciones in _DECISIONES.items():
         for r in filas.get(t, []):
-            propio = (r.get('documento_id') in docs if t == 'campo' else
+            propio = (r.get('documento_id') in docs if t in ('campo', 'contratacion_documento') else
+                      r.get('id') in hallazgos if t == 'hallazgo' else
                       r.get('pagina_id') in paginas if t == 'foliatura' else
                       r.get('desde_doc') in docs or r.get('hasta_doc') in docs if t == 'relacion' else
                       r.get('sha256') == sha)

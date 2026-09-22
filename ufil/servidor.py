@@ -277,6 +277,12 @@ def api_panel(cx) -> dict:
         "archivos": uno("SELECT COUNT(*) FROM archivo"),
         "duplicados": uno("SELECT COUNT(*) FROM duplicado"),
         "paginas": uno("SELECT COUNT(*) FROM pagina"),
+        # Las que tienen al menos una lectura. La pantalla decía «1.628 páginas leídas»
+        # sobre el total de fojas de un legajo real en el que 340 no se habían leído
+        # nunca: afirmaba que todo estaba leído cuando faltaba un quinto.
+        "paginas_leidas": uno("""SELECT COUNT(*) FROM pagina p
+                                  WHERE EXISTS (SELECT 1 FROM lectura l
+                                                 WHERE l.pagina_id = p.id)"""),
         # `documentos` es TODO lo que se extrajo: contratos, facturas, decretos y lo que
         # no se pudo clasificar. Los tres de abajo lo desagregan, porque la pantalla
         # decía «N contratos» sobre este número y adentro había facturas.
@@ -1333,6 +1339,26 @@ class Manejador(BaseHTTPRequestHandler):
             if ruta.startswith("/api/"):
                 cx = _cx()
                 try:
+                    # Incremento 7a: catálogo, precios y comparación trazable.
+                    import re
+                    if ruta == "/api/catalogo/contrataciones":
+                        from . import comparabilidad as cp
+                        return self._json(cp.catalogo())
+                    if ruta == "/api/precios":
+                        from . import precios
+                        try:
+                            return self._json(precios.listar(cx, **{k: v[0] for k, v in q.items()}))
+                        except ValueError as e:
+                            return self._json({"error": str(e)}, 400)
+                    m_precio = re.fullmatch(r"/api/renglon/(\d+)/comparacion", ruta)
+                    if m_precio:
+                        from . import precios, renglones
+                        try:
+                            return self._json(precios.comparar(cx, int(m_precio[1]), q.get("niveles", [None])[0]))
+                        except renglones.NoEncontrado as e:
+                            return self._json({"error": str(e), "no_encontrado": True}, 404)
+                        except ValueError as e:
+                            return self._json({"error": str(e)}, 400)
                     if ruta == "/api/panel":
                         return self._json(api_panel(cx))
                     if ruta == "/api/cuentas":
@@ -1790,6 +1816,15 @@ class Manejador(BaseHTTPRequestHandler):
         except Ocupado as e:
             return self._json({'ok': False, 'error': str(e)}, 409)
         try:
+            # Incremento 7a: decisión humana sobre el ítem, anclada al renglón.
+            import re
+            m_item = re.fullmatch(r"/api/renglon/(\d+)/item", u.path)
+            if m_item:
+                from . import renglones
+                try:
+                    return self._json(renglones.asignar_item(cx, int(m_item[1]), cuerpo))
+                except renglones.NoEncontrado as e:
+                    return self._json({"error": str(e), "no_encontrado": True}, 404)
             if u.path in ('/api/archivo/quitar', '/api/archivo/restaurar', '/api/archivo/destruir'):
                 if not isinstance(cuerpo, dict):
                     raise ValueError('El pedido tiene que ser un objeto JSON.')

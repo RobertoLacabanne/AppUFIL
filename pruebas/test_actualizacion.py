@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -138,6 +139,70 @@ class UnaCorreccionNoSeMudaDeDocumento(unittest.TestCase):
         self.assertIn("5.000", factura["valor_literal"],
                       "y tiene que ser el valor que cargó la persona, no el leído")
         self.assertEqual(factura["estado"], "corregido")
+
+    def test_confirmar_que_un_campo_falta_sobrevive_al_reparto_nuevo(self):
+        """
+        Encontrado en un legajo real: dos verificaciones de campos sin valor iban a pasar
+        a «requiere reasociación» en la primera actualización. Un campo que no está en el
+        papel no tiene foja ni recuadro, así que su revisión no tenía anclaje de foja; sí
+        tiene el de su pieza —tramo de fojas y tipo—, y con eso alcanza.
+        """
+        doc = _pieza(self.cx, 1, 3, 3, "factura", con_campo=None)
+        campo = self.cx.execute(
+            """INSERT INTO campo (documento_id,nombre,nulo_motivo,estado)
+               VALUES (?,'monto','ausente','no_revisado')""", (doc,)).lastrowid
+        self.cx.commit()
+        aplicar(self.cx, campo, "ausente", None, "perez.ana")
+        self.assertEqual(ac.plan(self.cx)["revisiones"]["sin_ancla"], 0,
+                         "anclada a su pieza no es una revisión sin anclaje")
+
+        # Aparece una pieza nueva adelante: la factura pasa del 1º al 2º lugar.
+        _borrar_piezas(self.cx)
+        d1 = _pieza(self.cx, 1, 1, 2, "contrato_obra", con_campo=None)
+        d2 = _pieza(self.cx, 2, 3, 3, "factura", con_campo=None)
+        for d in (d1, d2):
+            self.cx.execute("""INSERT INTO campo (documento_id,nombre,nulo_motivo,estado)
+                               VALUES (?,'monto','ausente','no_revisado')""", (d,))
+        self.cx.commit()
+        piezas = [{"id": d1, "orden": 1, "pagina_desde": 1, "pagina_hasta": 2, "tipo": "contrato_obra"},
+                  {"id": d2, "orden": 2, "pagina_desde": 3, "pagina_hasta": 3, "tipo": "factura"}]
+        r = reaplicar_revisiones(self.cx, SHA, piezas)
+
+        self.assertEqual(r["reaplicadas"], 1, r)
+        estados = dict(self.cx.execute("SELECT documento_id, estado FROM campo").fetchall())
+        self.assertEqual(estados[d2], "ausente_confirmado", "la confirmación sigue a su pieza")
+        self.assertEqual(estados[d1], "no_revisado", "y no se muda a la que ocupó su lugar")
+
+    def test_un_anclaje_numerado_desde_la_pieza_no_se_muda_a_la_foja_1_del_archivo(self):
+        """
+        Encontrado en un legajo real: una versión anterior numeraba las fojas de un
+        contrato desde el principio de la pieza, y dos correcciones quedaron ancladas «en
+        la foja 1» siendo de contratos que empiezan en las fojas 23 y 25. Ahí se perdían
+        (en la foja 1 no había ese campo). Si la hubiera, la corrección se mudaba de pieza.
+        """
+        contrato = _pieza(self.cx, 1, 2, 3, "contrato_obra", pagina=2)
+        campo = self.cx.execute("SELECT id FROM campo WHERE documento_id=?",
+                                (contrato,)).fetchone()["id"]
+        aplicar(self.cx, campo, "corregir", "5000", "perez.ana")
+        # El anclaje como lo dejaba la versión anterior: foja 1 de la pieza.
+        self.cx.execute("UPDATE revision_humana SET ancla_pagina=1")
+        self.cx.commit()
+
+        # Aparece una factura en la foja 1 del archivo, con su propio monto.
+        _borrar_piezas(self.cx)
+        d1 = _pieza(self.cx, 1, 1, 1, "factura", pagina=1)
+        d2 = _pieza(self.cx, 2, 2, 3, "contrato_obra", pagina=2)
+        piezas = [{"id": d1, "orden": 1, "pagina_desde": 1, "pagina_hasta": 1, "tipo": "factura"},
+                  {"id": d2, "orden": 2, "pagina_desde": 2, "pagina_hasta": 3, "tipo": "contrato_obra"}]
+        r = reaplicar_revisiones(self.cx, SHA, piezas)
+
+        self.assertEqual(r["reaplicadas"], 1, r)
+        de = {row["documento_id"]: row for row in self.cx.execute(
+            "SELECT documento_id, revisado_por, valor_literal FROM campo")}
+        self.assertIsNone(de[d1]["revisado_por"], "la corrección del contrato no va a la factura")
+        self.assertEqual(de[d2]["revisado_por"], "perez.ana")
+        self.assertEqual(self.cx.execute("SELECT ancla_pagina FROM revision_humana").fetchone()[0],
+                         2, "y el anclaje queda escrito con la foja del archivo")
 
     def test_si_no_se_puede_saber_a_cual_corresponde_no_se_aplica_a_ninguna(self):
         """
@@ -300,31 +365,65 @@ class LoQueQuedoViejoYLoQueNo(unittest.TestCase):
         self.assertEqual(p["reutiliza"]["paginas_ocr"], 3)
         self.assertEqual(p["recalcula"]["paginas_ocr"], 0)
 
-    def test_no_promete_reutilizar_fojas_que_va_a_releer(self):
-        """
-        La lectura se cuenta por foja pero se EJECUTA por archivo: una sola foja vieja
-        se lleva puesto el archivo entero.
+    def _aplicar_contando_fojas_leidas(self) -> set:
+        """Corre la actualización con un OCR simulado y devuelve qué fojas leyó."""
+        leidas = set()
 
-        Si el plan contara «fojas leídas menos fojas viejas», prometería reutilizar las
-        vecinas de la foja vieja, que se releen igual. Es decirle a alguien que no va a
-        esperar un OCR que sí va a esperar, y esta pantalla existe justamente para
-        contestar esa pregunta.
+        def leer_lote(cx, shas, **_):
+            for r in cx.execute("""SELECT id FROM pagina p WHERE NOT EXISTS
+                                     (SELECT 1 FROM lectura l WHERE l.pagina_id=p.id)""").fetchall():
+                cx.execute("""INSERT INTO lectura (pagina_id,ruta,motor,version,confianza,ms,creado_en)
+                              VALUES (?,'ocr_a','tesseract','5.4.0',0.9,10,?)""", (r["id"], ahora()))
+                leidas.add(r["id"])
+            cx.commit()
+            return {"paginas": len(leidas)}
+
+        from ufil import capa1_texto
+        with patch.object(capa1_texto, "leer_lote", side_effect=leer_lote):
+            ac.aplicar(self.cx)
+        return leidas
+
+    def test_una_foja_vieja_se_relee_sola(self):
+        """
+        Antes una sola foja vieja se llevaba puesto el archivo entero. El plan lo decía
+        con honestidad, pero en un legajo real eso era releer cientos de fojas bien
+        leídas. Ahora se relee la foja vieja y nada más, y el plan dice exactamente eso:
+        no puede prometer reutilizar lo que va a releer, ni al revés.
         """
         _leer_todo(self.cx)
         for p in self.cx.execute("SELECT id FROM pagina").fetchall():
             ac.sellar(self.cx, "lectura", str(p["id"]))
-        # Se ensucia UNA sola de las tres fojas del archivo.
-        una = self.cx.execute("SELECT id FROM pagina ORDER BY nro LIMIT 1").fetchone()
+        una = self.cx.execute("SELECT id FROM pagina ORDER BY nro LIMIT 1").fetchone()["id"]
         self.cx.execute("UPDATE resultado_etapa SET firma='otra' "
-                        "WHERE etapa='lectura' AND alcance_id=?", (str(una["id"]),))
+                        "WHERE etapa='lectura' AND alcance_id=?", (str(una),))
         self.cx.commit()
+        otras = {r[0] for r in self.cx.execute(
+            "SELECT id FROM lectura WHERE pagina_id<>?", (una,))}
 
         p = ac.plan(self.cx)
-        self.assertEqual(p["reutiliza"]["paginas_ocr"], 0,
-                         "las otras dos fojas son del mismo archivo y se releen igual: "
-                         "no se pueden ofrecer como reutilizadas")
-        self.assertEqual(p["recalcula"]["paginas_ocr"], 3,
-                         "se relee el archivo entero, que son tres fojas, no una")
+        self.assertEqual(p["recalcula"]["paginas_ocr"], 1)
+        self.assertEqual(p["reutiliza"]["paginas_ocr"], 2)
+
+        self.assertEqual(self._aplicar_contando_fojas_leidas(), {una})
+        self.assertTrue(otras <= {r[0] for r in self.cx.execute("SELECT id FROM lectura")},
+                        "las lecturas de las otras dos fojas siguen siendo las mismas")
+
+    def test_un_archivo_leido_a_medias_lee_sólo_lo_que_falta(self):
+        # Medido en un legajo real: un archivo con 410 fojas leídas y 340 sin leer iba a
+        # releer las 750. La forma mínima del caso: tres fojas, dos leídas.
+        pids = [r[0] for r in self.cx.execute("SELECT id FROM pagina ORDER BY nro")]
+        for pid in pids[:2]:
+            self.cx.execute("""INSERT INTO lectura (pagina_id,ruta,motor,version,confianza,ms,creado_en)
+                               VALUES (?,'ocr_a','tesseract','5.4.0',0.9,10,?)""", (pid, ahora()))
+        self.cx.commit()
+        antes = {r[0] for r in self.cx.execute("SELECT id FROM lectura")}
+
+        p = ac.plan(self.cx)
+        self.assertEqual(p["recalcula"]["paginas_ocr"], 1)
+        self.assertEqual(p["reutiliza"]["paginas_ocr"], 2)
+
+        self.assertEqual(self._aplicar_contando_fojas_leidas(), {pids[2]})
+        self.assertTrue(antes <= {r[0] for r in self.cx.execute("SELECT id FROM lectura")})
 
     def test_cambiar_una_etapa_de_arriba_no_toca_el_ocr(self):
         """

@@ -721,9 +721,16 @@ def clasificar_fojas(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict
         plano = normalizar_cotejo(" ".join(w.texto for w in pw[:120]))
         if len(plano) > len(encabezados.get(nro, "")):
             encabezados[nro] = plano
+        # Se juntan las rutas: lo más que alguna VIO y lo más que alguna LEYÓ. Quedarse
+        # con la ruta de más útiles no alcanzaba: en un legajo real, una ruta devolvió
+        # 137 fragmentos sin una palabra legible y la otra una sola palabra, y ganaba la
+        # de una palabra, así que una foja con algo que no se pudo leer salía «en
+        # blanco» en vez de «no se pudo leer», que es lo que manda a alguien a mirarla.
         m = cl.medir(w.texto for w in pw)
-        if nro not in medidas or m.utiles > medidas[nro].utiles:
-            medidas[nro] = m
+        if nro in medidas:
+            m = cl.Medida(max(m.palabras, medidas[nro].palabras),
+                          max(m.utiles, medidas[nro].utiles))
+        medidas[nro] = m
     todas = sorted(vistas)
     if not todas:
         raise RuntimeError(f"sin lecturas para {sha}: correr `leer` antes que `extraer`")
@@ -808,6 +815,14 @@ def _tramos_del_archivo(cx, sha: str, perfiles: list, por_ruta) -> tuple:
                 perfil_de_tramo[t] = []
                 tramos.append(t)
             perfil_de_tramo[t].append(pf)
+    # Y las piezas de los tipos que no tienen extractor: existen igual (ver
+    # `cl.TIPOS_PIEZA`). Sólo se agregan si hay alguna pieza por perfil o algún tipo de
+    # pieza en el archivo; un archivo de formularios viejos sigue yendo por rótulos.
+    for tipo in sorted(set(clases.values()) & cl.TIPOS_PIEZA):
+        for t in tramos_por_tipo(clases, tipo):
+            if t not in perfil_de_tramo:
+                perfil_de_tramo[t] = []
+                tramos.append(t)
     tramos.sort()
     if not tramos:
         # Perfiles viejos de formulario, que no declaran un tipo de foja: se sigue
@@ -817,6 +832,26 @@ def _tramos_del_archivo(cx, sha: str, perfiles: list, por_ruta) -> tuple:
                           if any(pagina_es_formulario(pw, pf) for pf in perfiles)})
         tramos = segmentar(inicios, todas)
     return tramos, perfil_de_tramo
+
+
+def _borrar_campos(cx, doc_id: int) -> None:
+    """
+    Borra los campos de UNA pieza y lo que cuelga de ellos, en orden de dependencias.
+
+    La pieza se queda. Hacía falta en dos lugares y estaba escrito en uno solo: cuando una
+    pieza que ya tenía campos pasaba a no tener extractor —en un legajo real, facturas que
+    un tipo nuevo reconoció como órdenes de compra—, sus campos se borraban sin borrar
+    antes sus normalizaciones, y el archivo entero fallaba con «FOREIGN KEY constraint
+    failed».
+    """
+    sub = "SELECT id FROM campo WHERE documento_id=?"
+    cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute(f"DELETE FROM normalizacion         WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute("""DELETE FROM conflicto_variante WHERE conflicto_id IN
+                  (SELECT id FROM conflicto WHERE documento_id=?)""", (doc_id,))
+    cx.execute("DELETE FROM conflicto WHERE documento_id=?", (doc_id,))
+    cx.execute("DELETE FROM campo     WHERE documento_id=?", (doc_id,))
 
 
 def _borrar_pieza(cx, doc_id: int) -> None:
@@ -935,9 +970,13 @@ def segmentar_piezas(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "aut
     if cambio:
         # Ver el encabezado: sin anclaje no hay forma de saber si la pieza que ocupa
         # ese lugar sigue siendo la que la persona miró.
+        # Sin anclaje quiere decir sin foja Y sin pieza: una revisión anclada a su pieza
+        # (la de un campo sin valor) la reencuentra `reaplicar_revisiones` por tramo y tipo.
         cx.execute("""UPDATE revision_humana
                          SET estado='requiere_reasociacion', motivo=?
-                       WHERE sha256=? AND ancla_pagina IS NULL AND estado='vigente'""",
+                       WHERE sha256=? AND ancla_pagina IS NULL
+                         AND (ancla_desde IS NULL OR ancla_tipo IS NULL)
+                         AND estado='vigente'""",
                    ("es una revisión anterior al anclaje y el reparto del archivo en "
                     "piezas cambió, así que su posición ya no la identifica", sha))
     if len(tramos) > 1:
@@ -985,9 +1024,14 @@ def extraer_campos(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "auto"
         recorte = {r: pgs for r, pgs in recorte.items() if pgs}
 
         # Los perfiles que declaran este tipo de foja. Si ninguno lo declara —perfiles
-        # viejos de formulario, que no declaran tipo— se prueban todos, como antes.
+        # viejos de formulario, que no declaran tipo— se prueban todos, como antes; pero
+        # sólo para una pieza cuyo tipo no se conoce. Una resolución o un remito ya
+        # sabemos qué son: probarles el extractor de contratos es invitar a que una
+        # resolución que cita un contrato en su VISTO salga leída como contrato.
         candidatos = [pf for pf in perfiles
-                      if (pf.get("tipo_pagina") or pf.get("tipo")) == fila["tipo"]] or perfiles
+                      if (pf.get("tipo_pagina") or pf.get("tipo")) == fila["tipo"]]
+        if not candidatos and fila["tipo"] not in cl.TIPOS_POR_CLAVE:
+            candidatos = perfiles
 
         # Gana el que más campos saca. Con un solo perfil dado a mano, el bucle corre
         # una vez y decide lo mismo.
@@ -1029,7 +1073,7 @@ def extraer_campos(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "auto"
                         f"fojas {desde}-{hasta}: ningún extractor reconoce todavía este "
                         f"documento; queda cargado y se puede clasificar a mano",
                         ahora()))
-            cx.execute("DELETE FROM campo WHERE documento_id=?", (doc_id,))
+            _borrar_campos(cx, doc_id)
             cx.execute("UPDATE documento SET estado='sin_perfil' WHERE id=?", (doc_id,))
             total["sin_perfil"] += 1
             continue
@@ -1037,14 +1081,7 @@ def extraer_campos(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "auto"
         perfil = mejor_perfil
         # Los campos de la corrida anterior se van; la PIEZA se queda con su id. Eso es
         # lo que permite que reextraer no obligue a reasociar nada.
-        sub = "SELECT id FROM campo WHERE documento_id=?"
-        cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
-        cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
-        cx.execute(f"DELETE FROM normalizacion         WHERE campo_id IN ({sub})", (doc_id,))
-        cx.execute("""DELETE FROM conflicto_variante WHERE conflicto_id IN
-                      (SELECT id FROM conflicto WHERE documento_id=?)""", (doc_id,))
-        cx.execute("DELETE FROM conflicto WHERE documento_id=?", (doc_id,))
-        cx.execute("DELETE FROM campo     WHERE documento_id=?", (doc_id,))
+        _borrar_campos(cx, doc_id)
         cx.execute("""UPDATE documento SET tipo=?, perfil=?, camara=?, estado='extraido'
                        WHERE id=?""",
                    (perfil["tipo"], perfil["nombre"], mejor_cam, doc_id))
@@ -1181,8 +1218,37 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list) -> dict
     for r in revisiones:
         nombre = r["campo"]
         ancla = (r["ancla_x0"], r["ancla_y0"], r["ancla_x1"], r["ancla_y1"])
+        pagina = r["ancla_pagina"]
+        if pagina is not None and r["ancla_desde"] is not None:
+            # Una versión anterior numeraba las fojas de un contrato desde el principio
+            # de la pieza y no desde el principio del archivo, y el anclaje heredó ese
+            # número. Encontrado en un legajo real: dos correcciones de contratos que
+            # empiezan en las fojas 23 y 25 estaban ancladas «en la foja 1». Si la foja
+            # del anclaje cae fuera de su propia pieza pero cabe como posición adentro de
+            # ella, es esa numeración vieja, y se traduce a la foja del archivo.
+            hasta = r["ancla_hasta"] or r["ancla_desde"]
+            if not r["ancla_desde"] <= pagina <= hasta \
+                    and 1 <= pagina <= hasta - r["ancla_desde"] + 1:
+                pagina = r["ancla_desde"] + pagina - 1
 
-        if r["ancla_pagina"] is None:
+        if r["ancla_pagina"] is None and r["ancla_desde"] is not None and r["ancla_tipo"]:
+            # Anclada a la pieza y no a una foja: pasa con las revisiones de un campo SIN
+            # valor —«no está en el papel», «ilegible»—, que no tienen foja ni recuadro
+            # porque no hay nada escrito que señalar. La pieza sí: mismo tramo de fojas y
+            # mismo tipo es la misma pieza aunque haya cambiado de lugar en la fila.
+            # Encontrado en un legajo real: dos verificaciones de este tipo iban a pasar
+            # a «requiere reasociación» en la primera actualización.
+            candidatas = [p for p in piezas
+                          if p["pagina_desde"] == r["ancla_desde"]
+                          and (p["pagina_hasta"] or p["pagina_desde"]) == (
+                              r["ancla_hasta"] or r["ancla_desde"])
+                          and p["tipo"] == r["ancla_tipo"]]
+            if not candidatas:
+                decisiones.append([r, None, None,
+                                   f"ya no hay una pieza de tipo {r['ancla_tipo']} en las "
+                                   f"fojas {r['ancla_desde']}-{r['ancla_hasta']}"])
+                continue
+        elif r["ancla_pagina"] is None:
             # Revisión anterior al anclaje: sólo se puede aplicar por posición.
             #
             # Que haya llegado hasta acá como vigente significa que la segmentación no
@@ -1199,14 +1265,14 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list) -> dict
         else:
             # Las piezas que contienen la foja que la persona miró.
             candidatas = [p for p in piezas
-                          if (p["pagina_desde"] or 0) <= r["ancla_pagina"]
+                          if (p["pagina_desde"] or 0) <= pagina
                           <= (p["pagina_hasta"] or p["pagina_desde"] or 0)]
 
         # De ésas, las que tienen este campo.
         candidatas = [p for p in candidatas if nombre in campos.get(p["id"], {})]
 
         if not candidatas:
-            donde = (f" en la foja {r['ancla_pagina']}" if r["ancla_pagina"] else "")
+            donde = (f" en la foja {pagina}" if pagina else "")
             decisiones.append([r, None, None,
                                f"ninguna pieza de este archivo tiene hoy el campo "
                                f"«{nombre}»{donde}"])
@@ -1222,7 +1288,7 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list) -> dict
             candidatas = sorted(candidatas, key=_cuanto, reverse=True)
             if _cuanto(candidatas[0]) <= 0:
                 decisiones.append([r, None, None,
-                                   f"la foja {r['ancla_pagina']} quedó repartida entre "
+                                   f"la foja {pagina} quedó repartida entre "
                                    f"{len(candidatas)} piezas y el recuadro no alcanza "
                                    f"para saber a cuál corresponde"])
                 continue

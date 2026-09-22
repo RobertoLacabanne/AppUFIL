@@ -43,7 +43,19 @@ class Tipo:
     fojas_tipicas: int = 2
 
 
-TIPOS: tuple[Tipo, ...] = (
+# Títulos de las etapas de compra. Una mención en el cuerpo no cambia el tipo.
+TIPOS_COMPRA = (
+    Tipo("pedido", "Pedido o solicitud", ("SOLICITUD DE PROVISION", "SOLICITUD DE COMPRA", "PEDIDO DE COMPRA", "PEDIDO DE PROVISION")),
+    Tipo("oferta", "Oferta", ("OFERTA", "PROPUESTA ECONOMICA")),
+    Tipo("cuadro_comparativo", "Cuadro comparativo", ("CUADRO COMPARATIVO", "PLANILLA COMPARATIVA")),
+    Tipo("dictamen", "Dictamen o preadjudicación", ("DICTAMEN", "PREADJUDICACION")),
+    Tipo("adjudicacion", "Adjudicación", ("RESOLUCION DE ADJUDICACION", "ADJUDICACION", "ADJUDICASE")),
+    Tipo("orden_compra", "Orden de compra", ("ORDEN DE COMPRA",)),
+    Tipo("orden_pago", "Orden de pago", ("ORDEN DE PAGO",)),
+    Tipo("pago", "Constancia de pago o transferencia", ("CONSTANCIA DE PAGO", "COMPROBANTE DE TRANSFERENCIA", "CONSTANCIA DE TRANSFERENCIA")),
+)
+
+TIPOS: tuple[Tipo, ...] = TIPOS_COMPRA + (
     Tipo("contrato_obra", "Contrato de obra",
          ("CONTRATO DE OBRA", "CONTRATO DEOBRA"), fojas_tipicas=2),
     Tipo("contrato_locacion", "Contrato de locación",
@@ -91,7 +103,7 @@ TIPOS: tuple[Tipo, ...] = (
          ("MEMORIA DESCRIPTIVA",), arranca=False, fojas_tipicas=2),
     Tipo("presupuesto", "Presupuesto",
          ("PRESUPUESTO OFICIAL", "COMPUTO Y PRESUPUESTO",
-          "MATERIALES PARA SISTEMAS"), arranca=False, fojas_tipicas=2),
+          "MATERIALES PARA SISTEMAS", "PRESUPUESTO", "COTIZACION"), arranca=False, fojas_tipicas=2),
     Tipo("plano", "Plano o croquis",
          ("CROQUIS DE UBICACION", "PLANO DE UBICACION", "PLANO GENERAL"),
          arranca=False, fojas_tipicas=1),
@@ -114,6 +126,22 @@ TIPOS: tuple[Tipo, ...] = (
 
 TIPOS_POR_CLAVE = {t.clave: t for t in TIPOS}
 ETIQUETAS = {t.clave: t.etiqueta for t in TIPOS}
+
+# Los documentos que traen precios son piezas propias aunque viajen adentro de un
+# expediente: comparar precios es el objetivo central (docs/contrataciones-y-precios.md),
+# y un presupuesto pegado como contexto a la foja de al lado no tiene renglones que
+# comparar. Un acta de apertura lista las ofertas con sus importes.
+TIPOS_CON_PRECIO = frozenset({"presupuesto", "acta_apertura", "oferta", "cuadro_comparativo",
+                              "dictamen", "adjudicacion", "orden_compra", "factura",
+                              "orden_pago", "pago"})
+
+# Qué tipos de foja arrancan una pieza. Hasta acá las piezas salían sólo de los perfiles
+# de extracción —factura y contratos—, y `arranca` no lo consultaba nadie: en un legajo
+# real, 128 fojas de resoluciones, 48 de remitos y 19 de presupuestos, bien clasificadas,
+# no formaban ni una pieza. Una pieza sin extractor para su tipo sigue siendo una pieza:
+# se ve, se busca, se anota y se revisa. Los tipos de contexto de un expediente —pliego,
+# memoria, planos, pólizas, pases— siguen sin partirlo en pedazos.
+TIPOS_PIEZA = frozenset(t.clave for t in TIPOS if t.arranca) | TIPOS_CON_PRECIO
 ETIQUETAS["continuacion"] = "Continuación"
 ETIQUETAS["desconocida"] = "Sin reconocer"
 
@@ -214,7 +242,7 @@ def veredicto(m: Medida | None) -> str | None:
     """
     if m is None:
         return None
-    if m.palabras < PALABRAS_EN_BLANCO:
+    if m.palabras < PALABRAS_EN_BLANCO and m.utiles == 0:
         return FOJA_EN_BLANCO
     if m.proporcion_util < UTILES_MINIMOS:
         return FOJA_SIN_TEXTO
@@ -360,11 +388,36 @@ def clasificar_pagina(texto_plano_normalizado: str,
     v = veredicto(medida)
     if v:
         return v, 1
+    # «Documento no válido como factura» es la leyenda que todo remito tiene que llevar
+    # impresa y que una factura no lleva nunca: es la señal más fuerte que hay para
+    # separarlos, y manda sobre los títulos. Medido en un legajo real: 13 fojas con la
+    # leyenda salían todas «factura», porque la palabra FACTURA está en la leyenda misma.
+    if contiene_marca(texto_plano_normalizado, "NO VALIDO COMO FACTURA"):
+        return "remito", 1
+    # El primer título gana sobre referencias a documentos que aparecen después.
+    # Conservamos el clasificador histórico como respaldo para OCR deteriorado.
+    titulos = []
+    for t in TIPOS:
+        if t in TIPOS_COMPRA or t.clave in ("factura", "remito", "recibo", "presupuesto",
+                                            "contrato_obra", "contrato_locacion", "resolucion", "decreto"):
+            for marca in t.marcas:
+                m = re.search(r"\b" + re.escape(marca) + r"\b", texto_plano_normalizado)
+                if m and (m.start() <= 120 or len(marca.split()) >= 2):
+                    titulos.append((m.start(), -len(marca), t.clave))
     mejor, puntos_mejor = "desconocida", 0
     for t in TIPOS:
-        p = _puntos(texto_plano_normalizado, t)
+        if t in TIPOS_COMPRA:
+            p = sum(contiene_marca(texto_plano_normalizado, m) for m in t.marcas if len(m.split()) >= 2)
+        else:
+            p = _puntos(texto_plano_normalizado, t)
         if p > puntos_mejor:
             mejor, puntos_mejor = t.clave, p
+    if titulos:
+        primero = min(titulos)
+        # Los contratos se reconocen también con tolerancia de OCR; una referencia
+        # breve a una factura no debe ganarle a su título deteriorado.
+        if not mejor.startswith("contrato_"):
+            return primero[2], 1
     return mejor, puntos_mejor
 
 
@@ -393,6 +446,12 @@ def clasificar_documento(paginas, medidas: dict[int, "Medida"] | None = None
             continue
         if puntos == 0:
             fuera[nro] = "continuacion" if ultimo_arranque else "desconocida"
+            continue
+        # RESUELVE/ARTÍCULO reconocen el cuerpo, pero no un inicio nuevo.
+        # VISTO y el título numerado sí permiten dos actos consecutivos distintos.
+        if (clave == "resolucion" and ultimo_arranque in ("resolucion", "adjudicacion")
+                and not any(contiene_marca(plano, m) for m in ("RESOLUCION N", "VISTO"))):
+            fuera[nro] = "continuacion"
             continue
         fuera[nro] = clave
         # Cualquier foja reconocida deja «algo» atrás, y por eso la siguiente sin

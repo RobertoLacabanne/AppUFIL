@@ -586,3 +586,100 @@ estaban en el código; G9 lo cerró Claude. **Un informe no reemplaza mirar el d
 12 veces después de C8: 11 bien y 1 fallo cuya causa no quedó registrada. Pasó justo
 después de la suite entera, con la máquina cargada, y el arnés espera como máximo 6 s
 por paso: es lo más probable, pero es inferido.
+
+---
+
+# Incremento 7 — Contrataciones y precios
+
+**Cambio de foco (Roberto, 21/09/2026).** El objetivo analítico central pasa a ser asistir
+investigaciones de posibles sobreprecios y anomalías en contrataciones públicas:
+reconstruir la contratación, comparar precios, relacionar documentos, detectar
+inconsistencias y mostrarlas con su fuente, **sin concluir**. El contrato completo
+—semántica, modelo, comparabilidad, niveles de referencia, cálculos, hallazgos,
+trazabilidad, etapas y API— está en `docs/contrataciones-y-precios.md`, y es la referencia
+de este incremento.
+
+**Commit base.** `172c5cf` (incremento 6 integrado en la rama principal).
+
+| | Rama | Worktree |
+|---|---|---|
+| Claude | `claude/contrataciones-precios` (integración) | `C:\Users\rober\AppUFIL` |
+| Codex | `codex/contrataciones-backend` | `C:\Users\rober\AppUFIL-codex-next` |
+| Gemini | `gemini/contrataciones-interfaz` | `C:\Users\rober\AppUFIL-gemini` |
+
+Codex no tiene cuota hasta las 23:15. Mientras tanto Claude escribe el núcleo semántico
+(`ufil/comparabilidad.py`) y Gemini programa la interfaz contra el contrato con datos
+simulados; el backend de Codex arranca cuando vuelve la cuota, sobre ese núcleo.
+
+## El corpus real pasa a ser el criterio (21/09/2026)
+
+Roberto pidió que la validación y la mejora se hagan **sobre el legajo real** cargado en la
+instancia desplegada, y autorizó expresamente usarlo para todo. Los PDF sintéticos quedan
+como regresión mínima. El flujo: corpus real → problema → reproducir → corregir → prueba
+sintética mínima → volver al corpus real → confirmar. **Nada real va a Git**: ni en
+pruebas, ni en fixtures, ni en mensajes; en este documento sólo cantidades.
+
+**Dónde está y cómo se copió.** La instancia de Render guarda todo en su disco
+persistente (`UFIL_DATOS=/app/datos`, `legajos/<slug>/ufil.sqlite`). La copia se sacó con
+la función de respaldo de la propia aplicación (API de backup de SQLite, no toca la base)
+a `C:\Users\rober\AppUFIL-corpus-real\` —fuera de todo repositorio—: el original intacto
+en `produccion-original/` (sólo lectura, `integrity_check` ok, esquema 25) y una copia de
+trabajo por agente (`claude/`, `codex/`, `gemini/`). Coincide con lo que Roberto ve en
+producción: 20 piezas, 1.628 fojas, 116 campos a revisar, 2 en conflicto, 6 revisiones
+humanas, 18 personas. `herramientas/traer_corpus_real.py` repite el procedimiento.
+
+**Alerta de seguridad, para Roberto:** la instancia desplegada sirve los datos **sin
+clave** (`/api/legajos`, `/descargar`), aunque `render.yaml` la pide. Se le avisó; el
+arreglo es suyo (variables de entorno en Render) y no se tocó producción.
+
+**Límites de la copia:** de los 11 originales sólo está en esta máquina el de 750 fojas
+(mismo SHA-256); los otros 10 no. Los renders de las fojas no se pudieron bajar: el
+clasificador de permisos de Claude bloqueó la descarga masiva. El texto leído sí está
+completo, así que todo lo que trabaja sobre palabras se puede correr; el visor no.
+
+### Lo que encontró el corpus real, y qué se hizo
+
+| # | Hallazgo (sólo cantidades) | Estado |
+|---|---|---|
+| R1 | «Actualizar análisis» iba a releer **750** fojas de un archivo que tenía 410 leídas y 340 sin leer: la lectura se ejecutaba por archivo | corregido (`fc291c5`): se leen 340, se reutilizan 1.288 |
+| R2 | 2 de las 6 revisiones humanas iban a pasar a «requiere reasociación»: verificaciones de campos sin valor, que no tienen foja; y le pasa a toda confirmación de ese tipo que se haga hoy | corregido (`bb77a62`): anclaje por pieza |
+| R3 | El panel decía «1.628 páginas leídas» con 340 sin leer | corregido (`ab35d32`): «1.288 / 1.628» |
+| R4 | 1.628 fojas producen **20 piezas**; el PDF de 750 fojas **no tiene ninguna foja clasificada**; 6 de 10 PDF de ~88 fojas, **0 piezas**. En producción corre un pipeline anterior (0 sellos de segmentación); con el de hoy, 54 piezas, todas facturas o contratos: las piezas salían sólo de los perfiles | corregido (`2a055b2`): 258 piezas (128 resoluciones, 48 remitos, 47 facturas, 19 presupuestos…) |
+| R9 | Dos correcciones humanas de contratos ancladas «en la foja 1» con numeración relativa a la pieza, de una versión anterior; si la foja 1 tuviera otra pieza con el mismo campo, la corrección se mudaba | corregido (`e8c638f`): las 6 revisiones reales vigentes tras resegmentar |
+| R10 | Una foja con 137 fragmentos ilegibles salía «en blanco» porque la otra ruta vio una palabra | corregido (`46ce524`) |
+| R11 | 589 fojas «en blanco» | verificado por tinta en el PDF de 750: 230/230 sin tinta; no es un problema |
+| R12 | 26 de 128 piezas de resolución pegadas a la anterior (¿una resolución partida?); 36 fojas «continuación» detrás de facturas, remitos y recibos sin pieza | tarea de Codex (7a), medido |
+| R5 | Fojas que mencionan orden de compra 81, oferta 72, adjudicación 48, orden de pago 17 — **no hay tipo documental** para ninguna | tarea de Codex (7a) |
+| R6 | El detector de tablas encuentra tablas en **41 fojas** de todo el legajo | tarea de Codex (7a) |
+| R7 | Los identificadores exactos casi no aparecen en el OCR real: «ORDEN DE COMPRA N°» en 8 fojas de 81, números de factura en 0; el CUIT sí (37 distintos, 10 repetidos) | tarea de Codex (7b) |
+| R8 | Nunca corrieron en producción tablas, entidades, menciones, cronología ni relaciones (todas en 0) | se aplican con «Actualizar análisis» |
+
+**Actualización completa sobre la copia de Claude** (con `fc291c5`): 42 minutos, 0 errores;
+1.628 fojas leídas (340 de OCR nuevo, 1.288 reutilizadas), 1.628 clasificadas, 61 tablas
+con 3.015 celdas, 644 menciones, 36 entidades, 5 hechos de cronología, 0 relaciones.
+
+**Máquina de desarrollo:** a la madrugada del 22/09 quedaban 0,5 GB de RAM libre de 7,7 y el
+sistema detuvo el lanzamiento programado de Codex por falta de memoria. No se relanzó sin
+pedido de Roberto.
+
+### Backend 7a de Codex, sobre el legajo real (22/09)
+
+Codex dejó hecho —sin cuota para cerrar ni informar— la detección de tablas por bloque, los
+tipos de una contratación, el esquema 26, los renglones y la comparación de precios, con
+37 pruebas. Claude corrió la suite, lo commiteó por él (`1941561`) y lo probó sobre una
+copia del legajo real con todas las fojas leídas:
+
+| # | Hallazgo (cantidades) | Estado |
+|---|---|---|
+| R13 | 2 archivos fallaban con «FOREIGN KEY constraint failed»: piezas que eran facturas pasaron a órdenes de compra sin extractor y sus campos se borraban sin sus normalizaciones | corregido (`7fa1554`) |
+| R14 | 13 fojas con «DOCUMENTO NO VÁLIDO COMO FACTURA» (remitos): 0 bien antes, 7 con 7a | corregido (`4f932d4`): la leyenda manda |
+| R15 | Tablas por bloque: de 61 a 859, pero 357 eran ruido (< 15 % legible) | corregido (`88ab54b`): 558, ninguna de ruido, las 82 con importes se conservan |
+| R16 | 17 renglones, **ninguno con precio unitario**: las planillas reales salen partidas o con columnas fundidas por las rayas que el OCR lee como «\|» | pendiente, para Codex |
+| R17 | Tipos nuevos: 37 órdenes de compra, 13 órdenes de pago, 31 presupuestos; las resoluciones pegadas se reducen con la regla de marcas de cuerpo | comprobado |
+
+**Migración de producción ensayada** sobre una copia intacta del respaldo: esquema 25 → 26,
+ninguna fila cambió, `integrity_check` ok, 0 referencias rotas, no migra dos veces.
+
+**Despliegue:** hacer push de la rama principal despliega en Render (la instancia servía
+el código de `172c5cf` minutos después de ese push). Las pantallas de contrataciones y
+hallazgos, cuyo backend es la 7b, dicen «todavía no disponible» en vez de un error.

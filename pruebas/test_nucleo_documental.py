@@ -205,6 +205,89 @@ class LoQueElSistemaTodaviaNoSabeLeer(unittest.TestCase):
             piezas.clasificar_a_mano(self.cx, doc, "remito", "")
 
 
+class CadaDocumentoEsUnaPiezaAunqueNoHayaExtractor(unittest.TestCase):
+    """
+    Encontrado en un legajo real: 1.628 fojas producían 54 piezas, todas facturas o
+    contratos, porque las piezas salían sólo de los perfiles de extracción. 128 fojas de
+    resoluciones, 48 de remitos y 19 de presupuestos —bien clasificadas— no formaban
+    ninguna. Para reconstruir una contratación hacen falta justamente ésas.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        _archivo(self.cx, SHA_A, "expediente.pdf", 8)
+        clases = {1: "factura", 2: "remito", 3: "continuacion", 4: "resolucion",
+                  5: "presupuesto", 6: "continuacion", 7: "pliego", 8: "en_blanco"}
+        for nro, clase in clases.items():
+            self.cx.execute("UPDATE pagina SET clasificacion=? WHERE sha256=? AND nro=?",
+                            (clase, SHA_A, nro))
+        self.cx.commit()
+
+    def tearDown(self):
+        self.cx.close()
+        try:
+            self.tmp.cleanup()
+        except PermissionError:
+            pass
+
+    def test_remitos_resoluciones_y_presupuestos_son_piezas(self):
+        segmentar_piezas(self.cx, SHA_A, por_ruta={"ocr_a": []})
+        piezas_ = [(r["pagina_desde"], r["pagina_hasta"], r["tipo"]) for r in self.cx.execute(
+            "SELECT pagina_desde, pagina_hasta, tipo FROM documento ORDER BY pagina_desde")]
+        # El remito es de una foja (`fojas_tipicas=1`) y no absorbe la «continuación»:
+        # en el legajo real, detrás de facturas, remitos y recibos hay 36 fojas así, y
+        # mientras no existan los tipos de orden de compra, oferta o adjudicación muchas
+        # pueden ser OTRO documento sin reconocer. Pegárselas mezclaría dos documentos.
+        self.assertEqual(piezas_, [(1, 1, "factura"), (2, 2, "remito"), (4, 4, "resolucion"),
+                                   (5, 6, "presupuesto")])
+
+    def test_el_contexto_del_expediente_no_se_parte_en_pedazos(self):
+        segmentar_piezas(self.cx, SHA_A, por_ruta={"ocr_a": []})
+        tipos = {r[0] for r in self.cx.execute("SELECT tipo FROM documento")}
+        self.assertNotIn("pliego", tipos)
+        self.assertNotIn("en_blanco", tipos)
+
+
+class UnaPiezaQueCambiaDeTipoNoRompeElArchivo(unittest.TestCase):
+    """
+    Encontrado en un legajo real: al aparecer el tipo «orden de compra», piezas que
+    habían salido como facturas —con campos y normalizaciones— pasaron a un tipo sin
+    extractor. Sus campos se borraban sin borrar antes lo que colgaba de ellos, y el
+    archivo entero fallaba con «FOREIGN KEY constraint failed».
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        _archivo(self.cx, SHA_A, "expediente.pdf", 1)
+
+    def tearDown(self):
+        self.cx.close()
+        try:
+            self.tmp.cleanup()
+        except PermissionError:
+            pass
+
+    def test_pasa_a_sin_perfil_sin_romper_nada(self):
+        from ufil.capa2_extraccion import extraer_campos
+        doc = _pieza(self.cx, SHA_A, 1, 1, 1, "factura")
+        campo = self.cx.execute("SELECT id FROM campo WHERE documento_id=?", (doc,)).fetchone()[0]
+        self.cx.execute("INSERT INTO normalizacion (campo_id,tipo,valor_norm) VALUES (?,'monto','1000.00')",
+                        (campo,))
+        self.cx.execute("UPDATE documento SET tipo='orden_compra' WHERE id=?", (doc,))
+        self.cx.execute("UPDATE pagina SET clasificacion='orden_compra' WHERE sha256=?", (SHA_A,))
+        self.cx.commit()
+
+        extraer_campos(self.cx, SHA_A, "auto", por_ruta={"ocr_a": [(1, None, [])]})
+
+        f = self.cx.execute("SELECT tipo, estado FROM documento WHERE id=?", (doc,)).fetchone()
+        self.assertEqual((f["tipo"], f["estado"]), ("orden_compra", "sin_perfil"),
+                         "la pieza sigue existiendo, con su tipo, aunque no tenga extractor")
+        self.assertEqual(self.cx.execute("SELECT COUNT(*) FROM normalizacion").fetchone()[0], 0)
+        self.assertEqual(self.cx.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+
 class UnaPiezaPuedeSeguirEnOtroArchivo(unittest.TestCase):
     """El límite de un PDF no es el límite de un documento."""
 

@@ -57,6 +57,21 @@ PROPORCION_ALINEADA = 0.6
 # desde lejos.
 MIN_HUECO = 18.0
 
+# Qué proporción de lo que hay en las celdas tiene que parecer una palabra o un número de
+# verdad para que el bloque sea una tabla y no una mancha alineada. Medido en un legajo
+# real con la detección por bloque: de 859 «tablas», 357 tenían menos del 15 % de algo
+# legible —fragmentos de dos letras sobre sellos y firmas—, 158 más del 40 %. Es la misma
+# medida que separa una foja ilegible de una legible (clasificacion.medir).
+UTILES_MINIMOS_TABLA = 0.15
+
+
+def _legible(celdas) -> bool:
+    """Si las celdas dicen algo. Las rayas de la planilla que el OCR lee como «|» no cuentan."""
+    from .clasificacion import medir
+    tokens = [w.strip("|¦[]{}()¡!¿?:;,'\"") for c in celdas for w in (c["texto"] or "").split()]
+    m = medir(t for t in tokens if t)
+    return m.palabras > 0 and m.proporcion_util >= UTILES_MINIMOS_TABLA
+
 
 def _renglones(palabras) -> list[list]:
     """
@@ -114,65 +129,80 @@ def _columna_de(x: float, columnas: list[float]) -> int:
     return idx
 
 
+def _inicios(r):
+    """Sólo los arranques separados por blanco; una palabra interna no es columna."""
+    return [p for i, p in enumerate(r)
+            if i == 0 or p.x0 - r[i - 1].x1 >= MIN_HUECO]
+
+
+def _celdas_fila(r, columnas):
+    por_columna = {}
+    for p in r:
+        por_columna.setdefault(_columna_de(p.x0, columnas), []).append(p)
+    if len(por_columna) < max(MIN_COLUMNAS, len(columnas) * PROPORCION_ALINEADA):
+        return None
+    bordes = [(min(p.x0 for p in ps), max(p.x1 for p in ps))
+              for _, ps in sorted(por_columna.items())]
+    if any(b[0] - a[1] < MIN_HUECO for a, b in zip(bordes, bordes[1:])):
+        return None
+    # No basta caer dentro de una columna: su arranque debe estar alineado.
+    if any(abs(min(p.x0 for p in ps) - columnas[col]) > TOLERANCIA_COLUMNA
+           for col, ps in por_columna.items()):
+        return None
+    return por_columna
+
+
 def detectar_en_pagina(palabras, ancho: float = 0, alto: float = 0) -> list[dict]:
+    """Busca semillas de tres filas consecutivas y extiende cada bloque alineado.
+
+    El denominador es el bloque, no la foja. Encabezados, prosa y totales cortan
+    el bloque; dos tablas distintas no se funden por compartir un margen.
     """
-    Las tablas de una foja. Devuelve una lista; casi siempre vacía o de una.
-
-    Cada tabla trae sus celdas con fila, columna, texto y recuadro. El recuadro es de la
-    celda, no de la tabla: es lo que después permite señalar en la foja de dónde salió
-    un número.
-    """
-    renglones = _renglones(palabras)
-    if len(renglones) < MIN_FILAS:
-        return []
-    columnas = _columnas_estables(renglones)
-    if len(columnas) < MIN_COLUMNAS:
-        return []
-
-    # Sólo entran los renglones que de verdad respetan las columnas. Un título arriba de
-    # la planilla, o un total suelto abajo, no son filas de la tabla.
-    celdas: list[dict] = []
-    fila_nro = 0
-    usados = []
-    for r in renglones:
-        ocupadas = {_columna_de(p.x0, columnas) for p in r}
-        if len(ocupadas) < MIN_COLUMNAS:
+    filas = _renglones(palabras)
+    candidatos = {}
+    for i in range(len(filas) - MIN_FILAS + 1):
+        columnas = _columnas_estables([_inicios(r) for r in filas[i:i + MIN_FILAS]])
+        if len(columnas) < MIN_COLUMNAS:
             continue
-        por_columna: dict[int, list] = {}
-        for p in r:
-            por_columna.setdefault(_columna_de(p.x0, columnas), []).append(p)
-        # Entre celda y celda tiene que haber un blanco, no un espacio de imprenta.
-        # Ver MIN_HUECO: es lo único que distingue una planilla de un texto justificado.
-        bordes = sorted((min(q.x0 for q in ps), max(q.x1 for q in ps))
-                        for ps in por_columna.values())
-        if any(b[0] - a[1] < MIN_HUECO for a, b in zip(bordes, bordes[1:])):
+        def cerca(a, b):
+            altura = max(p.y1 - p.y0 for p in filas[a] + filas[b])
+            return min(p.y0 for p in filas[b]) - max(p.y1 for p in filas[a]) <= altura * 3
+        def valida(j):
+            return _celdas_fila(filas[j], columnas) is not None
+        if not all(valida(j) for j in range(i, i + MIN_FILAS)):
             continue
-        for col, ps in sorted(por_columna.items()):
-            celdas.append({
-                "fila": fila_nro, "columna": col,
-                "texto": " ".join(q.texto for q in ps),
-                "caja": (min(q.x0 for q in ps), min(q.y0 for q in ps),
-                         max(q.x1 for q in ps), max(q.y1 for q in ps)),
-                "confianza": round(sum(getattr(q, "conf", 1.0) or 0 for q in ps) / len(ps), 2),
-            })
-        usados.append(r)
-        fila_nro += 1
-
-    if fila_nro < MIN_FILAS:
-        return []
-
-    todas = [p for r in usados for p in r]
-    tabla = {
-        "filas": fila_nro, "columnas": len(columnas),
-        "caja": (min(p.x0 for p in todas), min(p.y0 for p in todas),
-                 max(p.x1 for p in todas), max(p.y1 for p in todas)),
-        "celdas": celdas,
-        # Qué tan segura es: cuántos renglones del bloque respetaron las columnas.
-        "confianza": round(min(0.95, 0.45 + 0.5 * (fila_nro / max(len(renglones), 1))), 2),
-    }
-    # La primera fila es encabezado si no tiene ningún número donde las de abajo sí.
-    _marcar_encabezado(tabla)
-    return [tabla]
+        if not all(cerca(j, j + 1) for j in range(i, i + MIN_FILAS - 1)):
+            continue
+        inicio, fin = i, i + MIN_FILAS
+        while inicio > 0 and cerca(inicio - 1, inicio) and valida(inicio - 1):
+            inicio -= 1
+        while fin < len(filas) and cerca(fin - 1, fin) and valida(fin):
+            fin += 1
+        candidatos[(inicio, fin, tuple(columnas))] = (fin - inicio) * len(columnas)
+    usados, tablas = set(), []
+    for (inicio, fin, columnas), _ in sorted(candidatos.items(), key=lambda x: -x[1]):
+        if usados.intersection(range(inicio, fin)):
+            continue
+        usados.update(range(inicio, fin))
+        celdas = []
+        for n, r in enumerate(filas[inicio:fin]):
+            for col, ps in sorted(_celdas_fila(r, columnas).items()):
+                celdas.append({
+                    "fila": n, "columna": col, "texto": " ".join(p.texto for p in ps),
+                    "caja": (min(p.x0 for p in ps), min(p.y0 for p in ps),
+                             max(p.x1 for p in ps), max(p.y1 for p in ps)),
+                    "confianza": round(sum(getattr(p, "conf", 1.0) or 0 for p in ps) / len(ps), 2),
+                })
+        todas = [p for r in filas[inicio:fin] for p in r]
+        t = {"filas": fin - inicio, "columnas": len(columnas), "celdas": celdas,
+             "caja": (min(p.x0 for p in todas), min(p.y0 for p in todas),
+                      max(p.x1 for p in todas), max(p.y1 for p in todas)),
+             "confianza": 0.95}
+        if not _legible(celdas):
+            continue
+        _marcar_encabezado(t)
+        tablas.append(t)
+    return sorted(tablas, key=lambda t: t["caja"][1])
 
 
 def _marcar_encabezado(tabla: dict) -> None:
@@ -209,21 +239,29 @@ def detectar_archivo(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict
         "SELECT nro, ancho_pt, alto_pt, id FROM pagina WHERE sha256=?", (sha,))}
     # De cada foja, la ruta de lectura que más filas produjo: si alguna pudo ver la
     # tabla, la tabla está.
-    mejor: dict[int, tuple] = {}
+    mejor = {}
     for ruta, pgs in por_ruta.items():
         for nro, lid, palabras in pgs:
             if nro not in medidas:
                 continue
             ancho, alto, _ = medidas[nro]
-            for t in detectar_en_pagina(palabras, ancho or 0, alto or 0):
-                if nro not in mejor or t["filas"] > mejor[nro][0]["filas"]:
-                    mejor[nro] = (t, lid)
+            ts = detectar_en_pagina(palabras, ancho or 0, alto or 0)
+            calidad = sum(t["filas"] * t["columnas"] for t in ts)
+            if nro not in mejor or calidad > mejor[nro][2]:
+                mejor[nro] = (ts, lid, calidad)
 
     guardadas = 0
-    for nro, (t, lid) in sorted(mejor.items()):
-        ya = cx.execute("""SELECT id, origen FROM tabla
-                            WHERE sha256=? AND pagina_nro=? AND orden=1""",
-                        (sha, nro)).fetchone()
+    elegidas = [(nro, orden, t, lid) for nro, (ts, lid, _) in sorted(mejor.items())
+                for orden, t in enumerate(ts, 1)]
+    vigentes = {(nro, orden) for nro, orden, _, _ in elegidas}
+    for vieja in cx.execute("SELECT * FROM tabla WHERE sha256=? AND origen!='humano'",
+                            (sha,)).fetchall():
+        if (vieja["pagina_nro"], vieja["orden"]) not in vigentes:
+            cx.execute("UPDATE tabla SET continua_de=NULL WHERE continua_de=?", (vieja["id"],))
+            cx.execute("DELETE FROM tabla WHERE id=?", (vieja["id"],))
+    for nro, orden, t, lid in elegidas:
+        ya = cx.execute("SELECT id, origen FROM tabla WHERE sha256=? AND pagina_nro=? AND orden=?",
+                        (sha, nro, orden)).fetchone()
         if ya and ya["origen"] == "humano":
             continue
         doc = cx.execute("""SELECT id FROM documento
@@ -242,8 +280,8 @@ def detectar_archivo(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict
             tabla_id = cx.execute(
                 """INSERT INTO tabla (sha256, pagina_nro, orden, documento_id, filas,
                                       columnas, x0, y0, x1, y1, origen, confianza, creado_en)
-                   VALUES (?,?,1,?,?,?,?,?,?,?, 'ocr', ?, ?)""",
-                (sha, nro, doc["id"] if doc else None, t["filas"], t["columnas"],
+                   VALUES (?,?,?,?,?,?,?,?,?,?, 'ocr', ?, ?)""",
+                (sha, nro, orden, doc["id"] if doc else None, t["filas"], t["columnas"],
                  x0, y0, x1, y1, t["confianza"], ahora())).lastrowid
         for c in t["celdas"]:
             cx.execute("""INSERT INTO tabla_celda (tabla_id, fila, columna, es_encabezado,

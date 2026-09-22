@@ -574,6 +574,88 @@ CREATE TABLE IF NOT EXISTS tabla_celda (
 );
 CREATE INDEX IF NOT EXISTS ix_celda_tabla ON tabla_celda(tabla_id, fila, columna);
 
+-- Incremento 7: importes como texto decimal; ausencias siguen siendo NULL.
+CREATE TABLE IF NOT EXISTS contratacion (
+  id INTEGER PRIMARY KEY,
+  clave TEXT UNIQUE,
+  nombre TEXT NOT NULL,
+  expediente TEXT, expediente_entidad_id INTEGER REFERENCES entidad(id) ON DELETE SET NULL,
+  organismo TEXT, procedimiento TEXT, objeto TEXT,
+  origen TEXT NOT NULL DEFAULT 'sistema', quien TEXT,
+  estado TEXT NOT NULL DEFAULT 'propuesta', creado_en TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS contratacion_documento (
+  id INTEGER PRIMARY KEY,
+  contratacion_id INTEGER NOT NULL REFERENCES contratacion(id) ON DELETE CASCADE,
+  documento_id INTEGER NOT NULL REFERENCES documento(id) ON DELETE CASCADE,
+  etapa TEXT NOT NULL, origen TEXT NOT NULL DEFAULT 'sistema',
+  estado TEXT NOT NULL DEFAULT 'propuesta', confianza REAL, quien TEXT, cuando TEXT,
+  UNIQUE(contratacion_id, documento_id, etapa)
+);
+CREATE TABLE IF NOT EXISTS item (
+  id INTEGER PRIMARY KEY, clave TEXT UNIQUE, nombre TEXT NOT NULL,
+  categoria TEXT, marca TEXT, modelo TEXT, especificaciones TEXT, unidad TEXT,
+  origen TEXT NOT NULL DEFAULT 'sistema', quien TEXT, creado_en TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS renglon (
+  id INTEGER PRIMARY KEY,
+  clave TEXT NOT NULL UNIQUE,
+  sha256 TEXT NOT NULL REFERENCES archivo(sha256),
+  pieza_clave TEXT NOT NULL,
+  documento_id INTEGER REFERENCES documento(id) ON DELETE SET NULL,
+  tabla_id INTEGER REFERENCES tabla(id) ON DELETE SET NULL,
+  fila INTEGER NOT NULL, pagina_nro INTEGER NOT NULL,
+  desc_celda_id INTEGER REFERENCES tabla_celda(id) ON DELETE SET NULL,
+  desc_literal TEXT NOT NULL, desc_norm TEXT NOT NULL,
+  categoria TEXT, marca TEXT, modelo TEXT, especificaciones TEXT,
+  unidad_literal TEXT, unidad_norm TEXT,
+  cantidad_literal TEXT, cantidad TEXT,
+  precio_literal TEXT, precio_unitario TEXT, precio_motivo TEXT,
+  precio_derivado INTEGER NOT NULL DEFAULT 0, precio_formula TEXT,
+  subtotal_literal TEXT, subtotal TEXT, moneda TEXT, iva TEXT,
+  condiciones TEXT NOT NULL DEFAULT '[]',
+  fecha_precio TEXT, fecha_literal TEXT,
+  proveedor_id INTEGER REFERENCES entidad(id) ON DELETE SET NULL,
+  proveedor_literal TEXT, proveedor_cuit TEXT, expediente TEXT,
+  etapa TEXT, contratacion_id INTEGER REFERENCES contratacion(id) ON DELETE SET NULL,
+  anclajes TEXT NOT NULL DEFAULT '{}',
+  metodo TEXT NOT NULL, version INTEGER NOT NULL, confianza REAL,
+  estado TEXT NOT NULL DEFAULT 'pendiente_baja',
+  vigente INTEGER NOT NULL DEFAULT 1, actualizado_en TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_renglon_documento ON renglon(documento_id);
+CREATE INDEX IF NOT EXISTS ix_renglon_archivo ON renglon(sha256, vigente);
+CREATE INDEX IF NOT EXISTS ix_renglon_precio ON renglon(etapa, fecha_precio);
+-- El vínculo no depende del id efímero de la celda: clave = pieza + región.
+CREATE TABLE IF NOT EXISTS renglon_item (
+  id INTEGER PRIMARY KEY,
+  sha256 TEXT NOT NULL REFERENCES archivo(sha256),
+  renglon_clave TEXT NOT NULL REFERENCES renglon(clave) ON DELETE CASCADE,
+  item_id INTEGER NOT NULL REFERENCES item(id),
+  comparabilidad TEXT NOT NULL, motivos TEXT NOT NULL DEFAULT '[]',
+  decision TEXT, origen TEXT NOT NULL DEFAULT 'sistema', quien TEXT, cuando TEXT,
+  UNIQUE(renglon_clave)
+);
+CREATE TABLE IF NOT EXISTS hallazgo (
+  id INTEGER PRIMARY KEY, clave TEXT NOT NULL UNIQUE,
+  tipo TEXT NOT NULL, titulo TEXT NOT NULL, descripcion TEXT NOT NULL,
+  contratacion_id INTEGER REFERENCES contratacion(id) ON DELETE SET NULL,
+  datos TEXT NOT NULL DEFAULT '{}', calculo TEXT, fuentes TEXT NOT NULL DEFAULT '[]',
+  confianza TEXT NOT NULL DEFAULT '{}',
+  revision_estado TEXT NOT NULL DEFAULT 'pendiente', quien TEXT, cuando TEXT, nota TEXT,
+  ya_no_se_detecta INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL,
+  actualizado_en TEXT NOT NULL
+);
+-- Las fuentes múltiples también son FK: quitar un archivo retira el hallazgo entero.
+CREATE TABLE IF NOT EXISTS hallazgo_fuente (
+  id INTEGER PRIMARY KEY,
+  hallazgo_id INTEGER NOT NULL REFERENCES hallazgo(id) ON DELETE CASCADE,
+  sha256 TEXT NOT NULL REFERENCES archivo(sha256),
+  documento_id INTEGER REFERENCES documento(id) ON DELETE SET NULL,
+  renglon_clave TEXT REFERENCES renglon(clave) ON DELETE SET NULL,
+  clave TEXT NOT NULL, UNIQUE(hallazgo_id, clave)
+);
+
 -- ───────────────────────────────────── LA FOLIATURA QUE TIENE EL PAPEL ──
 -- Cuatro numeraciones distintas conviven en un expediente y NO son la misma:
 --
