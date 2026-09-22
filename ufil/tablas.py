@@ -57,6 +57,21 @@ PROPORCION_ALINEADA = 0.6
 # desde lejos.
 MIN_HUECO = 18.0
 
+# Qué proporción de lo que hay en las celdas tiene que parecer una palabra o un número de
+# verdad para que el bloque sea una tabla y no una mancha alineada. Medido en un legajo
+# real con la detección por bloque: de 859 «tablas», 357 tenían menos del 15 % de algo
+# legible —fragmentos de dos letras sobre sellos y firmas—, 158 más del 40 %. Es la misma
+# medida que separa una foja ilegible de una legible (clasificacion.medir).
+UTILES_MINIMOS_TABLA = 0.15
+
+
+def _legible(celdas) -> bool:
+    """Si las celdas dicen algo. Las rayas de la planilla que el OCR lee como «|» no cuentan."""
+    from .clasificacion import medir
+    tokens = [w.strip("|¦[]{}()¡!¿?:;,'\"") for c in celdas for w in (c["texto"] or "").split()]
+    m = medir(t for t in tokens if t)
+    return m.palabras > 0 and m.proporcion_util >= UTILES_MINIMOS_TABLA
+
 
 def _renglones(palabras) -> list[list]:
     """
@@ -183,6 +198,8 @@ def detectar_en_pagina(palabras, ancho: float = 0, alto: float = 0) -> list[dict
              "caja": (min(p.x0 for p in todas), min(p.y0 for p in todas),
                       max(p.x1 for p in todas), max(p.y1 for p in todas)),
              "confianza": 0.95}
+        if not _legible(celdas):
+            continue
         _marcar_encabezado(t)
         tablas.append(t)
     return sorted(tablas, key=lambda t: t["caja"][1])
