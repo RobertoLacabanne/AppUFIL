@@ -319,3 +319,58 @@ de `test_taller.py` por `cp1252` no aparece con `PYTHONUTF8=1`.
    6 s por paso son justas para una máquina cargada.
 3. Subir durante una corrida larga se probó con corridas sintéticas cortas, no con un
    OCR real de horas.
+
+---
+
+# 8. Incremento 7 — el legajo real como banco de prueba
+
+Desde el 21/09/2026 el criterio de calidad es **el legajo real** cargado en la instancia de
+producción, copiado con la función de respaldo de la aplicación a
+`C:\Users\rober\AppUFIL-corpus-real\` (fuera de todo repositorio). Los doce PDF sintéticos
+de `pruebas/corpus_contratacion.py` quedan como prueba de aceptación y regresión mínima.
+**En este documento, y en todo lo versionado, van sólo cantidades.**
+
+## El legajo real
+
+11 PDF, 1.628 fojas, 414,9 MB. En producción, antes del incremento: 1.288 fojas leídas,
+20 piezas (17 facturas, 3 contratos), 129 campos (116 a revisar, 2 en conflicto), 6
+revisiones humanas, 18 personas; tablas, menciones, entidades, cronología y relaciones en
+cero. Sólo el original de uno de los PDF (750 fojas) está en la máquina de desarrollo; de
+los otros diez sólo el texto leído.
+
+## COMPROBADO ejecutando sobre el legajo real
+
+| Qué | Antes | Después | Commit |
+|---|---|---|---|
+| Fojas a releer con «Actualizar análisis» | 750 (el archivo entero) | 340 (las que faltaban) | `fc291c5` |
+| Revisiones humanas vigentes después de resegmentar | 4 de 6 | 6 de 6 | `bb77a62`, `e8c638f` |
+| Piezas | 54, todas facturas o contratos | 258, de ocho tipos | `2a055b2` |
+| Remitos con la leyenda «no válido como factura» bien clasificados | 0 de 13 | 13 de 13 | `4f932d4` |
+| Tablas detectadas | 61 en 41 fojas | 558, ninguna de ruido; las 82 con importes | 7a de Codex, `88ab54b` |
+| Archivos que fallaban al extraer | 2 (FOREIGN KEY) | 0 | `7fa1554` |
+| Panel: «páginas leídas» | 1.628 (todas) | 1.288 / 1.628 | `ab35d32` |
+
+- **Actualización completa** sobre la copia de Claude: 42 minutos, 0 errores; 340 fojas de
+  OCR nuevo y 1.288 reutilizadas.
+- **«En blanco» verificado por tinta** en el PDF con original: 230 de 230 sin tinta
+  (mediana 0,00 %, máximo 0,37 %, contra 1,49 % del percentil 5 de las fojas con texto).
+- **Migración de producción ensayada** sobre una copia intacta del respaldo: esquema 25 → 26
+  sin que cambie una fila; y **desplegada** (`cc30cc5`): después del despliegue producción
+  sigue con sus 20 piezas y sus 116 campos a revisar, y sirve el código nuevo.
+
+## INFERIDO, no medido
+
+- Que las 26 resoluciones pegadas a la anterior sean resoluciones partidas: la regla de
+  marcas de cuerpo del 7a las reduce, pero no hay una referencia humana para contarlas.
+- Que la clasificación de órdenes de compra sea buena: de las facturas de antes, 14 pasaron
+  a orden de compra y el muestreo muestra al menos un remito entre ellas.
+
+## PENDIENTE
+
+1. **Renglones con precio en las planillas reales: 17 renglones, ninguno con precio
+   unitario.** Es lo que falta para que el comparador sirva sobre este legajo (R16, tarea
+   de Codex).
+2. Contrataciones y hallazgos (7b).
+3. Una referencia humana mínima (qué es cada foja, en una muestra) para medir la
+   clasificación con precisión y cobertura y no con señales indirectas.
+4. «Actualizar análisis» en producción: lo decide Roberto.
