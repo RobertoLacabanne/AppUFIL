@@ -661,3 +661,25 @@ con 3.015 celdas, 644 menciones, 36 entidades, 5 hechos de cronología, 0 relaci
 **Máquina de desarrollo:** a la madrugada del 22/09 quedaban 0,5 GB de RAM libre de 7,7 y el
 sistema detuvo el lanzamiento programado de Codex por falta de memoria. No se relanzó sin
 pedido de Roberto.
+
+### Backend 7a de Codex, sobre el legajo real (22/09)
+
+Codex dejó hecho —sin cuota para cerrar ni informar— la detección de tablas por bloque, los
+tipos de una contratación, el esquema 26, los renglones y la comparación de precios, con
+37 pruebas. Claude corrió la suite, lo commiteó por él (`1941561`) y lo probó sobre una
+copia del legajo real con todas las fojas leídas:
+
+| # | Hallazgo (cantidades) | Estado |
+|---|---|---|
+| R13 | 2 archivos fallaban con «FOREIGN KEY constraint failed»: piezas que eran facturas pasaron a órdenes de compra sin extractor y sus campos se borraban sin sus normalizaciones | corregido (`7fa1554`) |
+| R14 | 13 fojas con «DOCUMENTO NO VÁLIDO COMO FACTURA» (remitos): 0 bien antes, 7 con 7a | corregido (`4f932d4`): la leyenda manda |
+| R15 | Tablas por bloque: de 61 a 859, pero 357 eran ruido (< 15 % legible) | corregido (`88ab54b`): 558, ninguna de ruido, las 82 con importes se conservan |
+| R16 | 17 renglones, **ninguno con precio unitario**: las planillas reales salen partidas o con columnas fundidas por las rayas que el OCR lee como «\|» | pendiente, para Codex |
+| R17 | Tipos nuevos: 37 órdenes de compra, 13 órdenes de pago, 31 presupuestos; las resoluciones pegadas se reducen con la regla de marcas de cuerpo | comprobado |
+
+**Migración de producción ensayada** sobre una copia intacta del respaldo: esquema 25 → 26,
+ninguna fila cambió, `integrity_check` ok, 0 referencias rotas, no migra dos veces.
+
+**Despliegue:** hacer push de la rama principal despliega en Render (la instancia servía
+el código de `172c5cf` minutos después de ese push). Las pantallas de contrataciones y
+hallazgos, cuyo backend es la 7b, dicen «todavía no disponible» en vez de un error.
