@@ -122,7 +122,7 @@ def _rol(t):
 
 
 def columnas(celdas, palabras=None, tabla=None):
-    """Encabezado primero; contenido sólo para descripción y unidad inequívocas.
+    """Encabezado primero; un importe sin rol conserva su incertidumbre.
 
     Dos columnas de números sin rótulo no permiten decidir cuál es el precio.
     No se toma el subtotal por unitario para completar artificialmente una fila.
@@ -192,6 +192,19 @@ def columnas(celdas, palabras=None, tabla=None):
                     pares.append((pu, sub))
         if len(pares) == 1:
             roles['precio'], roles['subtotal'] = pares[0]
+    if 'descripcion' in roles and not any(k in roles for k in ('cantidad', 'precio', 'subtotal')):
+        # Una segunda columna monetaria, aun sin $, impide elegir el importe.
+        monetarias = [col for col, ts in por_col.items() if col not in roles.values()
+                      and any(importe_sin_rol(t, notacion) is not None for t in ts)]
+        if len(monetarias) == 1:
+            col = monetarias[0]
+            filas_desc = {c['fila'] for c in datos
+                          if c['columna'] == roles['descripcion'] and (c['texto'] or '').strip()}
+            filas_moneda = {c['fila'] for c in datos if c['columna'] == col
+                            and c['fila'] in filas_desc and '$' in (c['texto'] or '')
+                            and importe_sin_rol(c['texto'], notacion) is not None}
+            if len(filas_moneda) >= 2:
+                roles['importe_incierto'] = col
     return roles
 
 
@@ -210,6 +223,11 @@ def importes(texto, notacion=','):
     return [m.group() for m in _IMPORTE.finditer(texto or '')
             if re.search(r'[.,]\d{2,}$', m.group())
             and decimal_argentino(m.group(), notacion) is not None]
+
+
+def importe_sin_rol(texto, notacion=','):
+    """Importe de celda completa; admite un cierre OCR sin modificar el literal."""
+    return decimal_argentino((texto or '').strip().removesuffix(')').rstrip(), notacion)
 
 
 def celdas_ocr(celdas):
@@ -239,6 +257,14 @@ def celdas_ocr(celdas):
 
 def valores_fila(cs, roles, notacion=','):
     valores = {rol: cs[col] for rol, col in roles.items() if col in cs}
+    if 'importe_incierto' in valores:
+        t = valores['importe_incierto']['texto'] or ''
+        cantidad_explicita = any(
+            re.match(r'\s*\d+[.,]\d{2}\s+[A-Za-zÁ-ÿ]', c['texto'] or '')
+            or re.search(r'(?:^|[|\s])\d+\s*[| ]+\s*(?:un\.?|unid\.?|unidad|m\.?|kg|lt)\b', normalizar(c['texto']))
+            for c in cs.values())
+        if '$' not in t or importe_sin_rol(t, notacion) is None or cantidad_explicita:
+            valores.pop('importe_incierto')
     # Cantidad y descripción pueden compartir celda, incluso el encabezado.
     for c in cs.values():
         if c['columna'] == roles.get('cantidad') and re.search(r'[A-Za-z]{3}', c['texto'] or ''):
@@ -468,7 +494,7 @@ def extraer_archivo(cx, sha, *, por_ruta=None):
                 desc = valores.get('descripcion')
                 if not desc or not desc['texto'] or re.match(r'^(?:sub\s*total|total)\b', normalizar(desc['texto'])):
                     continue
-                if not any(k in valores for k in ('precio', 'subtotal', 'cantidad')):
+                if not any(k in valores for k in ('precio', 'subtotal', 'cantidad', 'importe_incierto')):
                     continue
                 anclas = dict(contexto['anclajes'])
                 for rol, celda in valores.items():
@@ -477,13 +503,17 @@ def extraer_archivo(cx, sha, *, por_ruta=None):
                 def literal(k):
                     return valores[k]['texto'] if k in valores else None
                 cant, precio, sub = (valor_celda(valores.get(k), notacion) for k in ('cantidad', 'precio', 'subtotal'))
-                if cant is None and precio is None and sub is None:
+                incierto = valores.get('importe_incierto')
+                if cant is None and precio is None and sub is None and incierto is None:
                     continue
                 derivado, formula = False, None
                 motivo = None if precio is not None else ('ilegible' if literal('precio') else 'ausente')
                 if precio is None and literal('precio') is None and sub is not None and cant is not None and cant > 0:
                     precio, derivado, formula, motivo = sub / cant, True, 'subtotal / cantidad', None
                     anclas['precio'] = _ancla([valores['subtotal'], valores['cantidad']], t['pagina_nro'])
+                if incierto is not None:
+                    motivo = 'rol_incierto'
+                    anclas['precio'] = anclas.pop('importe_incierto')
                 pieza = doc['clave'] or f"{sha}:{doc['pagina_desde']}"
                 region = ':'.join(f"{desc[k]:.1f}" for k in ('x0', 'y0', 'x1', 'y1'))
                 clave = f"{pieza}:{t['pagina_nro']}:{region}"
@@ -497,7 +527,8 @@ def extraer_archivo(cx, sha, *, por_ruta=None):
                          desc_literal=desc['texto'], desc_norm=normalizar(desc['texto']),
                          unidad_literal=literal('unidad'), unidad_norm=unidad(literal('unidad')),
                          cantidad_literal=literal('cantidad'), cantidad=canonico(cant),
-                         precio_literal=literal('precio'), precio_unitario=canonico(precio), precio_motivo=motivo,
+                         precio_literal=literal('importe_incierto') if incierto is not None else literal('precio'),
+                         precio_unitario=canonico(precio), precio_motivo=motivo,
                          precio_derivado=int(derivado), precio_formula=formula,
                          subtotal_literal=literal('subtotal'), subtotal=canonico(sub),
                          etapa=('apertura' if doc['tipo'] == 'acta_apertura' else

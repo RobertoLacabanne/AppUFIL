@@ -48,6 +48,23 @@ def vincular(cx):
 
 
 class DecimalesYEstadisticas(unittest.TestCase):
+    def test_importe_incierto_respeta_cantidad_y_exige_moneda_en_cada_fila(self):
+        def celdas(filas):
+            return [dict(fila=f, columna=c, texto=t, es_encabezado=0)
+                    for f, fila in enumerate(filas) for c, t in enumerate(fila)]
+        cs = celdas([('Cable', '$ 100'), ('Cinta', '$ 200'), ('Tubo', '300')])
+        roles = rg.columnas(cs)
+        self.assertEqual(roles, {'descripcion': 0, 'importe_incierto': 1})
+        self.assertNotIn('importe_incierto', rg.valores_fila({c['columna']: c for c in cs if c['fila'] == 2}, roles))
+        # Una cantidad y unidad expresas mantienen la extracción anterior.
+        cs = celdas([('Cable', '2', 'un', '$ 100,00'), ('Cinta', '3', 'un', '$ 200,00')])
+        self.assertEqual(rg.columnas(cs), {'unidad': 2, 'descripcion': 0, 'cantidad': 1})
+        # También se excluye la cantidad fundida con la descripción por OCR.
+        cs = celdas([('2,00 Cable', '$ 100'), ('3,00 Cinta', '$ 200')])
+        roles = rg.columnas(cs)
+        for f in (0, 1):
+            self.assertNotIn('importe_incierto', rg.valores_fila({c['columna']: c for c in cs if c['fila'] == f}, roles))
+
     def test_encabezado_fuera_del_bloque_y_cuenta_inequivoca(self):
         from ufil.capa1_texto import Palabra
         cs = []
@@ -138,6 +155,52 @@ class RenglonesDelCorpus(unittest.TestCase):
 
     def factura(self):
         return dict(self.cx.execute("SELECT * FROM renglon WHERE etapa='factura' AND fila=1").fetchone())
+
+    def lista_sin_encabezado(self, filas):
+        t = self.cx.execute("SELECT t.* FROM tabla t JOIN documento d ON d.id=t.documento_id WHERE d.tipo='presupuesto' LIMIT 1").fetchone()
+        self.cx.execute('DELETE FROM tabla_celda WHERE tabla_id=?', (t['id'],))
+        for f, textos in enumerate(filas):
+            for col, texto in enumerate(textos):
+                self.cx.execute('''INSERT INTO tabla_celda(tabla_id,fila,columna,texto,x0,y0,x1,y1,confianza)
+                                   VALUES (?,?,?,?,?,?,?,?,1)''',
+                                (t['id'], f, col, texto, col*200, 100+f*20, col*200+180, 115+f*20))
+        self.cx.commit()
+        rg.extraer_archivo(self.cx, t['sha256'], por_ruta={'nativo': []})
+        return [dict(r) for r in self.cx.execute('SELECT * FROM renglon WHERE tabla_id=? AND vigente=1 ORDER BY fila', (t['id'],))]
+
+    def test_lista_con_moneda_conserva_importe_sin_inventar_unitario(self):
+        filas = [('FUtucelula 10A 220V con ', '$ 36.334,08)'),
+                 ('Cinta alsladora TELA x 1', '$ 22.708,80'),
+                 ('Cinta aísladora PVC x 20', '$ 30.278,40'),
+                 ('Bornera 4 x 25 A con Tor', '$ 14.382,40)')]
+        rs = self.lista_sin_encabezado(filas)
+        self.assertEqual(len(rs), 4)
+        for r, (desc, importe) in zip(rs, filas):
+            self.assertEqual(r['desc_literal'], desc)
+            self.assertEqual(r['precio_literal'], importe)
+            self.assertIsNone(r['precio_unitario'])
+            self.assertEqual(r['precio_motivo'], 'rol_incierto')
+            self.assertFalse(r['precio_derivado'])
+            self.assertIsNone(r['subtotal'])
+            fuente = rg.fuente(self.cx, r, 'precio')
+            self.assertEqual(fuente['pagina_nro'], r['pagina_nro'])
+            celda = self.cx.execute('SELECT * FROM tabla_celda WHERE id=?', (fuente['celdas'][0],)).fetchone()
+            self.assertEqual(celda['texto'], importe)
+            self.assertEqual(fuente['region']['x0'], celda['x0'])
+        comp = precios.comparar(self.cx, self.factura()['id'])
+        ids = {r['id'] for r in rs}
+        self.assertFalse(ids & {r['renglon']['id'] for r in comp['referencias']})
+        self.assertEqual(ids, {r['renglon']['id'] for r in comp['excluidas'] if r['renglon']['id'] in ids})
+
+    def test_lista_ambigua_o_sin_evidencia_no_genera_renglones(self):
+        for filas in [
+                [('Cable', '$ 10,00', '$ 20,00'), ('Cinta', '$ 15,00', '$ 30,00')],
+                [('Cable', '$ 10,00', '20,00'), ('Cinta', '$ 15,00', '30,00')],
+                [('Cable', '10,00'), ('Cinta', '15,00')],
+                [('Cable', '$ 10,00')],
+                [('Cable', '$ 10,00'), ('Cinta', 'sin importe')]]:
+            with self.subTest(filas=filas):
+                self.assertEqual(self.lista_sin_encabezado(filas), [])
 
     def test_cantidades_literales_y_anclajes(self):
         cantidades = dict(self.cx.execute('SELECT etapa,count(*) FROM renglon WHERE vigente=1 GROUP BY etapa'))
