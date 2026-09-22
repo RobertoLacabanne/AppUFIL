@@ -179,6 +179,16 @@ def _firma_renglones() -> str:
     return _fuente("renglones.py")
 
 
+def _firma_contrataciones() -> str:
+    return _fuente("contrataciones.py")
+
+
+def _firma_hallazgos() -> str:
+    from .comparabilidad import UMBRALES
+    return _resumen({'codigo': _fuente('hallazgos.py', 'precios.py', 'comparabilidad.py'),
+                     'umbrales': UMBRALES})
+
+
 def _firma_cotejo() -> str:
     return _fuente("cotejo_letras.py", "castellano.py")
 
@@ -269,7 +279,7 @@ ETAPAS: tuple[Etapa, ...] = (
     Etapa("normalizacion", "Fechas, importes y documentos normalizados", "archivo", 1,
           _firma_normalizacion, depende_de=("extraccion",), caro=False,
           explica="No pisa el literal: vive al lado."),
-    Etapa("renglones", "Renglones de precio", "archivo", 1, _firma_renglones,
+    Etapa("renglones", "Renglones de precio", "archivo", 2, _firma_renglones,
           depende_de=("tablas", "extraccion", "clasificacion"), caro=False,
           explica="Cada fila con su literal, precio decimal y celdas de origen."),
     Etapa("identidad", "Personas y empresas consolidadas", "legajo", 1, _firma_identidad,
@@ -287,6 +297,12 @@ ETAPAS: tuple[Etapa, ...] = (
     Etapa("interpretacion", "Patrones y señalamientos", "legajo", 1, _firma_interpretacion,
           depende_de=("identidad", "extraccion"), caro=False,
           explica="El carril de conjeturas. Siempre con su fuente."),
+    Etapa("contrataciones", "Reconstrucción de contrataciones", "legajo", 1, _firma_contrataciones,
+          depende_de=("renglones", "entidades", "cronologia"),
+          explica="Agrupaciones propuestas y etapas con fuentes; conserva decisiones humanas."),
+    Etapa("hallazgos", "Diferencias que requieren revisión", "legajo", 1, _firma_hallazgos,
+          depende_de=("contrataciones",),
+          explica="Cálculos documentados y revisión humana conservada por clave estable."),
 )
 
 POR_CLAVE: dict[str, Etapa] = {e.clave: e for e in ETAPAS}
