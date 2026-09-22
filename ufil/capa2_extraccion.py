@@ -1185,6 +1185,18 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list) -> dict
     for r in revisiones:
         nombre = r["campo"]
         ancla = (r["ancla_x0"], r["ancla_y0"], r["ancla_x1"], r["ancla_y1"])
+        pagina = r["ancla_pagina"]
+        if pagina is not None and r["ancla_desde"] is not None:
+            # Una versión anterior numeraba las fojas de un contrato desde el principio
+            # de la pieza y no desde el principio del archivo, y el anclaje heredó ese
+            # número. Encontrado en un legajo real: dos correcciones de contratos que
+            # empiezan en las fojas 23 y 25 estaban ancladas «en la foja 1». Si la foja
+            # del anclaje cae fuera de su propia pieza pero cabe como posición adentro de
+            # ella, es esa numeración vieja, y se traduce a la foja del archivo.
+            hasta = r["ancla_hasta"] or r["ancla_desde"]
+            if not r["ancla_desde"] <= pagina <= hasta \
+                    and 1 <= pagina <= hasta - r["ancla_desde"] + 1:
+                pagina = r["ancla_desde"] + pagina - 1
 
         if r["ancla_pagina"] is None and r["ancla_desde"] is not None and r["ancla_tipo"]:
             # Anclada a la pieza y no a una foja: pasa con las revisiones de un campo SIN
@@ -1220,14 +1232,14 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list) -> dict
         else:
             # Las piezas que contienen la foja que la persona miró.
             candidatas = [p for p in piezas
-                          if (p["pagina_desde"] or 0) <= r["ancla_pagina"]
+                          if (p["pagina_desde"] or 0) <= pagina
                           <= (p["pagina_hasta"] or p["pagina_desde"] or 0)]
 
         # De ésas, las que tienen este campo.
         candidatas = [p for p in candidatas if nombre in campos.get(p["id"], {})]
 
         if not candidatas:
-            donde = (f" en la foja {r['ancla_pagina']}" if r["ancla_pagina"] else "")
+            donde = (f" en la foja {pagina}" if pagina else "")
             decisiones.append([r, None, None,
                                f"ninguna pieza de este archivo tiene hoy el campo "
                                f"«{nombre}»{donde}"])
@@ -1243,7 +1255,7 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list) -> dict
             candidatas = sorted(candidatas, key=_cuanto, reverse=True)
             if _cuanto(candidatas[0]) <= 0:
                 decisiones.append([r, None, None,
-                                   f"la foja {r['ancla_pagina']} quedó repartida entre "
+                                   f"la foja {pagina} quedó repartida entre "
                                    f"{len(candidatas)} piezas y el recuadro no alcanza "
                                    f"para saber a cuál corresponde"])
                 continue

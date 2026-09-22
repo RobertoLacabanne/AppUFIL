@@ -173,6 +173,37 @@ class UnaCorreccionNoSeMudaDeDocumento(unittest.TestCase):
         self.assertEqual(estados[d2], "ausente_confirmado", "la confirmación sigue a su pieza")
         self.assertEqual(estados[d1], "no_revisado", "y no se muda a la que ocupó su lugar")
 
+    def test_un_anclaje_numerado_desde_la_pieza_no_se_muda_a_la_foja_1_del_archivo(self):
+        """
+        Encontrado en un legajo real: una versión anterior numeraba las fojas de un
+        contrato desde el principio de la pieza, y dos correcciones quedaron ancladas «en
+        la foja 1» siendo de contratos que empiezan en las fojas 23 y 25. Ahí se perdían
+        (en la foja 1 no había ese campo). Si la hubiera, la corrección se mudaba de pieza.
+        """
+        contrato = _pieza(self.cx, 1, 2, 3, "contrato_obra", pagina=2)
+        campo = self.cx.execute("SELECT id FROM campo WHERE documento_id=?",
+                                (contrato,)).fetchone()["id"]
+        aplicar(self.cx, campo, "corregir", "5000", "perez.ana")
+        # El anclaje como lo dejaba la versión anterior: foja 1 de la pieza.
+        self.cx.execute("UPDATE revision_humana SET ancla_pagina=1")
+        self.cx.commit()
+
+        # Aparece una factura en la foja 1 del archivo, con su propio monto.
+        _borrar_piezas(self.cx)
+        d1 = _pieza(self.cx, 1, 1, 1, "factura", pagina=1)
+        d2 = _pieza(self.cx, 2, 2, 3, "contrato_obra", pagina=2)
+        piezas = [{"id": d1, "orden": 1, "pagina_desde": 1, "pagina_hasta": 1, "tipo": "factura"},
+                  {"id": d2, "orden": 2, "pagina_desde": 2, "pagina_hasta": 3, "tipo": "contrato_obra"}]
+        r = reaplicar_revisiones(self.cx, SHA, piezas)
+
+        self.assertEqual(r["reaplicadas"], 1, r)
+        de = {row["documento_id"]: row for row in self.cx.execute(
+            "SELECT documento_id, revisado_por, valor_literal FROM campo")}
+        self.assertIsNone(de[d1]["revisado_por"], "la corrección del contrato no va a la factura")
+        self.assertEqual(de[d2]["revisado_por"], "perez.ana")
+        self.assertEqual(self.cx.execute("SELECT ancla_pagina FROM revision_humana").fetchone()[0],
+                         2, "y el anclaje queda escrito con la foja del archivo")
+
     def test_si_no_se_puede_saber_a_cual_corresponde_no_se_aplica_a_ninguna(self):
         """
         Perder trabajo humano es malo; aplicarlo al documento equivocado es peor.
