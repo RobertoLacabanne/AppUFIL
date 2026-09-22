@@ -477,7 +477,7 @@ class LaFojaSeAbreParaLeerla(unittest.TestCase):
         recuadro estuviera a la vista.
         """
         _hay(self, "const alCampo = ()", APP, "el visor abre en la esquina de arriba")
-        _hay(self, "caja.scrollTop +=", APP,
+        _hay(self, "scrollIntoView", APP,
              "el visor no se desplaza al recuadro")
         # Con zoom, primero se dimensiona el lienzo y después se desplaza: al revés, el
         # desplazamiento se calcularía sobre una hoja que todavía no tiene su tamaño.

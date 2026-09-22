@@ -994,7 +994,8 @@ h3.menor{font-size:13px}
   border:1px solid var(--borde-control); border-radius:var(--radio-pildora);
   background:var(--papel); color:var(--tinta-2);
   font-family:var(--sans); font-size:var(--t-11); font-weight:500;
-  letter-spacing:0; text-transform:none; text-align:left; min-height:28px}
+  letter-spacing:0; text-transform:none; text-align:left; min-height:28px;
+  position:static}
 .tabla-env[data-corte="si"][data-ordenable] thead th:hover{
   background:var(--realce); color:var(--tinta); border-color:var(--tribunal-txt)}
 /* La que manda: llena y con más peso, para que se encuentre sin leer la tira entera.
@@ -1008,7 +1009,7 @@ h3.menor{font-size:13px}
   align-items:baseline; column-gap:22px; row-gap:5px; padding:12px 2px;
   border-bottom:1px solid var(--filete-2)}
 .tabla-env[data-corte="si"] tbody tr:last-child{border-bottom:none}
-.tabla-env[data-corte="si"] td{display:block; max-width:100%; padding:0; border:none}
+.tabla-env[data-corte="si"] td{display:block; max-width:100%; padding:0; border:none; position:static}
 /* Alineado a la derecha sólo tiene sentido contra una columna. Suelto en un renglón,
    un importe alineado a la derecha se separa de su rótulo, que es el defecto que ya
    se arregló una vez en «Trabajo del equipo». */
@@ -1047,13 +1048,17 @@ thead th{text-align:left; font-size:11px; font-weight:600; letter-spacing:.055em
          text-transform:uppercase;
          color:var(--tinta-2); padding:2px 11px 7px; white-space:nowrap;
          border-bottom:1.5px solid var(--tinta); position:sticky; top:0;
-         background:var(--folio)}
+         background:var(--folio); z-index:1}
+thead th:first-child{left:0; z-index:2}
+tbody tr{background:var(--folio)}
+tbody td:first-child{position:sticky; left:0; background:inherit}
 tbody td{padding:9px 11px; border-bottom:none; vertical-align:baseline}
 /* El filete va ENTRE renglones y no debajo de cada uno: así el último no arrastra una
    raya suelta y no hay que apagarla con una regla aparte. */
 tbody tr + tr td{border-top:1px solid color-mix(in srgb, var(--filete) 55%, transparent)}
 tbody tr:hover{background:var(--realce)}
 tbody tr.clic{cursor:pointer}
+tbody tr.clic:focus{outline:2px solid var(--sello); outline-offset:-2px; background:var(--realce)}
 .num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
 /* El rótulo se alinea como su dato. Con el rótulo a la izquierda y el número a la
    derecha, en una tabla ancha quedan a cuatrocientos píxeles y el ojo no los conecta:

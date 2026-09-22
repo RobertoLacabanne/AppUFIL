@@ -402,7 +402,7 @@ function tabla(cols, filas, opts = {}) {
   // encabezado de columna deja de estar arriba y cada valor tiene que decir de qué
   // columna es. Es el mismo texto del `<th>`, así que no hay dos rótulos que
   // mantener sincronizados.
-  const tr = filas.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}" data-i="${i}">${
+  const tr = filas.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}" data-i="${i}"${opts.alClic ? ' tabindex="0"' : ''}>${
     cols.map((c, i) => `<td class="${claseCol(cols, c, i, filas)}" data-rotulo="${esc(c.t)}">${
       c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
   }</tr>`).join('');
@@ -720,6 +720,8 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
   }
 
   function pintar() {
+    const foco = destino.querySelector('tr.clic:focus');
+    const idxFoco = foco ? foco.dataset.i : null;
     const v = visibles();
     const tanda = v.slice(0, estado.mostradas);
     /* El encabezado de una tabla grande no es un rótulo: es el control con el que se
@@ -734,7 +736,7 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
                 title="ordenar por ${esc(c.t)}">${esc(c.t)}</th>`;
     }).join('');
     const tr = tanda.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}"
-        data-i="${filas.indexOf(f)}">${
+        data-i="${filas.indexOf(f)}"${opts.alClic ? ' tabindex="0"' : ''}>${
       cols.map((c, i) => `<td class="${claseCol(cols, c, i, filas)}" data-rotulo="${esc(c.t)}">${
         c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
     }</tr>`).join('');
@@ -791,6 +793,10 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
     // Cada tanda nueva puede traer un valor más largo que los de arriba y cambiar si
     // la tabla entra o no: se vuelve a medir en cada pintada.
     vigilarCortes(destino);
+    if (idxFoco != null) {
+      const nuevoFoco = destino.querySelector(`tr.clic[data-i="${idxFoco}"]`);
+      if (nuevoFoco) nuevoFoco.focus();
+    }
   }
 
   pintar();
@@ -2577,11 +2583,10 @@ function abrirFoja(f) {
      desplazarse. */
   const alCampo = () => {
     if (marco.hidden) return;
-    const caja = $('.visor-hoja');
-    if (!caja) return;
-    const r = marco.getBoundingClientRect(), c = caja.getBoundingClientRect();
-    caja.scrollTop += (r.top - c.top) - (c.height - r.height) / 2;
-    caja.scrollLeft += (r.left - c.left) - (c.width - r.width) / 2;
+    // Las dos direcciones: con zoom, un campo del borde derecho queda fuera de la
+    // vista aunque esté centrado de arriba abajo. `body.con-visor` tiene el scroll
+    // apagado, así que esto mueve la hoja y no la página.
+    marco.scrollIntoView({block: 'center', inline: 'center'});
   };
   const alCargar = () => { aplicarZoomVisor(); alCampo(); };
   if (img.complete && img.naturalWidth) alCargar();
@@ -2978,6 +2983,13 @@ function mostrarDeshacer() {
 
    No se dispara si ya se está escribiendo en algún lado: dentro de un campo, «/» es
    una barra y tiene que seguir siéndolo. */
+document.addEventListener('focusin', e => {
+  if (e.target.tagName === 'TR' && e.target.classList.contains('clic')) e.target.setAttribute('aria-selected', 'true');
+});
+document.addEventListener('focusout', e => {
+  if (e.target.tagName === 'TR' && e.target.classList.contains('clic')) e.target.setAttribute('aria-selected', 'false');
+});
+
 document.addEventListener('keydown', e => {
   // El visor primero: mientras la foja está abierta a pantalla completa, `Esc` la
   // cierra y ninguna otra tecla decide nada.
@@ -2987,6 +2999,23 @@ document.addEventListener('keydown', e => {
   }
   const enUnCampo = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)
     || document.activeElement?.isContentEditable;
+  
+  if (!enUnCampo) {
+    if (e.key === 'Enter') {
+      const tr = e.target.closest('tr.clic');
+      if (tr) { e.preventDefault(); tr.click(); return; }
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const tr = e.target.closest('tr.clic');
+      if (tr) {
+        e.preventDefault();
+        const filas = Array.from(tr.closest('tbody').querySelectorAll('tr.clic'));
+        const next = filas[filas.indexOf(tr) + (e.key === 'ArrowDown' ? 1 : -1)];
+        if (next) next.focus();
+        return;
+      }
+    }
+  }
+
   if (e.key === '/' && !enUnCampo && !e.ctrlKey && !e.metaKey && !e.altKey) {
     const q = $('#q-rapida');
     if (q) { e.preventDefault(); q.focus(); q.select(); }

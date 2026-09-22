@@ -74,5 +74,69 @@ class LaNavegacionMarcaDondeEstaElEnlace(unittest.TestCase):
         self.assertEqual(json.loads(r.stdout), [])
 
 
+class LasFilasSeRecorrenConElTeclado(unittest.TestCase):
+    """
+    Un fiscal que revisa quinientos renglones no puede depender del mouse: con las
+    flechas mueve el foco y con Enter abre la foja al lado. Para eso cada fila que se
+    puede clicar tiene que poder recibir el foco, y las que no, no: una tabla de sólo
+    lectura llena de paradas de tabulación es peor que ninguna.
+    """
+
+    def ejecutar(self, guion):
+        import shutil
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("sin node: la parte que se ejecuta no se puede correr acá")
+        js = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
+        i = js.index("function claseCol(")
+        j = js.index("// `lista` marca")
+        # `esc` sólo hace falta para que el código corra; lo que se comprueba acá es
+        # cuáles filas pueden recibir el foco, no el escapado.
+        preludio = "const esc = s => String(s ?? '');\n"
+        fuente = preludio + js[i:j] + "\nreturn tr;\n}\n"
+        r = subprocess.run([node, "-e", fuente + guion], capture_output=True, text=True,
+                           encoding="utf-8", timeout=30)
+        self.assertEqual(r.returncode, 0, "el código de la tabla no corre:\n" + r.stderr[-800:])
+        return r.stdout
+
+    def test_solo_las_filas_que_se_pueden_abrir_reciben_el_foco(self):
+        cols = '[{t:"Foja",k:"f"},{t:"Tipo",k:"t"}]'
+        filas = '[{f:1,t:"Factura"},{f:2,t:"Remito"}]'
+        con = self.ejecutar(f'console.log(tabla({cols}, {filas}, {{alClic: () => {{}}}}));')
+        sin = self.ejecutar(f'console.log(tabla({cols}, {filas}));')
+        self.assertEqual(con.count('tabindex="0"'), 2,
+                         "cada fila que se puede abrir tiene que poder recibir el foco")
+        self.assertNotIn("tabindex", sin,
+                         "una tabla que no se clica no puede llenar de paradas el tabulador")
+        self.assertIn('data-i="0"', con, "la fila sigue sabiendo cuál es")
+
+
+class ElRecuadroSeCentraSolo(unittest.TestCase):
+    """
+    El dato que se va a verificar puede ser un número de tres píxeles en una hoja
+    entera. Centrarlo es la diferencia entre comprobarlo y buscarlo a mano.
+    """
+
+    def test_se_centra_en_las_dos_direcciones(self):
+        js = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
+        i = js.index("const alCampo = ()")
+        fuente = js[i:i + 600]
+        self.assertIn("scrollIntoView", fuente)
+        # Con zoom, un campo del borde derecho queda fuera de la vista aunque esté
+        # centrado de arriba abajo: tiene que centrarse en las dos direcciones.
+        self.assertIn("inline: 'center'", fuente, "falta el centrado horizontal")
+        self.assertIn("block: 'center'", fuente, "falta el centrado vertical")
+
+
+class LaFilaEnfocadaSeVeYSeAnuncia(unittest.TestCase):
+    def test_el_foco_tiene_estilo_propio_y_estado_accesible(self):
+        css = (RAIZ / "ufil/web/estilo.css").read_text(encoding="utf-8")
+        js = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
+        self.assertIn("tr.clic:focus", css.replace(" ", ""),
+                      "sin estilo de foco no se ve en qué fila se está")
+        self.assertIn("aria-selected", js,
+                      "un lector de pantalla tiene que poder anunciar la fila activa")
+
+
 if __name__ == "__main__":
     unittest.main()
