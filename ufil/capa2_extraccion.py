@@ -1351,10 +1351,24 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list) -> dict
     # desaparecerían sin que nadie lo pida.
     cx.executemany("DELETE FROM revision_humana WHERE sha256=? AND orden=? AND campo=?",
                    [(sha, f["orden"], f["campo"]) for f, _, _, _ in decisiones])
+    # La clave de la tabla es (archivo, posición, campo). Las que se mudaron toman la
+    # posición de su pieza; las que no, conservan la vieja, y esa vieja puede ser la
+    # nueva de otra. Encontrado en un legajo real con 258 piezas: la inserción fallaba
+    # con UNIQUE y se caía el archivo entero. Una revisión que hay que reasociar ya no
+    # tiene posición que signifique nada, así que se le da una libre y negativa, que
+    # además se lee como lo que es. Perder trabajo de una persona por una colisión de
+    # posiciones no es una opción.
+    ocupadas = {(p["orden"], f["campo"]) for f, p, _, _ in decisiones if p is not None}
+    libre = 0
     for fila, pieza, campo, motivo in decisiones:
         if pieza is None:
+            orden = fila["orden"]
+            if (orden, fila["campo"]) in ocupadas:
+                libre -= 1
+                orden = libre
+            ocupadas.add((orden, fila["campo"]))
             cx.execute(COLUMNAS,
-                       (sha, fila["orden"], fila["campo"], fila["accion"], fila["valor"],
+                       (sha, orden, fila["campo"], fila["accion"], fila["valor"],
                         fila["quien"], fila["cuando"], fila["ancla_pagina"],
                         fila["ancla_x0"], fila["ancla_y0"], fila["ancla_x1"],
                         fila["ancla_y1"], fila["ancla_desde"], fila["ancla_hasta"],

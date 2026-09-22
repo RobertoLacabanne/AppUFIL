@@ -204,6 +204,32 @@ class UnaCorreccionNoSeMudaDeDocumento(unittest.TestCase):
         self.assertEqual(self.cx.execute("SELECT ancla_pagina FROM revision_humana").fetchone()[0],
                          2, "y el anclaje queda escrito con la foja del archivo")
 
+    def test_dos_revisiones_no_chocan_por_la_posicion(self):
+        """
+        Encontrado en un legajo real con 258 piezas: la posición vieja de una revisión
+        que hay que reasociar era la posición nueva de otra que sí se pudo mudar, y la
+        clave (archivo, posición, campo) hacía fallar la escritura. Se caía el
+        procesamiento del archivo entero y con él las dos revisiones.
+        """
+        _pieza(self.cx, 1, 1, 1, "factura", pagina=1)
+        _pieza(self.cx, 2, 2, 2, "factura", pagina=2)
+        campos = [r[0] for r in self.cx.execute(
+            "SELECT c.id FROM campo c JOIN documento d ON d.id=c.documento_id ORDER BY d.orden")]
+        aplicar(self.cx, campos[0], "corregir", "1111", "perez.ana")
+        aplicar(self.cx, campos[1], "corregir", "2222", "perez.ana")
+
+        # La foja 1 deja de ser una pieza y la de la foja 2 pasa a ser la primera.
+        _borrar_piezas(self.cx)
+        d = _pieza(self.cx, 1, 2, 2, "factura", pagina=2)
+        r = reaplicar_revisiones(self.cx, SHA, [
+            {"id": d, "orden": 1, "pagina_desde": 2, "pagina_hasta": 2, "tipo": "factura"}])
+
+        self.assertEqual((r["reaplicadas"], r["a_reasociar"]), (1, 1))
+        self.assertEqual(dict(self.cx.execute(
+            "SELECT estado, COUNT(*) FROM revision_humana GROUP BY estado").fetchall()),
+            {"vigente": 1, "requiere_reasociacion": 1},
+            "las dos revisiones tienen que sobrevivir")
+
     def test_si_no_se_puede_saber_a_cual_corresponde_no_se_aplica_a_ninguna(self):
         """
         Perder trabajo humano es malo; aplicarlo al documento equivocado es peor.
