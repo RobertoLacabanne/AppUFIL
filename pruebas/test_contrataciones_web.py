@@ -40,12 +40,12 @@ def render(script):
     const console = { log: function(s) { process.stdout.write(s + '\\n'); } };
     
     const api_respuestas = {
-      '/catalogo/contrataciones': require('./pruebas/fixtures/contrataciones/catalogo.json'),
-      '/contrataciones?desde=0&limite=100': require('./pruebas/fixtures/contrataciones/contrataciones.json'),
-      '/contratacion/1': require('./pruebas/fixtures/contrataciones/contratacion_1.json'),
-      '/precios?desde=0&limite=100': require('./pruebas/fixtures/contrataciones/precios.json'),
-      '/renglon/1/comparacion?niveles=A,B,C,D,E': require('./pruebas/fixtures/contrataciones/renglon_1.json'),
-      '/hallazgos?desde=0&limite=100': require('./pruebas/fixtures/contrataciones/hallazgos.json')
+      '/api/catalogo/contrataciones': require('./pruebas/fixtures/contrataciones/catalogo.json'),
+      '/api/contrataciones?desde=0&limite=100': require('./pruebas/fixtures/contrataciones/contrataciones.json'),
+      '/api/contratacion/1': require('./pruebas/fixtures/contrataciones/contratacion_1.json'),
+      '/api/precios?desde=0&limite=100': require('./pruebas/fixtures/contrataciones/precios.json'),
+      '/api/renglon/1/comparacion?niveles=A,B,C,D,E': require('./pruebas/fixtures/contrataciones/renglon_1.json'),
+      '/api/hallazgos?desde=0&limite=100': require('./pruebas/fixtures/contrataciones/hallazgos.json')
     };
     let peticiones_post = [];
     async function api(ruta, opts) {
@@ -165,17 +165,21 @@ class ContratacionesRender(unittest.TestCase):
         (async () => {
           location.hash = '#/hallazgos';
           await vHallazgosContrataciones();
-          const target = { classList: { contains: c => c === 'btn-guardar-hallazgo' }, dataset: { id: '1' }, disabled: false };
-          for (let cb of eventListeners['dblclick']) {
-              await cb({ target });
-          }
+          // Un solo clic tiene que guardar; dos clics seguidos, mandar un solo pedido.
+          const boton = { dataset: { guardarHallazgo: '1' }, disabled: false };
+          const target = { classList: { contains: () => false },
+                          closest: s => s === '[data-guardar-hallazgo]' ? boton : null };
+          // Los dos clics llegan mientras el primer pedido sigue en vuelo.
+          const oyentes = eventListeners['click'] || [];
+          await Promise.all([...oyentes, ...oyentes].map(cb => cb({ target })));
           console.log(JSON.stringify(peticiones_post));
         })();
         """)
         posts = json.loads(out.strip())
         self.assertEqual(len(posts), 1)
-        self.assertEqual(posts[0]['ruta'], '/hallazgo/1/revision')
-        self.assertEqual(posts[0]['body']['estado'], 'pendiente')
+        self.assertEqual(posts[0]['ruta'], '/api/hallazgo/1/revision')
+        self.assertEqual(json.loads(posts[0]['body'])['estado'], 'pendiente',
+                         "el cuerpo viaja como JSON, no como un objeto")
 
 if __name__ == '__main__':
     unittest.main()

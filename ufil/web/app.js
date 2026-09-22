@@ -5817,7 +5817,7 @@ function abrirDosFojas(f1, f2) {
 let catalogoContrataciones = null;
 async function cargarCatalogoContrataciones() {
   if (!catalogoContrataciones) {
-    catalogoContrataciones = await api('/catalogo/contrataciones');
+    catalogoContrataciones = await api('/api/catalogo/contrataciones');
   }
   return catalogoContrataciones;
 }
@@ -5844,7 +5844,7 @@ async function vContrataciones() {
   const cat = await cargarCatalogoContrataciones();
   const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
   const limite = 100;
-  const d = await api(`/contrataciones?desde=${desde}&limite=${limite}`);
+  const d = await api(`/api/contrataciones?desde=${desde}&limite=${limite}`);
   
   if (!d.contrataciones || !d.contrataciones.length) {
     return vistaVacia('f. 0000', 'Contrataciones', 'Contrataciones', 'No hay contrataciones para mostrar', '');
@@ -5878,7 +5878,7 @@ async function vContrataciones() {
 async function vContratacion() {
   const id = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
   if (!id) return;
-  const d = await api(`/contratacion/${id}`);
+  const d = await api(`/api/contratacion/${id}`);
   const c = d.contratacion;
   
   const htmlEtapas = (d.etapas || []).map(e => {
@@ -5930,7 +5930,7 @@ async function vContratacion() {
 async function vPrecios() {
   const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
   const limite = 100;
-  const d = await api(`/precios?desde=${desde}&limite=${limite}`);
+  const d = await api(`/api/precios?desde=${desde}&limite=${limite}`);
   
   if (!d.renglones || !d.renglones.length) {
     return vistaVacia('f. 0000', 'Ítems y precios', 'Ítems y precios', 'No hay ítems para mostrar', '');
@@ -5963,7 +5963,7 @@ async function vPrecios() {
 async function vRenglon() {
   const id = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
   if (!id) return;
-  const d = await api(`/renglon/${id}/comparacion?niveles=A,B,C,D,E`);
+  const d = await api(`/api/renglon/${id}/comparacion?niveles=A,B,C,D,E`);
   const r = d.renglon;
   
   const renderMotivos = motivos => (motivos || []).map(m => `<li>${esc(m.atributo)}: ${esc(m.a)} vs ${esc(m.b)} (${esc(m.efecto)})</li>`).join('');
@@ -6032,7 +6032,7 @@ async function vHallazgosContrataciones() {
   const cat = await cargarCatalogoContrataciones();
   const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
   const limite = 100;
-  const d = await api(`/hallazgos?desde=${desde}&limite=${limite}`);
+  const d = await api(`/api/hallazgos?desde=${desde}&limite=${limite}`);
   
   if (!d.hallazgos || !d.hallazgos.length) {
     return vistaVacia('f. 0000', 'Hallazgos', 'Hallazgos', 'No hay hallazgos para mostrar', '');
@@ -6068,7 +6068,7 @@ async function vHallazgosContrataciones() {
          return `
            <select id="rev-estado-${h.id}">${revOpciones}</select>
            <input type="text" id="rev-nota-${h.id}" value="${esc(nota)}" placeholder="Nota">
-           <button class="boton btn-guardar-hallazgo" data-id="${h.id}">Guardar</button>
+           <button type="button" class="boton" data-guardar-hallazgo="${esc(h.id)}">Guardar</button>
          `;
       }}
     ], d.hallazgos)}
@@ -6082,23 +6082,26 @@ document.addEventListener('click', async e => {
   }
 });
 
-document.addEventListener('dblclick', async e => {
-  if (e.target.classList.contains('btn-guardar-hallazgo')) {
-    const id = e.target.dataset.id;
+// Un clic, como cualquier botón. Estaba en `dblclick`: con un clic no se guardaba nada.
+document.addEventListener('click', async e => {
+  const boton = e.target.closest ? e.target.closest('[data-guardar-hallazgo]') : null;
+  if (boton) {
+    const id = boton.dataset.guardarHallazgo;
     const select = document.getElementById('rev-estado-' + id);
     const nota = document.getElementById('rev-nota-' + id);
-    if (e.target.disabled) return;
-    e.target.disabled = true;
+    if (boton.disabled) return;
+    boton.disabled = true;
     try {
-      await api(`/hallazgo/${id}/revision`, {
+      await api(`/api/hallazgo/${id}/revision`, {
         method: 'POST',
-        body: { estado: select.value, nota: nota.value }
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({estado: select.value, nota: nota.value})
       });
       await redibujarTrasAccion('Revisión guardada', vHallazgosContrataciones);
     } catch (err) {
       alert('Falló: ' + err.message);
     } finally {
-      e.target.disabled = false;
+      boton.disabled = false;
     }
   }
 });
