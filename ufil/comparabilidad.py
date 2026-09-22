@@ -110,6 +110,10 @@ HALLAZGOS = (
      "La suma de los subtotales no da el total impreso."),
     ("precio_ausente", "Renglón sin precio",
      "El renglón no tiene precio unitario y no se lo puede derivar de otros valores."),
+    ("precio_sin_rol", "Importe impreso sin poder decir de qué es",
+     "La planilla tiene un importe por renglón pero no dice si es el precio de una unidad "
+     "o el total del renglón, y no hay cantidad para deducirlo. Hasta que alguien lo "
+     "confirme, el importe se muestra pero no se usa como referencia."),
     ("documento_faltante", "Documento no encontrado",
      "Falta una etapa que la secuencia de la contratación permite esperar."),
     ("oferente_unico", "Una sola oferta encontrada",

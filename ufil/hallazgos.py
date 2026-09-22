@@ -117,12 +117,25 @@ def recalcular(cx):
                 agregar('subtotal_incorrecto', cid, [r['clave']], [o['fuente'] for o in ops],
                         dict(renglon_id=r['id'], impreso=r['subtotal']),
                         _calculo('cantidad * precio_unitario', ops, precios.dinero(esperado)), precio_calidad([r]))
-        if r['etapa'] in clasificacion.TIPOS_CON_PRECIO and r['precio_unitario'] is None:
+        if (r['etapa'] in clasificacion.TIPOS_CON_PRECIO and r['precio_unitario'] is None
+                and r['precio_motivo'] != 'rol_incierto'):
             agregar('precio_ausente', cid, [r['clave']], [rg.fuente(cx, r)],
                     dict(renglon_id=r['id'], motivo=r['precio_motivo']))
 
     for d in docs:
         rs = rdoc[d['id']]
+        # Un importe por renglón que no dice si es unitario o total no es un renglón sin
+        # precio: el número está impreso y se ve. Lo que falta es que alguien diga de qué
+        # es. Va uno por planilla y no uno por renglón —en el legajo real son doce
+        # planillas de presupuesto— porque la pregunta se contesta de una vez para toda
+        # la columna, no fila por fila.
+        sin_rol = [r for r in rs if r['precio_motivo'] == 'rol_incierto']
+        if sin_rol:
+            agregar('precio_sin_rol', sin_rol[0]['contratacion_id'],
+                    [dk(d)] + [r['clave'] for r in sin_rol],
+                    [rg.fuente(cx, r) for r in sin_rol],
+                    dict(renglones=len(sin_rol),
+                         importes=[r['precio_literal'] for r in sin_rol if r['precio_literal']]))
         if d['total'] and rs and all(r['subtotal'] is not None for r in rs) and d['contexto'].get('iva') != 'discriminado':
             suma = sum(Decimal(r['subtotal']) for r in rs)
             if precios.dinero(suma) != precios.dinero(Decimal(d['total']['valor'])):

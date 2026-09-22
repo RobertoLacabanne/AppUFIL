@@ -83,6 +83,28 @@ class ReconstruccionYHallazgos(unittest.TestCase):
         ha.recalcular(self.cx)
         return ha.listar(self.cx,limite=500)['hallazgos']
 
+    def test_un_importe_sin_rol_no_es_un_renglon_sin_precio(self):
+        """
+        En el legajo real hay doce planillas de presupuesto con descripción e importe por
+        renglón y sin cantidad: no se puede afirmar si el importe es de una unidad o del
+        renglón entero. El número está impreso y tiene que verse, pero decir «renglón sin
+        precio» sería falso, y usarlo como referencia sería comparar cualquier cosa.
+        """
+        r = self.cx.execute("SELECT * FROM renglon WHERE etapa='presupuesto' LIMIT 1").fetchone()
+        self.cx.execute("""UPDATE renglon SET precio_unitario=NULL, subtotal=NULL, cantidad=NULL,
+                           precio_literal='$ 36.334,08', precio_motivo='rol_incierto' WHERE id=?""", (r['id'],))
+        hs = self.hallazgos()
+        h = next((x for x in hs if x['tipo'] == 'precio_sin_rol'), None)
+        self.assertIsNotNone(h, 'el importe impreso tiene que verse igual')
+        self.assertTrue(h['fuentes'], 'sin fuente no se puede abrir la foja')
+        self.assertIn('$ 36.334,08', json.dumps(h['datos'], ensure_ascii=False))
+        self.assertFalse(ct.cp.terminos_prohibidos_en(h['titulo'] + ' ' + h['descripcion']))
+        # Y no se lo cuenta además como renglón sin precio: es una cosa o la otra.
+        def datos(x):
+            return json.loads(x['datos']) if isinstance(x['datos'], str) else (x['datos'] or {})
+        self.assertEqual([x for x in hs if x['tipo'] == 'precio_ausente'
+                          and datos(x).get('renglon_id') == r['id']], [])
+
     def test_corpus_exactamente_siete_con_fuentes_y_revision(self):
         hs=self.hallazgos()
         self.assertEqual(Counter(h['tipo'] for h in hs),dict(diferencia_precio=3,facturado_vs_adjudicado=2,
