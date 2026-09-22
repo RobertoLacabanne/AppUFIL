@@ -5840,11 +5840,29 @@ function montoHTML(monto) {
   return t;
 }
 
+/* Una pantalla cuyo backend todavía no llegó a esta instalación: se dice, en vez de
+   mostrar un error. El servidor contesta 404 «ruta desconocida» cuando la ruta no existe
+   —sin `no_encontrado`, que es lo que contesta cuando lo que no existe es la cosa—. */
+async function apiOPendiente(ruta, rotulo, titulo) {
+  try {
+    return await api(ruta);
+  } catch (e) {
+    if (e.estado === 404 && !e.noEncontrado) {
+      vistaVacia('f. 0000', rotulo, titulo, 'Todavía no disponible en esta versión',
+        'Esta parte del análisis se está terminando. Las piezas, las tablas y los precios ' +
+        'ya se pueden consultar.');
+      return null;
+    }
+    throw e;
+  }
+}
+
 async function vContrataciones() {
   const cat = await cargarCatalogoContrataciones();
   const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
   const limite = 100;
-  const d = await api(`/api/contrataciones?desde=${desde}&limite=${limite}`);
+  const d = await apiOPendiente(`/api/contrataciones?desde=${desde}&limite=${limite}`, 'Contrataciones', 'Contrataciones');
+  if (!d) return;
   
   if (!d.contrataciones || !d.contrataciones.length) {
     return vistaVacia('f. 0000', 'Contrataciones', 'Contrataciones', 'No hay contrataciones para mostrar', '');
@@ -5878,7 +5896,8 @@ async function vContrataciones() {
 async function vContratacion() {
   const id = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
   if (!id) return;
-  const d = await api(`/api/contratacion/${id}`);
+  const d = await apiOPendiente(`/api/contratacion/${id}`, 'Contratación', 'Contratación');
+  if (!d) return;
   const c = d.contratacion;
   
   const htmlEtapas = (d.etapas || []).map(e => {
@@ -6032,7 +6051,8 @@ async function vHallazgosContrataciones() {
   const cat = await cargarCatalogoContrataciones();
   const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
   const limite = 100;
-  const d = await api(`/api/hallazgos?desde=${desde}&limite=${limite}`);
+  const d = await apiOPendiente(`/api/hallazgos?desde=${desde}&limite=${limite}`, 'Hallazgos', 'Hallazgos');
+  if (!d) return;
   
   if (!d.hallazgos || !d.hallazgos.length) {
     return vistaVacia('f. 0000', 'Hallazgos', 'Hallazgos', 'No hay hallazgos para mostrar', '');

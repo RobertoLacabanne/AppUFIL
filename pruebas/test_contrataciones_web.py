@@ -181,5 +181,36 @@ class ContratacionesRender(unittest.TestCase):
         self.assertEqual(json.loads(posts[0]['body'])['estado'], 'pendiente',
                          "el cuerpo viaja como JSON, no como un objeto")
 
+class PantallaSinBackend(unittest.TestCase):
+    """Una instalación con la interfaz nueva y sin la ruta nueva no muestra un error."""
+
+    def test_ruta_que_todavia_no_existe_se_dice(self):
+        out = render("""
+        (async () => {
+          api = async (ruta) => {
+            if (ruta.startsWith('/api/catalogo/')) return require('./pruebas/fixtures/contrataciones/catalogo.json');
+            const e = new Error('ruta desconocida'); e.estado = 404; e.noEncontrado = false; throw e;
+          };
+          location.hash = '#/contrataciones';
+          await vContrataciones();
+          console.log(vista.innerHTML);
+        })();
+        """)
+        self.assertIn("Todavía no disponible", out)
+
+    def test_una_contratacion_que_no_existe_sigue_siendo_un_error(self):
+        out = render("""
+        (async () => {
+          api = async (ruta) => {
+            if (ruta.startsWith('/api/catalogo/')) return require('./pruebas/fixtures/contrataciones/catalogo.json');
+            const e = new Error('no existe esa contratación'); e.estado = 404; e.noEncontrado = true; throw e;
+          };
+          location.hash = '#/contratacion?id=99';
+          try { await vContratacion(); console.log('SIN ERROR'); } catch (e) { console.log('ERROR ' + e.message); }
+        })();
+        """)
+        self.assertIn("ERROR no existe esa contratación", out)
+
+
 if __name__ == '__main__':
     unittest.main()
