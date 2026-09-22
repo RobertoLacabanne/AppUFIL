@@ -721,9 +721,16 @@ def clasificar_fojas(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict
         plano = normalizar_cotejo(" ".join(w.texto for w in pw[:120]))
         if len(plano) > len(encabezados.get(nro, "")):
             encabezados[nro] = plano
+        # Se juntan las rutas: lo más que alguna VIO y lo más que alguna LEYÓ. Quedarse
+        # con la ruta de más útiles no alcanzaba: en un legajo real, una ruta devolvió
+        # 137 fragmentos sin una palabra legible y la otra una sola palabra, y ganaba la
+        # de una palabra, así que una foja con algo que no se pudo leer salía «en
+        # blanco» en vez de «no se pudo leer», que es lo que manda a alguien a mirarla.
         m = cl.medir(w.texto for w in pw)
-        if nro not in medidas or m.utiles > medidas[nro].utiles:
-            medidas[nro] = m
+        if nro in medidas:
+            m = cl.Medida(max(m.palabras, medidas[nro].palabras),
+                          max(m.utiles, medidas[nro].utiles))
+        medidas[nro] = m
     todas = sorted(vistas)
     if not todas:
         raise RuntimeError(f"sin lecturas para {sha}: correr `leer` antes que `extraer`")

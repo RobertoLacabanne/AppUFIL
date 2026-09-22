@@ -97,6 +97,35 @@ class UnaFojaQueNoSePuedeLeerLoDice(unittest.TestCase):
         self.assertIsNone(cl.veredicto(m),
                           "se aparta el presupuesto, que es la foja con los importes")
 
+    def test_si_una_ruta_vio_tinta_la_foja_no_esta_en_blanco(self):
+        """
+        Encontrado en un legajo real: una ruta de OCR devolvió 137 fragmentos sin nada
+        legible y la otra una sola palabra. Ganaba la ruta de una palabra —tenía más
+        útiles— y la foja salía «en blanco», escondida, cuando lo que corresponde es
+        «no se pudo leer», que es lo que manda a alguien a mirar el papel.
+        """
+        import tempfile
+        from ufil import db
+        from ufil.capa1_texto import Palabra
+        from ufil.capa2_extraccion import clasificar_fojas
+        from ufil.db import ahora
+        with tempfile.TemporaryDirectory() as tmp:
+            cx = db.abrir(Path(tmp) / "t.sqlite")
+            try:
+                sha = "e" * 64
+                cx.execute("""INSERT INTO archivo (sha256,ruta_original,nombre,bytes,paginas,ingerido_en)
+                              VALUES (?,'/x/a.pdf','a.pdf',1,1,?)""", (sha, ahora()))
+                cx.execute("INSERT INTO pagina (sha256,nro) VALUES (?,1)", (sha,))
+                cx.commit()
+                ruido = [Palabra(t, 10 + i, 10, 14 + i, 14, 0.2)
+                         for i, t in enumerate(["~", "|", "-", "..", "'"] * 28)][:137]
+                una = [Palabra("Folio", 400, 20, 430, 30, 0.9)]
+                r = clasificar_fojas(cx, sha, por_ruta={"ocr_a": [(1, None, ruido)],
+                                                        "ocr_b": [(1, None, una)]})
+                self.assertEqual(r["clases"][1], cl.FOJA_SIN_TEXTO)
+            finally:
+                cx.close()
+
     def test_el_corte_esta_entre_los_dos_casos_medidos(self):
         """4,6 % la peor foja legible-para-nadie; 11,8 % el croquis, que sí se lee."""
         self.assertGreater(cl.UTILES_MINIMOS, 0.046)
