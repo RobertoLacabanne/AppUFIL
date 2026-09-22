@@ -69,6 +69,54 @@ class DecimalesYEstadisticas(unittest.TestCase):
         for literal in [None, '', 'NaN', 'inf', '1O0,00', '1.23.45', 'sin precio']:
             self.assertIsNone(rg.decimal_argentino(literal))
 
+    def test_notacion_de_la_tabla_y_lo_que_queda_sin_leer(self):
+        """
+        Parte del legajo real está impresa con coma de miles y punto decimal.
+
+        Medido sobre una copia del legajo real: los 64 renglones de órdenes de compra
+        estaban sin precio con motivo «ilegible» teniendo el precio impreso en la celda
+        (`5,087.30`), porque el lector sólo aceptaba notación argentina. El número es
+        prueba, así que se lee sólo cuando no hay ambigüedad; lo demás queda sin leer.
+        """
+        celda = lambda t, f=0, c=0: dict(fila=f, columna=c, texto=t, es_encabezado=0, x0=c*100)
+        # 1. Con los dos separadores manda el último, en cualquiera de las dos notaciones.
+        self.assertEqual(rg.decimal_argentino('5,087.30'), Decimal('5087.30'))
+        self.assertEqual(rg.decimal_argentino('5.087,30'), Decimal('5087.30'))
+        self.assertEqual(rg.decimal_argentino('1,349,145.00'), Decimal('1349145.00'))
+        # 2. Con un separador y dos decimales decide la tabla, no el token.
+        self.assertEqual(rg.decimal_argentino('1.905,60'), Decimal('1905.60'))
+        self.assertIsNone(rg.decimal_argentino('1905.60'), 'sola, la notación ajena no se supone')
+        self.assertEqual(rg.decimal_argentino('1905.60', '.'), Decimal('1905.60'))
+        # La notación sale de los tokens inequívocos de la misma tabla.
+        self.assertEqual(rg.notacion_tabla([celda('5,087.30'), celda('1905.60', 1)]), '.')
+        self.assertEqual(rg.notacion_tabla([celda('5.087,30'), celda('1905,60', 1)]), ',')
+        self.assertEqual(rg.notacion_tabla([celda('Tubo'), celda('1905,60', 1)]), ',',
+                         'sin evidencia se mantiene la notación argentina')
+        # 3. Tres decimales exactos son miles, no fracción, en las dos notaciones.
+        self.assertEqual(rg.decimal_argentino('1,349'), Decimal('1349'))
+        self.assertEqual(rg.decimal_argentino('1.349'), Decimal('1349'))
+        # 4. Una tabla con las dos notaciones no resuelve nada: lo ambiguo no se lee.
+        mezclada = [celda('5,087.30'), celda('5.087,30', 1)]
+        self.assertIsNone(rg.notacion_tabla(mezclada))
+        self.assertIsNone(rg.decimal_argentino('1905.60', rg.notacion_tabla(mezclada)))
+        self.assertIsNone(rg.decimal_argentino('1905,60', rg.notacion_tabla(mezclada)))
+        self.assertEqual(rg.decimal_argentino('5,087.30', rg.notacion_tabla(mezclada)),
+                         Decimal('5087.30'), 'lo inequívoco se sigue leyendo')
+
+    def test_una_tabla_en_notacion_ajena_da_precio_y_conserva_el_literal(self):
+        """Como la orden de compra real de la foja 7: cantidad, unitario y total."""
+        cs = []
+        for fila, valores in enumerate([('80', 'UNIDAD', 'Conductor', '5,087.30', '406,984.00'),
+                                        ('200', 'UNIDAD', 'Conductor', '2,451.90', '490,380.00')]):
+            for col, t in enumerate(valores):
+                cs.append(dict(fila=fila, columna=col, texto=t, es_encabezado=0, x0=col*100))
+        filas = rg.filas_por_cuenta(cs)
+        self.assertEqual(len(filas), 2)
+        notacion = rg.notacion_tabla(cs)
+        self.assertEqual(rg.valor_celda(filas[0]['precio'], notacion), Decimal('5087.30'))
+        self.assertEqual(filas[0]['precio']['texto'], '5,087.30', 'el literal impreso se conserva')
+        self.assertEqual(rg.valor_celda(filas[0]['subtotal'], notacion), Decimal('406984.00'))
+
     def test_desvio_muestral_cuartiles_y_redondeo(self):
         r = precios.estadisticas([Decimal(x) for x in ('1', '2', '3', '4')], 'B')
         self.assertEqual(r, dict(nivel='B', n=4, minimo='1.00', maximo='4.00', media='2.50',

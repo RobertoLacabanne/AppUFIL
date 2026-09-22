@@ -18,19 +18,54 @@ def normalizar(texto):
     return ' '.join(''.join(c for c in t if not unicodedata.combining(c)).lower().split())
 
 
-def decimal_argentino(literal):
-    """No acepta basura OCR, separadores incoherentes ni valores no finitos."""
+def decimal_argentino(literal, notacion=','):
+    """Decimal exacto; notacion es el separador decimal de la tabla o None.
+
+    El nombre se conserva por compatibilidad. Sin evidencia rige la coma decimal.
+    Con ambos separadores manda el último, validando los grupos de miles.
+    """
     if literal is None:
         return None
     t = str(literal).strip().strip('|[]_ ').strip()
     t = re.sub(r'^(?:ARS|USD|EUR|\$)\s*', '', t, flags=re.I)
     t = re.sub(r'\s*(?:ARS|USD|EUR)$', '', t, flags=re.I).strip()
-    if not re.fullmatch(r'[+-]?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?', t):
+    if not re.fullmatch(r'[+-]?\d+(?:[.,]\d+)*', t):
         return None
+    if ',' in t and '.' in t:
+        decimal = ',' if t.rfind(',') > t.rfind('.') else '.'
+        miles = '.' if decimal == ',' else ','
+        patron = r'[+-]?\d{1,3}(?:' + re.escape(miles) + r'\d{3})+' + re.escape(decimal) + r'\d+'
+        if not re.fullmatch(patron, t):
+            return None
+        t = t.replace(miles, '').replace(decimal, '.')
+    elif ',' in t or '.' in t:
+        sep = ',' if ',' in t else '.'
+        if re.fullmatch(r'[+-]?\d{1,3}(?:' + re.escape(sep) + r'\d{3})+', t):
+            t = t.replace(sep, '')
+        elif t.count(sep) == 1 and len(t.split(sep)[1]) == 3:
+            # Tres posiciones exactas nunca se interpretan como fracción.
+            return None
+        elif sep == notacion and t.count(sep) == 1:
+            t = t.replace(sep, '.')
+        else:
+            return None
     try:
-        return Decimal(t.replace('.', '').replace(',', '.'))
+        return Decimal(t)
     except InvalidOperation:
         return None
+
+
+def notacion_tabla(celdas):
+    """Sólo tokens completos con ambos separadores son evidencia de notación."""
+    vistas = set()
+    for c in celdas:
+        if c['es_encabezado']:
+            continue
+        for m in _IMPORTE.finditer(c['texto'] or ''):
+            t = m.group()
+            if ',' in t and '.' in t and decimal_argentino(t) is not None:
+                vistas.add(',' if t.rfind(',') > t.rfind('.') else '.')
+    return next(iter(vistas)) if len(vistas) == 1 else (None if vistas else ',')
 
 
 def canonico(valor):
@@ -92,6 +127,7 @@ def columnas(celdas, palabras=None, tabla=None):
     Dos columnas de números sin rótulo no permiten decidir cuál es el precio.
     No se toma el subtotal por unitario para completar artificialmente una fila.
     """
+    notacion = notacion_tabla(celdas)
     roles = {}
     for c in celdas:
         if c['es_encabezado']:
@@ -132,19 +168,19 @@ def columnas(celdas, palabras=None, tabla=None):
     # Un código numérico solo sigue sin ser una cantidad.
     if 'cantidad' not in roles and 'unidad' in roles:
         candidatas = [col for col, ts in por_col.items() if col not in roles.values()
-                      and ts and all(decimal_argentino(t) is not None and ',' not in t for t in ts)]
+                      and ts and all(decimal_argentino(t, notacion) is not None and ',' not in t for t in ts)]
         if len(candidatas) == 1:
             roles['cantidad'] = candidatas[0]
     # La cuenta de varias filas puede desambiguar columnas monetarias sin título.
     # Exige cantidad conocida: un código numérico no se presume una cantidad.
     if 'cantidad' in roles and 'precio' not in roles and 'subtotal' not in roles:
         monetarias = [col for col, ts in por_col.items() if col not in roles.values()
-                      and sum(decimal_argentino(t) is not None and bool(re.search(r',\d{2}\b', t))
+                      and sum(decimal_argentino(t, notacion) is not None and bool(re.search(r'[.,]\d{2}\b', t))
                               for t in ts) >= 2]
         pares = []
         por_fila = {}
         for c in datos:
-            por_fila.setdefault(c['fila'], {})[c['columna']] = decimal_argentino(c['texto'])
+            por_fila.setdefault(c['fila'], {})[c['columna']] = decimal_argentino(c['texto'], notacion)
         for pu in monetarias:
             for sub in monetarias:
                 if pu == sub:
@@ -166,30 +202,33 @@ def _ancla(celdas, pagina):
                                max(c['x1'] for c in celdas), max(c['y1'] for c in celdas))))}
 
 
-_IMPORTE = re.compile(r'(?<![\w.,])(?:\$\s*)?[+-]?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}(?![\d.,]|\s*%)')
+_IMPORTE = re.compile(r'(?<![\w.,])(?:\$\s*)?[+-]?\d+(?:[.,]\d+)+(?![\w.,]|\s*%)')
 
 
-def importes(texto):
-    """Tokens completos; ni porcentajes ni reparación de dígitos OCR."""
-    return [m.group() for m in _IMPORTE.finditer(texto or '')]
+def importes(texto, notacion=','):
+    """Tokens completos con decimales; ni porcentajes ni reparación OCR."""
+    return [m.group() for m in _IMPORTE.finditer(texto or '')
+            if re.search(r'[.,]\d{2,}$', m.group())
+            and decimal_argentino(m.group(), notacion) is not None]
 
 
 def celdas_ocr(celdas):
     """Desdobla columnas fundidas conservando id y región de la celda original.
 
     Sólo separadores explícitos o dos importes completos permiten desdoblar.
-    Un número sin coma decimal no se convierte en dinero.
+    Los importes conservan sus separadores impresos.
     """
+    notacion = notacion_tabla(celdas)
     salida = []
     for c in celdas:
         texto = c['texto'] or ''
         partes = [p.strip() for p in re.split(r'[|]', texto) if p.strip()]
         # Las barras dentro de la descripción no definen columnas por sí solas.
-        if len(partes) > 1 and sum(decimal_argentino(p) is not None for p in partes) >= 2:
+        if len(partes) > 1 and sum(decimal_argentino(p, notacion) is not None for p in partes) >= 2:
             for i, p in enumerate(partes):
                 salida.append(dict(c, columna=c['columna'] * 100 + i, texto=p))
         else:
-            nums = importes(texto)
+            nums = importes(texto, notacion)
             if len(nums) == 2 and not re.search(r'[A-RT-Za-rt-z]{3}', texto):
                 for i, p in enumerate(nums):
                     salida.append(dict(c, columna=c['columna'] * 100 + i, texto=p))
@@ -198,7 +237,7 @@ def celdas_ocr(celdas):
     return salida
 
 
-def valores_fila(cs, roles):
+def valores_fila(cs, roles, notacion=','):
     valores = {rol: cs[col] for rol, col in roles.items() if col in cs}
     # Cantidad y descripción pueden compartir celda, incluso el encabezado.
     for c in cs.values():
@@ -208,17 +247,17 @@ def valores_fila(cs, roles):
                 valores['cantidad'] = dict(c, texto=m[1], numero=Decimal(m[1].replace(',', '.')))
                 valores['descripcion'] = c  # el literal original se conserva entero
     for rol in ('precio', 'subtotal'):
-        if rol in valores and decimal_argentino(valores[rol]['texto']) is None:
-            nums = importes(valores[rol]['texto'])
+        if rol in valores and decimal_argentino(valores[rol]['texto'], notacion) is None:
+            nums = importes(valores[rol]['texto'], notacion)
             if len(nums) == 1:
                 valores[rol] = dict(valores[rol], texto=nums[0])
     return valores
 
 
-def valor_celda(celda):
+def valor_celda(celda, notacion=','):
     if celda is None:
         return None
-    return celda.get('numero', decimal_argentino(celda['texto']))
+    return celda.get('numero', decimal_argentino(celda['texto'], notacion))
 
 
 def filas_por_cuenta(celdas):
@@ -228,6 +267,7 @@ def filas_por_cuenta(celdas):
     decimal con dos posiciones. No se ensayan códigos sueltos como cantidades.
     Se exige una única cuenta y al menos una cantidad distinta de uno.
     """
+    notacion = notacion_tabla(celdas)
     candidatas = {}
     for fila in {c['fila'] for c in celdas if not c['es_encabezado']}:
         cs = [c for c in celdas if c['fila'] == fila and not c['es_encabezado']]
@@ -246,17 +286,17 @@ def filas_por_cuenta(celdas):
                 cantidades.append(dict(c, texto=m[1]))
         if any(normalizar(c['texto']).strip('. ') in _UNIDADES for c in cs):
             cantidades += [c for c in cs if re.fullmatch(r'\d+', (c['texto'] or '').strip())]
-        montos = [dict(c, texto=t) for c in cs for t in importes(c['texto'])]
+        montos = [dict(c, texto=t) for c in cs for t in importes(c['texto'], notacion)]
         opciones = []
         for q in cantidades:
-            cantidad = valor_celda(q)
+            cantidad = valor_celda(q, notacion)
             for i, p in enumerate(montos):
                 for s in montos[i+1:]:
-                    if cantidad and cantidad * decimal_argentino(p['texto']) == decimal_argentino(s['texto']):
+                    if cantidad and cantidad * decimal_argentino(p['texto'], notacion) == decimal_argentino(s['texto'], notacion):
                         opciones.append({'descripcion': desc, 'cantidad': q, 'precio': p, 'subtotal': s})
         if len(opciones) == 1:
             candidatas[fila] = opciones[0]
-    if len(candidatas) >= 2 and any(valor_celda(v['cantidad']) != 1 for v in candidatas.values()):
+    if len(candidatas) >= 2 and any(valor_celda(v['cantidad'], notacion) != 1 for v in candidatas.values()):
         return candidatas
     return {}
 
@@ -395,6 +435,7 @@ def extraer_archivo(cx, sha, *, por_ruta=None):
         cx.execute('UPDATE renglon SET vigente=0 WHERE sha256=?', (sha,))
         for t in cx.execute('SELECT * FROM tabla WHERE sha256=? ORDER BY pagina_nro,orden', (sha,)).fetchall():
             originales = [dict(c) for c in cx.execute('SELECT * FROM tabla_celda WHERE tabla_id=? ORDER BY fila,columna', (t['id'],))]
+            notacion = notacion_tabla(originales)
             cuentas = filas_por_cuenta(originales)
             doc = docs.get(t['documento_id'])
             if not doc:
@@ -421,7 +462,7 @@ def extraer_archivo(cx, sha, *, por_ruta=None):
                 continue
             for fila in sorted({c['fila'] for c in celdas if not c['es_encabezado']}):
                 cs = {c['columna']: c for c in celdas if c['fila'] == fila and not c['es_encabezado']}
-                valores = valores_fila(cs, roles)
+                valores = valores_fila(cs, roles, notacion)
                 if fila in cuentas and not {'precio', 'subtotal'} <= valores.keys():
                     valores.update(cuentas[fila])
                 desc = valores.get('descripcion')
@@ -435,7 +476,7 @@ def extraer_archivo(cx, sha, *, por_ruta=None):
                 anclas['fila'] = _ancla(list(cs.values()), t['pagina_nro'])
                 def literal(k):
                     return valores[k]['texto'] if k in valores else None
-                cant, precio, sub = (valor_celda(valores.get(k)) for k in ('cantidad', 'precio', 'subtotal'))
+                cant, precio, sub = (valor_celda(valores.get(k), notacion) for k in ('cantidad', 'precio', 'subtotal'))
                 if cant is None and precio is None and sub is None:
                     continue
                 derivado, formula = False, None
