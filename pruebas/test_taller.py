@@ -635,7 +635,10 @@ class NoSeDecideSinVer(unittest.TestCase):
             "const pag = " + json.dumps(pag) + ";\n" + \
             "const out = {}; for (const k in casos) out[k] = cajaUtil(casos[k], pag);\n" + \
             "console.log(JSON.stringify(out));"
-        r = subprocess.run([node, "-e", guion], capture_output=True, text=True, timeout=30)
+        # Node escribe UTF-8; sin decirlo, en Windows se decodifica con la codepage
+        # local y el «×» del motivo vuelve como «Ã—».
+        r = subprocess.run([node, "-e", guion], capture_output=True, text=True,
+                           encoding="utf-8", timeout=30)
         self.assertEqual(r.returncode, 0, "cajaUtil no corre:\n" + r.stderr[-600:])
         salida = json.loads(r.stdout)
         self.assertEqual(salida["buena"], "",

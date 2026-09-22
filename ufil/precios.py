@@ -77,6 +77,8 @@ def comparar(cx, rid, niveles=None):
             motivo = 'Etapa de ejecución de la misma contratación: corresponde a la misma compra.'
         elif b['precio_unitario'] is None:
             motivo = 'No tiene precio unitario utilizable.'
+        elif b['etapa'] not in cp.ETAPAS_PRIMARIAS | cp.ETAPAS_COTIZACION:
+            motivo = 'La etapa documental no permite usarlo como referencia de precio.'
         decision, quien = _decision(cx, a, b)
         comp = cp.comparabilidad(oa, ob, decision_humana=decision, quien=quien)
         nivel = cp.nivel(oa, ob, comp['estado'])
@@ -143,9 +145,12 @@ def comparar(cx, rid, niveles=None):
     if stats:
         salida['comparacion'] = {'nivel': elegido, 'diferencia_pct': diferencia['porcentual'] if diferencia else None,
                                  'n': stats['n'], 'calidad': calidad['nivel']}
+    hallazgo = cx.execute("SELECT id,revision_estado,quien,cuando,nota FROM hallazgo WHERE tipo='diferencia_precio' AND ya_no_se_detecta=0 AND json_extract(datos,'$.renglon_id')=? ORDER BY id LIMIT 1", (rid,)).fetchone()
+    revision = ({'id': hallazgo['id'], 'revision': {'estado': hallazgo['revision_estado'],
+                 'quien': hallazgo['quien'], 'cuando': hallazgo['cuando'], 'nota': hallazgo['nota']}} if hallazgo else None)
     return {'renglon': salida, 'referencias': [r for _, r in refs], 'excluidas': excluidas,
             'estadisticas': stats, 'diferencia': diferencia, 'calculo': calculo, 'calidad': calidad,
-            'advertencias': advertencias, 'hallazgo': None}
+            'advertencias': advertencias, 'hallazgo': revision}
 
 
 def listar(cx, **filtros):

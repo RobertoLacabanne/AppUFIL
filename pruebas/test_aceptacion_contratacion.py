@@ -32,7 +32,18 @@ HAY_BACKEND = all(importlib.util.find_spec(f"ufil.{m}")
 
 @unittest.skipUnless(HAY_BACKEND, "todavía no está el backend del incremento 7")
 class UnaContratacionDePuntaAPunta(unittest.TestCase):
-    setUp = soporte.NucleoPorHTTP.setUp
+    def setUp(self):
+        soporte.NucleoPorHTTP.setUp(self)
+        # Los originales se guardan sin permiso de escritura —son el papel— y en Windows
+        # eso impide borrar la carpeta temporal al terminar. Se devuelve el permiso antes
+        # de que corra la limpieza (las limpiezas corren en orden inverso).
+        self.addCleanup(self._devolver_permisos)
+
+    def _devolver_permisos(self):
+        for ruta in self.temporal.rglob("*"):
+            if ruta.is_file():
+                ruta.chmod(0o666)
+
     restaurar_config = soporte.NucleoPorHTTP.restaurar_config
     restaurar_servidor = soporte.NucleoPorHTTP.restaurar_servidor
     cerrar = soporte.NucleoPorHTTP.cerrar

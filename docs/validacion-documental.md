@@ -319,3 +319,108 @@ de `test_taller.py` por `cp1252` no aparece con `PYTHONUTF8=1`.
    6 s por paso son justas para una máquina cargada.
 3. Subir durante una corrida larga se probó con corridas sintéticas cortas, no con un
    OCR real de horas.
+
+---
+
+# 8. Incremento 7 — el legajo real como banco de prueba
+
+Desde el 21/09/2026 el criterio de calidad es **el legajo real** cargado en la instancia de
+producción, copiado con la función de respaldo de la aplicación a
+`C:\Users\rober\AppUFIL-corpus-real\` (fuera de todo repositorio). Los doce PDF sintéticos
+de `pruebas/corpus_contratacion.py` quedan como prueba de aceptación y regresión mínima.
+**En este documento, y en todo lo versionado, van sólo cantidades.**
+
+## El legajo real
+
+11 PDF, 1.628 fojas, 414,9 MB. En producción, antes del incremento: 1.288 fojas leídas,
+20 piezas (17 facturas, 3 contratos), 129 campos (116 a revisar, 2 en conflicto), 6
+revisiones humanas, 18 personas; tablas, menciones, entidades, cronología y relaciones en
+cero. Sólo el original de uno de los PDF (750 fojas) está en la máquina de desarrollo; de
+los otros diez sólo el texto leído.
+
+## COMPROBADO ejecutando sobre el legajo real
+
+| Qué | Antes | Después | Commit |
+|---|---|---|---|
+| Fojas a releer con «Actualizar análisis» | 750 (el archivo entero) | 340 (las que faltaban) | `fc291c5` |
+| Revisiones humanas vigentes después de resegmentar | 4 de 6 | 6 de 6 | `bb77a62`, `e8c638f` |
+| Piezas | 54, todas facturas o contratos | 258, de ocho tipos | `2a055b2` |
+| Remitos con la leyenda «no válido como factura» bien clasificados | 0 de 13 (7 de 13 con el 7a) | 12 de 13 con la regla; 13 de 13 al tomar la leyenda de cualquier ruta de OCR | `4f932d4` y el siguiente |
+| Tablas detectadas | 61 en 41 fojas | 558, ninguna de ruido; las 82 con importes | 7a de Codex, `88ab54b` |
+| Archivos que fallaban al extraer | 2 (FOREIGN KEY) | 0 | `7fa1554` |
+| Panel: «páginas leídas» | 1.628 (todas) | 1.288 / 1.628 | `ab35d32` |
+
+- **Actualización completa** sobre la copia de Claude: 42 minutos, 0 errores; 340 fojas de
+  OCR nuevo y 1.288 reutilizadas.
+- **«En blanco» verificado por tinta** en el PDF con original: 230 de 230 sin tinta
+  (mediana 0,00 %, máximo 0,37 %, contra 1,49 % del percentil 5 de las fojas con texto).
+- **Migración de producción ensayada** sobre una copia intacta del respaldo: esquema 25 → 26
+  sin que cambie una fila; y **desplegada** (`cc30cc5`): después del despliegue producción
+  sigue con sus 20 piezas y sus 116 campos a revisar, y sirve el código nuevo.
+
+## INFERIDO, no medido
+
+- Que las 26 resoluciones pegadas a la anterior sean resoluciones partidas: la regla de
+  marcas de cuerpo del 7a las reduce, pero no hay una referencia humana para contarlas.
+- Que la clasificación de órdenes de compra sea buena: de las facturas de antes, 14 pasaron
+  a orden de compra y el muestreo muestra al menos un remito entre ellas.
+
+## PENDIENTE
+
+1. ~~**Renglones con precio en las planillas reales: 17 renglones, ninguno con precio
+   unitario.**~~ Resuelto en la sección 9: 117 de 170 renglones con precio unitario.
+2. ~~Contrataciones y hallazgos (7b).~~ Integrado y medido en la sección 9.
+3. Una referencia humana mínima (qué es cada foja, en una muestra) para medir la
+   clasificación con precisión y cobertura y no con señales indirectas.
+4. «Actualizar análisis» en producción: lo decide Roberto.
+
+# 9. Incremento 7b — contrataciones, precios y hallazgos sobre el legajo real
+
+Mismo banco de prueba que la sección 8: una copia de trabajo del legajo real (302 piezas,
+1.628 fojas). Nada de este material entra al repositorio; lo que se publica son números.
+
+## COMPROBADO ejecutando sobre el legajo real
+
+| Qué | Antes | Después | Commit |
+|---|---|---|---|
+| Contrataciones propuestas | 124, de las cuales 104 de una sola pieza | 20, todas de dos piezas o más, y las mismas 6 con tres etapas o más | `1276bc4` |
+| Renglones sin precio unitario | 98 de 157 | 53 de 170 | `689735c` |
+| Renglones de órdenes de compra sin precio | 64 de 64, motivo «ilegible» | 19 de 77 | `689735c` |
+| Fojas con texto útil adentro de un documento | 400 de 990 | 502 de 990 | `0a24ae6` |
+| Archivos que fallaban al resegmentar | 2 (FOREIGN KEY) | 0 | `79a5470` |
+
+- **Los precios estaban impresos y se tiraban.** Parte del legajo usa coma de miles y punto
+  decimal (`5,087.30`); el lector asumía notación argentina y devolvía nada, así que el
+  renglón quedaba «ilegible» con el número a la vista en la celda. Se lee sólo lo
+  inequívoco: con los dos separadores manda el último, tres decimales exactos son miles, y
+  un solo separador lo decide la tabla por sus tokens inequívocos. Una tabla con las dos
+  notaciones mezcladas no resuelve nada y lo ambiguo queda sin leer. Comprobación
+  aritmética sobre el legajo real: 2.998,10 × 450 = 1.349.145,00, los tres números leídos
+  de la misma fila.
+- **Un dorso en blanco terminaba el documento.** 406 fojas de continuación quedaban fuera
+  de toda pieza, y una tabla fuera de una pieza no da ningún renglón. Cruzar el blanco
+  —sólo si después sigue una continuación— mete 102 fojas con texto adentro de su documento.
+- **Una pieza sola no es una contratación.** El sistema proponía 124 contrataciones y 104
+  tenían un solo documento: tapaban a las que de verdad reconstruyen una compra. Ahora
+  propone únicamente las que unen dos piezas o más; el resto se sigue viendo en Documentos
+  y una persona puede agruparlas a mano.
+- **Suite completa**: 913 pruebas, 0 fallas, 1 salteada (con Tesseract en el PATH).
+
+## INFERIDO, no medido
+
+- Que los 19 renglones de órdenes de compra que siguen sin precio sean ilegibles de verdad
+  y no otra notación más: no se revisaron foja por foja.
+- Que las 20 contrataciones propuestas correspondan a 20 compras reales: hace falta que una
+  persona mire la ficha de cada una.
+
+## PENDIENTE
+
+1. **Ningún hallazgo de diferencia de precio sobre el legajo real todavía.** Con los precios
+   recuperados hay material para comparar; falta correr «Actualizar análisis» en producción
+   y mirar qué sale.
+2. Los remitos (23 renglones) y las órdenes de pago (7) siguen sin precio unitario, que es
+   lo que corresponde: un remito dice qué se entregó, no a cuánto.
+3. Que los tipos que hoy no arrancan pieza —pliego, especificaciones técnicas, memoria
+   descriptiva— pasen a arrancarla: son 276 fojas con texto que quedan fuera de todo
+   documento y definen qué se pidió, que es justo lo que hace comparables dos precios.
+4. «Actualizar análisis» en producción: lo decide Roberto.

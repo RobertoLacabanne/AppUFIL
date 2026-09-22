@@ -684,6 +684,10 @@ def _clases_guardadas(cx: sqlite3.Connection, sha: str) -> dict:
 
 
 # ───────────────────────────────────────────────────── ETAPA: clasificación ──
+# La leyenda que todo remito lleva impresa y ninguna factura (ver clasificacion.py).
+LEYENDA_REMITO = "NO VALIDO COMO FACTURA"
+
+
 def clasificar_fojas(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict:
     """
     Qué es cada foja de este archivo. Depende de la lectura y de nada más.
@@ -719,7 +723,14 @@ def clasificar_fojas(cx: sqlite3.Connection, sha: str, *, por_ruta=None) -> dict
         # archivo, y distinguirlas es justamente para lo que sirve clasificar.
         vistas.add(nro)
         plano = normalizar_cotejo(" ".join(w.texto for w in pw[:120]))
-        if len(plano) > len(encabezados.get(nro, "")):
+        # Entre rutas gana el encabezado más largo, salvo que otra ruta haya leído la
+        # leyenda de remito y ésta no: esa leyenda decide el tipo, y en un legajo real una
+        # ruta la leyó entera y la otra —más larga— dañada, y la foja salía «orden de compra».
+        ya = encabezados.get(nro, "")
+        leyenda_nueva = cl.contiene_marca(plano, LEYENDA_REMITO)
+        leyenda_ya = bool(ya) and cl.contiene_marca(ya, LEYENDA_REMITO)
+        if (leyenda_nueva and not leyenda_ya) or (
+                len(plano) > len(ya) and (leyenda_nueva or not leyenda_ya)):
             encabezados[nro] = plano
         # Se juntan las rutas: lo más que alguna VIO y lo más que alguna LEYÓ. Quedarse
         # con la ruta de más útiles no alcanzaba: en un legajo real, una ruta devolvió
@@ -854,8 +865,24 @@ def _borrar_campos(cx, doc_id: int) -> None:
     cx.execute("DELETE FROM campo     WHERE documento_id=?", (doc_id,))
 
 
+def _soltar_lo_que_no_cuelga(cx, doc_id: int) -> None:
+    """
+    Lo que apunta a la pieza pero NO es de la pieza: se suelta, no se borra.
+
+    Una tabla es de la foja, no de la pieza; que esté adentro de una pieza es una
+    conclusión que se rehace en cada corrida. Al borrar la pieza, su `documento_id`
+    quedaba apuntando a una fila que ya no estaba y SQLite abortaba el archivo entero
+    con «FOREIGN KEY constraint failed». Medido en el legajo real: dos archivos no se
+    podían resegmentar, y como la transacción se deshacía, tampoco se releían sus
+    precios. La tabla se queda; la próxima detección vuelve a decir de qué pieza es.
+    """
+    cx.execute("UPDATE tabla     SET documento_id=NULL WHERE documento_id=?", (doc_id,))
+    cx.execute("UPDATE excepcion SET documento_id=NULL WHERE documento_id=?", (doc_id,))
+
+
 def _borrar_pieza(cx, doc_id: int) -> None:
     """Borra UNA pieza y todo lo que cuelga, en orden de dependencias."""
+    _soltar_lo_que_no_cuelga(cx, doc_id)
     sub = "SELECT id FROM campo WHERE documento_id=?"
     cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
     cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
@@ -874,6 +901,7 @@ def _borrar_piezas(cx, sha: str) -> None:
     """Borra las piezas de un archivo y todo lo que cuelga, en orden de dependencias."""
     for f in cx.execute("SELECT id FROM documento WHERE sha256=?", (sha,)).fetchall():
         doc_id = f["id"]
+        _soltar_lo_que_no_cuelga(cx, doc_id)
         sub = "SELECT id FROM campo WHERE documento_id=?"
         cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
         cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
@@ -1340,10 +1368,24 @@ def reaplicar_revisiones(cx: sqlite3.Connection, sha: str, piezas: list) -> dict
     # desaparecerían sin que nadie lo pida.
     cx.executemany("DELETE FROM revision_humana WHERE sha256=? AND orden=? AND campo=?",
                    [(sha, f["orden"], f["campo"]) for f, _, _, _ in decisiones])
+    # La clave de la tabla es (archivo, posición, campo). Las que se mudaron toman la
+    # posición de su pieza; las que no, conservan la vieja, y esa vieja puede ser la
+    # nueva de otra. Encontrado en un legajo real con 258 piezas: la inserción fallaba
+    # con UNIQUE y se caía el archivo entero. Una revisión que hay que reasociar ya no
+    # tiene posición que signifique nada, así que se le da una libre y negativa, que
+    # además se lee como lo que es. Perder trabajo de una persona por una colisión de
+    # posiciones no es una opción.
+    ocupadas = {(p["orden"], f["campo"]) for f, p, _, _ in decisiones if p is not None}
+    libre = 0
     for fila, pieza, campo, motivo in decisiones:
         if pieza is None:
+            orden = fila["orden"]
+            if (orden, fila["campo"]) in ocupadas:
+                libre -= 1
+                orden = libre
+            ocupadas.add((orden, fila["campo"]))
             cx.execute(COLUMNAS,
-                       (sha, fila["orden"], fila["campo"], fila["accion"], fila["valor"],
+                       (sha, orden, fila["campo"], fila["accion"], fila["valor"],
                         fila["quien"], fila["cuando"], fila["ancla_pagina"],
                         fila["ancla_x0"], fila["ancla_y0"], fila["ancla_x1"],
                         fila["ancla_y1"], fila["ancla_desde"], fila["ancla_hasta"],

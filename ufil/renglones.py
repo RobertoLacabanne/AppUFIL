@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import unicodedata
+from difflib import SequenceMatcher
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -17,18 +18,54 @@ def normalizar(texto):
     return ' '.join(''.join(c for c in t if not unicodedata.combining(c)).lower().split())
 
 
-def decimal_argentino(literal):
-    """No acepta basura OCR, separadores incoherentes ni valores no finitos."""
+def decimal_argentino(literal, notacion=','):
+    """Decimal exacto; notacion es el separador decimal de la tabla o None.
+
+    El nombre se conserva por compatibilidad. Sin evidencia rige la coma decimal.
+    Con ambos separadores manda el último, validando los grupos de miles.
+    """
     if literal is None:
         return None
-    t = re.sub(r'^(?:ARS|USD|EUR|\$)\s*', '', str(literal).strip(), flags=re.I)
+    t = str(literal).strip().strip('|[]_ ').strip()
+    t = re.sub(r'^(?:ARS|USD|EUR|\$)\s*', '', t, flags=re.I)
     t = re.sub(r'\s*(?:ARS|USD|EUR)$', '', t, flags=re.I).strip()
-    if not re.fullmatch(r'[+-]?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?', t):
+    if not re.fullmatch(r'[+-]?\d+(?:[.,]\d+)*', t):
         return None
+    if ',' in t and '.' in t:
+        decimal = ',' if t.rfind(',') > t.rfind('.') else '.'
+        miles = '.' if decimal == ',' else ','
+        patron = r'[+-]?\d{1,3}(?:' + re.escape(miles) + r'\d{3})+' + re.escape(decimal) + r'\d+'
+        if not re.fullmatch(patron, t):
+            return None
+        t = t.replace(miles, '').replace(decimal, '.')
+    elif ',' in t or '.' in t:
+        sep = ',' if ',' in t else '.'
+        if re.fullmatch(r'[+-]?\d{1,3}(?:' + re.escape(sep) + r'\d{3})+', t):
+            t = t.replace(sep, '')
+        elif t.count(sep) == 1 and len(t.split(sep)[1]) == 3:
+            # Tres posiciones exactas nunca se interpretan como fracción.
+            return None
+        elif sep == notacion and t.count(sep) == 1:
+            t = t.replace(sep, '.')
+        else:
+            return None
     try:
-        return Decimal(t.replace('.', '').replace(',', '.'))
+        return Decimal(t)
     except InvalidOperation:
         return None
+
+
+def notacion_tabla(celdas):
+    """Sólo tokens completos con ambos separadores son evidencia de notación."""
+    vistas = set()
+    for c in celdas:
+        if c['es_encabezado']:
+            continue
+        for m in _IMPORTE.finditer(c['texto'] or ''):
+            t = m.group()
+            if ',' in t and '.' in t and decimal_argentino(t) is not None:
+                vistas.add(',' if t.rfind(',') > t.rfind('.') else '.')
+    return next(iter(vistas)) if len(vistas) == 1 else (None if vistas else ',')
 
 
 def canonico(valor):
@@ -64,6 +101,9 @@ def atributos(descripcion):
 
 def _rol(t):
     t = normalizar(t).replace('.', '')
+    t = t.strip('|[]_ ')
+    if re.search(r'precio\s+un\w+|p\s+unit', t):
+        return 'precio'
     if re.search(r'sub\s*total|importe|total', t):
         return 'subtotal'
     if re.search(r'(?:precio|p|valor)\s*(?:unitario|unit|u)\b', t):
@@ -74,6 +114,10 @@ def _rol(t):
         return 'unidad'
     if re.search(r'descrip|detalle|concepto|designacion|articulo|producto', t):
         return 'descripcion'
+    for palabra, rol in [('importe', 'subtotal'), ('cantidad', 'cantidad'),
+                         ('descripcion', 'descripcion'), ('unitario', 'precio')]:
+        if any(SequenceMatcher(None, palabra, token).ratio() >= .78 for token in t.split()):
+            return rol
     return None
 
 
@@ -83,6 +127,7 @@ def columnas(celdas, palabras=None, tabla=None):
     Dos columnas de números sin rótulo no permiten decidir cuál es el precio.
     No se toma el subtotal por unitario para completar artificialmente una fila.
     """
+    notacion = notacion_tabla(celdas)
     roles = {}
     for c in celdas:
         if c['es_encabezado']:
@@ -101,7 +146,7 @@ def columnas(celdas, palabras=None, tabla=None):
             roles['unidad'] = candidatas[0]
     if 'descripcion' not in roles:
         candidatas = [k for k, ts in libres.items() if k not in roles.values()
-                      and ts and all(re.search(r'[a-zA-Záéíóúñ]{3}', t) for t in ts)]
+                      and ts and sum(bool(re.search(r'[a-zA-Záéíóúñ]{3}', t)) for t in ts) >= max(1, len(ts)*.6)]
         if len(candidatas) == 1:
             roles['descripcion'] = candidatas[0]
     # Un encabezado largo puede no respetar los blancos del cuerpo. Se lo lee
@@ -110,7 +155,7 @@ def columnas(celdas, palabras=None, tabla=None):
     if palabras and tabla:
         xs = {col: min(c['x0'] for c in datos if c['columna'] == col) for col in por_col}
         for ps in reversed(tablas._renglones([p for p in palabras
-                                             if tabla['y0'] - 45 <= p.y0 < tabla['y0'] - 2])):
+                                             if 0 <= p.y0 < tabla['y0'] - 2])):
             por = {}
             for p in ps:
                 col = min(xs, key=lambda col: abs(xs[col] - p.x0))
@@ -119,16 +164,23 @@ def columnas(celdas, palabras=None, tabla=None):
             if len(halladas) >= 2 and any(k in halladas for k in ('descripcion', 'cantidad')):
                 roles.update(halladas)
                 break
+    # Cantidades sin título requieren también una columna de unidades explícitas.
+    # Un código numérico solo sigue sin ser una cantidad.
+    if 'cantidad' not in roles and 'unidad' in roles:
+        candidatas = [col for col, ts in por_col.items() if col not in roles.values()
+                      and ts and all(decimal_argentino(t, notacion) is not None and ',' not in t for t in ts)]
+        if len(candidatas) == 1:
+            roles['cantidad'] = candidatas[0]
     # La cuenta de varias filas puede desambiguar columnas monetarias sin título.
     # Exige cantidad conocida: un código numérico no se presume una cantidad.
     if 'cantidad' in roles and 'precio' not in roles and 'subtotal' not in roles:
         monetarias = [col for col, ts in por_col.items() if col not in roles.values()
-                      and sum(decimal_argentino(t) is not None and bool(re.search(r',\d{2}\b', t))
+                      and sum(decimal_argentino(t, notacion) is not None and bool(re.search(r'[.,]\d{2}\b', t))
                               for t in ts) >= 2]
         pares = []
         por_fila = {}
         for c in datos:
-            por_fila.setdefault(c['fila'], {})[c['columna']] = decimal_argentino(c['texto'])
+            por_fila.setdefault(c['fila'], {})[c['columna']] = decimal_argentino(c['texto'], notacion)
         for pu in monetarias:
             for sub in monetarias:
                 if pu == sub:
@@ -150,13 +202,112 @@ def _ancla(celdas, pagina):
                                max(c['x1'] for c in celdas), max(c['y1'] for c in celdas))))}
 
 
+_IMPORTE = re.compile(r'(?<![\w.,])(?:\$\s*)?[+-]?\d+(?:[.,]\d+)+(?![\w.,]|\s*%)')
+
+
+def importes(texto, notacion=','):
+    """Tokens completos con decimales; ni porcentajes ni reparación OCR."""
+    return [m.group() for m in _IMPORTE.finditer(texto or '')
+            if re.search(r'[.,]\d{2,}$', m.group())
+            and decimal_argentino(m.group(), notacion) is not None]
+
+
+def celdas_ocr(celdas):
+    """Desdobla columnas fundidas conservando id y región de la celda original.
+
+    Sólo separadores explícitos o dos importes completos permiten desdoblar.
+    Los importes conservan sus separadores impresos.
+    """
+    notacion = notacion_tabla(celdas)
+    salida = []
+    for c in celdas:
+        texto = c['texto'] or ''
+        partes = [p.strip() for p in re.split(r'[|]', texto) if p.strip()]
+        # Las barras dentro de la descripción no definen columnas por sí solas.
+        if len(partes) > 1 and sum(decimal_argentino(p, notacion) is not None for p in partes) >= 2:
+            for i, p in enumerate(partes):
+                salida.append(dict(c, columna=c['columna'] * 100 + i, texto=p))
+        else:
+            nums = importes(texto, notacion)
+            if len(nums) == 2 and not re.search(r'[A-RT-Za-rt-z]{3}', texto):
+                for i, p in enumerate(nums):
+                    salida.append(dict(c, columna=c['columna'] * 100 + i, texto=p))
+            else:
+                salida.append(dict(c, columna=c['columna'] * 100))
+    return salida
+
+
+def valores_fila(cs, roles, notacion=','):
+    valores = {rol: cs[col] for rol, col in roles.items() if col in cs}
+    # Cantidad y descripción pueden compartir celda, incluso el encabezado.
+    for c in cs.values():
+        if c['columna'] == roles.get('cantidad') and re.search(r'[A-Za-z]{3}', c['texto'] or ''):
+            m = re.match(r'\s*(\d+(?:[,.]\d{2})?)\s+(.+)', c['texto'])
+            if m:
+                valores['cantidad'] = dict(c, texto=m[1], numero=Decimal(m[1].replace(',', '.')))
+                valores['descripcion'] = c  # el literal original se conserva entero
+    for rol in ('precio', 'subtotal'):
+        if rol in valores and decimal_argentino(valores[rol]['texto'], notacion) is None:
+            nums = importes(valores[rol]['texto'], notacion)
+            if len(nums) == 1:
+                valores[rol] = dict(valores[rol], texto=nums[0])
+    return valores
+
+
+def valor_celda(celda, notacion=','):
+    if celda is None:
+        return None
+    return celda.get('numero', decimal_argentino(celda['texto'], notacion))
+
+
+def filas_por_cuenta(celdas):
+    """Dos filas concordantes prueban la estructura de una planilla sin título.
+
+    La cantidad tiene una unidad expresa o está unida a una descripción como
+    decimal con dos posiciones. No se ensayan códigos sueltos como cantidades.
+    Se exige una única cuenta y al menos una cantidad distinta de uno.
+    """
+    notacion = notacion_tabla(celdas)
+    candidatas = {}
+    for fila in {c['fila'] for c in celdas if not c['es_encabezado']}:
+        cs = [c for c in celdas if c['fila'] == fila and not c['es_encabezado']]
+        descs = [c for c in cs if re.search(r'[A-Za-zÁ-ÿ]{3}', c['texto'] or '')]
+        if not descs:
+            continue
+        desc = max(descs, key=lambda c: sum(ch.isalpha() for ch in c['texto']))
+        cantidades = []
+        for c in cs:
+            # Cantidad decimal al principio de una descripción (facturas).
+            m = re.match(r'\s*(\d+[.,]\d{2})\s+[A-Za-zÁ-ÿ]', c['texto'] or '')
+            if m:
+                cantidades.append(dict(c, texto=m[1], numero=Decimal(m[1].replace(',', '.'))))
+            # Cantidad contigua a una unidad, en columna fundida por OCR.
+            for m in re.finditer(r'(?:^|[|\s])(\d+)\s*[| ]+\s*(?:un\.?|unid\.?|unidad|m\.?|kg|lt)\b', normalizar(c['texto'])):
+                cantidades.append(dict(c, texto=m[1]))
+        if any(normalizar(c['texto']).strip('. ') in _UNIDADES for c in cs):
+            cantidades += [c for c in cs if re.fullmatch(r'\d+', (c['texto'] or '').strip())]
+        montos = [dict(c, texto=t) for c in cs for t in importes(c['texto'], notacion)]
+        opciones = []
+        for q in cantidades:
+            cantidad = valor_celda(q, notacion)
+            for i, p in enumerate(montos):
+                for s in montos[i+1:]:
+                    if cantidad and cantidad * decimal_argentino(p['texto'], notacion) == decimal_argentino(s['texto'], notacion):
+                        opciones.append({'descripcion': desc, 'cantidad': q, 'precio': p, 'subtotal': s})
+        if len(opciones) == 1:
+            candidatas[fila] = opciones[0]
+    if len(candidatas) >= 2 and any(valor_celda(v['cantidad'], notacion) != 1 for v in candidatas.values()):
+        return candidatas
+    return {}
+
+
 def _ancla_palabras(ps, pagina):
     return {'pagina_nro': pagina, 'celdas': None, 'campo_id': None,
             'region': {'x0': min(p.x0 for p in ps), 'y0': min(p.y0 for p in ps),
                        'x1': max(p.x1 for p in ps), 'y1': max(p.y1 for p in ps)}}
 
 
-def _contexto(cx, doc, paginas):
+def _contexto(cx, doc, paginas, *, crear_entidades=True):
     """Datos explícitos de la pieza, con región de cada evidencia."""
     salida = {'anclajes': {}, 'condiciones': []}
     lineas = []
@@ -182,7 +333,12 @@ def _contexto(cx, doc, paginas):
             salida['anclajes']['expediente'] = ancla
         moneda = ('USD' if re.search(r'\busd\b|dolares|u\$s', norm) else
                   'EUR' if re.search(r'\beur\b|euros', norm) else
-                  'ARS' if re.search(r'\bars\b|\bpesos\b', norm) else None)
+                  'ARS' if re.search(r'\bars\b|\bpesos\b', norm) else
+                  # En un comprobante argentino «$» a secas es pesos; el dólar se escribe
+                  # U$S o USD y ya se descartó arriba. Sin esto, una factura que no dice
+                  # «pesos» queda sin moneda, y un renglón sin moneda nunca llega a
+                  # comparable fuerte (docs/contrataciones-y-precios.md §3).
+                  'ARS' if '$' in texto else None)
         if moneda:
             monedas.add(moneda)
             salida['moneda'] = moneda
@@ -194,6 +350,15 @@ def _contexto(cx, doc, paginas):
         elif re.search(r'iva\s+discriminado', norm):
             tratamientos.add('discriminado')
             salida['iva'] = 'discriminado'
+            salida['anclajes']['iva'] = ancla
+        elif re.search(r'\bfactura\s*"?\s*([abc])\b', norm):
+            # La letra de la factura lo dice sin ambigüedad: la A discrimina el IVA y la
+            # B y la C lo llevan incluido en el precio. Es de la normativa, no del legajo,
+            # y muchas veces es lo único que una factura dice sobre su tratamiento.
+            letra = re.search(r'\bfactura\s*"?\s*([abc])\b', norm)[1]
+            tratamiento = 'discriminado' if letra == 'a' else 'incluido'
+            tratamientos.add(tratamiento)
+            salida['iva'] = tratamiento
             salida['anclajes']['iva'] = ancla
         for condicion in ('flete', 'instalacion', 'garantia'):
             if re.search(r'\b' + condicion + r'\b', norm):
@@ -217,13 +382,16 @@ def _contexto(cx, doc, paginas):
         reconocidos = [m for m in en.detectar_en_texto(cuit) if m.get('clave_fuerte')]
         if reconocidos:
             m = reconocidos[0]
-            cx.execute("""INSERT INTO entidad(clase,clave_fuerte,nombre,nombre_norm,creado_en)
-                          VALUES (?,?,?,?,?) ON CONFLICT(clase,clave_fuerte) DO NOTHING""",
-                       (m['clase'], m['clave_fuerte'], nombre or cuit,
-                        en.normalizar(nombre or cuit), ahora()))
-            salida['proveedor_id'] = cx.execute(
+            if crear_entidades:
+                cx.execute("""INSERT INTO entidad(clase,clave_fuerte,nombre,nombre_norm,creado_en)
+                              VALUES (?,?,?,?,?) ON CONFLICT(clase,clave_fuerte) DO NOTHING""",
+                           (m['clase'], m['clave_fuerte'], nombre or cuit,
+                            en.normalizar(nombre or cuit), ahora()))
+            entidad = cx.execute(
                 'SELECT id FROM entidad WHERE clase=? AND clave_fuerte=?',
-                (m['clase'], m['clave_fuerte'])).fetchone()[0]
+                (m['clase'], m['clave_fuerte'])).fetchone()
+            if entidad:
+                salida['proveedor_id'] = entidad[0]
     # Campos revisados de la pieza tienen prioridad y conservan su propia fuente.
     for c in cx.execute('SELECT * FROM campo WHERE documento_id=?', (doc['id'],)):
         if c['nombre'] in ('fecha', 'fecha_emision', 'fecha_documento') and c['valor_literal']:
@@ -266,21 +434,37 @@ def extraer_archivo(cx, sha, *, por_ruta=None):
     with cx:
         cx.execute('UPDATE renglon SET vigente=0 WHERE sha256=?', (sha,))
         for t in cx.execute('SELECT * FROM tabla WHERE sha256=? ORDER BY pagina_nro,orden', (sha,)).fetchall():
+            originales = [dict(c) for c in cx.execute('SELECT * FROM tabla_celda WHERE tabla_id=? ORDER BY fila,columna', (t['id'],))]
+            notacion = notacion_tabla(originales)
+            cuentas = filas_por_cuenta(originales)
             doc = docs.get(t['documento_id'])
             if not doc:
                 doc = next((d for d in docs.values() if d['pagina_desde'] <= t['pagina_nro'] <= d['pagina_hasta']), None)
-            if not doc or doc['tipo'] not in cl.TIPOS_CON_PRECIO | {'pedido', 'remito'}:
+            if not doc and cuentas:
+                # Una planilla comprobable también es una pieza fuente aunque la
+                # segmentación no haya reconocido su tipo. No se inventa su etapa.
+                clave = f"{sha}:{t['pagina_nro']}"
+                orden = cx.execute('SELECT coalesce(max(orden),0)+1 FROM documento WHERE sha256=?', (sha,)).fetchone()[0]
+                cx.execute("""INSERT OR IGNORE INTO documento(sha256,orden,clave,pagina_desde,pagina_hasta,tipo,perfil,estado)
+                              VALUES (?,?,?,?,?,'desconocido','sin_perfil','segmentado')""",
+                           (sha, orden, clave, t['pagina_nro'], t['pagina_nro']))
+                doc = dict(cx.execute('SELECT * FROM documento WHERE clave=?', (clave,)).fetchone())
+                docs[doc['id']] = doc
+                cx.execute('UPDATE tabla SET documento_id=? WHERE id=?', (doc['id'], t['id']))
+            if not doc or (doc['tipo'] not in cl.TIPOS_CON_PRECIO | {'pedido', 'remito'} and not cuentas):
                 continue
             if doc['id'] not in contextos:
                 contextos[doc['id']] = _contexto(cx, doc, paginas)
             contexto = contextos[doc['id']]
-            celdas = [dict(c) for c in cx.execute('SELECT * FROM tabla_celda WHERE tabla_id=? ORDER BY fila,columna', (t['id'],))]
+            celdas = celdas_ocr(originales)
             roles = columnas(celdas, paginas.get(t['pagina_nro']), t)
-            if 'descripcion' not in roles:
+            if 'descripcion' not in roles and 'cantidad' not in roles and not cuentas:
                 continue
             for fila in sorted({c['fila'] for c in celdas if not c['es_encabezado']}):
                 cs = {c['columna']: c for c in celdas if c['fila'] == fila and not c['es_encabezado']}
-                valores = {rol: cs[col] for rol, col in roles.items() if col in cs}
+                valores = valores_fila(cs, roles, notacion)
+                if fila in cuentas and not {'precio', 'subtotal'} <= valores.keys():
+                    valores.update(cuentas[fila])
                 desc = valores.get('descripcion')
                 if not desc or not desc['texto'] or re.match(r'^(?:sub\s*total|total)\b', normalizar(desc['texto'])):
                     continue
@@ -292,7 +476,9 @@ def extraer_archivo(cx, sha, *, por_ruta=None):
                 anclas['fila'] = _ancla(list(cs.values()), t['pagina_nro'])
                 def literal(k):
                     return valores[k]['texto'] if k in valores else None
-                cant, precio, sub = (decimal_argentino(literal(k)) for k in ('cantidad', 'precio', 'subtotal'))
+                cant, precio, sub = (valor_celda(valores.get(k), notacion) for k in ('cantidad', 'precio', 'subtotal'))
+                if cant is None and precio is None and sub is None:
+                    continue
                 derivado, formula = False, None
                 motivo = None if precio is not None else ('ilegible' if literal('precio') else 'ausente')
                 if precio is None and literal('precio') is None and sub is not None and cant is not None and cant > 0:
@@ -314,7 +500,8 @@ def extraer_archivo(cx, sha, *, por_ruta=None):
                          precio_literal=literal('precio'), precio_unitario=canonico(precio), precio_motivo=motivo,
                          precio_derivado=int(derivado), precio_formula=formula,
                          subtotal_literal=literal('subtotal'), subtotal=canonico(sub),
-                         etapa='apertura' if doc['tipo'] == 'acta_apertura' else doc['tipo'],
+                         etapa=('apertura' if doc['tipo'] == 'acta_apertura' else
+                                doc['tipo'] if doc['tipo'] in cl.TIPOS_CON_PRECIO | {'pedido', 'remito'} else 'otro'),
                          condiciones=json.dumps(contexto['condiciones']),
                          anclajes=json.dumps(anclas, ensure_ascii=False), metodo='tabla_encabezado_contenido',
                          version=versiones.etapa('renglones').version, confianza=confianza,

@@ -27,6 +27,22 @@ class TiposDeCompra(unittest.TestCase):
                                          (4, 'RESOLUCION N 42 VISTO')])
         self.assertEqual(cl.tramos_por_tipo(clases, 'resolucion'), [(1, 3), (4, 4)])
 
+    def test_el_dorso_en_blanco_no_termina_el_documento(self):
+        """
+        En un legajo real de 1.628 fojas, 406 fojas de continuación quedaban fuera de
+        todo documento: un dorso en blanco cortaba la cadena y el cuerpo del documento
+        —con sus tablas, que sin pieza no dan ningún renglón— se perdía.
+        """
+        clases = {1: 'orden_compra', 2: 'en_blanco', 3: 'continuacion', 4: 'factura'}
+        self.assertEqual(cl.tramos_por_tipo(clases, 'orden_compra'), [(1, 3)])
+        # Pero en blanco al final es el final: no se lleva puesto lo que venga después.
+        self.assertEqual(cl.tramos_por_tipo({1: 'orden_compra', 2: 'en_blanco',
+                                             3: 'factura'}, 'orden_compra'), [(1, 1)])
+        # Y sigue cortando apenas aparece otra cosa.
+        self.assertEqual(cl.tramos_por_tipo({1: 'orden_compra', 2: 'en_blanco',
+                                             3: 'remito', 4: 'continuacion'},
+                                            'orden_compra'), [(1, 1)])
+
     def test_un_cuerpo_aislado_sigue_siendo_visible(self):
         self.assertEqual(cl.clasificar_documento([(1, 'RESUELVE ARTICULO 1')]),
                          {1: 'resolucion'})

@@ -288,6 +288,44 @@ class UnaPiezaQueCambiaDeTipoNoRompeElArchivo(unittest.TestCase):
         self.assertEqual(self.cx.execute("PRAGMA foreign_key_check").fetchall(), [])
 
 
+class UnaTablaNoImpideBorrarSuPieza(unittest.TestCase):
+    """
+    Encontrado en el legajo real: dos archivos no se podían resegmentar.
+
+    Una tabla es de la foja, no de la pieza; que esté adentro de una pieza es una
+    conclusión que se rehace en cada corrida. Pero `tabla.documento_id` apuntaba a la
+    pieza sin soltarse al borrarla, y SQLite abortaba el archivo entero con «FOREIGN KEY
+    constraint failed». Como la transacción se deshacía, esos archivos tampoco releían
+    sus precios.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        _archivo(self.cx, SHA_A, "expediente.pdf", 2)
+
+    def tearDown(self):
+        self.cx.close()
+        try:
+            self.tmp.cleanup()
+        except PermissionError:
+            pass
+
+    def test_resegmentar_suelta_la_tabla_y_no_la_pierde(self):
+        from ufil.capa2_extraccion import _borrar_pieza
+        doc = _pieza(self.cx, SHA_A, 1, 1, 1, "factura")
+        self.cx.execute("""INSERT INTO tabla (sha256,pagina_nro,orden,documento_id,creado_en)
+                           VALUES (?,1,1,?,?)""", (SHA_A, doc, db.ahora()))
+        self.cx.commit()
+
+        _borrar_pieza(self.cx, doc)
+
+        self.assertEqual(self.cx.execute("SELECT COUNT(*) FROM tabla").fetchone()[0], 1,
+                         "la tabla se queda: la próxima detección dirá de qué pieza es")
+        self.assertIsNone(self.cx.execute("SELECT documento_id FROM tabla").fetchone()[0])
+        self.assertEqual(self.cx.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+
 class UnaPiezaPuedeSeguirEnOtroArchivo(unittest.TestCase):
     """El límite de un PDF no es el límite de un documento."""
 

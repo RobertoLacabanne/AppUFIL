@@ -50,7 +50,7 @@ POR_ARCHIVO = ("clasificacion", "foliatura", "cotejo", "segmentacion",
 # —tiene su propia versión— pero se ejecuta con la extracción.
 JUNTAS_POR_ARCHIVO = ("extraccion", "normalizacion")
 # Las que valen para el legajo entero y no por archivo.
-DE_LEGAJO = ("identidad", "indice", "entidades", "cronologia", "interpretacion")
+DE_LEGAJO = ("identidad", "indice", "entidades", "cronologia", "interpretacion", "contrataciones", "hallazgos")
 
 
 # ────────────────────────────────────────────────────────────── el sello guardado ──
@@ -156,6 +156,8 @@ def _unidades(cx: sqlite3.Connection, etapa: str) -> list[tuple[str, bool]]:
     if etapa == "interpretacion":
         return [("", bool(cx.execute(
             "SELECT EXISTS (SELECT 1 FROM interpretacion)").fetchone()[0]))]
+    if etapa in ('contrataciones', 'hallazgos'):
+        return [("", bool(cx.execute('SELECT EXISTS (SELECT 1 FROM resultado_etapa WHERE etapa=?)', (etapa,)).fetchone()[0]))]
     return []
 
 
@@ -501,6 +503,9 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
         return seguir() if seguir else True
 
     viejas = desactualizadas_por_etapa(cx, forzar=forzar)
+    from . import contrataciones
+    contrataciones.conservar_decisiones(cx)
+    cx.commit()
     hecho = {"lectura_paginas": 0, "archivos": 0, "identidad": False, "indice": 0,
              "cronologia": 0, "menciones": 0, "relaciones": 0,
              "interpretacion": 0, "revisiones_reaplicadas": 0,
@@ -687,6 +692,26 @@ def aplicar(cx: sqlite3.Connection, *, forzar: tuple = (), perfil: str = "auto",
             detalle = f"{type(e).__name__}: {e}"
             hecho["errores"].append({"etapa": "interpretación", "detalle": detalle})
             sellar(cx, "interpretacion", estado=vs.FALLIDO, detalle=detalle)
+        cx.commit()
+
+    for clave in ('contrataciones', 'hallazgos'):
+        if clave not in viejas or hecho['cortado']:
+            continue
+        if hecho['errores']:
+            sellar(cx, clave, estado=vs.PARCIAL, detalle='Hay etapas previas con errores; no se recalcula sobre una entrada incompleta.')
+            cx.commit()
+            continue
+        _fase('recalculando ' + clave, 1)
+        try:
+            from . import contrataciones, hallazgos
+            funcion = contrataciones.reconstruir if clave == 'contrataciones' else hallazgos.recalcular
+            hecho[clave] = funcion(cx)
+            sellar(cx, clave)
+        except Exception as e:
+            cx.rollback()
+            detalle = f'{type(e).__name__}: {e}'
+            hecho['errores'].append({'etapa': clave, 'detalle': detalle})
+            sellar(cx, clave, estado=vs.FALLIDO, detalle=detalle)
         cx.commit()
 
     return hecho
