@@ -834,6 +834,26 @@ def _tramos_del_archivo(cx, sha: str, perfiles: list, por_ruta) -> tuple:
     return tramos, perfil_de_tramo
 
 
+def _borrar_campos(cx, doc_id: int) -> None:
+    """
+    Borra los campos de UNA pieza y lo que cuelga de ellos, en orden de dependencias.
+
+    La pieza se queda. Hacía falta en dos lugares y estaba escrito en uno solo: cuando una
+    pieza que ya tenía campos pasaba a no tener extractor —en un legajo real, facturas que
+    un tipo nuevo reconoció como órdenes de compra—, sus campos se borraban sin borrar
+    antes sus normalizaciones, y el archivo entero fallaba con «FOREIGN KEY constraint
+    failed».
+    """
+    sub = "SELECT id FROM campo WHERE documento_id=?"
+    cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute(f"DELETE FROM normalizacion         WHERE campo_id IN ({sub})", (doc_id,))
+    cx.execute("""DELETE FROM conflicto_variante WHERE conflicto_id IN
+                  (SELECT id FROM conflicto WHERE documento_id=?)""", (doc_id,))
+    cx.execute("DELETE FROM conflicto WHERE documento_id=?", (doc_id,))
+    cx.execute("DELETE FROM campo     WHERE documento_id=?", (doc_id,))
+
+
 def _borrar_pieza(cx, doc_id: int) -> None:
     """Borra UNA pieza y todo lo que cuelga, en orden de dependencias."""
     sub = "SELECT id FROM campo WHERE documento_id=?"
@@ -1053,7 +1073,7 @@ def extraer_campos(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "auto"
                         f"fojas {desde}-{hasta}: ningún extractor reconoce todavía este "
                         f"documento; queda cargado y se puede clasificar a mano",
                         ahora()))
-            cx.execute("DELETE FROM campo WHERE documento_id=?", (doc_id,))
+            _borrar_campos(cx, doc_id)
             cx.execute("UPDATE documento SET estado='sin_perfil' WHERE id=?", (doc_id,))
             total["sin_perfil"] += 1
             continue
@@ -1061,14 +1081,7 @@ def extraer_campos(cx: sqlite3.Connection, sha: str, perfil_nombre: str = "auto"
         perfil = mejor_perfil
         # Los campos de la corrida anterior se van; la PIEZA se queda con su id. Eso es
         # lo que permite que reextraer no obligue a reasociar nada.
-        sub = "SELECT id FROM campo WHERE documento_id=?"
-        cx.execute(f"DELETE FROM persona_alias         WHERE campo_id IN ({sub})", (doc_id,))
-        cx.execute(f"DELETE FROM interpretacion_fuente WHERE campo_id IN ({sub})", (doc_id,))
-        cx.execute(f"DELETE FROM normalizacion         WHERE campo_id IN ({sub})", (doc_id,))
-        cx.execute("""DELETE FROM conflicto_variante WHERE conflicto_id IN
-                      (SELECT id FROM conflicto WHERE documento_id=?)""", (doc_id,))
-        cx.execute("DELETE FROM conflicto WHERE documento_id=?", (doc_id,))
-        cx.execute("DELETE FROM campo     WHERE documento_id=?", (doc_id,))
+        _borrar_campos(cx, doc_id)
         cx.execute("""UPDATE documento SET tipo=?, perfil=?, camara=?, estado='extraido'
                        WHERE id=?""",
                    (perfil["tipo"], perfil["nombre"], mejor_cam, doc_id))

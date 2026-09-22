@@ -249,6 +249,45 @@ class CadaDocumentoEsUnaPiezaAunqueNoHayaExtractor(unittest.TestCase):
         self.assertNotIn("en_blanco", tipos)
 
 
+class UnaPiezaQueCambiaDeTipoNoRompeElArchivo(unittest.TestCase):
+    """
+    Encontrado en un legajo real: al aparecer el tipo «orden de compra», piezas que
+    habían salido como facturas —con campos y normalizaciones— pasaron a un tipo sin
+    extractor. Sus campos se borraban sin borrar antes lo que colgaba de ellos, y el
+    archivo entero fallaba con «FOREIGN KEY constraint failed».
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cx = db.abrir(Path(self.tmp.name) / "t.sqlite")
+        _archivo(self.cx, SHA_A, "expediente.pdf", 1)
+
+    def tearDown(self):
+        self.cx.close()
+        try:
+            self.tmp.cleanup()
+        except PermissionError:
+            pass
+
+    def test_pasa_a_sin_perfil_sin_romper_nada(self):
+        from ufil.capa2_extraccion import extraer_campos
+        doc = _pieza(self.cx, SHA_A, 1, 1, 1, "factura")
+        campo = self.cx.execute("SELECT id FROM campo WHERE documento_id=?", (doc,)).fetchone()[0]
+        self.cx.execute("INSERT INTO normalizacion (campo_id,tipo,valor_norm) VALUES (?,'monto','1000.00')",
+                        (campo,))
+        self.cx.execute("UPDATE documento SET tipo='orden_compra' WHERE id=?", (doc,))
+        self.cx.execute("UPDATE pagina SET clasificacion='orden_compra' WHERE sha256=?", (SHA_A,))
+        self.cx.commit()
+
+        extraer_campos(self.cx, SHA_A, "auto", por_ruta={"ocr_a": [(1, None, [])]})
+
+        f = self.cx.execute("SELECT tipo, estado FROM documento WHERE id=?", (doc,)).fetchone()
+        self.assertEqual((f["tipo"], f["estado"]), ("orden_compra", "sin_perfil"),
+                         "la pieza sigue existiendo, con su tipo, aunque no tenga extractor")
+        self.assertEqual(self.cx.execute("SELECT COUNT(*) FROM normalizacion").fetchone()[0], 0)
+        self.assertEqual(self.cx.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+
 class UnaPiezaPuedeSeguirEnOtroArchivo(unittest.TestCase):
     """El límite de un PDF no es el límite de un documento."""
 
