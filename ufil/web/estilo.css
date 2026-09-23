@@ -3071,3 +3071,26 @@ a.item-literal:hover{text-decoration:underline}
 .lista-fojas{font-size:var(--t-13); line-height:1.9; max-width:100ch}
 .nota-dato{font-size:var(--t-12); color:var(--tinta-3)}
 .lista-fojas a{white-space:nowrap}
+
+/* ── Controles de formulario: la base común ───────────────────────────────
+   Sólo algunos contextos estilaban sus controles y el resto salía nativo: un
+   selector blanco con letra del sistema en medio del folio oscuro, que es la
+   imagen de «formulario crudo» que esta interfaz no quiere dar. Esta es la base
+   para todos —tinta, papel, filete de control, radio de control, foco visible—;
+   las reglas de cada pantalla la siguen pisando porque ésta es de un solo
+   elemento. */
+:where(main, dialog) :where(select, textarea, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file])){
+  font:inherit; font-size:var(--t-13); color:var(--tinta); background:var(--papel);
+  border:1px solid var(--borde-control); border-radius:var(--radio);
+  padding:6px 9px; min-height:32px; line-height:1.35;
+}
+:where(main, dialog) :where(select){padding-right:28px; cursor:pointer;
+  appearance:none; -webkit-appearance:none;
+  background-image:linear-gradient(45deg, transparent 50%, var(--tinta-2) 50%),
+                   linear-gradient(135deg, var(--tinta-2) 50%, transparent 50%);
+  background-position:calc(100% - 15px) 55%, calc(100% - 10px) 55%;
+  background-size:5px 5px, 5px 5px; background-repeat:no-repeat}
+:where(main, dialog) :where(select, textarea, input):focus-visible{
+  outline:2px solid var(--sello); outline-offset:1px; border-color:var(--sello)}
+:where(main, dialog) :where(input, textarea)::placeholder{color:var(--tinta-3)}
+:where(main, dialog) :where(label){color:var(--tinta-2); font-size:var(--t-13)}
