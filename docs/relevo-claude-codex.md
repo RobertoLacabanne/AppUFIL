@@ -683,3 +683,40 @@ ninguna fila cambió, `integrity_check` ok, 0 referencias rotas, no migra dos ve
 **Despliegue:** hacer push de la rama principal despliega en Render (la instancia servía
 el código de `172c5cf` minutos después de ese push). Las pantallas de contrataciones y
 hallazgos, cuyo backend es la 7b, dicen «todavía no disponible» en vez de un error.
+
+## Ronda final de rediseño, segunda sesión (23/09/2026)
+
+**Ramas.** Integración: `claude/prompt-maestro-documental-dwhk59` (local; **no se empuja**:
+un push ahí despliega en Render). Copia remota de trabajo: `claude/rediseno-integral`.
+Codex: `codex/ronda-final-backend` (worktree `AppUFIL-codex-next`, integrado). Gemini:
+`gemini/contrataciones-interfaz` (worktree `AppUFIL-gemini`, ronda 5 en curso).
+
+**Codex.** Retomó su paquete 1 (paginación, agregados, ausencias) y lo terminó como tarea 8
+hasta quedarse sin cuota otra vez: **sin cuota hasta el 26/09 21:17**. Claude commiteó e
+integró su trabajo y escribió `docs/BACKEND_RONDA_FINAL.md` con sus mediciones.
+
+**El legajo real, recalculado.** La copia `ronda-final` estaba calculada con código viejo.
+Recalculada con el código vigente (el anterior a Codex y el integrado dan idéntico): 20
+contrataciones con documentos (antes 124, 113 de una sola etapa), 117 precios utilizables
+(antes 59), 46 hallazgos. Copia de QA: `AppUFIL-corpus-real\recalculado\`. **Producción
+necesita «Actualizar análisis» después del próximo despliegue.**
+
+**Gemini.** Se lanza con `agy.exe -p … --mode accept-edits --sandbox --add-dir <worktree>
+--add-dir C:\Users\rober\AppUFIL\.git --add-dir <copia del corpus>`: sin el `.git` del repo
+principal el sandbox no ve el worktree; `--dangerously-skip-permissions` lo bloquea el
+clasificador de permisos. La ronda 4 se perdió porque su agente principal esperó 30 min a
+subagentes en segundo plano y salió sin integrar; en la 5 re-codificó `app.js` entero
+(`&oacute;`) y commiteó un archivo que no parseaba. Reparado; relanzado con reglas duras.
+Antes de integrar cualquier commit suyo: `python herramientas/qa/revisar_commit_web.py
+../AppUFIL-gemini <desde>`.
+
+**QA.** `herramientas/qa/barrer.py` (todas las pantallas, 1920 y 1366, `--completa`,
+`--tema`, `--extra`) y `--modo flujo` (el recorrido de una persona, sólo con clics, que
+pasa completo en las dos resoluciones). `comparar.py` para antes/después.
+
+**Lo que hizo Claude en la interfaz:** Resumen (qué hacer ahora, plata por etapa), ficha de
+contratación, Hallazgos (lista revisable), Comparación de precio (comparación floja apagada,
+signo), Facturado contra contratado sobre el contrato nuevo, ficha de proveedor,
+`tablaServidor`, nombres de contratación por pieza, enrutador con consulta, enlaces con
+color, escala tipográfica y radios de vuelta a los tokens. En el núcleo: una referencia a
+cien veces o más del precio deja la comparación en dudosa.
