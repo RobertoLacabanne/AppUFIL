@@ -6662,7 +6662,9 @@ async function vPrecios() {
 async function vRenglon() {
   const id = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
   if (!id) return;
-  const d = await api(`/api/renglon/${id}/comparacion?niveles=A,B,C,D,E`);
+  // Las referencias y los descartes vienen paginados: se piden doscientos, que es el
+  // máximo, y los totales se toman del servidor, no del largo de lo que llegó.
+  const d = await api(`/api/renglon/${id}/comparacion?niveles=A,B,C,D,E&limite=200`);
   const r = d.renglon;
   
   const renderMotivos = motivos => (motivos || []).map(m => `<li>${esc(m.atributo)}: ${esc(m.a)} vs ${esc(m.b)} (${esc(m.efecto)})</li>`).join('');
@@ -6739,7 +6741,10 @@ async function vRenglon() {
   const motivos = [...porMotivo.entries()].sort((a, b) => b[1].length - a[1].length);
   const htmlExcluidas = motivos.length ? `
     <details class="descartes">
-      <summary>Por qué no se usaron los otros ${fmtNum.format((d.excluidas || []).length)} renglones</summary>
+      <summary>Por qué no se usaron los otros ${fmtNum.format(
+        (d.excluidas_paginacion || {}).total ?? (d.excluidas || []).length)} renglones${
+        (d.excluidas_paginacion || {}).total > (d.excluidas || []).length
+          ? ` <span class="celda-nota">(agrupados los primeros ${fmtNum.format((d.excluidas || []).length)})</span>` : ''}</summary>
       <ul class="lista-motivos">
         ${motivos.map(([motivo, xs]) => `
           <li>
@@ -7001,6 +7006,9 @@ async function vHallazgosContrataciones() {
       ${pag.map(fila).join('')}</div>`
       : `<p class="nota-seccion">Ningún hallazgo con estos filtros.</p>`}
     ${paginador}
+    ${d.total > (d.hallazgos || []).length ? `<p class="nota-seccion">Se trajeron los primeros
+      ${fmtNum.format((d.hallazgos || []).length)} de ${fmtNum.format(d.total)}: usá los filtros
+      de arriba para ver el resto.</p>` : ''}
   `);
 }
 

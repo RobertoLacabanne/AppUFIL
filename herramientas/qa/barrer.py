@@ -3,6 +3,7 @@ Barrido visual de todas las pantallas, en un Chrome real, contra una base dada.
 
     python herramientas/qa/barrer.py --base <ufil.sqlite> --salida <carpeta>
            [--puerto 8812] [--cdp 9222] [--anchos 1920x1080,1366x768] [--solo panel,precios]
+           [--modo barrido|flujo|ambos]
 
 Levanta el servidor de ESTE árbol de trabajo sobre la base indicada, abre un Chrome
 sin ventana con su propio perfil, corre `barrido.cjs` en cada resolución y cierra
@@ -60,6 +61,8 @@ def main() -> int:
     p.add_argument("--solo", default="", help="rutas separadas por coma")
     p.add_argument("--tema", default="", help="claro u oscuro; vacío = el de fábrica")
     p.add_argument("--extra", default="", help="nombre=#/ruta,... rutas puntuales de más")
+    p.add_argument("--modo", default="barrido", choices=["barrido", "flujo", "ambos"],
+                   help="barrido: todas las pantallas; flujo: el recorrido de una persona (flujo.cjs)")
     a = p.parse_args()
 
     base = Path(a.base).resolve()
@@ -97,8 +100,11 @@ def main() -> int:
             env = dict(os.environ, ORIGEN=origen, SALIDA=str(salida), ANCHO=ancho,
                        ALTO=alto, CDP_PORT=str(a.cdp), SOLO=a.solo, TEMA=a.tema, EXTRA=a.extra)
             print(f"== {ancho}x{alto}", flush=True)
-            r = subprocess.run(["node", str(AQUI / "barrido.cjs")], env=env)
-            codigo = codigo or r.returncode
+            guiones = {"barrido": ["barrido.cjs"], "flujo": ["flujo.cjs"],
+                       "ambos": ["barrido.cjs", "flujo.cjs"]}[a.modo]
+            for guion in guiones:
+                r = subprocess.run(["node", str(AQUI / guion)], env=env)
+                codigo = codigo or r.returncode
         return codigo
     finally:
         chrome.terminate()
