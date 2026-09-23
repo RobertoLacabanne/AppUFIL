@@ -197,9 +197,18 @@
   <div class="visor-barra">
     <span id="visor-rotulo" class="mono"></span>
     <div class="visor-controles acciones-fila">
-      <button class="boton gris" id="visor-zoom-out" type="button" title="Alejar" aria-label="Alejar">-</button>
+      <button class="boton gris" id="visor-prev" type="button" title="Anterior">‹</button>
+      <button class="boton gris" id="visor-next" type="button" title="Siguiente">›</button>
+      <span class="separador"></span>
+      <button class="boton gris" id="visor-ajustar-ancho" type="button" title="Ajustar al ancho">↔</button>
+      <button class="boton gris" id="visor-ajustar-pag" type="button" title="Ajustar a la página">↕</button>
+      <button class="boton gris" id="visor-rotar" type="button" title="Rotar">↻</button>
+      <span class="separador"></span>
+      <button class="boton gris" id="visor-zoom-out" type="button" title="Alejar">-</button>
       <span id="visor-zoom-texto" class="visor-zoom-texto">100%</span>
-      <button class="boton gris" id="visor-zoom-in" type="button" title="Acercar" aria-label="Acercar">+</button>
+      <button class="boton gris" id="visor-zoom-in" type="button" title="Acercar">+</button>
+      <span class="separador"></span>
+      <button class="boton gris" id="visor-pantalla-completa" type="button" title="Pantalla completa">⛶</button>
       <button class="boton gris" id="visor-cerrar" type="button">Cerrar</button>
     </div>
   </div>
@@ -214,6 +223,7 @@
       <div id="visor-marco-2" hidden></div>
     </div>
   </div>
+</div>
 </div>
 
 <script src="/estatico/app.js"></script>
