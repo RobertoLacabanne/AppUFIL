@@ -304,31 +304,30 @@ function celdaValor(c) {
 /* Una vista entera en estado vacío, con la misma retícula que las demás. */
 /* Estado vacío: en vez de una grilla de ceros, qué es esto y qué hacer ahora. */
 /* Una vista entera en estado vacío, con la misma retícula que las demás. */
-function vistaVacia(folio, rotulo, titulo, cabeza, texto) {
-  // El paso siguiente depende de dónde está parada la persona: sin legajo, cargar
-  // escaneos no es el paso siguiente sino el error que se está tratando de evitar.
-  let accion = sinLegajo()
-    ? {href:'#/legajos', texto:'Elegir o crear un legajo'}
-    : {href:'#/ingesta', texto:'Cargar escaneos'};
-
-  if (typeof TRABAJO !== 'undefined' && TRABAJO && TRABAJO.estado === 'corriendo') {
-    cabeza = 'Procesando documentos';
-    texto = 'El sistema está extrayendo datos en este momento. Los resultados van a aparecer acá cuando termine.';
-    accion = null;
-  }
-
-  vista.innerHTML = bloque(folio, rotulo,
-    `<h2>${esc(titulo)}</h2>` + vacio(cabeza, esc(texto), accion));
-}
-
-function vacio(titulo, texto, accion) {
-  return `<div class="sin-datos">
-    <b>${esc(titulo)}</b>
-    <p>${texto}</p>
-    ${accion ? `<a class="boton" href="${accion.href}">${esc(accion.texto)}</a>` : ''}
+function vacio(titulo, bajada, accion) {
+  let acc = accion ? `<br><br><a class="boton" href="${esc(accion.href)}">${esc(accion.texto)}</a>` : '';
+  return `<div class="vacio-env">
+    <div class="vacio-icono">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+    </div>
+    <div class="vacio-titulo">${esc(titulo)}</div>
+    <div class="vacio-texto">${esc(bajada)}${acc}</div>
   </div>`;
 }
 
+function vistaVacia(folio, rotulo, titulo, cabeza, texto) {
+  let accion = sinLegajo()
+    ? {href:'#/legajos', texto:'Elegir o crear un legajo'}
+    : (rotulo === 'Datos' ? {href:'#/ingesta', texto:'Cargar escaneos'} : null);
+  vista.innerHTML = bloque(folio, rotulo, `
+    <h2>${esc(titulo)}</h2>
+    ${vacio(cabeza, texto, accion)}
+  `);
+}
 function bloque(folio, rotulo, html) {
   return `<section class="bloque">
     <div class="marginalia"><span>${esc(folio)}</span><span class="rotulo">${esc(rotulo)}</span></div>

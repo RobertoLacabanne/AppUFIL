@@ -2677,3 +2677,8 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
 #papelera-env h2 { color: var(--punzo); }
 .peligro { color: var(--papel) !important; background: var(--punzo) !important; border-color: transparent !important; }
 .peligro:hover { opacity: 0.9; }
+
+.vacio-env { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; text-align: center; background: var(--papel-2); border: 1px dashed var(--filete-2); border-radius: var(--radio); margin: 24px 0; }
+.vacio-icono { color: var(--rio); opacity: 0.5; margin-bottom: 16px; }
+.vacio-titulo { font-size: 16px; font-weight: 600; color: var(--tinta); margin-bottom: 8px; }
+.vacio-texto { font-size: 14px; color: var(--tinta-2); max-width: 400px; line-height: 1.5; }
