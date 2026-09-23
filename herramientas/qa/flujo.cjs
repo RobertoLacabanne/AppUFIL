@@ -161,6 +161,20 @@ const pausa = ms => new Promise(r => setTimeout(r, ms));
       if (!quedo) throw Error('después de guardar, ningún hallazgo figura como relevante');
       return 'guardado como relevante';
     });
+    await paso('ficha-de-proveedor', async () => {
+      // Desde lo que se compró: el proveedor de un precio, o un oferente de una contratación.
+      await clic('.nav-lateral a, nav a', 'Ítems y precios');
+      let hayEnlace = await hay('#vista a[href^="#/proveedor/"]');
+      for (let i = 0; !hayEnlace && i < 3 && await hay('#vista .pag-sig, #vista a', 'Siguientes'); i++) {
+        await clic('#vista a, #vista button', 'Siguientes');
+        hayEnlace = await hay('#vista a[href^="#/proveedor/"]');
+      }
+      if (!hayEnlace) return 'ningún precio de estas páginas tiene proveedor identificado';
+      await clic('#vista a[href^="#/proveedor/"]');
+      if (!await hay('#vista h2', 'qué se le compró') && !await hay('#vista h2', 'contrataciones'))
+        throw Error('la ficha de proveedor no dice qué se le compró');
+      return await evaluar(`document.querySelector('#vista h1').textContent`);
+    });
     await paso('proveedores', () => clic('.nav-lateral a, nav a', 'Proveedores'));
     await paso('buscar-un-proveedor', async () => {
       const campo = await evaluar(`(() => { const i = document.querySelector('#vista input[type="search"], #vista input[type="text"]');
