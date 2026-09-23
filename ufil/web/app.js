@@ -594,7 +594,7 @@ const GRUPOS = [
     {id: 'proveedores', rotulo: 'Proveedores', items: [
       {hash: '#/entidades', rotulo: 'Empresas y entidades'},
       {hash: '#/personas', rotulo: 'Personas'}
-    ], tambien: ['#/entidad', '#/persona']},
+    ], tambien: ['#/entidad', '#/persona', '#/proveedor']},
     // «Hallazgos» queda con una sola cosa adentro: los hallazgos revisables. Los
     // cruces pasan a «Comparaciones», que es lo que son: análisis transversales que
     // PRODUCEN hallazgos, no hallazgos ellos mismos. Tenerlos adentro hacía que el
@@ -4874,6 +4874,7 @@ const TITULOS = {
      dónde salió cada número y cuán comparables son entre sí. Eso es una comparación.
      Si de ahí se sigue una conclusión, la firma una persona. */
   '#/renglon': 'Comparación de precio',
+  '#/proveedor': 'Proveedor',
   '#/hallazgos': 'Hallazgos',
   '#/acerca': 'Acerca del sistema',
   '#/equipo': 'Trabajo del equipo',
@@ -5558,6 +5559,7 @@ const rutas = [
   [/^#\/hallazgos(\?.*)?$/, vHallazgosContrataciones],
   [/^#\/entidades(\?.*)?$/, vEntidades],
   [/^#\/entidad\/(\d+)$/, vEntidad],
+  [/^#\/proveedor\/(\d+)$/, vProveedor],
   [/^#\/relaciones$/, vRelaciones],
   [/^#\/guardadas$/, vGuardadas],
   [/^#\/colecciones$/, vColecciones],
@@ -5630,7 +5632,11 @@ async function rutear() {
   PRIMERA_PANTALLA = false;
   vista.innerHTML = '<div class="esqueleto"><i></i><i></i><i></i></div>';
   for (const [re, fn] of rutas) {
-    const m = h.match(re);
+    // Una ruta que no contempla parámetros igual tiene que aceptar la página siguiente:
+    // `#/precios?desde=50` no coincidía con `^#/precios$` y «Siguientes» no llevaba a
+    // ninguna pantalla. Si no coincide con la consulta, se prueba sin ella; la vista
+    // lee la consulta de `location.hash` como siempre.
+    const m = h.match(re) || h.split('?')[0].match(re);
     if (m) {
       /* La red de abajo, para las vistas que no traen la guarda puesta.
 
@@ -6589,8 +6595,8 @@ async function vContratacion() {
 
   const oferentesHTML = oferentes.length ? tabla([
     {t: 'Oferente', c: 'crece', r: o => o.nombre && o.nombre !== o.cuit
-        ? `<a href="#/entidad/${o.entidad_id}">${esc(o.nombre)}</a>`
-        : `<a href="#/entidad/${o.entidad_id}">Razón social no leída</a>`},
+        ? `<a href="#/proveedor/${o.entidad_id}">${esc(o.nombre)}</a>`
+        : `<a href="#/proveedor/${o.entidad_id}">Razón social no leída</a>`},
     {t: 'CUIT', c: 'fol', r: o => o.cuit ? esc(o.cuit) : ausente('no_consta')},
     {t: 'Resultado', r: o => o.adjudicado ? sello('ok', 'Adjudicado') : ''},
   ], oferentes) : '';
@@ -6627,6 +6633,107 @@ async function vContratacion() {
       ${hallazgosHTML}` : ''}
     ${oferentesHTML ? `<h2>Oferentes</h2>${oferentesHTML}` : ''}
     ${cronoHTML ? `<h2>Fechas</h2>${cronoHTML}` : ''}
+  `);
+}
+
+/* ── Ficha de proveedor ────────────────────────────────────────────────────
+   La pregunta de la investigación, de un lado: ¿con quién se contrató, qué le
+   compraron, a qué precio, cuánto se facturó y qué diferencias hay? Todo sale de
+   renglones y documentos con el proveedor identificado por su CUIT: nada se le
+   atribuye por un nombre parecido ni por estar cerca en la foja. */
+async function vProveedor(id) {
+  const d = await apiOPendiente(`/api/proveedor/${id}?limite=200`, 'Proveedor', 'Proveedor');
+  if (!d) return;
+  if (location.hash.split('?')[0] !== '#/proveedor/' + id) return;
+  const p = d.proveedor || {};
+  const cuit = p.clave_fuerte && /^\d{11}$/.test(p.clave_fuerte)
+    ? `${p.clave_fuerte.slice(0, 2)}-${p.clave_fuerte.slice(2, 10)}-${p.clave_fuerte.slice(10)}` : p.clave_fuerte;
+  // Cuando la razón social no se leyó, el «nombre» de la entidad es el CUIT: se dice.
+  const sinNombre = !p.nombre || (p.clave_fuerte && p.nombre.replace(/\D/g, '') === p.clave_fuerte);
+  const lista = (x, k) => (x && x[k]) || [];
+  const total = x => (x && x.total != null) ? x.total : 0;
+  const contrataciones = lista(d.contrataciones, 'contrataciones');
+  const precios = lista(d.historial_precios, 'renglones');
+  const hallazgos = lista(d.hallazgos, 'hallazgos');
+  const facturas = lista(d.facturas, 'documentos');
+  const remitos = lista(d.remitos, 'documentos');
+
+  const fuente = (f, texto) => f ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(f))}'
+      class="enlace-fuente" title="${esc(f.archivo || '')}">${texto}</a>` : texto;
+  const foja = f => f && f.pagina_nro != null ? 'f. ' + fmtNum.format(f.foja ?? f.pagina_nro) : '';
+  const cifra = (rotulo, valor, nota) => `<div class="cifra">
+      <span class="cifra-rotulo">${esc(rotulo)}</span>
+      <span class="cifra-valor">${valor}</span>
+      ${nota ? `<span class="cifra-nota">${nota}</span>` : ''}</div>`;
+  const plata = grupos => {
+    const con = (grupos || []).filter(g => g.valor != null);
+    if (!con.length) return null;
+    return con.map(g => `${g.moneda && g.moneda !== 'ARS' ? g.moneda + ' ' : '$ '}${fmtPlata.format(Number(g.valor))}`).join(' · ');
+  };
+  const ord = plata(d.monto_ordenado), fac = plata(d.monto_facturado), adj = plata(d.monto_adjudicado);
+
+  const plano = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const preciosHTML = precios.length ? tabla([
+    {t: 'Ítem', c: 'crece', r: r => `<div class="item-desc"><span class="item-literal">${
+        esc((r.descripcion || {}).literal || '')}</span>${r.descripcion && r.descripcion.normalizada
+        && plano(r.descripcion.normalizada) !== plano(r.descripcion.literal)
+        ? `<span class="item-normalizado">${esc(r.descripcion.normalizada)}</span>` : ''}</div>`},
+    {t: 'Documento', c: 'nowrap', r: r => esc(TIPO_DOC[r.etapa] || String(r.etapa || '').replace(/_/g, ' '))},
+    {t: 'Fecha', c: 'fol', r: r => r.fecha ? esc(fmtFecha(r.fecha.valor) || r.fecha.literal) : ausente('no_consta')},
+    {t: 'Cantidad', c: 'num', r: r => r.cantidad ? esc(r.cantidad.literal) : ausente('no_consta')},
+    {t: 'Precio unitario', c: 'num', r: r => montoHTML(r.precio_unitario)},
+    {t: 'Contratación', r: r => r.contratacion ? `<a class="celda-corta" href="#/contratacion?id=${
+        r.contratacion.id}">${esc(r.contratacion.nombre)}</a>` : ausente('no_consta')},
+    {t: 'Comparar', r: r => r.precio_unitario && r.precio_unitario.valor != null
+        ? `<a class="enlace-comparar" href="#/renglon?id=${r.id}">Ver comparación</a>` : ''},
+  ], precios) : '';
+
+  const porTipo = new Map();
+  hallazgos.forEach(h => porTipo.set(h.tipo, [...(porTipo.get(h.tipo) || []), h]));
+  const hallazgosHTML = porTipo.size ? `<ul class="lista-motivos">${[...porTipo.values()]
+      .sort((a, b) => b.length - a.length).map(hs => `<li>
+        <span class="motivo-cuenta">${fmtNum.format(hs.length)}</span>
+        <span class="motivo-texto"><a href="#/hallazgos?tipo=${encodeURIComponent(hs[0].tipo)}">${esc(hs[0].titulo || hs[0].tipo)}</a></span>
+        <span class="motivo-ejemplos">${esc(hs[0].descripcion || '')}</span></li>`).join('')}</ul>` : '';
+
+  const docsHTML = (docs, tipo) => docs.length ? `<p class="lista-fojas">${docs.map(x =>
+      fuente(x.fuente, esc(`${tipo} ${foja(x.fuente)}`))).join(' · ')}</p>` : '';
+
+  vista.innerHTML = bloque('f. 0000', 'Proveedor', `
+    <nav class="migas" aria-label="Estás en"><a href="#/entidades">Proveedores</a></nav>
+    <header class="ficha-cabeza">
+      <h1>${sinNombre ? `CUIT ${esc(cuit || '')}` : esc(p.nombre)}</h1>
+      <div class="ficha-meta">
+        ${!sinNombre && cuit ? `<span class="meta-par"><span class="meta-k">CUIT</span> ${esc(cuit)}</span>` : ''}
+        ${sinNombre ? `<span class="nota-dato">La razón social no se leyó en ningún documento.</span>` : ''}
+        <a href="#/entidad/${esc(id)}">Ver todas las menciones</a>
+      </div>
+    </header>
+    <div class="cifras cifras-4">
+      ${cifra('Contrataciones', fmtNum.format(total(d.contrataciones)), 'con documentos a su nombre')}
+      ${cifra('Ítems', fmtNum.format(d.cantidad_items || 0), `${fmtNum.format(total(d.historial_precios))} renglones con su nombre`)}
+      ${cifra('Ordenado', ord ? esc(ord) : '—', ord ? 'suma de renglones de órdenes de compra' : 'sin importes a su nombre')}
+      ${cifra('Facturado', fac ? esc(fac) : '—', fac ? 'suma de renglones de facturas' : 'sin importes a su nombre')}
+    </div>
+    ${adj ? `<p class="nota-seccion">Adjudicado, por suma de renglones: ${esc(adj)}.</p>` : ''}
+    <p class="nota-seccion">${esc(d.cobertura || '')} Las sumas son de los renglones leídos, no los
+      totales que imprime cada documento, y lo ordenado y lo facturado no se suman entre sí.</p>
+
+    ${contrataciones.length ? `<h2>Contrataciones</h2>${tabla([
+      {t: 'Contratación', c: 'crece', r: c => `<a class="item-literal" href="#/contratacion?id=${c.id}">${esc(nombreContratacion(c))}</a>`},
+      {t: 'Expediente', c: 'fol', r: c => c.expediente ? esc(c.expediente) : ausente('no_consta')},
+      {t: 'Procedimiento', r: c => c.procedimiento && c.procedimiento !== 'desconocido'
+          ? esc(c.procedimiento.replace(/_/g, ' ').replace(/^./, m => m.toUpperCase())) : ausente('no_consta')},
+    ], contrataciones)}` : ''}
+
+    ${preciosHTML ? `<h2>Qué se le compró, a qué precio</h2>${preciosHTML}` : ''}
+
+    ${hallazgosHTML ? `<h2>Diferencias detectadas</h2>
+      <p class="nota-seccion">En documentos a su nombre. No son conclusiones: cada una lleva su cuenta y su fuente.</p>
+      ${hallazgosHTML}` : ''}
+
+    ${facturas.length || remitos.length ? `<h2>Facturas y remitos</h2>
+      ${docsHTML(facturas, 'Factura')}${docsHTML(remitos, 'Remito')}` : ''}
   `);
 }
 
@@ -6715,7 +6822,9 @@ async function vPrecios() {
 
     ${tabla([
       {t:'Ítem', c:'crece', r: descripcion},
-      {t:'Proveedor', r: r => r.proveedor ? esc(r.proveedor.nombre) : ausente('no_consta')},
+      {t:'Proveedor', r: r => r.proveedor ? (r.proveedor.entidad_id
+          ? `<a href="#/proveedor/${r.proveedor.entidad_id}">${esc(r.proveedor.nombre)}</a>`
+          : esc(r.proveedor.nombre)) : ausente('no_consta')},
       {t:'Fecha', c:'fol', r: r => r.fecha ? esc(fmtFecha(r.fecha.valor) || r.fecha.literal)
                                            : ausente('no_consta')},
       {t:'Cantidad', c:'num', r: r => r.cantidad ? esc(r.cantidad.literal) : ausente('no_consta')},

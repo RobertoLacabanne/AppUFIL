@@ -121,6 +121,8 @@ def proveedor(cx, eid, f):
         args+args,filtros=f)
     for c in contrataciones['contrataciones']:
         c['fuentes_url'] = '/api/contratacion/'+str(c['id'])
+    for cid, ancla in ct.anclas(cx, contrataciones['contrataciones']).items():
+        next(c for c in contrataciones['contrataciones'] if c['id'] == cid)['ancla'] = ancla
     for r in rel['relaciones']:
         r['fuentes_url'] = ['/api/documento?id='+str(d) for d in (r['desde_doc'],r['hasta_doc']) if d is not None]
     montos = _montos(cx,eid)

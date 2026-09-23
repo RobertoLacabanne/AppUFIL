@@ -3068,3 +3068,6 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
 main a, main a:visited{color:var(--tribunal-txt)}
 a.item-literal{text-decoration:none; font-weight:600}
 a.item-literal:hover{text-decoration:underline}
+.lista-fojas{font-size:var(--t-13); line-height:1.9; max-width:100ch}
+.nota-dato{font-size:var(--t-12); color:var(--tinta-3)}
+.lista-fojas a{white-space:nowrap}
