@@ -305,34 +305,48 @@ function celdaValor(c) {
   return `<span class="mono${dudoso}">${esc(c.valor_literal)}</span>`;
 }
 
-/* Estado vacío: en vez de una grilla de ceros, qué es esto y qué hacer ahora. */
 /* Una vista entera en estado vacío, con la misma retícula que las demás. */
-/* Estado vacío: en vez de una grilla de ceros, qué es esto y qué hacer ahora. */
-/* Una vista entera en estado vacío, con la misma retícula que las demás. */
-function vacio(titulo, bajada, accion) {
-  let acc = accion ? `<br><br><a class="boton" href="${esc(accion.href)}">${esc(accion.texto)}</a>` : '';
+function vistaVacia(folio, rotulo, titulo, cabeza, texto) {
+  // El paso siguiente depende de dónde está parada la persona: sin legajo, cargar
+  // escaneos no es el paso siguiente sino el error que se está tratando de evitar; y
+  // ofrecer «Cargar escaneos» en cualquier pantalla vacía es mandar a cargar cuando lo
+  // que falta, casi siempre, es revisar o procesar.
+  let accion = sinLegajo()
+    ? {href:'#/legajos', texto:'Elegir o crear un legajo'}
+    : (rotulo === 'Datos' ? {href:'#/ingesta', texto:'Cargar escaneos'} : null);
+
+  // Mientras se procesa, una pantalla vacía no está vacía: todavía no llegó. Decir
+  // «no hay» en ese momento es afirmar algo que en dos minutos va a ser falso.
+  if (typeof TRABAJO !== 'undefined' && TRABAJO && TRABAJO.estado === 'corriendo') {
+    cabeza = 'Procesando documentos';
+    texto = 'El sistema está extrayendo datos en este momento. Los resultados van a aparecer acá cuando termine.';
+    accion = null;
+  }
+
+  vista.innerHTML = bloque(folio, rotulo, `
+    <h2>${esc(titulo)}</h2>
+    ${vacio(cabeza, esc(texto), accion)}
+  `);
+}
+
+/* Estado vacío: en vez de una grilla de ceros, qué es esto y qué hacer ahora.
+   `texto` es HTML: quien llama escapa lo que venga de datos, y puede poner un enlace. */
+function vacio(titulo, texto, accion) {
   return `<div class="vacio-env">
-    <div class="vacio-icono">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <div class="vacio-icono" aria-hidden="true">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
         <line x1="12" y1="8" x2="12" y2="12"></line>
         <line x1="12" y1="16" x2="12.01" y2="16"></line>
       </svg>
     </div>
     <div class="vacio-titulo">${esc(titulo)}</div>
-    <div class="vacio-texto">${esc(bajada)}${acc}</div>
+    <div class="vacio-texto">${texto}</div>
+    ${accion ? `<a class="boton vacio-accion" href="${esc(accion.href)}">${esc(accion.texto)}</a>` : ''}
   </div>`;
 }
 
-function vistaVacia(folio, rotulo, titulo, cabeza, texto) {
-  let accion = sinLegajo()
-    ? {href:'#/legajos', texto:'Elegir o crear un legajo'}
-    : (rotulo === 'Datos' ? {href:'#/ingesta', texto:'Cargar escaneos'} : null);
-  vista.innerHTML = bloque(folio, rotulo, `
-    <h2>${esc(titulo)}</h2>
-    ${vacio(cabeza, texto, accion)}
-  `);
-}
 function bloque(folio, rotulo, html) {
   return `<section class="bloque">
     <div class="marginalia"><span>${esc(folio)}</span><span class="rotulo">${esc(rotulo)}</span></div>
@@ -1314,281 +1328,197 @@ async function preguntarQuienUnaVez(p) {
 
 async function vPanel() {
   const p = await api('/api/panel');
-  // `cargo` se saca: no aporta al estado de lectura y alarga la tabla. `fecha_fin` de
-  // un comprobante también: una factura no tiene período, el campo se declara sólo para
-  // que el registro tenga la misma forma, y siempre está vacío.
-  const cob = p.cobertura.filter(c =>
-    c.campo !== 'cargo' && !(c.familia === 'comprobante' && c.campo === 'fecha_fin'));
 
   if (!p.documentos) {
     vista.innerHTML = bloque('f. 0001', 'Inicio', `
-      <h2>Todavía no hay nada cargado</h2>
-      <p class="prosa">Este sistema lee contratos escaneados, saca los datos con su
-        ubicación exacta en el folio, y cruza los períodos para encontrar
-        superposiciones. <strong>No modifica los originales y funciona sin conexión.</strong></p>
-      ${vacio('Empezá cargando un lote de escaneos',
-        'Arrastrá los PDF a la pantalla de carga y tocá Procesar. El sistema lee, extrae ' +
-        'y cruza solo; lo que no puede leer con seguridad lo deja marcado para que lo ' +
-        'revise una persona.',
+      <h1>Todavía no hay nada cargado</h1>
+      <p class="prosa">AppUFIL lee la documentación de una contratación —pliegos, ofertas,
+        órdenes de compra, facturas, remitos, pagos—, reconstruye el procedimiento, compara
+        los precios y marca las diferencias con la foja de donde sale cada dato.
+        <strong>No modifica los originales y funciona sin conexión.</strong></p>
+      ${vacio('Empezá cargando los escaneos del legajo',
+        'Arrastrá los PDF a la pantalla de carga. El sistema lee, reconoce los documentos ' +
+        'y arma las contrataciones solo; lo que no puede leer con seguridad lo deja marcado ' +
+        'para que lo revise una persona.',
         {href:'#/ingesta', texto:'Cargar escaneos'})}
       <p class="prosa nota sep-corta">
         ¿Primera vez? <a href="#/como-funciona">Cómo funciona</a> lo explica en una pantalla.</p>`);
     return;
   }
 
-  const n = x => fmtNum.format(x);
-  const t = p.totales || {};
-  const destacados = p.destacados.map(d => `
-    <a class="destacado-fila" href="#/persona/${d.persona_id}">
-      <span class="dias mono">${d.dias}</span>
-      <span class="quien">${esc(d.contratado)}</span>
-      <span class="cruce ${d.cruce === 'intercámara' ? 'marca' : ''}">${esc(d.cruce)}</span>
-      <span class="fol">${esc(d.archivo_a)} · ${esc(d.archivo_b)}</span>
-    </a>`).join('');
+  /* Lo que el resumen necesita y el panel viejo no trae —contrataciones, hallazgos—
+     sale de /api/resumen cuando el servidor lo tiene. Si no, de las listas, que ya
+     existen. Ninguna de las dos consultas puede tirar abajo la pantalla: si falla,
+     esa parte no se muestra y lo demás sí. */
+  const quieto = pr => pr.then(x => x, () => null);
+  const [res, lc, lh] = await Promise.all([
+    quieto(api('/api/resumen')),
+    quieto(api('/api/contrataciones?desde=0&limite=200')),
+    quieto(api('/api/hallazgos?desde=0&limite=200')),
+  ]);
+  if (location.hash && !/^#\/(panel)?$/.test(location.hash.split('?')[0])) return;
 
-  // LO PRIMERO DE TODO: qué hacer ahora. El panel abría con un resumen de lo que
-  // encontró, que es lo interesante pero no es lo accionable; quien entra a las nueve
-  // de la mañana necesita saber en un renglón si hay trabajo suyo esperando y dónde.
-  const pendiente = p.a_revisar + p.fusiones;
-  const paso = pendiente ? `
-    <div class="siguiente-paso hay-trabajo">
-      <div>
-        <b>${plural(pendiente, 'cosa esperando que la mires', 'cosas esperando que las mires')}</b>
-        <span>${[p.a_revisar ? plural(p.a_revisar, 'campo dudoso', 'campos dudosos') : '',
-                 p.fusiones ? plural(p.fusiones, 'identidad por confirmar', 'identidades por confirmar') : '']
-                .filter(Boolean).join(' · ')}. Nada de eso entra en los totales de abajo
-          hasta que alguien lo decida.</span>
-      </div>
-      <a class="boton" href="${p.a_revisar ? '#/cola' : '#/identidad'}">Ir a revisar</a>
-    </div>` : `
+  const n = x => fmtNum.format(x || 0);
+  const contrataciones = (lc && lc.contrataciones) || [];
+  const totalContrataciones = res && res.contrataciones != null ? res.contrataciones
+    : lc && lc.total != null ? lc.total : contrataciones.length;
+  const hallazgos = ((lh && lh.hallazgos) || []).filter(h => !h.ya_no_se_detecta);
+  const hzPendientes = hallazgos.filter(h => ((h.revision || {}).estado || 'pendiente') === 'pendiente');
+  const nHzPend = res && res.prioridades
+    ? ((res.prioridades.find(x => x.clave === 'hallazgos') || {}).cantidad ?? hzPendientes.length)
+    : hzPendientes.length;
+  const sinReconocer = res && res.incompleto ? res.incompleto.piezas_sin_reconocer : null;
+
+  /* ── Qué hacer ahora ──────────────────────────────────────────────────────
+     Quien entra a las nueve de la mañana necesita saber, en un renglón por cosa, si
+     hay trabajo suyo esperando y dónde. Una lista corta, en el orden en que conviene
+     hacerla, y sólo con lo que tiene algo: un «0 identidades por confirmar» es ruido. */
+  const tareas = [
+    nHzPend && {n: nHzPend, que: nHzPend === 1 ? 'hallazgo sin revisar' : 'hallazgos sin revisar',
+      por: 'Diferencias de precio, facturas que no coinciden, documentos que faltan. Cada uno con su cuenta y su foja.',
+      href: '#/hallazgos?estado=pendiente', accion: 'Revisar hallazgos'},
+    p.a_revisar && {n: p.a_revisar, que: p.a_revisar === 1 ? 'dato leído con duda' : 'datos leídos con duda',
+      por: `Lecturas que el sistema no pudo sostener solo${p.conflictos
+        ? `; ${n(p.conflictos)} con dos lecturas que no coinciden` : ''}. No entran en ningún total hasta que alguien los confirme.`,
+      href: '#/cola', accion: 'Ir a la cola'},
+    p.fusiones && {n: p.fusiones, que: p.fusiones === 1 ? 'identidad por confirmar' : 'identidades por confirmar',
+      por: 'Nombres escritos de maneras distintas que podrían ser la misma persona o empresa.',
+      href: '#/identidad', accion: 'Confirmar'},
+    sinReconocer && {n: sinReconocer, que: sinReconocer === 1 ? 'documento sin reconocer' : 'documentos sin reconocer',
+      por: 'El sistema no supo qué tipo de documento es: hasta que se diga, no entra en ninguna contratación.',
+      href: '#/sin-reconocer', accion: 'Clasificar'},
+    p.afuera && {n: p.afuera, que: p.afuera === 1 ? 'archivo no produjo documentos' : 'archivos no produjeron documentos',
+      por: 'No entran en ninguno de estos números.', href: '#/afuera', accion: 'Ver por qué'},
+  ].filter(Boolean);
+
+  const tareasHTML = tareas.length ? `
+    <ol class="tareas">
+      ${tareas.map(t => `<li class="tarea">
+        <span class="tarea-n">${n(t.n)}</span>
+        <span class="tarea-que"><b>${esc(t.que)}</b><span>${esc(t.por)}</span></span>
+        <a class="boton" href="${t.href}">${esc(t.accion)}</a>
+      </li>`).join('')}
+    </ol>` : `
     <div class="siguiente-paso">
-      <div>
-        <b>No queda nada esperando revisión</b>
-        <span>Todo lo que el sistema no pudo sostener solo ya lo miró una persona.
-          Los totales de abajo son los que se pueden llevar a un informe.</span>
-      </div>
+      <div><b>No queda nada esperando revisión</b>
+        <span>Todo lo que el sistema no pudo sostener solo ya lo miró una persona.</span></div>
     </div>`;
 
+  const cifra = (rotulo, valor, nota, href) => `
+    <div class="cifra">
+      <span class="cifra-rotulo">${esc(rotulo)}</span>
+      <span class="cifra-valor">${href ? `<a href="${href}">${valor}</a>` : valor}</span>
+      ${nota ? `<span class="cifra-nota">${nota}</span>` : ''}
+    </div>`;
+  const conPrecios = contrataciones.filter(c => c.hallazgos || (c.etapas && Object.values(c.etapas).some(Boolean)));
+
+  /* ── Contrataciones para empezar ─────────────────────────────────────────
+     Las que más material tienen: las que tienen hallazgos primero, y entre ellas
+     las que más. Es por dónde se empieza a leer un legajo de cien contrataciones. */
+  const etapasDe = c => c.etapas && !Array.isArray(c.etapas)
+    ? Object.values(c.etapas).filter(Boolean).length : 0;
+  const primeras = [...contrataciones]
+    .sort((a, b) => (b.hallazgos || 0) - (a.hallazgos || 0) || etapasDe(b) - etapasDe(a))
+    .slice(0, 6);
+  const contratacionesHTML = primeras.length ? tabla([
+    {t: 'Contratación', c: 'crece', r: c => `<a href="#/contratacion?id=${c.id}">${esc(c.nombre)}</a>
+        ${c.objeto ? `<span class="item-normalizado">${esc(c.objeto)}</span>` : ''}`},
+    {t: 'Expediente', c: 'fol', r: c => c.expediente ? esc(c.expediente) : ausente('no_consta')},
+    {t: 'Hallazgos', c: 'num', r: c => c.hallazgos
+        ? `<a class="chip-hallazgos" href="#/hallazgos?contratacion_id=${c.id}">${n(c.hallazgos)}</a>` : ''},
+  ], primeras) : '';
+
+  /* ── Hallazgos para mirar primero ────────────────────────────────────────
+     Los que tienen una cuenta detrás van antes que los que dicen que algo falta, y
+     éstos antes que los renglones ilegibles, que son muchos y dicen más del OCR que de
+     la contratación. Si todos son del mismo tipo, se dice cuántos y se lleva a la lista. */
+  const PESO = {diferencia_precio: 0, facturado_vs_adjudicado: 1, facturado_vs_entregado: 2,
+    subtotal_incorrecto: 3, total_inconsistente: 4, ofertas_identicas: 5, duplicado_potencial: 6,
+    variacion_compras: 7, secuencia_temporal: 8, oferente_unico: 9, documento_faltante: 10,
+    coincidencia_temporal: 11, precio_sin_rol: 12, precio_ausente: 13};
+  const porTipo = new Map();
+  hzPendientes.forEach(h => porTipo.set(h.tipo, [...(porTipo.get(h.tipo) || []), h]));
+  const tiposOrden = [...porTipo.entries()].sort((a, b) => (PESO[a[0]] ?? 20) - (PESO[b[0]] ?? 20));
+  const hallazgosHTML = tiposOrden.length ? `<ul class="lista-motivos">
+      ${tiposOrden.map(([tipo, hs]) => `<li>
+        <span class="motivo-cuenta">${n(hs.length)}</span>
+        <span class="motivo-texto"><a href="#/hallazgos?tipo=${encodeURIComponent(tipo)}&estado=pendiente"
+          >${esc(hs[0].titulo || tipo)}</a></span>
+        <span class="motivo-ejemplos">${esc(hs[0].descripcion || '')}</span>
+      </li>`).join('')}</ul>` : '';
+
+  /* ── Lo técnico, al final y en un solo lugar ─────────────────────────────
+     Fojas leídas, datos firmes y en conflicto: dice cuánto se puede confiar en lo de
+     arriba. Va abajo y apagado porque no es lo que se viene a hacer. */
+  const estadoHTML = `
+    <div class="cifras cifras-4">
+      ${cifra('Documentos', n(p.documentos), `en ${n(p.archivos)} ${p.archivos === 1 ? 'archivo' : 'archivos'}`, '#/fojas')}
+      ${cifra('Fojas leídas', `${n(p.paginas_leidas)}<i class="de"> / ${n(p.paginas)}</i>`,
+              p.paginas_leidas < p.paginas ? `${n(p.paginas - p.paginas_leidas)} sin leer todavía` : 'todas',
+              p.paginas_leidas < p.paginas ? '#/actualizacion' : '')}
+      ${cifra('Verificados a mano', n(p.verificados),
+              (p.quienes || []).length ? `por ${esc(p.quienes.join(', '))}` : 'nadie revisó todavía')}
+      ${cifra('Personas y empresas', n(p.personas), 'identificadas por CUIT o documento', '#/entidades')}
+    </div>
+    ${p.paginas_enderezadas ? `<p class="nota-seccion sep-corta">${p.paginas_enderezadas === 1
+      ? 'Una foja llegó girada' : n(p.paginas_enderezadas) + ' fojas llegaron giradas'} en el
+      escaneo; se enderezó la copia de trabajo para poder leerla.</p>` : ''}
+    <p class="nota-seccion">El detalle del procesamiento —lecturas, versiones, diagnóstico— está en
+      <a href="#/salud">Estado del sistema</a>.</p>`;
+
   vista.innerHTML =
-    bloque('f. 0001', 'Resumen', paso + `
-      <h2>Qué encontró el sistema</h2>
-      <!-- La negrita, SÓLO en la cifra.
-           Este párrafo tenía siete corridas en negrita —«47 contratos leídos», «9
-           personas figuran», «10 pares de contratos se pisan»…— y a 1024 px el bloque
-           quedaba como un damero. Cuando todo está enfatizado nada lo está: el ojo no
-           encuentra dónde parar. En una serif un número ya destaca solo; el peso extra
-           en las palabras de alrededor es el que ensucia. -->
-      <p class="prosa resumen">
-        Sobre <strong>${n(p.contratos)}</strong>
-        ${p.contratos === 1 ? 'contrato leído' : 'contratos leídos'}${
-          p.comprobantes ? ` y <strong>${n(p.comprobantes)}</strong>
-          ${p.comprobantes === 1 ? 'comprobante' : 'comprobantes'}` : ''}
-        del lote «${esc(p.lote)}»:
-        <strong>${n(p.personas_ambas_camaras)}</strong>
-        ${p.personas_ambas_camaras === 1 ? 'persona figura' : 'personas figuran'}
-        en las dos cámaras y
-        <strong>${n(p.superposiciones)}</strong>
-        ${p.superposiciones === 1 ? 'par de contratos se pisa'
-                                  : 'pares de contratos se pisan'}
-        en el tiempo${p.fechas_imposibles ? `, y <strong>${n(p.fechas_imposibles)}</strong>
-        ${p.fechas_imposibles === 1 ? 'contrato tiene' : 'contratos tienen'}
-        fechas imposibles` : ''}.
-        De los <strong>${n(p.campos_criticos_total)}</strong>
-        ${p.campos_criticos_total === 1 ? 'campo crítico' : 'campos críticos'}
-        de los contratos, <strong>${n(p.campos_criticos_firmes)}</strong>
-        ${p.campos_criticos_firmes === 1 ? 'está firme' : 'están firmes'}
-        (${fmtPct(p.cobertura_pct)}). En todo el legajo, <strong>${n(p.a_revisar)}</strong>
-        ${p.a_revisar === 1 ? 'campo espera' : 'campos esperan'} revisión${p.excluidos ? `, y
-        <strong>${n(p.excluidos)}</strong>
-        ${p.excluidos === 1 ? 'contrato queda afuera' : 'contratos quedan afuera'}
-          del cruce por faltarle${p.excluidos === 1 ? '' : 's'} algún dato firme` : ''}.
-      </p>
-      ${(p.contratos_repetidos || p.archivos_con_varios) ? `
-        <div class="aviso sep-corta">
-          <span class="sello alerta">Revisar</span>
-          <span>${p.archivos_con_varios ? `<strong>${plural(p.archivos_con_varios,
-              'archivo trae varios documentos adentro', 'archivos traen varios documentos adentro')
-            }</strong> y se separaron solos. ` : ''}
-            ${p.contratos_repetidos ? `<strong>${plural(p.contratos_repetidos,
-              'contrato aparece más de una vez', 'contratos aparecen más de una vez')
-            }</strong> y ${p.contratos_repetidos === 1 ? 'estaría' : 'estarían'} contándose
-            doble en los acumulados:
-            <a href="#/consultas/08_contratos_repetidos">ver cuáles</a>.` : ''}</span>
-        </div>` : ''}
-      ${p.afuera ? `
-        <div class="aviso sep-corta">
-          <span class="sello alerta">Afuera</span>
-          <span><strong>${plural(p.afuera, 'archivo no produjo ningún documento',
-              'archivos no produjeron ningún documento')}</strong> y
-            por lo tanto no ${p.afuera === 1 ? 'entra' : 'entran'} en ninguno de estos números:
-            <a href="#/afuera">ver cuáles y por qué</a>.</span>
-        </div>` : ''}
-      ${p.destacados.length ? `
-        <h3>Las superposiciones más largas</h3>
-        <div class="destacados">
-          <div class="destacado-fila cab">
-            <span class="dias">días</span><span class="quien">contratado/a</span>
-            <span class="cruce">cruce</span><span class="fol">folios</span>
-          </div>
-          ${destacados}
-        </div>
-        <p class="prosa nota sep-corta">
-          <a href="#/superposiciones">Ver las ${n(p.superposiciones)} superposiciones</a> ·
-          <a href="#/personas">ver a todos los contratados</a></p>` : ''}`) +
+    bloque('f. 0001', 'Resumen', `
+      <header class="ficha-cabeza">
+        <h1>Resumen del legajo</h1>
+        ${p.lote || p.legajo ? `<p class="ficha-objeto">${esc(
+          typeof p.legajo === 'object' && p.legajo ? (p.legajo.nombre || p.legajo.numero || '') : (p.lote || ''))}</p>` : ''}
+      </header>
+      <div class="cifras cifras-4">
+        ${cifra('Contrataciones', n(totalContrataciones),
+                conPrecios.length ? `${n(conPrecios.length)} con hallazgos o etapas` : 'reconstruidas de los documentos',
+                '#/contrataciones')}
+        ${cifra('Hallazgos', n(hallazgos.length),
+                hallazgos.length ? `${n(nHzPend)} sin revisar` : 'ninguna diferencia detectada',
+                '#/hallazgos')}
+        ${cifra('Datos por revisar', n(p.a_revisar),
+                p.conflictos ? `${n(p.conflictos)} en conflicto` : 'lecturas con duda', '#/cola')}
+        ${cifra('Documentos', n(p.documentos), `${n(p.paginas)} fojas`, '#/fojas')}
+      </div>
+      <h2>Qué hacer ahora</h2>
+      ${tareasHTML}`) +
 
-    bloque('f. 0002', 'Lote', `
-      <h2>Estado del lote</h2>
-      <div class="cifras">
-        <div class="cifra"><b>${n(p.documentos)}</b><span>documentos</span></div>
-        <div class="cifra"><b>${n(p.paginas_leidas)} / ${n(p.paginas)}</b><span>páginas leídas</span></div>
-        <!-- El denominador va con el número y no en el rótulo. Decía «campos firmes
-             de 250» y ese «de 250» caía solo al segundo renglón, partiendo una frase
-             al medio y dejando esta celda más alta que las de al lado. Con «213 / 250»
-             la proporción se lee de un vistazo, que es para lo que está la cifra. -->
-        <div class="cifra ok"><b>${n(p.campos_criticos_firmes)}<i
-          class="de">/ ${n(p.campos_criticos_total)}</i></b>
-          <span>campos firmes</span></div>
-        <div class="cifra ${p.a_revisar ? 'atencion' : 'ok'}"><b>${n(p.a_revisar)}</b><span>esperan revisión</span></div>
-        <div class="cifra ${p.conflictos ? 'alerta' : 'ok'}"><b>${n(p.conflictos)}</b><span>en conflicto</span></div>
-        <div class="cifra"><b>${n(p.verificados)}</b><span>verificados a mano</span></div>
-        <div class="cifra"><b>${n(p.personas)}</b><span>personas identificadas</span></div>
-        ${p.paginas_enderezadas ? `<div class="cifra"><b>${n(p.paginas_enderezadas)}</b>
-          <span>fojas enderezadas</span></div>` : ''}
-      </div>
+    (contratacionesHTML || hallazgosHTML ? bloque('f. 0002', 'Investigación', `
+      ${hallazgosHTML ? `<h2>Hallazgos sin revisar, por tipo</h2>
+        <p class="nota-seccion">Ninguno es una conclusión: cada uno dice qué se detectó y de
+          qué foja sale, para que una persona lo verifique.</p>
+        ${hallazgosHTML}` : ''}
+      ${contratacionesHTML ? `<h2>Contrataciones para empezar</h2>
+        <p class="nota-seccion">Las que tienen más hallazgos. Están las
+          ${n(totalContrataciones)} en <a href="#/contrataciones">Contrataciones</a>.</p>
+        ${contratacionesHTML}` : ''}`) : '') +
 
-      <h3>Lo contratado</h3>
-      <div class="cifras totales">
-        <div class="cifra ancha firme">
-          <b>${esc(fmtPesos(t.total_firme_centavos))}</b>
-          <span>firme · ${plural(t.contratos_con_monto_firme, 'contrato', 'contratos')}</span></div>
-        <div class="cifra ancha provisional">
-          <b>${esc(fmtPesos(t.total_provisional_centavos))}</b>
-          <span>provisional · ${plural(t.contratos_con_monto_provisional, 'contrato sin revisar', 'contratos sin revisar')}</span></div>
-      </div>
-      <div class="cifras">
-        <div class="cifra ${t.montos_pendientes_sin_valor ? 'atencion' : ''}">
-          <b>${n(t.montos_pendientes_sin_valor)}</b><span>montos sin número leído</span></div>
-        <div class="cifra ${t.contratos_sin_monto_firme ? 'atencion' : ''}">
-          <b>${n(t.contratos_sin_monto_firme)}</b><span>contratos sin monto firme</span></div>
-      </div>
-      ${t.comprobantes ? `
-      <h3>Lo facturado</h3>
-      <div class="cifras totales">
-        <div class="cifra ancha facturado">
-          <b>${esc(fmtPesos(t.total_facturado_firme_centavos))}</b>
-          <span>firme · ${plural(t.comprobantes_con_monto_firme, 'comprobante', 'comprobantes')}
-            de ${n(t.comprobantes)}</span></div>
-        <div class="cifra ancha ${t.comprobantes_sin_importe_legible ? 'alerta' : ''}">
-          <b>${n(t.comprobantes_sin_importe_legible)}</b>
-          <span>sin importe legible · escritos a mano</span></div>
-      </div>
-      <p class="prosa nota sep-corta">
-        <strong>Lo facturado no se suma con lo contratado.</strong> El contrato dice
-        cuánto se pactó pagar y la factura dice cuánto se cobró: cuando la factura es el
-        cobro de ese mismo contrato, sumarlos cuenta la misma plata dos veces. Para ver
-        uno contra otro, persona por persona, está
-        <a href="#/cruce">Lo facturado contra lo contratado</a>.</p>` : ''}
-      ${t.documentos_sin_familia ? `
-      <div class="aviso sep-corta">
-        <span class="sello atencion">Sin clasificar</span>
-        <span>${plural(t.documentos_sin_familia, 'documento', 'documentos')} no se
-          reconoce${t.documentos_sin_familia === 1 ? '' : 'n'} como contrato ni como
-          comprobante, así que no entra${t.documentos_sin_familia === 1 ? '' : 'n'} en
-          ningún total. Están en <a href="#/afuera">Quedaron afuera</a>.</span>
-      </div>` : ''}
-      <p class="prosa nota sep-corta">
-        <strong>El total firme</strong> suma únicamente los montos que el sistema leyó con
-        confianza alta o que una persona verificó contra el documento. <strong>El
-        provisional</strong> son montos leídos que todavía están esperando revisión: se
-        muestran para que se vea que existen, y <strong>no entran en ningún cruce ni en
-        ningún acumulado</strong> hasta que alguien los mire.
-        ${t.ultima_revision ? `Última revisión: <span class="mono">${esc(fmtFecha(t.ultima_revision))}</span>.` : ''}
-        ${p.paginas_enderezadas ? `
-        ${p.paginas_enderezadas === 1 ? 'Una foja llegó' : n(p.paginas_enderezadas) + ' fojas llegaron'}
-        girada en el escaneo y se enderezó la copia de trabajo para poder leerla.` : ''}</p>
-      ${(p.perfiles || []).length > 1 ? `
-        <p class="prosa nota">
-          Se reconocieron <strong>${p.perfiles.length} formatos de formulario</strong> distintos:
-          ${p.perfiles.map(f => `<span class="mono">${esc(f.perfil)}</span> (${f.n})`).join(', ')}.</p>` : ''}`) +
-
-    bloque('f. 0003', 'Cobertura', `
-      <h2>Qué se pudo leer</h2>
-      <p class="prosa">El denominador honesto, campo por campo y por tipo de documento.
-        <strong>Firme</strong> es lo que puede sumarse y cruzarse: lo leyó el sistema con
-        confianza alta, o lo verificó una persona contra el documento. Todo lo demás
-        existe y se ve, pero no entra en ningún total. Una cola larga no es una falla: es
-        el sistema prefiriendo dudar antes que equivocarse callado.</p>
-      <p class="prosa nota">Van separados por tipo de documento
-        porque el mismo campo dice cosas distintas: en un contrato <em>Contratado</em> es
-        quien fue contratado, y en una factura es quien la emitió.</p>
-      ${tabla([
-        {t:'Documento', r:f => esc(FAMILIA_DOC[f.familia] || 'Sin clasificar')},
-        {t:'Campo', r:f => esc(rotularCampo(f.campo, f.familia))},
-        {t:'Total', k:'total', c:'num'},
-        {t:'Firmes', c:'num', r:f => `<b>${fmtNum.format(f.firmes)}</b>`},
-        // Ámbar y no punzó: son campos por mirar, no errores. El punzó de esta
-        // pantalla queda para «en conflicto», que es la columna que de verdad dice
-        // que dos lecturas no coinciden.
-        {t:'Esperando', c:'num', r:f => {
-          const n = f.pendientes_baja_confianza + f.conflictos + f.sin_revisar;
-          return n ? `<span class="pendiente">${fmtNum.format(n)}</span>` : '0';
-        }},
-        {t:'Cerrados sin valor', c:'num',
-         r:f => fmtNum.format(f.ilegibles_confirmados + f.ausentes_confirmados)},
-        {t:'% firme', c:'num', r:f => fmtPct(f.pct_firme_sobre_total)},
-      ], cob)}
-      <details class="detalle-cobertura">
-        <summary>Abrir el detalle: cuántos resolvió el sistema y cuántos una persona</summary>
-        ${tabla([
-          {t:'Documento', r:f => esc(FAMILIA_DOC[f.familia] || 'Sin clasificar')},
-          {t:'Campo', r:f => esc(rotularCampo(f.campo, f.familia))},
-          {t:'Automáticos firmes', k:'automaticos_firmes', c:'num'},
-          {t:'Verificados por una persona', k:'verificados_por_persona', c:'num'},
-          {t:'Pendientes por baja confianza', k:'pendientes_baja_confianza', c:'num'},
-          {t:'En conflicto', k:'conflictos', c:'num'},
-          {t:'Sin revisar', k:'sin_revisar', c:'num'},
-          {t:'Ilegibles confirmados', k:'ilegibles_confirmados', c:'num'},
-          {t:'Ausentes confirmados', k:'ausentes_confirmados', c:'num'},
-        ], cob)}
-      </details>
-      ${p.excluidos ? `<p class="prosa nota sep-corta">
-        <strong>${plural(p.excluidos, 'contrato quedó fuera del cruce',
-                          'contratos quedaron fuera del cruce')}</strong> por faltarle${
-          p.excluidos === 1 ? '' : 's'} algún dato firme:
-        <a href="#/consultas/06_excluidos_del_cruce">ver cuáles y por qué</a>.</p>` : ''}`) +
+    bloque('f. 0003', 'Legajo', `
+      <h2>Estado del legajo</h2>
+      ${estadoHTML}`) +
 
     bloque('f. 0004', 'Salida', `
       <h2>Llevárselo</h2>
-      <p class="prosa">Las tablas a planilla y el cuerpo a un documento de texto con
-        interlineado 1,5, justificado y cuerpo 11. <strong>Cada afirmación del informe cita
-        el archivo y la foja</strong> de donde salió el dato, para poder verificarla contra
-        el original.</p>
+      <p class="prosa">Cada afirmación del informe cita el archivo y la foja de donde salió
+        el dato, para poder verificarla contra el original. Los informes por contratación,
+        proveedor o hallazgo están en <a href="#/informes">Informes</a>.</p>
       <div class="fila-suelta">
         <a class="boton" data-descarga="xlsx" href="/descargar?que=xlsx">Descargar la planilla (.xlsx)</a>
         <a class="boton gris" data-descarga="rtf" href="/descargar?que=rtf">Descargar el informe (.rtf)</a>
-        <button class="boton gris" onclick="window.print()">Imprimir esta pantalla</button>
+        <a class="boton gris" href="/descargar?que=respaldo">Copia de respaldo</a>
       </div>
       <label class="opcion-suelta"><input type="checkbox" id="con-membrete" checked>
         <span>Encabezar con el <strong>${IDENTIDAD ? IDENTIDAD.organismo : 'Ministerio Público Fiscal'}</strong>
-        y la unidad. Es lo que hace que la hoja se sostenga sola cuando la lee alguien
-        de afuera; para un borrador interno se puede sacar.</span></label>
-      <p class="prosa nota sep-corta">La planilla abre con una
-        portada que aclara qué campos no están verificados por una persona. Nada de lo que
-        sale de acá debería incorporarse a un legajo sin cotejarlo contra el original.</p>
-      <h3>Y guardar una copia</h3>
-      <p class="prosa">Los PDF originales están en su carpeta y las imágenes de página se
-        rehacen procesando de nuevo. Lo que <strong>no</strong> se regenera es el trabajo
-        de las personas: cada campo revisado contra el folio, cada identidad confirmada,
-        con quién y cuándo. Eso vive en un solo archivo.</p>
-      <div class="fila-suelta">
-        <a class="boton" href="/descargar?que=respaldo">Descargar una copia de respaldo</a>
-      </div>
-      <p class="prosa nota sep-corta">La copia se hace con el
-        sistema andando, sin pedirle a nadie que deje de trabajar. Conviene bajarla al
-        terminar cada jornada de revisión y dejarla en otro disco.</p>`);
+        y la unidad. Para un borrador interno se puede sacar.</span></label>
+      <p class="prosa nota sep-corta">La copia de respaldo guarda el trabajo de las personas
+        —cada dato revisado contra la foja, cada identidad confirmada, con quién y cuándo—,
+        que es lo único que no se regenera procesando de nuevo. Conviene bajarla al terminar
+        cada jornada y dejarla en otro disco.</p>`);
 
-  // El encabezado del organismo se decide acá, al lado de los botones que bajan el
-  // archivo, y no adentro de un archivo de configuración que nadie va a abrir.
   const conMembrete = vista.querySelector('#con-membrete');
   if (conMembrete) {
     const pintarMembrete = () => vista.querySelectorAll('a[data-descarga]').forEach(a =>

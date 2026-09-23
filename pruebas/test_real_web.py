@@ -34,6 +34,7 @@ def render(script):
     function preguntarQuienUnaVez() {}
     function vacio(a, b, c) { return `VACIO:${a}:${b}:${c?c.texto:''}`; }
     let TRABAJO = null;
+    const location = {hash: '#/panel'};
     function sinLegajo() { return false; }
     let _fojaAbierta = null;
     function abrirFojaSuelta(sha, nro) { _fojaAbierta = {sha, nro}; }
@@ -57,7 +58,7 @@ def render(script):
     trozo_utils = js[js.index('const esc ='):js.index('async function api(')]
     trozo_fmt = js[js.index('const fmtNum ='):js.index('const NOMBRE_CAMPO =')]
     trozo_tipo = js[js.index('/* Los tipos de documento'):js.index('/* Por qué está esperando')]
-    trozo_estado = js[js.index('/* Estado vacío:'):js.index('function vacio(')]
+    trozo_estado = js[js.index('/* Una vista entera en estado vacío'):js.index('/* Estado vacío:')]
     trozo_panel = js[js.index('async function vPanel()'):js.index('async function vContratos()')]
     trozo_fojas = js[js.index('async function vFojas()'):js.index('async function vNumeros()')]
     trozo_doc = js[js.index('async function vDocumento(id)'):js.index('async function vCola(campoId)')]
@@ -135,11 +136,17 @@ class LegajoRealRender(unittest.TestCase):
             await vPanel();
             api = oldApi;
             
-            if (!_vistaHtml.includes('De los <strong>15</strong>\\n        campos críticos\\n        de los contratos')) {
-                throw new Error("No distingue campos de contratos");
+            // Los 116 son lecturas con duda de todo el legajo, y se dice qué pasa con
+            // ellas: no entran en ningún total hasta que alguien las confirme.
+            if (!_vistaHtml.includes('datos leídos con duda')) {
+                throw new Error("No dice qué son los 116");
             }
-            if (!_vistaHtml.includes('En todo el legajo, <strong>116</strong>\\n        campos esperan revisión')) {
-                throw new Error("No aclara que los 116 son de todo el legajo");
+            if (!_vistaHtml.includes('No entran en ningún total hasta que alguien los confirme')) {
+                throw new Error("No aclara que lo dudoso no se suma");
+            }
+            // El resumen es de contrataciones: nada del dominio de un corpus de prueba.
+            if (/cámaras|superposiciones más largas/.test(_vistaHtml)) {
+                throw new Error("El resumen volvió a hablar del dominio de un corpus de prueba");
             }
         })();
         """)
