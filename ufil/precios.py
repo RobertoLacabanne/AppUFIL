@@ -44,6 +44,7 @@ def _observacion(cx, r):
                           marca=r['marca'], modelo=r['modelo'], categoria=r['categoria'], iva=r['iva'],
                           condiciones=frozenset(json.loads(r['condiciones'])),
                           cantidad=Decimal(r['cantidad']) if r['cantidad'] is not None else None,
+                          precio=Decimal(r['precio_unitario']) if r['precio_unitario'] is not None else None,
                           fecha=date.fromisoformat(r['fecha_precio']) if r['fecha_precio'] else None,
                           etapa=r['etapa'], contratacion=c['id'] if c else None)
     if isinstance(cx, LecturaMemoria):

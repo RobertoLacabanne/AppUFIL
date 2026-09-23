@@ -121,6 +121,33 @@ class LoQuePuedeExplicarLaDiferenciaEsDudoso(unittest.TestCase):
         self.assertEqual(r["estado"], cp.DUDOSO)
 
 
+class LoQueEstaAOtraEscalaNoEsProbable(unittest.TestCase):
+    """
+    Del legajo real: un precio de 5.087,30 contra una sola referencia de 7.762.070,65
+    —muy probablemente un subtotal leído como precio en otro documento— salía
+    «probable», y la pantalla mostraba una diferencia de siete millones como si
+    fuera una comparación legible.
+    """
+
+    def test_cien_veces_mas_caro_es_dudoso(self):
+        r = cp.comparabilidad(obs(precio=Decimal("5087.30")), obs(precio=Decimal("7762070.65")))
+        self.assertEqual(r["estado"], cp.DUDOSO)
+        self.assertEqual(efecto(r, "orden_de_magnitud"), cp.DIFIERE)
+
+    def test_no_bloquea(self):
+        # Un sobreprecio enorme también se vería así: se marca, no se esconde.
+        r = cp.comparabilidad(obs(precio=Decimal("10")), obs(precio=Decimal("5000")))
+        self.assertNotEqual(r["estado"], cp.NO_COMPARABLE)
+
+    def test_diferencias_normales_no_se_tocan(self):
+        r = cp.comparabilidad(obs(precio=Decimal("100")), obs(precio=Decimal("250")))
+        self.assertEqual(r["estado"], cp.FUERTE)
+
+    def test_sin_precio_no_se_opina(self):
+        r = cp.comparabilidad(obs(), obs(precio=Decimal("7762070.65")))
+        self.assertEqual(r["estado"], cp.FUERTE)
+
+
 class LaDecisionHumanaManda(unittest.TestCase):
 
     def test_una_persona_dijo_que_es_el_mismo(self):

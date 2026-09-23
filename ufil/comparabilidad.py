@@ -52,6 +52,11 @@ UMBRALES = {
     # Uno contra mil no se compara igual que uno contra uno: el precio por volumen es
     # una explicación posible de la diferencia, así que se informa.
     "escala_cantidad": 100,
+    # Dos precios del «mismo» ítem a más de cien veces uno del otro casi nunca son el
+    # mismo ítem al mismo precio: lo habitual es un subtotal o un total leído como
+    # precio unitario, o una unidad distinta que el papel no dice. No bloquea —un
+    # sobreprecio enorme también se vería así—, pero la comparación deja de ser probable.
+    "escala_precio": 100,
 }
 
 # ── Etapas de una contratación (§2). El orden es el del trámite. `primaria` = el
@@ -180,6 +185,7 @@ class Observacion:
     iva: str | None = None                      # "incluido" | "discriminado" | None
     condiciones: frozenset = frozenset()        # {"flete", "instalacion", "garantia"}
     cantidad: Decimal | None = None
+    precio: Decimal | None = None               # precio unitario, si se leyó
     fecha: date | None = None
     etapa: str | None = None
     contratacion: int | None = None
@@ -354,6 +360,14 @@ def comparabilidad(a: Observacion, b: Observacion, *, decision_humana: str | Non
         razon = max(a.cantidad, b.cantidad) / min(a.cantidad, b.cantidad)
         if razon >= u["escala_cantidad"]:
             motivos.append(_motivo("cantidad", str(a.cantidad), str(b.cantidad), DIFIERE))
+
+    # El orden de magnitud del precio: no decide que no sean comparables, pero una
+    # referencia cien veces más cara o más barata no sostiene una comparación firme.
+    if a.precio and b.precio and a.precio > 0 and b.precio > 0:
+        razon = max(a.precio, b.precio) / min(a.precio, b.precio)
+        if razon >= u["escala_precio"]:
+            motivos.append(_motivo("orden_de_magnitud", str(a.precio), str(b.precio), DIFIERE))
+            dudas.append("orden_de_magnitud")
 
     if bloqueado:
         estado = NO_COMPARABLE
