@@ -5953,23 +5953,84 @@ async function cargarCatalogoContrataciones() {
   return catalogoContrataciones;
 }
 
+/* ── Plata ─────────────────────────────────────────────────────────────────
+   Decía `ARS 5.087,3`, y eso está mal de dos maneras a la vez. La moneda va con su
+   signo —`$ 5.087,30`, como se escribe en un expediente— y no con el código ISO, que
+   es para un sistema contable, no para leer. Y los centavos van siempre los dos: sin
+   la segunda decimal, `5.087,3` obliga a preguntarse si son treinta centavos o tres,
+   y una columna donde unas filas traen dos decimales y otras una es una columna que
+   no se puede recorrer con la vista.
+
+   Sólo se nombra la moneda cuando NO es peso: un legajo con importes en dólares y en
+   pesos mezclados sin marca es exactamente la manera de sumar cosas que no se suman. */
+const fmtPlata = new Intl.NumberFormat('es-AR',
+  {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
 function formatearMonto(monto) {
-  if (!monto || monto.valor == null) return 'no consta';
-  const val = parseFloat(monto.valor);
-  if (isNaN(val)) return 'no consta';
-  let t = fmtNum.format(val);
-  if (monto.moneda) t = monto.moneda + ' ' + t;
-  return t;
+  const val = monto == null ? NaN : parseFloat(monto.valor);
+  if (isNaN(val)) return null;
+  const t = '$ ' + fmtPlata.format(val);
+  return monto.moneda && monto.moneda !== 'ARS' ? `${monto.moneda} ${t}` : t;
 }
 
+/* ── Un importe, y sus tres estados ────────────────────────────────────────
+   Esto decía «no consta» cada vez que el backend no traía un `valor` numérico, sin
+   mirar si traía el literal. Y lo traía: sobre el legajo real, el renglón 1 viene con
+
+       precio_unitario: {literal: "5,087.30", valor: null, moneda: "ARS"}
+
+   o sea, el papel dice 5.087,30, el sistema lo leyó bien, y la columna mostraba «NO
+   CONSTA». Medido en una sola página de cien renglones: 448 veces. Eso no es una
+   celda fea: es el sistema afirmando que un dato no está cuando está, y afirmándolo
+   sobre la prueba de una causa. Es el error más grave que puede cometer esta
+   aplicación, porque convierte una omisión en una negación.
+
+   (Por qué `valor` viene en null habiendo literal es un defecto aparte, del lado del
+   normalizador, y lo está mirando quien corresponde. Pero la pantalla no puede
+   esperar a eso para dejar de mentir.)
+
+   Tres estados, y se ven distintos porque son distintos:
+
+     FIRME        hay número normalizado. Se muestra formateado y se puede sumar.
+     EN EL PAPEL  no hay número, pero sí el literal leído. Se muestra el literal tal
+                  como está, marcado como provisional: sirve para leer y para ir a la
+                  foja, y NO entra en ningún total.
+     AUSENTE      no hay nada. Una raya, y el motivo en el título. */
 function montoHTML(monto) {
-  if (!monto || monto.valor == null) return '<span class="nulo">no consta</span>';
-  let t = formatearMonto(monto);
-  if (monto.fuente) {
-    t = `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(monto.fuente))}' class="enlace-fuente">${t}</a>`;
+  const formateado = formatearMonto(monto);
+  const conFuente = (texto, clase) => monto && monto.fuente
+    ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(monto.fuente))}'
+          class="enlace-fuente${clase ? ' ' + clase : ''}">${texto}</a>`
+    : `<span class="${clase || ''}">${texto}</span>`;
+
+  if (formateado !== null) return conFuente(esc(formateado));
+
+  if (monto && monto.literal) {
+    // El literal va tal cual lo trajo el papel. Normalizarlo acá a mano sería
+    // adivinar —«5,087.30» puede ser cinco mil con treinta centavos o cinco con
+    // ochenta y siete mil— y adivinar un importe es justo lo que no se hace.
+    return conFuente(esc(String(monto.literal)), 'provisional') +
+      ` <span class="marca-provisional" title="Está en el papel pero el sistema no lo pudo` +
+      ` convertir a número, así que no se suma ni se compara hasta que alguien lo confirme."` +
+      ` aria-label="valor provisional">≈</span>`;
   }
-  return t;
+
+  return ausente(monto && monto.ausencia);
 }
+
+/* La raya. Un dato que no está se dice una vez, bajito, y explica por qué si lo sabe.
+   Antes cada ausencia era un cartel en mayúsculas, y en pantallas con muchas
+   columnas vacías el resultado era un muro que tapaba los datos que sí estaban. */
+const MOTIVO_AUSENCIA = {
+  no_consta:  'No consta en la documentación cargada.',
+  ilegible:   'Está en el papel pero no se pudo leer.',
+  no_cargado: 'El documento que lo traería todavía no se cargó.',
+  pendiente:  'Falta que una persona lo revise.',
+  conflicto:  'Las dos lecturas no coincidieron.',
+};
+const ausente = (motivo) =>
+  `<span class="ausente" title="${esc(MOTIVO_AUSENCIA[motivo] ||
+     'No consta en la documentación cargada.')}">—</span>`;
 
 /* Una pantalla cuyo backend todavía no llegó a esta instalación: se dice, en vez de
    mostrar un error. El servidor contesta 404 «ruta desconocida» cuando la ruta no existe
@@ -5996,30 +6057,122 @@ async function vContrataciones() {
   if (!d) return;
   
   if (!d.contrataciones || !d.contrataciones.length) {
-    return vistaVacia('f. 0000', 'Contrataciones', 'Contrataciones', 'No hay contrataciones para mostrar', '');
+    return vistaVacia('f. 0000', 'Contrataciones', 'Contrataciones',
+      'Todavía no se reconstruyó ninguna contratación',
+      'Una contratación se arma sola cuando el sistema encuentra documentos que se ' +
+      'refieren al mismo expediente o al mismo procedimiento. Si ya cargaste el ' +
+      'material, puede que falte procesarlo o que los documentos todavía no tengan ' +
+      'número de expediente legible.');
   }
 
   const etapasCat = cat.etapas || [];
-  
+  const hasta = Math.min(desde + limite, d.total ?? (desde + d.contrataciones.length));
+  const hayMas = d.total !== undefined
+    ? desde + limite < d.total
+    : d.contrataciones.length === limite;
+
+  /* ── El riel de etapas ───────────────────────────────────────────────────
+     Esto era una fila de sellos: un ✓ por cada etapa que consta y un Ø por cada una
+     que no. Con siete etapas y cien contrataciones en pantalla eso da setecientos
+     cuños, y medido sobre el legajo real la pantalla pintaba 1.776 marcas de ausencia
+     —el número más alto de toda la aplicación—. Dejaba de ser una tabla de
+     contrataciones para ser un muro de Ø con algunos datos escondidos adentro.
+
+     Y el Ø además dice mal lo que pasa. Un procedimiento sin factura cargada no es un
+     procedimiento con un agujero: es un procedimiento del que todavía no tenemos la
+     factura. La diferencia importa, porque una es una observación sobre el expediente
+     y la otra es una observación sobre lo que alcanzamos a cargar, y sólo la segunda
+     es cierta.
+
+     Queda un riel: una marca por etapa, en el orden en que ocurren. Llena la que
+     consta, hueca la que no. Se lee de un vistazo como una barra de progreso del
+     procedimiento —que es lo que es— y el detalle está en el título de cada marca.
+     Cuando una etapa tiene más de un documento lleva el número, porque tres ofertas y
+     una oferta no son lo mismo. */
+  const riel = c => {
+    /* Que el backend no haya mandado las etapas NO es que las etapas no consten.
+       Ésa era justamente la vieja trampa en otra forma: sin `c.etapas`, el código
+       anterior armaba un diccionario vacío y pintaba los siete casilleros huecos, o
+       sea afirmaba que ninguna etapa constaba, en las ciento veinticuatro filas. Lo
+       que pasaba en realidad es que la lista no trae ese dato —sólo lo trae la ficha
+       de cada contratación—.
+
+       Una pantalla no puede decir «no consta» sobre algo que no preguntó. Mientras el
+       listado no traiga las etapas, se dice que hay que entrar a la ficha para verlas,
+       que es lo que de verdad ocurre. */
+    if (!Array.isArray(c.etapas))
+      return `<a class="etapas-pendiente" href="#/contratacion?id=${c.id}"
+                 title="Las etapas de esta contratación se ven en su ficha."
+              >ver etapas</a>`;
+    const suyas = Object.fromEntries(c.etapas.map(e => [e.clave, e]));
+    const marcas = etapasCat.map(ec => {
+      const e = suyas[ec.clave] || {};
+      const n = e.cantidad ?? (e.documentos ? e.documentos.length : 0);
+      const titulo = e.presente
+        ? `${ec.nombre}: ${n > 1 ? `${n} documentos` : 'consta'}`
+        : `${ec.nombre}: no consta en lo cargado`;
+      return `<span class="etapa ${e.presente ? 'hay' : 'falta'}" title="${esc(titulo)}"
+        >${e.presente && n > 1 ? fmtNum.format(n) : ''}</span>`;
+    }).join('');
+    const hay = etapasCat.filter(ec => (suyas[ec.clave] || {}).presente).length;
+    return `<span class="riel-etapas" role="img"
+      aria-label="${hay} de ${etapasCat.length} etapas con documentación">${marcas}</span>`;
+  };
+
   vista.innerHTML = bloque('f. 0000', 'Contrataciones', `
     <h1>Contrataciones</h1>
-    <div class="paginacion-env">
-      ${d.total !== undefined ? `Mostrando ${desde + 1}–${Math.min(desde + limite, d.total)} de ${fmtNum.format(d.total)}` : ''}
-      ${desde > 0 ? `<a href="#/contrataciones?desde=${Math.max(0, desde - limite)}" class="paginacion-link">Anterior</a>` : ''}
-      ${(d.total !== undefined && desde + limite < d.total) || (d.total === undefined && d.contrataciones.length === limite) ? `<a href="#/contrataciones?desde=${desde + limite}" class="paginacion-link">Siguiente</a>` : ''}
+    <p class="prosa">Cada procedimiento que el sistema pudo reconstruir a partir de los
+      documentos cargados. El riel muestra de qué etapas hay documentación: lleno
+      cuando consta, hueco cuando todavía no apareció en lo que se cargó — que no es
+      lo mismo que decir que no existió.</p>
+
+    <div class="tabla-cabecera">
+      <span class="tabla-cuenta">${
+        d.total !== undefined
+          ? `${fmtNum.format(desde + 1)}–${fmtNum.format(hasta)} de ${fmtNum.format(d.total)} contrataciones`
+          : `${fmtNum.format(d.contrataciones.length)} contrataciones`}</span>
+      <span class="paginacion">
+        ${desde > 0
+          ? `<a class="boton gris" href="#/contrataciones?desde=${Math.max(0, desde - limite)}">Anteriores</a>`
+          : ''}
+        ${hayMas ? `<a class="boton gris" href="#/contrataciones?desde=${desde + limite}">Siguientes</a>` : ''}
+      </span>
     </div>
+
     ${tabla([
-      {t:'ID', c:'num', r: c => `<a href="#/contratacion?id=${c.id}">${c.id}</a>`},
-      {t:'Nombre', r: c => esc(c.nombre)},
-      {t:'Expediente', r: c => esc(c.expediente || 'no consta')},
-      {t:'Objeto', r: c => esc(c.objeto || 'no consta')},
-      {t:'Proveedores', r: c => c.proveedores && c.proveedores.length ? c.proveedores.map(p => esc(p.nombre)).join(', ') : '<span class="nulo">no consta</span>'},
-      {t:'Etapas', r: c => {
-         const eDict = Object.fromEntries((c.etapas || []).map(e => [e.clave, e.presente]));
-         return etapasCat.map(ec => eDict[ec.clave] ? `<span class="sello ok" title="${esc(ec.nombre)}">✓</span>` : `<span class="sello neutro" title="Falta ${esc(ec.nombre)}">Ø</span>`).join(' ');
-      }},
-      {t:'Adjudicado', c:'num', r: c => c.totales && c.totales.adjudicado ? montoHTML(c.totales.adjudicado) : '<span class="nulo">no consta</span>'},
-      {t:'Hallazgos', c:'num', r: c => c.hallazgos ? `${c.hallazgos} requiere revisión` : '0'}
+      // El identificador interno no era una columna: era ruido con aspecto de dato.
+      // Lo que identifica una contratación en un expediente es el expediente. El
+      // nombre lleva el enlace, que es donde la mano va a ir igual.
+      {t:'Contratación', c:'crece', r: c => `<div class="item-desc">
+          <a class="item-literal" href="#/contratacion?id=${c.id}">${esc(c.nombre)}</a>
+          ${c.objeto ? `<span class="item-normalizado">${esc(c.objeto)}</span>` : ''}
+        </div>`},
+      // `ausencias` viene del backend y dice POR QUÉ falta cada campo: no_consta,
+      // ilegible, no_cargado, pendiente. Se usa para el título de la raya, así que la
+      // explicación es la del sistema y no una que invente la pantalla.
+      {t:'Expediente', c:'fol', r: c => c.expediente
+          ? esc(c.expediente) : ausente((c.ausencias || {}).expediente)},
+      {t:'Proveedor', r: c => {
+         // Lo mismo que con las etapas: el listado todavía no trae los proveedores.
+         // Decir «—» acá sería afirmar que la contratación no tiene ninguno.
+         if (!Array.isArray(c.proveedores)) return '';
+         const p = c.proveedores;
+         if (!p.length) return ausente('no_consta');
+         // Con muchos oferentes, la lista entera rompe el ancho de la fila y no se
+         // lee ninguno. Va el primero, y el resto contados.
+         const resto = p.length > 1
+           ? ` <span class="mas" title="${esc(p.slice(1).map(x => x.nombre).join(', '))}"
+                >+${p.length - 1}</span>` : '';
+         return esc(p[0].nombre) + resto;
+       }},
+      {t:'Etapas', r: riel},
+      {t:'Adjudicado', c:'num', r: c => !c.totales ? ''
+          : c.totales.adjudicado ? montoHTML(c.totales.adjudicado) : ausente('no_consta')},
+      // «0 hallazgos» no es información: lo normal es que no haya. Sólo se dice
+      // cuando hay algo que mirar, y entonces se dice cuánto.
+      {t:'Hallazgos', c:'num', r: c => c.hallazgos
+          ? `<a class="chip-hallazgos" href="#/hallazgos?contratacion_id=${c.id}"
+              >${fmtNum.format(c.hallazgos)}</a>` : ''},
     ], d.contrataciones)}
   `);
 }
@@ -6095,29 +6248,91 @@ async function vPrecios() {
   if (pedido !== location.hash) return;
 
   if (!d.renglones || !d.renglones.length) {
-    return vistaVacia('f. 0000', 'Ítems y precios', 'Ítems y precios', 'No hay ítems para mostrar', '');
+    return vistaVacia('f. 0000', 'Ítems y precios', 'Ítems y precios',
+      'Todavía no hay ítems con precio',
+      'Los ítems aparecen acá cuando el sistema reconoce renglones con cantidad y ' +
+      'precio dentro de un presupuesto, una orden de compra o una factura. Si ya ' +
+      'cargaste esos documentos, puede que falte procesarlos.');
   }
+
+  const hasta = Math.min(desde + limite, d.total ?? (desde + d.renglones.length));
+  const hayMas = d.total !== undefined
+    ? desde + limite < d.total
+    : d.renglones.length === limite;
+
+  /* La descripción del ítem, con sus dos caras. El literal es lo que dice el papel y
+     manda; el normalizado es lo que el sistema entendió, y está abajo en chico porque
+     es lo que permite comparar. Nunca uno en lugar del otro: reemplazar el literal por
+     el normalizado sería perder la prueba y quedarse con la interpretación. */
+  const descripcion = r => {
+    const lit = `<span class="item-literal">${esc(r.descripcion.literal)}</span>`;
+    const norm = r.descripcion.normalizada &&
+                 r.descripcion.normalizada !== r.descripcion.literal
+      ? `<span class="item-normalizado" title="Así lo entendió el sistema para poder
+           compararlo. El texto de arriba es el que dice el papel."
+           >${esc(r.descripcion.normalizada)}</span>` : '';
+    return `<div class="item-desc">${lit}${norm}</div>`;
+  };
+
+  /* La comparación no se presenta como un veredicto sino como una invitación a mirar
+     la evidencia. Y su calidad viaja con ella: una comparación dudosa mostrada igual
+     que una firme es exactamente la manera de que alguien la cite como si fuera
+     firme. */
+  const CALIDAD = {fuerte: 'Comparable', probable: 'Probable',
+                   dudoso: 'Dudosa', no_comparable: 'No comparable'};
+  const comparacion = r => {
+    if (!r.comparacion) return ausente('no_consta');
+    const estado = r.comparacion.estado || r.comparacion.nivel || '';
+    const rotulo = CALIDAD[estado] || 'Ver comparación';
+    return `<a class="enlace-comparar" href="#/renglon?id=${r.id}"
+       >${esc(rotulo)}</a>`;
+  };
 
   vista.innerHTML = bloque('f. 0000', 'Ítems y precios', `
     <h1>Ítems y precios</h1>
-    <div class="paginacion-env">
-      ${d.total !== undefined ? `Mostrando ${desde + 1}–${Math.min(desde + limite, d.total)} de ${fmtNum.format(d.total)}` : ''}
-      ${desde > 0 ? `<a href="#/precios?desde=${Math.max(0, desde - limite)}" class="paginacion-link">Anterior</a>` : ''}
-      ${(d.total !== undefined && desde + limite < d.total) || (d.total === undefined && d.renglones.length === limite) ? `<a href="#/precios?desde=${desde + limite}" class="paginacion-link">Siguiente</a>` : ''}
+    <p class="prosa">Cada renglón que el sistema pudo leer de un presupuesto, una orden
+      de compra o una factura, con lo que dice el papel y de qué foja salió. Los
+      importes en bastardilla con <span class="marca-provisional">≈</span> están en el
+      papel pero todavía no se pudieron convertir a número, así que no se suman.</p>
+
+    <div class="tabla-cabecera">
+      <span class="tabla-cuenta">${
+        d.total !== undefined
+          ? `${fmtNum.format(desde + 1)}–${fmtNum.format(hasta)} de ${fmtNum.format(d.total)} renglones`
+          : `${fmtNum.format(d.renglones.length)} renglones`}</span>
+      <span class="paginacion">
+        ${desde > 0
+          ? `<a class="boton gris" href="#/precios?desde=${Math.max(0, desde - limite)}">Anteriores</a>`
+          : ''}
+        ${hayMas ? `<a class="boton gris" href="#/precios?desde=${desde + limite}">Siguientes</a>` : ''}
+      </span>
     </div>
+
     ${tabla([
-      {t:'Fecha', c:'mono', r: r => r.fecha ? esc(r.fecha.literal) : '<span class="nulo">no consta</span>'},
-      {t:'Contratación', r: r => r.contratacion ? `<a href="#/contratacion?id=${r.contratacion.id}">${esc(r.contratacion.nombre)}</a>` : '<span class="nulo">no consta</span>'},
-      {t:'Expediente', r: r => esc(r.expediente || 'no consta')},
-      {t:'Ítem original', r: r => esc(r.descripcion.literal)},
-      {t:'Ítem normalizado', r: r => esc(r.descripcion.normalizada || 'no consta')},
-      {t:'Cantidad', c:'num', r: r => r.cantidad ? esc(r.cantidad.literal) : '<span class="nulo">no consta</span>'},
-      {t:'Unidad', r: r => r.unidad ? esc(r.unidad.literal) : '<span class="nulo">no consta</span>'},
-      {t:'Proveedor', r: r => r.proveedor ? esc(r.proveedor.nombre) : '<span class="nulo">no consta</span>'},
+      {t:'Ítem', c:'crece', r: descripcion},
+      {t:'Proveedor', r: r => r.proveedor ? esc(r.proveedor.nombre) : ausente('no_consta')},
+      {t:'Fecha', c:'fol', r: r => r.fecha ? esc(fmtFecha(r.fecha.valor) || r.fecha.literal)
+                                           : ausente('no_consta')},
+      {t:'Cantidad', c:'num', r: r => r.cantidad ? esc(r.cantidad.literal) : ausente('no_consta')},
+      {t:'Unidad', r: r => r.unidad ? esc(r.unidad.literal) : ausente('no_consta')},
       {t:'Precio unitario', c:'num', r: r => montoHTML(r.precio_unitario)},
-      {t:'Subtotal', c:'num', r: r => montoHTML(r.subtotal)},
-      {t:'Documento/Foja', r: r => r.fuente ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(r.fuente))}' class="enlace-fuente">Ver fuente</a>` : '<span class="nulo">no consta</span>'},
-      {t:'Comparación', r: r => r.comparacion ? `<a href="#/renglon?id=${r.id}">Ver comparación</a>` : '<span class="nulo">no consta</span>'}
+      {t:'Total', c:'num', r: r => montoHTML(r.subtotal)},
+      {t:'Contratación', r: r => r.contratacion
+          ? `<a href="#/contratacion?id=${r.contratacion.id}">${esc(r.contratacion.nombre)}</a>`
+          : ausente('no_consta')},
+      {t:'Comparación', r: comparacion},
+      // La fuente es la columna que sostiene todo lo demás: sin ella ninguno de los
+      // números de la fila es afirmable. Por eso está siempre, y siempre al final,
+      // donde la vista termina de recorrer la fila.
+      // `pagina` no es el número de página: es un objeto con las medidas de la hoja.
+      // El número está en `pagina_nro`, y la foja —cuando el expediente está foliado—
+      // en `foja`. Pedirle el número a `pagina` imprimía «f. [object Object]» en las
+      // ciento cincuenta y cuatro filas.
+      {t:'Fuente', r: r => r.fuente
+          ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(r.fuente))}'
+                class="enlace-fuente" title="${esc(r.fuente.archivo || '')}"
+             >f. ${esc(String(r.fuente.foja ?? r.fuente.pagina_nro ?? '?'))}</a>`
+          : ausente('no_consta')},
     ], d.renglones)}
   `);
 }

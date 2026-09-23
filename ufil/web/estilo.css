@@ -1088,8 +1088,23 @@ table{border-collapse:collapse; width:100%; font-size:12px}
    de una columna, y en 11 px con interletrado se distingue del dato sin necesidad de
    una caja. El fondo sigue declarado —hace falta para que `position:sticky` no deje
    ver el dato pasando por debajo— pero es el del folio, no un color. */
-thead th{text-align:left; font-size:11px; font-weight:600; letter-spacing:.055em;
-         text-transform:uppercase;
+/* Los encabezados estaban en mayúsculas de caja —`text-transform:uppercase`— y esta
+   sola regla es la que grita en TODAS las tablas del sistema. Medido sobre el legajo
+   real: 1.340 palabras en mayúsculas en «Foliatura», 896 en «Tablas», 689 en «Ítems y
+   precios», 326 en «Números escritos dos veces». Casi ninguna es un dato: son rótulos
+   de columna.
+
+   La mayúscula de caja no es sólo ruidosa, se lee peor: saca los rasgos ascendentes y
+   descendentes que son los que permiten reconocer una palabra por su silueta sin
+   deletrearla, y a 11 px eso se nota. Además rompe los nombres propios y las siglas,
+   porque ya no se distingue lo que la palabra tenía en mayúscula de origen.
+
+   El tratamiento que queda es el que la tipografía ya trae: versalitas de verdad
+   —`font-variant-caps: all-small-caps`—, que dan la misma línea horizontal prolija sin
+   la altura ni el grito, conservan el color de la caja original, y donde la fuente no
+   las tenga degradan a texto normal, que es mejor que gritar. */
+thead th{text-align:left; font-size:11.5px; font-weight:600; letter-spacing:.045em;
+         font-variant-caps:all-small-caps;
          color:var(--tinta-2); padding:2px 11px 7px; white-space:nowrap;
          border-bottom:1.5px solid var(--tinta); position:sticky; top:0;
          background:var(--folio); z-index:1}
@@ -1159,6 +1174,100 @@ table td{overflow-wrap:normal; word-break:normal; hyphens:none}
       color:var(--tinta-2); background:var(--papel-2); border:1px solid var(--filete-2);
       padding:1px 6px; white-space:nowrap}
 .nulo.conf{color:var(--lapiz); border-color:var(--lapiz); background:var(--lapiz-suave)}
+
+/* ── La ausencia, dicha bajito ─────────────────────────────────────────────
+   El cartel de `.nulo` —caja, borde, versalitas espaciadas— está bien cuando la
+   ausencia ES el dato y aparece una vez. Está mal cuando aparece por fila y por
+   columna: medido sobre el legajo real, «Contrataciones» pintaba 1.776 de esos
+   carteles y la pantalla dejaba de ser una tabla de contrataciones para ser un muro
+   de «NO CONSTA» con algunos datos escondidos adentro.
+
+   La regla nueva: lo que no está se dice con una raya y se explica al pasar el mouse.
+   No desaparece —seguiría siendo una celda en blanco, que es lo que la regla «nada se
+   inventa» prohíbe— pero deja de competir con lo que sí está. La raya queda en
+   `--tinta-3`, que sobre el papel da 4,6:1: alcanza de sobra para verla y no alcanza
+   para que se imponga.
+
+   Es un `<abbr>` en espíritu: tiene título, así que lleva el cursor de ayuda y lo
+   anuncia un lector de pantalla. */
+.ausente{color:var(--tinta-3); cursor:help; user-select:none}
+
+/* Un importe que está en el papel pero que el sistema no pudo convertir a número.
+   Se muestra el literal tal como se leyó —nunca normalizado a ojo— y se lo marca,
+   porque la distinción entre «este número se puede sumar» y «este número se puede
+   leer» es la que decide qué entra en un total y qué no. La bastardilla es la misma
+   que el sistema ya usa para todo lo provisional. */
+.provisional{font-style:italic}
+.marca-provisional{color:var(--tinta-3); font-size:11px; cursor:help;
+                   margin-left:2px; user-select:none}
+
+/* ── La cabecera de una tabla larga ────────────────────────────────────────
+   Cuántas filas hay y cómo se pasa de página, en una sola línea arriba de la tabla.
+   Estaba suelto, con los enlaces «Anterior» y «Siguiente» como texto plano en el
+   medio de la cuenta, y no se leía ni como dato ni como control. */
+.tabla-cabecera{display:flex; align-items:center; justify-content:space-between;
+                gap:12px; flex-wrap:wrap; margin:14px 0 6px}
+.tabla-cuenta{font-size:12px; color:var(--tinta-2); font-variant-numeric:tabular-nums}
+.paginacion{display:flex; gap:6px}
+
+/* ── La descripción de un ítem ─────────────────────────────────────────────
+   Dos líneas y no dos columnas. Eran «Ítem original» e «Ítem normalizado», una al
+   lado de la otra, y con descripciones largas se llevaban media tabla para decir casi
+   lo mismo dos veces. Juntas y en jerarquía: arriba lo que dice el papel, abajo y en
+   chico lo que el sistema entendió. La de abajo no se muestra cuando son iguales,
+   que es la mitad de los casos y donde repetir no agrega nada. */
+.item-desc{display:flex; flex-direction:column; gap:1px; min-width:0}
+.item-literal{font-size:13px; line-height:1.35}
+.item-normalizado{font-size:11px; color:var(--tinta-3); line-height:1.3; cursor:help}
+
+/* El enlace a la comparación lleva el estado de la comparación como texto, no como
+   color solo: «Comparable», «Probable», «Dudosa». Que una comparación dudosa se vea
+   igual que una firme es la manera de que alguien la cite como si fuera firme. */
+.enlace-comparar{font-size:12px; white-space:nowrap}
+
+/* ── El riel de etapas de una contratación ─────────────────────────────────
+   Una marca por etapa, en el orden en que ocurren: pliego, ofertas, adjudicación,
+   orden de compra, factura, remito, pago. Llena la que consta, hueca la que todavía
+   no apareció. Se lee como una barra de avance del procedimiento, que es lo que es.
+
+   Reemplaza una fila de cuños ✓/Ø por contratación. Con siete etapas y cien filas eso
+   eran setecientos cuños, y sobre el legajo real la pantalla pintaba 1.776 marcas de
+   ausencia: el número más alto de toda la aplicación.
+
+   El estado no se comunica sólo con color —lleno contra hueco es una diferencia de
+   forma, visible sin distinguir tonos— y cada marca lleva su título. El riel entero
+   lleva además un `aria-label` con el resumen, porque catorce títulos sueltos no son
+   una lectura. */
+.riel-etapas{display:inline-flex; gap:3px; align-items:center}
+.etapa{
+  width:14px; height:14px; border-radius:3px; flex:none;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:9px; font-weight:700; font-variant-numeric:tabular-nums;
+  cursor:help; box-sizing:border-box;
+}
+/* Consta: relleno macizo en el azul de información. No en verde: el verde de esta
+   paleta quiere decir «dato firme» y que una etapa tenga documentación no dice nada
+   sobre si el dato de adentro es firme. */
+.etapa.hay{background:var(--rio); color:#fff; border:1px solid var(--rio)}
+/* No consta: hueca, con el filete de un control. Tiene que verse que el casillero
+   existe y que está vacío; una etapa que desaparece se lee como una etapa que no
+   corresponde a este procedimiento, y es lo contrario. */
+.etapa.falta{background:transparent; border:1px dashed var(--borde-control)}
+
+/* «+3» cuando hay más oferentes de los que entran en la celda. El título trae los
+   nombres completos: el número solo diría que hay más y no cuáles. */
+.mas{font-size:11px; color:var(--tinta-3); cursor:help; white-space:nowrap}
+
+/* La cuenta de hallazgos de una fila. Es un enlace, no un cartel: el número sin
+   manera de llegar a lo que cuenta obliga a buscarlo a mano en otra pantalla. */
+.chip-hallazgos{
+  display:inline-block; min-width:20px; padding:1px 7px; border-radius:10px;
+  font-size:11.5px; font-weight:600; font-variant-numeric:tabular-nums;
+  text-align:center; text-decoration:none;
+  color:var(--tinta); background:var(--papel-3);
+  border:1px solid var(--filete);
+}
+.chip-hallazgos:hover{border-color:var(--borde-control)}
 .dudoso{background-image:repeating-linear-gradient(-45deg,transparent 0 5px,
         rgba(138,103,20,.18) 5px 6px)}
 .barra-conf{display:inline-flex; gap:2px; vertical-align:middle; margin-right:6px}
@@ -2680,3 +2789,9 @@ details.consejo[open]>summary{border-bottom:1px solid var(--filete-2); margin-bo
 .crono-item:last-child{border-bottom:0}
 /* Estado de un campo que una persona cerró sin valor: no es alerta ni acierto. */
 .sello.neutro{color:var(--tinta-2)}
+
+/* Mientras el listado de contrataciones no traiga las etapas, la celda dice a dónde
+   ir a verlas en vez de dibujar siete casilleros huecos, que afirmarían que ninguna
+   etapa consta. Discreto: es una indicación de navegación, no un dato. */
+.etapas-pendiente{font-size:11.5px; color:var(--tinta-3); white-space:nowrap}
+.etapas-pendiente:hover{color:var(--tribunal-txt)}
