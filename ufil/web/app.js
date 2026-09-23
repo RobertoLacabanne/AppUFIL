@@ -4536,14 +4536,9 @@ async function vSalud() {
    sale a mirar el papel, que es lo único que decide. */
 async function vFojas() {
   const r = await api('/api/fojas');
-  if (!r.archivos.length) return vistaVacia('f. 0008', 'Fojas', 'Fojas del expediente',
+  if (!r.archivos || !r.archivos.length) return vistaVacia('f. 0008', 'Fojas', 'Fojas del expediente',
     'Todavía no hay fojas para mostrar',
     'Cargá los escaneos y corré la lectura: acá va a aparecer qué es cada foja.');
-
-  const cuño = (clase, etiqueta) => clase === 'en_blanco' || clase === 'sin_texto_util'
-    ? `<span class="nulo">${esc(etiqueta)}</span>`
-    : (clase === 'desconocida' || !clase
-        ? `<span class="nulo">${esc(etiqueta)}</span>` : esc(etiqueta));
 
   vista.innerHTML = bloque('f. 0008', 'Fojas', `
     <h2>Fojas del expediente</h2>
@@ -4551,13 +4546,19 @@ async function vFojas() {
     <div id="lista-fojas"></div>
   `);
 
-  const todasFojas = r.archivos.flatMap(a => a.fojas.map(f => ({...f, sha256: a.sha256, archivo: a.nombre})));
-  tablaBuscable($('#lista-fojas'), [
-    {t: 'Archivo', c: 'mono fol', r: f => esc(f.archivo)},
-    {t: 'Foja', c: 'num fol', r: f => String(f.nro), b: f => f.nro},
-    {t: 'Qué es', r: f => cuño(f.clase, f.etiqueta)},
-    {t: 'Acción', r: f => `<a href="#/foja/${esc(f.sha256)}/${f.nro}" class="boton secundario">Ver contexto</a>`}
-  ], todasFojas);
+  const cuño = (clase, etiqueta) => clase === 'en_blanco' || clase === 'sin_texto_util'
+    ? `<span class="nulo">${esc(etiqueta)}</span>`
+    : (clase === 'desconocida' || !clase
+        ? `<span class="nulo">${esc(etiqueta)}</span>` : esc(etiqueta));
+
+  tablaServidor($('#lista-fojas'), '/api/fojas', 'fojas', [
+    {t: 'Archivo', c: 'mono fol', o: 'archivo', r: f => esc(f.archivo)},
+    {t: 'Foja', c: 'num fol', o: 'foja', r: f => String(f.nro || f.foja)},
+    {t: 'Qué es', o: 'clase', r: f => cuño(f.clase, f.etiqueta)}
+  ], {
+    placeholder: 'Buscar...',
+    alClic: f => location.hash = `#/foja/${esc(f.sha256)}/${f.nro || f.foja}`
+  });
 }
 
 /* ── Los números que el papel escribe dos veces ─────────────────────────────

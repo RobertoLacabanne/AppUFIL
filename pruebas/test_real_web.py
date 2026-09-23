@@ -39,12 +39,13 @@ def render(script):
     let _fojaAbierta = null;
     function abrirFojaSuelta(sha, nro) { _fojaAbierta = {sha, nro}; }
     
-    // Mock tablaBuscable
+    // Mock tablaServidor
     let _tablasLlamadas = [];
-    function tablaBuscable(destino, cols, filas, opts) {
-        _tablasLlamadas.push({filas: filas.length, opts: opts});
-        if (opts.alClic && filas.length > 0) {
-            opts.alClic(filas[0]);
+    function tablaServidor(destino, ruta, clave, cols, opts) {
+        _tablasLlamadas.push({ruta, clave, opts});
+        if (opts.alClic) {
+            // Mock click event for test
+            opts.alClic({sha256: 'abc', nro: 1, foja: 1});
         }
     }
 
@@ -95,9 +96,9 @@ class LegajoRealRender(unittest.TestCase):
             _elementos['#f-trabajo-abc'] = {};
             await vFojas();
             
-            if (_tablasLlamadas.length !== 1) throw new Error("No se llamó a tablaBuscable");
-            if (_tablasLlamadas[0].filas !== 1628) throw new Error("No pasaron las 1628 filas");
-            if (_fojaAbierta.sha !== 'abc' || _fojaAbierta.nro !== 1) throw new Error("alClic no abre la foja correctamente");
+            if (_tablasLlamadas.length !== 1) throw new Error("No se llamó a tablaServidor");
+            if (_tablasLlamadas[0].ruta !== '/api/fojas') throw new Error("Ruta incorrecta");
+            if (location.hash !== '#/foja/abc/1') throw new Error("alClic no cambia location.hash correctamente: " + location.hash);
         })();
         """)
 
