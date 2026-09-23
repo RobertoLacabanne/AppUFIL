@@ -4023,54 +4023,24 @@ async function mostrarConjunto(id, archivos) {
 }
 
 async function vReasociaciones() {
-  const {revisiones} = await api('/api/reasociaciones/pendientes');
   if (location.hash !== '#/reasociaciones') return;
-  
   vista.innerHTML = bloque('REV', 'Revisiones desplazadas', `
     <h2>Revisiones desplazadas</h2>
     <p class="prosa">Decisiones humanas que perdieron su foja de anclaje original.</p>
     <div id="lista-reasoc"></div>
   `);
 
-  tablaBuscable($('#lista-reasoc'), [
+  tablaServidor($('#lista-reasoc'), '/api/reasociaciones/pendientes', 'revisiones', [
     {t: 'Clase', r: r => esc(r.clase)},
     {t: 'Documento', r: r => `<a href="#/documento/${esc(r.documento_id)}">${esc(r.archivo || 'doc ' + r.documento_id)}</a>`},
     {t: 'Foja', c: 'num', r: r => `<a href="javascript:abrirFojaSuelta('${esc(r.sha256)}', ${r.ancla_pagina}, '${esc(r.archivo)}')">f. ${esc(r.ancla_pagina)}</a>`},
     {t: 'Texto original', c: 'mono', r: r => esc(r.texto)},
-    {t: 'Decisión', r: (r, i) => `<div class="fila-acciones" data-revision="${i}">
-      <label><input type="radio" name="res-${i}" value="reasociar"> Reasociar</label>
-      <label><input type="radio" name="res-${i}" value="descartar"> Descartar</label>
+    {t: 'Decisin', r: (r, i) => `<div class="fila-acciones" data-revision="${r.id}">
+      <label><input type="radio" name="res-${r.id}" value="reasociar"> Reasociar</label>
+      <label><input type="radio" name="res-${r.id}" value="descartar"> Descartar</label>
       <button class="boton" data-resolver="ejecutar" disabled>Ejecutar</button>
     </div>`}
-  ], revisiones);
-
-  $('#lista-reasoc').addEventListener('change', e => {
-    if (e.target.type === 'radio') {
-      const form = e.target.closest('div');
-      form.querySelector('button').disabled = false;
-    }
-  });
-
-  $('#lista-reasoc').addEventListener('click', async e => {
-    if (e.target.dataset.resolver === 'ejecutar') {
-      const btn = e.target;
-      const tarjeta = btn.closest('div');
-      const r = revisiones[Number(tarjeta.dataset.revision)];
-      const elegida = tarjeta.querySelector('input:checked');
-      if (!elegida) return;
-      
-      btn.disabled = true;
-      try {
-        const quien = await conRevisor(); if (!quien) { btn.disabled = false; return; }
-        await api('/api/reasociacion/resolver', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({decision_id: r.decision_id, accion: elegida.value, quien})
-        });
-        await vReasociaciones();
-      } catch (err) { toast(err.message); btn.disabled = false; }
-    }
-  });
+  ]);
 }
 
 function htmlActualizacion(plan, revisiones) {

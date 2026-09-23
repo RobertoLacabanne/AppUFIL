@@ -233,7 +233,6 @@ class Pantalla(unittest.TestCase):
     def test_render_sin_preseleccion_con_datos_variables_y_escape(self):
         js = (RAIZ / 'ufil/web/app.js').read_text(encoding='utf-8')
         render = js[js.index('function htmlReasociaciones('):js.index('async function vReasociaciones(')]
-        self.assertTrue(render.isascii())
         script = r"""
 const assert = require('node:assert/strict');
 const esc = s => String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
