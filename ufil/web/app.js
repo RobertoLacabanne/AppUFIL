@@ -5066,21 +5066,21 @@ async function vRelaciones() {
   if (hash !== location.hash) return;
   
   const opciones = docs.map(c => 
-    \<option value="\">\ (f. \) - \</option>\
+    `<option value="${c.documento_id}">Doc ${c.documento_id} - ${c.nombre_literal}</option>`
   ).join('');
 
-  vista.innerHTML = bloque('', 'Relaciones', \<h2>Relaciones pendientes</h2>
-  <p>Son propuestas del sistema. Rechazar no borra: conserva la decisión para que no se vuelva a proponer lo descartado.</p>\
+  vista.innerHTML = bloque('', 'Relaciones', `<h2>Relaciones pendientes</h2>
+  <p>Son propuestas del sistema. Rechazar no borra: conserva la decisión para que no se vuelva a proponer lo descartado.</p>
   <h3>Anotar una relación entre documentos</h3>
-  <form id="anotar-relacion">\
-    <datalist id="lista-docs">\</datalist>
+  <form id="anotar-relacion">
+    <datalist id="lista-docs">${opciones}</datalist>
     <label>Documento del que sale (identificador) <input name="desde" list="lista-docs" autocomplete="off" required></label>
     <label>Documento al que llega (identificador) <input name="hasta" list="lista-docs" autocomplete="off" required></label>
     <label>Nota de respaldo <textarea name="nota"></textarea></label>
     <button class="boton">Registrar mi afirmación</button>
-  </form>\);
+  </form>`);
   enlazarDecisionesRelacion(vista, vRelaciones);
-  #anotar-relacion.onsubmit = e => { e.preventDefault(); const f = e.currentTarget; accionInterfaz(f.querySelector('button'), async () => {
+  $('#anotar-relacion').onsubmit = e => { e.preventDefault(); const f = e.currentTarget; accionInterfaz(f.querySelector('button'), async () => {
     const quien = await conRevisor(); if (!quien) return;
     await guardarNucleo('/api/relacion/anotar', {tipo:f.elements.tipo.value, desde_doc:Number(f.elements.desde.value), hasta_doc:Number(f.elements.hasta.value), nota:f.elements.nota.value, quien});
     await vRelaciones();
@@ -5754,14 +5754,6 @@ if ($('#visor-zoom-out')) {
 }
 
 
-  } else {
-    if (lienzo2) lienzo2.hidden = true;
-  }
-
-  visor.hidden = false;
-  document.body.classList.add('con-visor');
-}
-
 function abrirDosFojas(f1, f2) {
   if (!f1) return;
   const nro1 = fojaDe(f1);
@@ -6120,36 +6112,13 @@ document.addEventListener('click', async e => {
   }
 });
 
-function toast(msj) { let t = document.createElement('div'); t.className = 'toast'; t.textContent = msj; document.body.appendChild(t); setTimeout(() => { t.classList.add('fadeout'); setTimeout(() => t.remove(), 300); }, 3000); }, 3000);
+function toast(msj) {
+  let t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msj;
+  document.body.appendChild(t);
+  setTimeout(() => { t.classList.add('fadeout'); setTimeout(() => t.remove(), 300); }, 3000);
 }
-;
-  
-  if (btnPag) btnPag.onclick = () => {
-    const vHoja = document.getElementById('visor-hojas');
-    if (vHoja) {
-      const scale = vHoja.clientHeight / document.getElementById('visor-img').naturalHeight;
-      visorZoom = Math.max(0.1, scale);
-      aplicarZoomVisor();
-    }
-  };
-  
-  if (btnRotar) btnRotar.onclick = () => {
-    visorRotation = (visorRotation + 90) % 360;
-    const img1 = document.getElementById('visor-img');
-    const img2 = document.getElementById('visor-img-2');
-    if (img1) img1.style.transform = `rotate(${visorRotation}deg)`;
-    if (img2) img2.style.transform = `rotate(${visorRotation}deg)`;
-  };
-  
-  if (btnPantalla) btnPantalla.onclick = () => {
-    if (!document.fullscreenElement) {
-      v.requestFullscreen().catch(err => toast('Error al abrir pantalla completa.'));
-    } else {
-      document.exitFullscreen();
-    }
-  };
-});
-
 
 function dialogoConfirm(msj) {
   return new Promise(resolve => {
