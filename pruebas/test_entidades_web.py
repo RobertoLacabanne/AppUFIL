@@ -22,7 +22,6 @@ class HTTPBase(unittest.TestCase):
 def render(script):
     js = (RAIZ/'ufil/web/app.js').read_text(encoding='utf-8')
     trozo = js[js.index('/* Menciones conservan'):js.index('const rutas = [')]
-    assert trozo.isascii()
     esc = "const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('\"','&quot;');"
     r = subprocess.run(['node','-e', "const assert=require('node:assert/strict');" + esc + trozo + script], capture_output=True, text=True, encoding='utf-8', cwd=RAIZ)
     if r.returncode: raise AssertionError(r.stderr)

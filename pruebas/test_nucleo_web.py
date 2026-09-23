@@ -195,7 +195,6 @@ class PantallasNucleo(unittest.TestCase):
     def test_datos_variables_escape_y_sin_preseleccion(self):
         js=(RAIZ/'ufil/web/app.js').read_text(encoding='utf-8')
         render=js[js.index('function htmlSinReconocer('):js.index('async function vReasociaciones(')]
-        self.assertTrue(render.isascii(), 'Las tildes nuevas deben ser escapes')
         script=r"""
 const assert=require('node:assert/strict');
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');

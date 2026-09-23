@@ -3747,18 +3747,18 @@ function htmlReasociaciones(revisiones) {
     ${revisiones.map((r, i) => `<article class="reasociacion" data-revision="${i}">
       <h3 class="mono">${dato(r.archivo)}</h3>
       <dl><dt>Decisi\u00f3n conservada</dt><dd>${dato(r.accion)} sobre ${esc(String(r.campo).replaceAll('_', ' '))}: ${dato(r.valor)}</dd>
-      <dt>Qui\u00e9n y cu\u00e1ndo</dt><dd>${dato(r.quien)} &middot; ${esc(fmtFechaHora(r.cuando))}</dd>
-      <dt>D\u00f3nde mir\u00f3</dt><dd>Foja ${dato(r.ancla_pagina)} &middot; ${dato(r.ancla_tipo == null ? null : r.ancla_tipo.replaceAll('_', ' '))}
-        &middot; Pieza ${dato(r.orden)} &middot; Fojas ${dato(r.ancla_desde)} a ${dato(r.ancla_hasta)}</dd>
+      <dt>Qui\u00e9n y cu\u00e1ndo</dt><dd>${dato(r.quien)} · ${esc(fmtFechaHora(r.cuando))}</dd>
+      <dt>D\u00f3nde mir\u00f3</dt><dd>Foja ${dato(r.ancla_pagina)} · ${dato(r.ancla_tipo == null ? null : r.ancla_tipo.replaceAll('_', ' '))}
+        · Pieza ${dato(r.orden)} · Fojas ${dato(r.ancla_desde)} a ${dato(r.ancla_hasta)}</dd>
       <dt>Por qu\u00e9 qued\u00f3 pendiente</dt><dd>${dato(r.motivo)}</dd></dl>
       ${r.ancla_pagina != null ? '<button class="boton gris" data-ancla>Ver la foja anclada</button>' : ''}
       ${r.candidatas.length ? `<fieldset><legend>Eleg\u00ed la pieza destinataria</legend>
         ${r.candidatas.map(c => `<div class="reasociacion-candidata"><label>
           <input type="radio" name="pieza-${i}" value="${esc(c.documento_id)}" ${c.tiene_el_campo ? '' : 'disabled'}>
-          Pieza ${dato(c.orden)} &middot; ${dato(c.tipo.replaceAll('_', ' '))}
-          &middot; Fojas ${dato(c.pagina_desde)} a ${dato(c.pagina_hasta)}</label>
+          Pieza ${dato(c.orden)} · ${dato(c.tipo.replaceAll('_', ' '))}
+          · Fojas ${dato(c.pagina_desde)} a ${dato(c.pagina_hasta)}</label>
           <p>${esc(c.por_que)}</p><p class="mono">${c.tiene_el_campo
-            ? `${dato(c.valor_actual)} &middot; ${esc((ESTADO[c.estado_actual] || [c.estado_actual || 'Sin estado'])[0])}`
+            ? `${dato(c.valor_actual)} · ${esc((ESTADO[c.estado_actual] || [c.estado_actual || 'Sin estado'])[0])}`
             : 'Este campo todav\u00eda no se extrajo en esta pieza.'}</p>
           ${!c.tiene_el_campo ? '<p>Puede ser la pieza correcta. Dejala pendiente hasta que tenga el campo.</p>' : ''}
           <a href="#/documento/${esc(c.documento_id)}" target="_blank" rel="noopener">Ver la pieza en otra pesta\u00f1a</a>
@@ -3784,7 +3784,7 @@ function htmlSinReconocer(piezas, tipos) {
       <h3><a class="mono" href="#/documento/${p.documento_id}">${esc(p.archivo)}</a></h3>
       <p class="mono">Fojas ${esc(p.pagina_desde)} a ${esc(p.pagina_hasta)} (${esc(p.fojas)} fojas)</p>
       <p>Tipo registrado: ${esc(tipos.find(t => t.clave === p.tipo)?.nombre || p.tipo || '\u00d8 Sin clasificar')}
-      ${p.clasificado_por ? ` &middot; Lo dijo ${esc(p.clasificado_por)}` : ''}</p>
+      ${p.clasificado_por ? ` · Lo dijo ${esc(p.clasificado_por)}` : ''}</p>
       <label>Qu\u00e9 es esta pieza <select name="tipo" required>
         <option value="">Eleg\u00ed un tipo despu\u00e9s de mirar la pieza</option>
         ${tipos.map(t => `<option value="${esc(t.clave)}">${esc(t.nombre)} (${esc(t.familia)})</option>`).join('')}
@@ -3797,30 +3797,38 @@ async function guardarNucleo(ruta, cuerpo) {
 }
 
 async function vSinReconocer() {
-  const d = await api('/api/piezas/sin-reconocer');
+  const d = await api('/api/piezas/sin-reconocer?limite=0');
   if (location.hash !== '#/sin-reconocer') return;
   vista.innerHTML = bloque('', 'Documentos', `<h2>Todavía sin reconocer</h2>
     <p class="prosa">Son documentos cargados que el sistema todavía no sabe leer...</p>
     <div id="lista-sin-reconocer"></div>`);
   
-  tablaBuscable($('#lista-sin-reconocer'), [
-    {t: 'Archivo', c: 'mono', r: p => `<a href="#/documento/${p.documento_id}">${esc(p.archivo)}</a>`},
-    {t: 'Fojas', c: 'num', r: p => `${esc(p.pagina_desde)} a ${esc(p.pagina_hasta)} (${esc(p.fojas)})`, b: p => p.fojas},
+  tablaServidor($('#lista-sin-reconocer'), '/api/piezas/sin-reconocer', 'piezas', [
+    {t: 'Archivo', o: 'archivo', c: 'mono', r: p => `<a href="#/documento/${p.documento_id}">${esc(p.archivo)}</a>`},
+    {t: 'Fojas', o: 'foja', c: 'num', r: p => `${esc(p.pagina_desde)} a ${esc(p.pagina_hasta)} (${esc(p.fojas)})`, b: p => p.fojas},
     {t: 'Tipo registrado', r: p => `${esc(d.tipos.find(t => t.clave === p.tipo)?.nombre || p.tipo || 'Sin clasificar')} ${p.clasificado_por ? `(por ${esc(p.clasificado_por)})` : ''}`},
-    {t: 'Clasificar', r: p => `<form style="display:flex;gap:8px" data-pieza="${p.documento_id}"><select name="tipo" required><option value="">Elegí un tipo</option>${d.tipos.map(t => `<option value="${esc(t.clave)}">${esc(t.nombre)}</option>`).join('')}</select> <button class="boton" type="submit">Registrar</button></form>`}
-  ], d.piezas);
-
-  $('#lista-sin-reconocer').addEventListener('submit', async e => {
-    e.preventDefault();
-    const f = e.target.closest('form'); if (!f) return;
-    const b = f.querySelector('button'); b.disabled = true;
-    try {
-      const quien = await conRevisor(); if (!quien) return;
-      await guardarNucleo('/api/pieza/clasificar', {documento_id:+f.dataset.pieza, tipo:f.elements.tipo.value, quien});
-      await vSinReconocer();
-    } catch (err) { toast(err.message); } finally { b.disabled = false; }
+    {t: 'Clasificar', r: p => `<form class="fila-acciones" data-pieza="${p.documento_id}"><select name="tipo" required><option value="">Elegí un tipo</option>${d.tipos.map(t => `<option value="${esc(t.clave)}">${esc(t.nombre)}</option>`).join('')}</select> <button class="boton" type="submit">Registrar</button></form>`}
+  ], {
+    placeholder: 'Buscar archivo...',
+    vacio: 'No hay piezas sin reconocer.'
   });
+
+  const contenedor = $('#lista-sin-reconocer');
+  if (!contenedor.dataset.binded) {
+    contenedor.dataset.binded = '1';
+    contenedor.addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.target.closest('form'); if (!f) return;
+      const b = f.querySelector('button'); b.disabled = true;
+      try {
+        const quien = await conRevisor(); if (!quien) return;
+        await guardarNucleo('/api/pieza/clasificar', {documento_id:+f.dataset.pieza, tipo:f.elements.tipo.value, quien});
+        await vSinReconocer();
+      } catch (err) { toast(err.message); } finally { b.disabled = false; }
+    });
+  }
 }
+
 
 function opcionesArchivos(archivos) {
   return '<option value="">Eleg\u00ed un archivo</option>' + archivos.map(a =>
@@ -3885,14 +3893,14 @@ async function cargarContinuidad(id, sha) {
 
 function htmlConjunto(c, archivos) {
   const partes = c.partes;
-  return `<h3>${esc(c.nombre)}</h3><p>${esc(c.organismo || '\u00d8 Organismo sin indicar')} &middot;
-    ${esc(c.expediente || '\u00d8 Expediente sin indicar')} &middot; ${esc(c.anio || '\u00d8 A\u00f1o sin indicar')}</p>
+  return `<h3>${esc(c.nombre)}</h3><p>${esc(c.organismo || '\u00d8 Organismo sin indicar')} ·
+    ${esc(c.expediente || '\u00d8 Expediente sin indicar')} · ${esc(c.anio || '\u00d8 A\u00f1o sin indicar')}</p>
     ${c.nota ? `<p class="prosa">${esc(c.nota)}</p>` : ''}
-    <p>${partes.length} archivos &middot; ${partes.reduce((n,p) => n+p.paginas,0)} fojas &middot;
+    <p>${partes.length} archivos · ${partes.reduce((n,p) => n+p.paginas,0)} fojas ·
     ${partes.reduce((n,p) => n+p.piezas,0)} piezas</p>
     <p class="prosa">El orden se guarda con cada movimiento. Sub\u00ed o baj\u00e1 las partes para respetar el orden de la entrega.</p>
     <ol>${partes.map((p,i) => `<li class="nucleo-ficha"><span class="mono">${esc(p.nombre)}</span>
-      <p>${esc(p.paginas)} fojas &middot; ${esc(p.piezas)} piezas</p>
+      <p>${esc(p.paginas)} fojas · ${esc(p.piezas)} piezas</p>
       <button class="boton gris" data-mover="${i}" data-salto="-1" ${i === 0 ? 'disabled' : ''}>Subir</button>
       <button class="boton gris" data-mover="${i}" data-salto="1" ${i === partes.length-1 ? 'disabled' : ''}>Bajar</button>
       <button class="boton gris" data-quitar="${i}">Quitar del conjunto</button></li>`).join('')}</ol>
@@ -3969,7 +3977,7 @@ async function vReasociaciones() {
     {t: 'Documento', r: r => `<a href="#/documento/${esc(r.documento_id)}">${esc(r.archivo || 'doc ' + r.documento_id)}</a>`},
     {t: 'Foja', c: 'num', r: r => `<a href="javascript:abrirFojaSuelta('${esc(r.sha256)}', ${r.ancla_pagina}, '${esc(r.archivo)}')">f. ${esc(r.ancla_pagina)}</a>`},
     {t: 'Texto original', c: 'mono', r: r => esc(r.texto)},
-    {t: 'Decisión', r: (r, i) => `<div style="display:flex;gap:8px" data-revision="${i}">
+    {t: 'Decisión', r: (r, i) => `<div class="fila-acciones" data-revision="${i}">
       <label><input type="radio" name="res-${i}" value="reasociar"> Reasociar</label>
       <label><input type="radio" name="res-${i}" value="descartar"> Descartar</label>
       <button class="boton" data-resolver="ejecutar" disabled>Ejecutar</button>
@@ -4029,8 +4037,8 @@ function htmlActualizacion(plan, revisiones) {
       ${e.explica ? `<p>${esc(e.explica)}</p>` : ''}
       ${e.motivo ? `<p>${esc(e.motivo)}</p>` : ''}
       ${e.estado === 'heredada' || e.heredados > 0 ? '<p>Hay resultados heredados aprovechables: se adopt\u00f3 lo que ya estaba sin volver a leerlo; no se comprob\u00f3 que coincida.</p>' : ''}
-      <p>Aprovechables: ${esc(fmtNum.format(e.vigentes))} &middot; Desactualizados: ${esc(fmtNum.format(e.desactualizados))}
-        &middot; Total: ${esc(fmtNum.format(e.total))} &middot; Costo: ${esc(e.cuesta)}</p>
+      <p>Aprovechables: ${esc(fmtNum.format(e.vigentes))} · Desactualizados: ${esc(fmtNum.format(e.desactualizados))}
+        · Total: ${esc(fmtNum.format(e.total))} · Costo: ${esc(e.cuesta)}</p>
     </article>`).join('')}</div>
     <h3>Trabajo de las personas</h3>${cuentas(plan.revisiones)}
     <p class="prosa">Las revisiones que necesitan reasociaci\u00f3n se conservan. No se aplican solas porque no es seguro
@@ -4038,10 +4046,10 @@ function htmlActualizacion(plan, revisiones) {
     ${revisiones.length ? '<p><a href="#/reasociaciones">Resolver las revisiones desplazadas</a></p>' : ''}
     ${revisiones.map(r => `<article class="actualizacion-revision"><h4 class="mono">${esc(r.archivo)}</h4>
       <p>${esc(r.campo)}: ${r.valor == null ? 'Sin valor' : esc(r.valor)}</p>
-      <p>${esc(r.quien)} &middot; ${esc(r.cuando)}</p><p>${esc(r.motivo)}</p></article>`).join('')}
+      <p>${esc(r.quien)} · ${esc(r.cuando)}</p><p>${esc(r.motivo)}</p></article>`).join('')}
     ${plan.archivos.length ? `<h3>Archivos alcanzados</h3><ul>${plan.archivos.map(a =>
-      `<li><span class="mono">${esc(a.nombre)}</span> &middot; Fojas: ${esc(fmtNum.format(a.paginas))}
-      &middot; ${a.desactualizadas.map(k => esc(nombres.get(k) || k)).join(', ')}</li>`).join('')}</ul>` : ''}
+      `<li><span class="mono">${esc(a.nombre)}</span> · Fojas: ${esc(fmtNum.format(a.paginas))}
+      · ${a.desactualizadas.map(k => esc(nombres.get(k) || k)).join(', ')}</li>`).join('')}</ul>` : ''}
     ${!plan.vigente && !sinMaterial ? '<button class="boton" id="b-actualizar">Actualizar an\u00e1lisis</button>' : ''}`;
 }
 
@@ -4608,14 +4616,9 @@ async function vSalud() {
    sale a mirar el papel, que es lo único que decide. */
 async function vFojas() {
   const r = await api('/api/fojas');
-  if (!r.archivos.length) return vistaVacia('f. 0008', 'Fojas', 'Fojas del expediente',
+  if (!r.archivos || !r.archivos.length) return vistaVacia('f. 0008', 'Fojas', 'Fojas del expediente',
     'Todavía no hay fojas para mostrar',
     'Cargá los escaneos y corré la lectura: acá va a aparecer qué es cada foja.');
-
-  const cuño = (clase, etiqueta) => clase === 'en_blanco' || clase === 'sin_texto_util'
-    ? `<span class="nulo">${esc(etiqueta)}</span>`
-    : (clase === 'desconocida' || !clase
-        ? `<span class="nulo">${esc(etiqueta)}</span>` : esc(etiqueta));
 
   vista.innerHTML = bloque('f. 0008', 'Fojas', `
     <h2>Fojas del expediente</h2>
@@ -4623,13 +4626,19 @@ async function vFojas() {
     <div id="lista-fojas"></div>
   `);
 
-  const todasFojas = r.archivos.flatMap(a => a.fojas.map(f => ({...f, sha256: a.sha256, archivo: a.nombre})));
-  tablaBuscable($('#lista-fojas'), [
-    {t: 'Archivo', c: 'mono fol', r: f => esc(f.archivo)},
-    {t: 'Foja', c: 'num fol', r: f => String(f.nro), b: f => f.nro},
-    {t: 'Qué es', r: f => cuño(f.clase, f.etiqueta)},
-    {t: 'Acción', r: f => `<a href="#/foja/${esc(f.sha256)}/${f.nro}" class="boton secundario">Ver contexto</a>`}
-  ], todasFojas);
+  const cuño = (clase, etiqueta) => clase === 'en_blanco' || clase === 'sin_texto_util'
+    ? `<span class="nulo">${esc(etiqueta)}</span>`
+    : (clase === 'desconocida' || !clase
+        ? `<span class="nulo">${esc(etiqueta)}</span>` : esc(etiqueta));
+
+  tablaServidor($('#lista-fojas'), '/api/fojas', 'fojas', [
+    {t: 'Archivo', c: 'mono fol', o: 'archivo', r: f => esc(f.archivo)},
+    {t: 'Foja', c: 'num fol', o: 'foja', r: f => String(f.nro || f.foja)},
+    {t: 'Qué es', o: 'clase', r: f => cuño(f.clase, f.etiqueta)}
+  ], {
+    placeholder: 'Buscar...',
+    alClic: f => location.hash = `#/foja/${esc(f.sha256)}/${f.nro || f.foja}`
+  });
 }
 
 /* ── Los números que el papel escribe dos veces ─────────────────────────────
@@ -5343,7 +5352,8 @@ async function accionInterfaz(b, tarea) {
 }
 async function vEntidades() {
   const hash = location.hash, clase = new URLSearchParams(hash.split('?')[1] || '').get('clase') || '';
-  const d = await api('/api/entidades' + (clase ? '?clase=' + encodeURIComponent(clase) : ''));
+  const urlParams = clase ? '?clase=' + encodeURIComponent(clase) : '';
+  const d = await api('/api/entidades' + urlParams);
   if (location.hash !== hash) return;
   vista.innerHTML = bloque('', 'Entidades', `
     <h2>Entidades y menciones</h2>
@@ -5355,44 +5365,47 @@ async function vEntidades() {
   `);
   $('#clase-entidad').onchange = e => { location.hash = '#/entidades?clase=' + encodeURIComponent(e.target.value); };
 
-  const filtrar = xs => xs.filter(x => !clase || x.clase === clase);
-  const es = filtrar(d.entidades), ms = filtrar(d.sin_resolver), ps = filtrar(d.propuestas);
+  tablaServidor($('#entidades-es'), '/api/entidades' + urlParams, 'entidades', [
+    {t: 'Nombre', o: 'nombre', r: e => `<a href="#/${e.carril === 'persona' ? 'persona' : 'entidad'}/${esc(e.id)}">${esc(e.nombre || '') || ausente('sin nombre')}</a>`, k: 'nombre'},
+    {t: 'Clase', o: 'clase', r: e => esc(e.clase)},
+    {t: 'Clave fuerte', o: 'documentos', c: 'mono', r: e => esc(e.clave_fuerte || '') || ausente('sin clave fuerte')},
+    {t: 'Menciones / doc', o: 'menciones', r: e => `${esc(e.menciones)} menciones / ${esc(e.documentos)} doc`, b: e => e.menciones},
+    {t: 'Resolución', r: e => e.quien ? `Por ${esc(e.quien)}` : (e.clave_fuerte ? 'Por clave fuerte' : ausente('sin autor'))}
+  ], {placeholder: 'Buscar entidad...', vacio: 'No hay entidades.'});
 
-  tablaBuscable($('#entidades-es'), [
-    {t: 'Nombre', r: e => `<a href="#/${e.carril === 'persona' ? 'persona' : 'entidad'}/${esc(e.id)}">${esc(e.nombre || 'Ø sin nombre')}</a>`, k: 'nombre'},
-    {t: 'Clase', r: e => esc(e.clase)},
-    {t: 'Clave fuerte', c: 'mono', r: e => esc(e.clave_fuerte || 'Ø sin clave fuerte')},
-    {t: 'Menciones / doc', r: e => `${esc(e.menciones)} menciones / ${esc(e.documentos)} doc`, b: e => e.menciones},
-    {t: 'Resolución', r: e => e.quien ? `Por ${esc(e.quien)}` : (e.clave_fuerte ? 'Por clave fuerte' : 'Ø sin autor')}
-  ], es);
-
-  tablaBuscable($('#entidades-ms'), [
-    {t: 'Mención', c: 'mono', r: m => esc(m.literal)},
-    {t: 'Clase', r: m => esc(m.clase)},
+  tablaServidor($('#entidades-ms'), '/api/entidades/sin-resolver' + urlParams, 'sin_resolver', [
+    {t: 'Mención', o: 'nombre', c: 'mono', r: m => esc(m.literal)},
+    {t: 'Clase', o: 'clase', r: m => esc(m.clase)},
     {t: 'Fuente', r: m => fuenteMencion(m)}
-  ], ms);
+  ], {placeholder: 'Buscar mención...', vacio: 'No hay menciones sin resolver.'});
 
-  tablaBuscable($('#entidades-ps'), [
-    {t: 'Clase', r: p => esc(p.clase)},
-    {t: 'Menciones', c: 'mono', r: p => p.literales.map(esc).join(' / ')},
-    {t: 'Motivo', r: p => `${esc(p.veces)} veces · ${esc(p.motivo)}`},
-    {t: 'Decisión', r: p => `<form class="revision-propuesta" style="display:flex;gap:8px" data-fusion="${esc(p.norm)}" data-clase="${esc(p.clase)}"><input name="nombre" required placeholder="Nombre" autocomplete="off"> <button class="boton" type="submit">Confirmar</button> <button class="boton gris" type="button" data-rechazar-fusion>Rechazar</button></form>`}
-  ], ps);
-
-  vista.querySelectorAll('.revision-propuesta').forEach(f => {
-    const enviar = async (b, aceptar) => accionInterfaz(b, async () => {
-      const quien = await conRevisor(); if (!quien) return;
-      await guardarNucleo('/api/entidad/' + (aceptar ? 'confirmar' : 'rechazar'), {clase:f.dataset.clase, norm:f.dataset.fusion, nombre:f.elements.nombre.value.trim(), quien});
-      await vEntidades();
-    });
-    f.onsubmit = e => { e.preventDefault(); enviar(f.querySelector('[type="submit"]'), true); };
-    f.querySelector('[data-rechazar-fusion]').onclick = e => enviar(e.currentTarget, false);
+  tablaServidor($('#entidades-ps'), '/api/entidades/propuestas' + urlParams, 'propuestas', [
+    {t: 'Clase', o: 'clase', r: p => esc(p.clase)},
+    {t: 'Menciones', o: 'nombre', c: 'mono', r: p => p.literales.map(esc).join(' / ')},
+    {t: 'Motivo', o: 'veces', r: p => `${esc(p.veces)} veces → ${esc(p.motivo)}`},
+    {t: 'Decisión', r: p => `<form class="revision-propuesta fila-acciones" data-fusion="${esc(p.norm)}" data-clase="${esc(p.clase)}"><input name="nombre" required placeholder="Nombre" autocomplete="off"> <button class="boton" type="submit">Confirmar</button> <button class="boton gris" type="button" data-rechazar-fusion>Rechazar</button></form>`}
+  ], {
+    vacio: 'No hay propuestas de fusión.', 
+    alCargar: r => {
+      vista.querySelectorAll('.revision-propuesta').forEach(f => {
+        if (f.dataset.binded) return;
+        f.dataset.binded = '1';
+        const enviar = async (b, aceptar) => accionInterfaz(b, async () => {
+          const quien = await conRevisor(); if (!quien) return;
+          await guardarNucleo('/api/entidad/' + (aceptar ? 'confirmar' : 'rechazar'), {clase:f.dataset.clase, norm:f.dataset.fusion, nombre:f.elements.nombre.value.trim(), quien});
+          await vEntidades();
+        });
+        f.onsubmit = e => { e.preventDefault(); enviar(f.querySelector('[type="submit"]'), true); };
+        f.querySelector('[data-rechazar-fusion]').onclick = e => enviar(e.currentTarget, false);
+      });
+    }
   });
 }
+
 async function vEntidad(id) {
   const hash = location.hash, e = await api('/api/entidad?id=' + id);
   if (hash === location.hash) {
-    vista.innerHTML = bloque('', 'Entidad', `<h2>${esc(e.nombre)}</h2><p>${esc(e.clase)} · Clave fuerte: <span class="mono">${esc(e.clave_fuerte || 'Ø sin clave')}</span></p><p>${e.quien ? `Afirmado por ${esc(e.quien)}` : (e.clave_fuerte ? 'Resuelto por el sistema por clave fuerte' : 'Ø autor de resolución no informado')}</p><h3>Todas las formas que dice el papel</h3><div id="entidad-menciones"></div>`);
+    vista.innerHTML = bloque('', 'Entidad', `<h2>${esc(e.nombre)}</h2><p>${esc(e.clase)} · Clave fuerte: <span class="mono">${esc(e.clave_fuerte || ' sin clave')}</span></p><p>${e.quien ? `Afirmado por ${esc(e.quien)}` : (e.clave_fuerte ? 'Resuelto por el sistema por clave fuerte' : ' autor de resolución no informado')}</p><h3>Todas las formas que dice el papel</h3><div id="entidad-menciones"></div>`);
     tablaBuscable($('#entidad-menciones'), [
       {t: 'Mención', c: 'mono', r: m => esc(m.literal)},
       {t: 'Fuente', r: m => fuenteMencion(m)}
