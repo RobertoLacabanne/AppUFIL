@@ -616,6 +616,7 @@ const GRUPOS = [
   ]},
   {grupo: 'Documentación', entradas: [
     {id: 'documentos', rotulo: 'Documentos', items: [
+      {hash: '#/piezas',       rotulo: 'Todos los documentos'},
       {hash: '#/contratos',    rotulo: 'Contratos'},
       {hash: '#/comprobantes', rotulo: 'Facturas y recibos'},
       {hash: '#/fojas',        rotulo: 'Fojas del expediente'},
@@ -4892,6 +4893,7 @@ const TITULOS = {
   '#/renglon': 'Comparación de precio',
   '#/proveedor': 'Proveedor',
   '#/proveedores': 'Proveedores',
+  '#/piezas': 'Documentos',
   '#/hallazgos': 'Hallazgos',
   '#/acerca': 'Acerca del sistema',
   '#/equipo': 'Trabajo del equipo',
@@ -5603,6 +5605,7 @@ const rutas = [
   [/^#\/entidad\/(\d+)$/, vEntidad],
   [/^#\/proveedor\/(\d+)$/, vProveedor],
   [/^#\/proveedores(\?.*)?$/, vProveedores],
+  [/^#\/piezas(\?.*)?$/, vPiezas],
   [/^#\/relaciones$/, vRelaciones],
   [/^#\/guardadas$/, vGuardadas],
   [/^#\/colecciones$/, vColecciones],
@@ -6677,6 +6680,44 @@ async function vContratacion() {
     ${oferentesHTML ? `<h2>Oferentes</h2>${oferentesHTML}` : ''}
     ${cronoHTML ? `<h2>Fechas</h2>${cronoHTML}` : ''}
   `);
+}
+
+/* ── Todos los documentos ─────────────────────────────────────────────────
+   «¿Dónde está el papel?». Las listas que había eran de contratos de personal y de
+   comprobantes; en un legajo de contrataciones hacen falta todas las piezas, por tipo:
+   órdenes de compra, presupuestos, remitos, resoluciones. Chips con la cuenta de cada
+   tipo arriba, y la tabla pide cada página al servidor. */
+async function vPiezas() {
+  const tipo = new URLSearchParams(location.hash.split('?')[1] || '').get('tipo') || '';
+  const cat = await api('/api/piezas?limite=1');
+  if (location.hash.split('?')[0] !== '#/piezas') return;
+  const total = (cat.tipos || []).reduce((n, x) => n + x.cantidad, 0);
+  const nombre = k => TIPO_DOC[k] || String(k || 'Sin tipo').replace(/_/g, ' ');
+  const chip = (href, texto, n, activo) => `<a class="chip-filtro${activo ? ' activo' : ''}" href="${href}"
+      ${activo ? 'aria-current="true"' : ''}>${esc(texto)}<span class="chip-n">${fmtNum.format(n)}</span></a>`;
+  vista.innerHTML = bloque('f. 0000', 'Documentación', `
+    <h1>Documentos</h1>
+    <p class="prosa">Cada pieza que el sistema separó en los escaneos, con su tipo, el archivo,
+      las fojas y la contratación en la que entró. Un clic abre la pieza con sus datos y la foja.</p>
+    <div class="filtros-chips" role="group" aria-label="Tipo de documento">
+      ${chip('#/piezas', 'Todos', total, !tipo)}
+      ${(cat.tipos || []).map(x => chip('#/piezas?tipo=' + encodeURIComponent(x.tipo), nombre(x.tipo),
+          x.cantidad, tipo === x.tipo)).join('')}
+    </div>
+    <div id="lista-piezas"></div>`);
+  tablaServidor($('#lista-piezas'), '/api/piezas' + (tipo ? '?tipo=' + encodeURIComponent(tipo) : ''), 'piezas', [
+    {t: 'Documento', c: 'crece', o: 'tipo', r: d => `<a class="item-literal" href="#/documento/${d.id}">${esc(nombre(d.tipo))}</a>`},
+    {t: 'Archivo', o: 'archivo', r: d => esc(String(d.archivo || '').replace(/\.pdf$/i, ''))},
+    {t: 'Fojas', c: 'num', o: 'foja', r: d => d.pagina_desde === d.pagina_hasta
+        ? `f. ${fmtNum.format(d.pagina_desde)}`
+        : `f. ${fmtNum.format(d.pagina_desde)}–${fmtNum.format(d.pagina_hasta)}`},
+    {t: 'Contratación', c: 'nowrap', r: d => d.contratacion_id
+        ? `<a href="#/contratacion?id=${d.contratacion_id}">Ver contratación</a>` : ''},
+    {t: 'Lectura', r: d => d.estado === 'sin_perfil'
+        ? sello('neutro', 'Sólo el tipo', {titulo: 'El sistema reconoció qué es, pero todavía no lee sus datos campo por campo.'})
+        : sello('ok', 'Datos leídos')},
+  ], {placeholder: 'Buscar por archivo…', alClic: d => { location.hash = '#/documento/' + d.id; },
+      vacio: 'No hay documentos de este tipo.'});
 }
 
 /* ── Proveedores ──────────────────────────────────────────────────────────

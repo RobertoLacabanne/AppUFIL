@@ -48,8 +48,32 @@ def entidades(cx, f):
     return r
 
 
+def lista_piezas(cx, f):
+    """
+    Todos los documentos del legajo, de a una página: tipo, archivo, fojas, estado y
+    la contratación en la que entró cada uno. Es la lista que faltaba para «¿dónde
+    está el papel?»: las que había eran de contratos de personal y comprobantes.
+    """
+    where, args, aplicados = ['1=1'], [], {}
+    if f.get('tipo'):
+        where.append('d.tipo=?'); args.append(f['tipo']); aplicados['tipo'] = f['tipo']
+    sql = """SELECT d.id, d.tipo, d.estado, d.sha256, a.nombre archivo, d.pagina_desde, d.pagina_hasta,
+                    d.pagina_hasta-d.pagina_desde+1 fojas,
+                    (SELECT cd.contratacion_id FROM contratacion_documento cd
+                      WHERE cd.documento_id=d.id AND cd.estado!='rechazada' LIMIT 1) contratacion_id
+               FROM documento d JOIN archivo a ON a.sha256=d.sha256 WHERE """ + ' AND '.join(where)
+    r = pg.consultar(cx, 'piezas', sql, args, filtros=f,
+                     ordenes={'archivo': 'archivo', 'foja': 'pagina_desde', 'tipo': 'tipo', 'fojas': 'fojas'},
+                     defecto='archivo', aplicados=aplicados, buscar=('archivo', 'tipo'))
+    r['tipos'] = [dict(tipo=t, cantidad=n) for t, n in cx.execute(
+        'SELECT tipo, count(*) FROM documento GROUP BY tipo ORDER BY count(*) DESC')]
+    return r
+
+
 def resolver(cx, ruta, f):
     """None indica que el despachador habitual debe continuar."""
+    if ruta == '/api/piezas':
+        return lista_piezas(cx, f)
     from . import clasificacion as cl, piezas
     if ruta == '/api/entidades':
         return entidades(cx, f)
