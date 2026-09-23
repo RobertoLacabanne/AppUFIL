@@ -4641,11 +4641,11 @@ const TITULOS = {
   '#/precios': 'Ítems y precios',
   /* Decía «Posible sobreprecio». Un título es una afirmación: es lo primero que se
      lee, es lo que queda en la pestaña del navegador y es lo que alguien recuerda
-     cuando cuenta lo que vio. «Sobreprecio» —aun con «posible» adelante— nombra una
+     cuando cuenta lo que vio. «Posible sobreprecio», aun con el adverbio, nombra una
      conclusión, y las conclusiones las escribe Fiscalía, no el sistema. Esta pantalla
      no concluye nada: pone al lado el precio analizado y sus referencias, dice de
      dónde salió cada número y cuán comparables son entre sí. Eso es una comparación.
-     Si de ahí se sigue que hubo un sobreprecio, lo firma una persona. */
+     Si de ahí se sigue una conclusión, la firma una persona. */
   '#/renglon': 'Comparación de precio',
   '#/hallazgos': 'Hallazgos',
   '#/acerca': 'Acerca del sistema',

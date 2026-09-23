@@ -1,5 +1,7 @@
 import json
+import os
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 import re
@@ -92,6 +94,7 @@ def render(script):
     }
     const fmtNum = new Intl.NumberFormat('es-AR', {minimumFractionDigits: 2});
     const fmtFechaHora = d => d;
+    const fmtFecha = d => d;
     """
     
     idx_abrir = js.find('let catalogoContrataciones = null;')
@@ -99,7 +102,15 @@ def render(script):
 
     full_js = "\n".join([mock_dom, trozo_utils, trozo_nuevo, script])
     
-    p = subprocess.run(['node', '-e', full_js], capture_output=True, text=True, encoding='utf-8')
+    # Por archivo y no con `node -e`: app.js ya pasa el largo máximo de una línea de
+    # comandos de Windows (32.767 caracteres) y el proceso ni arrancaba.
+    with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False, encoding='utf-8',
+                                     dir=RAIZ, prefix='.render-') as f:
+        f.write(full_js)
+    try:
+        p = subprocess.run(['node', f.name], capture_output=True, text=True, encoding='utf-8')
+    finally:
+        os.unlink(f.name)
     if p.returncode != 0:
         raise RuntimeError("Error en Node:\n" + p.stderr)
     return p.stdout
@@ -121,7 +132,8 @@ class ContratacionesRender(unittest.TestCase):
         })();
         """)
         self.assertIn("Licitación 1/2026", html)
-        self.assertIn("Falta Factura", html)
+        # El riel dice qué etapa no consta, y que no constar no es no haber existido.
+        self.assertIn("Factura: no consta en lo cargado", html)
         self.assertIn("180.000,00", html)
         
     def test_pantalla_ficha(self):
@@ -146,7 +158,7 @@ class ContratacionesRender(unittest.TestCase):
         """)
         self.assertIn("Resma A4", html)
         self.assertIn("1.000,00", html)
-        self.assertIn("Ver fuente", html)
+        self.assertIn("class=\"enlace-fuente\"", html)  # la foja, a un clic
         
     def test_pantalla_renglon(self):
         html = render("""

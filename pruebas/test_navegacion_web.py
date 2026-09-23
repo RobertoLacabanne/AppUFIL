@@ -19,9 +19,9 @@ sys.path.insert(0, str(RAIZ))
 
 
 def seccion_de(*hashes):
-    """Corre SECCIONES y seccionDe tal como están en app.js, sin copiarlos."""
+    """Corre GRUPOS, SECCIONES y seccionDe tal como están en app.js, sin copiarlos."""
     js = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
-    trozo = js[js.index("const SECCIONES = ["):js.index("/* Un ícono por sección")]
+    trozo = js[js.index("const GRUPOS = ["):js.index("/* Un ícono por sección")]
     guion = trozo + f"\nconsole.log(JSON.stringify({json.dumps(hashes)}.map(h => {{" \
                     "const s = seccionDe(h); return s ? s.id : null; })));"
     r = subprocess.run(["node", "-e", guion], capture_output=True, text=True,
@@ -33,9 +33,12 @@ def seccion_de(*hashes):
 
 def seccion_del_enlace(hash_):
     js = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
-    trozo = js[js.index("const SECCIONES = ["):js.index("/* Un ícono por sección")]
-    guion = trozo + f"\nconst s = SECCIONES.find(s => (s.items || []).some(i => i.hash === " \
-                    f"{json.dumps(hash_)})); console.log(JSON.stringify(s ? s.id : null));"
+    trozo = js[js.index("const GRUPOS = ["):js.index("/* Un ícono por sección")]
+    # Una entrada tiene su propio `hash` y, si agrupa pantallas, sus `items`.
+    guion = trozo + f"\nconst h = {json.dumps(hash_)};" \
+                    "const s = SECCIONES.find(s => s.hash === h || " \
+                    "(s.items || []).some(i => i.hash === h));" \
+                    "console.log(JSON.stringify(s ? s.id : null));"
     r = subprocess.run(["node", "-e", guion], capture_output=True, text=True,
                        encoding="utf-8", cwd=RAIZ)
     if r.returncode:
@@ -61,7 +64,7 @@ class LaNavegacionMarcaDondeEstaElEnlace(unittest.TestCase):
         # Un enlace en `items` de una sección y en `tambien` de otra es exactamente lo
         # que hacía marcar la sección equivocada.
         js = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
-        trozo = js[js.index("const SECCIONES = ["):js.index("/* Un ícono por sección")]
+        trozo = js[js.index("const GRUPOS = ["):js.index("/* Un ícono por sección")]
         guion = trozo + """
           const dueno = {};
           for (const s of SECCIONES)
