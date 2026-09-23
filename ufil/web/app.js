@@ -1846,6 +1846,8 @@ async function vCruce() {
       <span class="cifra-rotulo">${esc(rotulo)}</span>
       <span class="cifra-valor">${valor}</span>
       ${nota ? `<span class="cifra-nota">${nota}</span>` : ''}</div>`;
+  const motivos = [...new Set(faltantes.map(x => x.motivo || ''))];
+  const motivoUnico = motivos.length === 1 && motivos[0] ? motivos[0].replace(/\.$/, '') : '';
   const conDif = filas.filter(x => x.diferencia_absoluta != null && Number(x.diferencia_absoluta) !== 0).length;
 
   vista.innerHTML = bloque('f. 0006', 'Cruce', `
@@ -1877,12 +1879,15 @@ async function vCruce() {
     ${faltantes.length ? `<h2>Facturado sin referencia</h2>
       <p class="nota-seccion">Renglones de factura que no tienen un precio contratado u
         ordenado con el que compararse. No es una diferencia: es un cruce que no se pudo
-        hacer, y el motivo dice por qué.</p>
+        hacer${motivoUnico ? `. En todos, el motivo es el mismo: <strong>${esc(motivoUnico)}</strong>`
+          : ', y el motivo dice por qué'}.</p>
       ${tabla([
         {t: 'Ítem', c: 'crece', r: item},
         {t: 'Contratación', r: contratacion},
         {t: 'Facturado', c: 'num', r: x => conFecha(x.facturado, x.fecha_facturado)},
-        {t: 'Por qué no se compara', r: x => `<span class="celda-motivo">${esc(x.motivo || '')}</span>`},
+        // El mismo motivo veintidós veces es una columna que no dice nada: se dice una vez.
+        ...(motivoUnico ? [] : [{t: 'Por qué no se compara',
+            r: x => `<span class="celda-motivo">${esc(x.motivo || '')}</span>`}]),
         {t: 'Fuente', r: x => (x.fuentes || []).slice(0, 1).map(f => fuente(f, esc(foja(f)))).join('')},
       ], faltantes)}
       ${totalFaltantes > faltantes.length ? `<p class="nota-seccion">Se muestran
@@ -4638,6 +4643,11 @@ async function vNumeros() {
     'Aparecen solos cuando el material trae actos administrativos: un importe en ' +
     'letras con su cifra al lado, o una cantidad con su número entre paréntesis.');
 
+  // Primero lo que hay que mirar: los que no coinciden, después los que no se pudieron
+  // cotejar, y al final los que coinciden. Dentro de cada grupo, en orden de foja.
+  const peso = f => f.coinciden === 0 ? 0 : f.coinciden === null ? 1 : 2;
+  filas.sort((a, b) => peso(a) - peso(b) || String(a.archivo).localeCompare(String(b.archivo))
+                       || (a.pagina_nro || 0) - (b.pagina_nro || 0));
   const distintos = filas.filter(f => f.coinciden === 0).length;
   const dudosos = filas.filter(f => f.coinciden === null).length;
 
@@ -4658,11 +4668,9 @@ async function vNumeros() {
       // no entraba y la hoja entera se iba a ancho completo, sin su margen.
       {t:'Qué dice en letras', c:'crece', r:f => esc(f.letras)},
       {t:'Y en números', c:'mono', r:f => esc(f.digitos)},
-      {t:'Cotejo', r:f => f.coinciden === 1
-        ? `<span class="estado estado--ok">coinciden</span>`
-        : (f.coinciden === 0
-            ? `<span class="estado estado--alerta">no coinciden</span>`
-            : `<span class="nulo">no se pudo leer una de las dos</span>`)},
+      {t:'Cotejo', r:f => f.coinciden === 1 ? sello('ok', 'Coinciden')
+        : f.coinciden === 0 ? sello('atencion', 'No coinciden', {titulo: 'Hay que mirar la foja: puede ser el papel o la lectura.'})
+        : sello('neutro', 'Una de las dos no se leyó')},
       {t:'Archivo', c:'fol', r:f => nombreArchivo(f.archivo)},
     ], filas, {lista:'numeros'})}`);
 }
