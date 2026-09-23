@@ -2651,3 +2651,29 @@ dialog {
   max-width: 400px;
 }
 dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
+
+.timeline { border-left: 2px solid var(--rio); margin: 24px 0 24px 16px; padding-left: 24px; display: flex; flex-direction: column; gap: 16px; }
+.evento-timeline { position: relative; }
+.evento-timeline::before { content: ''; position: absolute; left: -31px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--rio); border: 2px solid var(--folio); }
+.evento-fecha { font-weight: 600; color: var(--tinta); margin-bottom: 4px; }
+.evento-cuerpo { background: var(--papel-2); padding: 12px; border-radius: var(--radio); border: 1px solid var(--filete-2); }
+.evento-clase { font-weight: 500; margin-bottom: 4px; color: var(--tinta); }
+.evento-doc { font-size: 12px; color: var(--tinta-2); margin-bottom: 8px; }
+.evento-fuente { font-size: 11px; }
+
+.resultados { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
+.resultado-buscar { background: var(--papel-2); border: 1px solid var(--filete-2); border-radius: var(--radio); padding: 12px; }
+.resultado-buscar a { font-weight: 600; font-size: 14px; margin-bottom: 8px; display: inline-block; }
+.kwic { font-size: 13px; color: var(--tinta-2); line-height: 1.5; }
+.kwic b, .kwic strong { color: var(--tinta); background: var(--alerta-fondo); }
+
+.soltar { border: 2px dashed var(--borde-control); border-radius: var(--radio); padding: 48px; text-align: center; color: var(--tinta-2); transition: all 0.2s var(--curva); background: var(--papel-2); cursor: pointer; }
+.soltar:hover, .soltar:focus { border-color: var(--rio); background: var(--marino-suave); }
+.soltar.encima { border-color: var(--rio); background: var(--folio); transform: scale(1.02); }
+.soltar b { display: block; font-size: 18px; color: var(--tinta); margin-bottom: 8px; font-weight: 600; }
+.soltar span { font-size: 13px; }
+
+#papelera-env { border-top: 4px solid var(--punzo); background: #fffcfc; padding-top: 12px; }
+#papelera-env h2 { color: var(--punzo); }
+.peligro { color: var(--papel) !important; background: var(--punzo) !important; border-color: transparent !important; }
+.peligro:hover { opacity: 0.9; }

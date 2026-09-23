@@ -1845,7 +1845,7 @@ async function vDocumento(id) {
   cargarRelacionesDocumento(id);
   vista.querySelectorAll('.deshacer').forEach(b => b.onclick = async () => {
     const quien = await conRevisor(); if (!quien) return;
-    if (!await dialogo('¿Deshacer esta revisión? El campo vuelve a lo que había leído el sistema.')) return;
+    if (!await dialogoConfirm('¿Deshacer esta revisión? El campo vuelve a lo que había leído el sistema.')) return;
     try {
       await api('/api/campo', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({campo_id:+b.dataset.campo, accion:'revertir', quien})});
@@ -2546,7 +2546,7 @@ function fojaDe(f) {
 function abrirFoja(f) {
   const nro = fojaDe(f);
   if (!nro) return;
-  visorZoom = 1; aplicarZoomVisor(); const visor = $('#visor'), img = $('#visor-img'), marco = $('#visor-marco');
+  aplicarZoomVisor(); const visor = $('#visor'), img = $('#visor-img'), marco = $('#visor-marco');
   if (!visor) return;
   img.src = `/pagina?doc=${f.documento_id}&nro=${nro}`;
   $('#visor-rotulo').textContent =
@@ -2599,7 +2599,7 @@ function abrirFoja(f) {
    donde por fin se ve un expediente no podría abrir una sola de sus fojas, que es lo
    único que sirve de un expediente: mirar el papel. */
 function abrirFojaSuelta(sha, nro, rotulo) {
-  visorZoom = 1; aplicarZoomVisor(); const visor = $('#visor'), img = $('#visor-img'), marco = $('#visor-marco');
+  aplicarZoomVisor(); const visor = $('#visor'), img = $('#visor-img'), marco = $('#visor-marco');
   if (!visor || !sha || !nro) return;
   img.src = `/pagina?sha=${encodeURIComponent(sha)}&nro=${nro}`;
   $('#visor-rotulo').textContent = [rotulo || 'expediente', 'f. ' + nro].join(' · ');
@@ -3051,7 +3051,7 @@ addEventListener('resize', () => {
 async function vIdentidad() {
   const fus = await api('/api/fusiones');
   vista.innerHTML = bloque('f. 0007', 'Identidad', `
-    <h2>Fusiones propuestas</h2>
+    <h2>¿Son la misma persona?</h2>
     <p class="prosa">CUIT, CUIL y DNI son clave fuerte: dos contratos con el mismo documento
       ya están unidos, solos. <strong>El nombre nunca alcanza.</strong> Lo de acá abajo son
       propuestas; ninguna se aplica sin que alguien la confirme, porque una fusión errónea
@@ -3135,66 +3135,29 @@ async function vBuscar(q) {
   const hash = location.hash;
   let r = q ? await api('/api/buscar?q=' + encodeURIComponent(q) + '&limite=60&desde=0') : null;
   if (hash !== location.hash) return;
-  vista.innerHTML = bloque('f. 0010', 'Buscar', `<h2>Buscar en el corpus</h2>
-    <form id="f-buscar" class="fila-suelta"><label>Buscar <input id="q" value="${esc(q)}" autocomplete="off"></label><button class="boton">Buscar</button></form>
-    ${r ? '<button class="boton gris" id="guardar-busqueda">Guardar como consulta</button>' : ''}
-    <div id="resultados-busqueda" aria-live="polite"></div>`);
-  $('#f-buscar').onsubmit = e => { e.preventDefault(); location.hash = '#/buscar/' + encodeURIComponent($('#q').value.trim()); };
-  const pintar = () => {
-    const host = $('#resultados-busqueda');
-    host.innerHTML = r ? resultadosHTML(r) + (r.hay_mas ? '<button class="boton" id="mas-busqueda">Traer la p\u00e1gina siguiente</button>' : '') : '<p>Escrib\u00ed algo y dale a Buscar.</p>';
-    host.querySelectorAll('tr[data-i]').forEach(tr => tr.onclick = () => { location.hash = '#/documento/' + r.campos[Number(tr.dataset.i)].documento_id; });
-    host.querySelectorAll('[data-apartar]').forEach(b => b.onclick = e => { e.stopPropagation(); accionInterfaz(b, () => apartarResultado(b.dataset.apartar, b.dataset.referencia)); });
-    const mas = $('#mas-busqueda'); if (mas) mas.onclick = () => accionInterfaz(mas, async () => {
-      const siguiente = await api('/api/buscar?q=' + encodeURIComponent(q) + '&limite=' + r.limite + '&desde=' + (r.desde + r.limite));
-      if (hash !== location.hash) return;
-      r = acumularBusqueda(r, siguiente); pintar();
-    });
-  };
-  pintar();
-  const guardar = $('#guardar-busqueda'); if (guardar) guardar.onclick = () => {
-    const d = dialogo(`<h3>Guardar consulta</h3><p>Se volver\u00e1 a buscar: los resultados cambian con los datos.</p><form><label>Nombre <input name="nombre" required></label><button class="boton">Guardar</button></form><button class="boton gris" data-cerrar>Cancelar</button>`);
-    d.querySelector('[data-cerrar]').onclick = () => d.close();
-    const f = d.querySelector('form'); f.onsubmit = e => { e.preventDefault(); accionInterfaz(f.querySelector('button'), async () => {
-      const quien = await conRevisor(); if (!quien) return;
-      await guardarNucleo('/api/consulta/guardar', {nombre:f.elements.nombre.value.trim(), consulta:q, filtros:{}, quien}); d.close();
-    }); };
-  };
-  if (!q) $('#q').focus();
-}
-
-/* ── Sobre cuánto se buscó ─────────────────────────────────────────────────
-   Ésta era la única pantalla del sistema que afirmaba una ausencia sin haberla
-   verificado. «Sin coincidencias» se leía como «esta palabra no está en el legajo»,
-   cuando lo único cierto era «no está en las fojas que el sistema pudo leer».
-
-   Va SIEMPRE, haya resultados o no. Mostrarla sólo en el caso vacío es el mismo
-   error con otra ropa: cuatro coincidencias sobre 241 fojas leídas de 260 tampoco es
-   lo mismo que cuatro sobre 260. */
-function coberturaHTML(c, hallazgos) {
-  if (!c || !c.fojas) return '';
-  const sobre = `<strong>${fmtNum.format(c.indexadas)}</strong> `
-    + (c.indexadas === 1 ? 'foja con lectura utilizable' : 'fojas con lectura utilizable');
-  if (!c.fuera) {
-    return `<p class="cobertura">${hallazgos} sobre ${sobre}: el sistema pudo leer
-      todo lo que hay cargado.</p>`;
+  
+  if (r && r.filas && r.filas.length === 1 && r.total === 1 && r.filas[0].clase === 'documento') {
+      location.hash = '#/documento/' + r.filas[0].id;
+      return;
   }
-  // Dos motivos distintos y dos remedios distintos: la que nunca se procesó se
-  // arregla corriendo el proceso; la que se procesó y no dio texto hay que mirarla
-  // contra el papel. Decir «ilegibles» de las dos sería inventar sobre las primeras.
-  // Concuerdan en número. «1 que se procesaron» se nota, y este es un sistema que
-  // tiene un módulo entero de castellano para no escribir así.
-  const detalle = [];
-  if (c.sin_texto) detalle.push(`${fmtNum.format(c.sin_texto)} que se
-    ${c.sin_texto === 1 ? 'procesó' : 'procesaron'} sin sacar texto utilizable`);
-  if (c.sin_procesar) detalle.push(`${fmtNum.format(c.sin_procesar)} que todavía no se
-    ${c.sin_procesar === 1 ? 'procesó' : 'procesaron'}`);
-  return `<p class="cobertura falta">${hallazgos} sobre ${sobre}.
-    <strong>${plural(c.fuera, 'foja quedó', 'fojas quedaron')} fuera de esta
-    búsqueda</strong>${detalle.length ? ` — ${detalle.join(' y ')}` : ''}.
-    <a href="#/afuera">Ver cuáles</a>.</p>`;
-}
+  
+  const dibujarFila = f => {
+      let t = `<div class="resultado-buscar"><a class="ancla" href="#/${esc(f.clase)}/${f.id}">${esc(f.titulo)}</a>`;
+      if (f.kwic) t += `<div class="kwic">${f.kwic}</div>`; // kwic must already be highlighted from backend, might not need esc
+      t += `</div>`;
+      return t;
+  };
 
+  vista.innerHTML = bloque('f. 0010', 'Buscar', `<h2>Buscar en el corpus</h2>
+    <form id="f-buscar" class="fila-suelta"><label>Buscar <input id="q" value="${esc(q)}" autocomplete="off" autofocus></label><button class="boton">Ir</button></form>
+    ${r ? (r.filas.length ? `<div class="resultados">${r.filas.map(dibujarFila).join('')}</div>` : vacio('Sin resultados', 'No se encontró nada que coincida.')) : ''}`);
+  
+  document.getElementById('f-buscar').onsubmit = e => {
+      e.preventDefault();
+      const nq = document.getElementById('q').value;
+      if (nq) location.hash = '#/buscar/' + encodeURIComponent(nq);
+  };
+}
 function resultadosHTML(r) {
   if (r.aviso) return `<div class="aviso"><span class="sello alerta">Atención</span>
     <span>${esc(r.aviso)}</span></div>`;
@@ -5009,33 +4972,20 @@ async function vTablas(sha) {
    firmada en abril y recibida en mayo, apareceria en el lugar equivocado si se las
    mezclara. */
 function htmlCronologia(d, clase) {
-  return `<p class="prosa">Ordenada por <strong>fecha</strong>, no por el orden en que
-      est\u00e1n las fojas. Un expediente se arma por incorporaci\u00f3n, as\u00ed que lo
-      que se agreg\u00f3 \u00faltimo puede relatar lo que pas\u00f3 primero.</p>
-    <p><label>Clase de fecha
-      <select id="sel-clase"><option value="">todas</option>${d.clases.map(c =>
-        `<option value="${esc(c.clave)}"${c.clave === clase ? ' selected' : ''}>
-          ${esc(c.que_es)}</option>`).join('')}</select></label></p>
-    ${d.desordenes.length ? `<h3>Lo que la cronolog\u00eda muestra</h3>
-      <ul>${d.desordenes.map(x => `<li><span class="sello atencion">${esc(x.clase)}</span>
-        <span class="mono">${esc(x.archivo || '')}</span> ${esc(x.detalle)}</li>`).join('')}</ul>` : ''}
-    ${d.linea.length ? `<div class="tabla-env"><table><thead><tr>
-        <th>Fecha</th><th>Qu\u00e9 es</th><th>En el papel</th><th>D\u00f3nde</th>
-        <th>De d\u00f3nde sale</th></tr></thead><tbody>${d.linea.map(e => `<tr>
-        <td class="mono">${esc(e.fecha)}</td>
-        <td>${esc(e.que_es)}</td>
-        <td class="mono">${esc(e.literal || '')}</td>
-        <td><span class="mono">${esc(e.archivo || '')}</span>${
-          e.pagina_nro ? ` ? foja ${esc(e.pagina_nro)}` : ''}</td>
-        <td>${e.origen === 'humano'
-              ? `<span class="sello">lo carg\u00f3 ${esc(e.quien || 'una persona')}</span>`
-              : `<span class="mono apagado">${esc(e.origen)}</span>`}</td></tr>`).join('')}
-      </tbody></table></div>`
-      : `<p class="prosa">Todav\u00eda no hay fechas en la l\u00ednea de tiempo. Se arman
-           con las fechas ya le\u00eddas de los documentos, y s\u00f3lo entran las que
-           est\u00e1n en estado firme: una fecha dudosa se lee igual que una segura.</p>`}`;
-}
+  let opts = d.clases.map(c => `<option value="${esc(c.clave)}" ${clase===c.clave?'selected':''}>${esc(c.rotulo)} (${c.n})</option>`).join('');
+  let evs = d.filas.map(f => `<div class="evento-timeline">
+    <div class="evento-fecha">${esc(fmtFecha(f.fecha))}</div>
+    <div class="evento-cuerpo">
+      <div class="evento-clase">${esc(f.clase_rotulo)}</div>
+      <div class="evento-doc">${esc(f.documento)}</div>
+      <a class="evento-fuente falso-enlace" href="javascript:void(0)" onclick="abrirFojaSuelta('${f.sha256}', ${f.pagina_nro})">ver foja ${f.pagina_nro}</a>
+    </div>
+  </div>`).join('');
 
+  return `<p class="prosa">Ordenada por <strong>fecha</strong>, no por el orden en que están las fojas.</p>
+    <div class="filtros-fila"><label>Clase de fecha <select id="sel-clase"><option value="">todas</option>${opts}</select></label></div>
+    <div class="timeline">${evs}</div>`;
+}
 async function vCronologia() {
   const clase = new URLSearchParams(location.hash.split('?')[1] || '').get('clase') || '';
   const d = await api('/api/cronologia' + (clase ? '?clase=' + encodeURIComponent(clase) : ''));
@@ -5113,15 +5063,31 @@ function enlazarDecisionesRelacion(host, refrescar) {
 }
 async function vRelaciones() {
   const hash = location.hash, d = await api('/api/relaciones');
+  const docs = await api('/api/contratos');
   if (hash !== location.hash) return;
-  vista.innerHTML = bloque('', 'Relaciones', `<h2>Relaciones pendientes</h2><p>Son propuestas del sistema. Rechazar no borra: conserva la decisi\u00f3n para que no se vuelva a proponer lo descartado.</p>${htmlRelaciones(d.pendientes, true)}<h3>Anotar una relaci\u00f3n entre documentos</h3><form id="anotar-relacion">${htmlTiposRelacion(d.tipos)}<label>Documento del que sale (identificador) <input name="desde" type="number" min="1" required></label><label>Documento al que llega (identificador) <input name="hasta" type="number" min="1" required></label><label>Nota de respaldo <textarea name="nota"></textarea></label><button class="boton">Registrar mi afirmaci\u00f3n</button></form>`);
+  
+  const opciones = docs.map(c => 
+    \<option value="\">\ (f. \) - \</option>\
+  ).join('');
+
+  vista.innerHTML = bloque('', 'Relaciones', \<h2>Relaciones pendientes</h2>
+  <p>Son propuestas del sistema. Rechazar no borra: conserva la decisión para que no se vuelva a proponer lo descartado.</p>\
+  <h3>Anotar una relación entre documentos</h3>
+  <form id="anotar-relacion">\
+    <datalist id="lista-docs">\</datalist>
+    <label>Documento del que sale (identificador) <input name="desde" list="lista-docs" autocomplete="off" required></label>
+    <label>Documento al que llega (identificador) <input name="hasta" list="lista-docs" autocomplete="off" required></label>
+    <label>Nota de respaldo <textarea name="nota"></textarea></label>
+    <button class="boton">Registrar mi afirmación</button>
+  </form>\);
   enlazarDecisionesRelacion(vista, vRelaciones);
-  $('#anotar-relacion').onsubmit = e => { e.preventDefault(); const f = e.currentTarget; accionInterfaz(f.querySelector('button'), async () => {
+  #anotar-relacion.onsubmit = e => { e.preventDefault(); const f = e.currentTarget; accionInterfaz(f.querySelector('button'), async () => {
     const quien = await conRevisor(); if (!quien) return;
     await guardarNucleo('/api/relacion/anotar', {tipo:f.elements.tipo.value, desde_doc:Number(f.elements.desde.value), hasta_doc:Number(f.elements.hasta.value), nota:f.elements.nota.value, quien});
     await vRelaciones();
   }); };
 }
+
 async function cargarRelacionesDocumento(id) {
   const host = $('#relaciones-documento');
   try {
@@ -5547,7 +5513,7 @@ async function vPapelera() {
     return (bytes / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB';
   };
 
-  vista.innerHTML = bloque('f. 0000', 'Papelera', `
+  vista.innerHTML = bloque('f. 0000', 'Papelera', `<div id="papelera-env">
     <h2>Papelera de archivos</h2>
     <p class="prosa">Estos archivos fueron quitados del legajo. Ya no participan en el análisis, pero se conservan acá por si fue un error.</p>
     <div class="paginacion-env">
@@ -5570,7 +5536,7 @@ async function vPapelera() {
         </div>
       `}
     ], archivos)}
-  `);
+  </div>`);
 
   vista.querySelectorAll('.b-restaurar').forEach(b => {
     b.addEventListener('click', () => pedirRestaurarArchivo(b.dataset.sha));
@@ -5803,7 +5769,7 @@ function abrirDosFojas(f1, f2) {
   if (!nro1) return;
   const nro2 = f2 ? fojaDe(f2) : null;
   
-  visorZoom = 1; aplicarZoomVisor(); 
+  aplicarZoomVisor(); 
   const visor = document.getElementById('visor'), img1 = document.getElementById('visor-img'), marco1 = document.getElementById('visor-marco');
   const img2 = document.getElementById('visor-img-2'), marco2 = document.getElementById('visor-marco-2'), lienzo2 = document.getElementById('visor-lienzo-2');
   
@@ -5861,7 +5827,7 @@ function formatearMonto(monto) {
 }
 
 function montoHTML(monto) {
-  if (!monto || monto.valor == null) return '<span class="nulo">no consta</span>';
+  if (!monto || monto.valor == null) return '<span class="nulo" title="no consta">—</span>';
   let t = formatearMonto(monto);
   if (monto.fuente) {
     t = `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(monto.fuente))}' class="enlace-fuente">${t}</a>`;
@@ -6155,18 +6121,41 @@ document.addEventListener('click', async e => {
   }
 });
 
-function toast(msj) {
-  let t = document.createElement('div');
-  t.className = 'toast';
-  t.textContent = msj;
-  document.body.appendChild(t);
-  setTimeout(() => { t.classList.add('fadeout'); setTimeout(() => t.remove(), 300); }, 3000);
+function toast(msj) { let t = document.createElement('div'); t.className = 'toast'; t.textContent = msj; document.body.appendChild(t); setTimeout(() => { t.classList.add('fadeout'); setTimeout(() => t.remove(), 300); }, 3000); }, 3000);
 }
-function dialogo(msj) {
+;
+  
+  if (btnPag) btnPag.onclick = () => {
+    const vHoja = document.getElementById('visor-hojas');
+    if (vHoja) {
+      const scale = vHoja.clientHeight / document.getElementById('visor-img').naturalHeight;
+      visorZoom = Math.max(0.1, scale);
+      aplicarZoomVisor();
+    }
+  };
+  
+  if (btnRotar) btnRotar.onclick = () => {
+    visorRotation = (visorRotation + 90) % 360;
+    const img1 = document.getElementById('visor-img');
+    const img2 = document.getElementById('visor-img-2');
+    if (img1) img1.style.transform = `rotate(${visorRotation}deg)`;
+    if (img2) img2.style.transform = `rotate(${visorRotation}deg)`;
+  };
+  
+  if (btnPantalla) btnPantalla.onclick = () => {
+    if (!document.fullscreenElement) {
+      v.requestFullscreen().catch(err => toast('Error al abrir pantalla completa.'));
+    } else {
+      document.exitFullscreen();
+    }
+  };
+});
+
+
+function dialogoConfirm(msj) {
   return new Promise(resolve => {
-    let d = document.createElement('dialog');
-    d.innerHTML = <p>\</p>
-      <div class="acciones-fila"><button type="button" class="boton" id="d-ok">Aceptar</button><button type="button" class="boton gris" id="d-no">Cancelar</button></div>;
+    const d = document.createElement('dialog');
+    d.innerHTML = `<p>${esc(msj)}</p><div class="acciones-fila"><button type="button" class="boton" id="d-ok">Aceptar</button><button type="button" class="boton gris" id="d-no">Cancelar</button></div>`;
     document.body.appendChild(d);
     d.querySelector('#d-ok').onclick = () => { d.close(); d.remove(); resolve(true); };
     d.querySelector('#d-no').onclick = () => { d.close(); d.remove(); resolve(false); };
