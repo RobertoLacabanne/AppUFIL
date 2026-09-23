@@ -548,11 +548,15 @@ function vigilarCortes(raiz) {
   }
 }
 
+const CLASE_INTERP = {relevancia: 'Alcance del análisis', patron: 'Patrón', hipotesis: 'Hipótesis',
+                      anomalia: 'Posible anomalía', coincidencia: 'Coincidencia'};
 function interpHTML(i) {
   const fuentes = (i.fuentes || []).map(f =>
     `<a class="chip" href="#/documento/${f.documento_id}">${esc(f.archivo || f.nota || ('doc ' + f.documento_id))}</a>`).join('');
-  return `<div class="interp">
-    <span class="clase">${esc(i.clase)} · ${esc(i.origen)}</span>
+  // `origen` es el id de la regla que la produjo (`regla:identidad_sin_documento`):
+  // sirve para depurar, no para leer. Queda en el título, no en pantalla.
+  return `<div class="interp" title="${esc(i.origen || '')}">
+    <span class="clase">${esc(CLASE_INTERP[i.clase] || String(i.clase || '').replace(/_/g, ' '))}</span>
     <p class="texto">${esc(i.texto)}</p>
     <div class="fuentes">${fuentes || '<span class="chip">sin fuentes</span>'}</div>
   </div>`;
@@ -3397,12 +3401,12 @@ async function vInterpretacion() {
   items.forEach(i => (porClase[i.clase] ||= []).push(i));
   vista.innerHTML = bloque('f. 0008', 'Conjetura', `
     <h2>Interpretación</h2>
-    <div class="aviso"><span class="sello alerta">Otro carril</span>
+    <div class="aviso">${sello('atencion', 'Hipótesis del sistema')}
       <span>Nada de esta pantalla se leyó de un documento. Son hipótesis y patrones que el
       sistema arma cruzando los datos. <strong>Pueden estar equivocados.</strong> Cada
       afirmación linkea a los documentos que la sostienen: chequealos antes de usarla.</span></div>
     ${Object.entries(porClase).map(([clase, its]) => `
-      <h3>${esc(clase)} <span class="rotulo">(${its.length})</span></h3>
+      <h3>${esc(CLASE_INTERP[clase] || clase)} <span class="rotulo">${fmtNum.format(its.length)}</span></h3>
       ${its.map(interpHTML).join('')}`).join('') || '<div class="vacio">Sin interpretaciones.</div>'}
     <div class="sep-corta"><button class="boton" id="b-regen">Volver a generar</button></div>`);
   $('#b-regen').onclick = async () => {
