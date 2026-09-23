@@ -120,12 +120,16 @@ const DIAG = `(() => {
   await evaluar(`localStorage.setItem('ufil.revisor', 'qa.barrido');
     ${process.env.TEMA ? `localStorage.setItem('ufil.tema', ${JSON.stringify(process.env.TEMA)});` : ''}
     true`);
-  await cdp('Page.navigate', {url: ORIGEN + '/#/panel'});
+  await cdp('Page.reload', {ignoreCache: true});
   await pausa(3000);
 
   fs.mkdirSync(SALIDA, {recursive:true});
   const informe = [];
-  const lista = SOLO.length ? RUTAS.filter(([n]) => SOLO.includes(n)) : RUTAS;
+  // EXTRA="ficha36=#/contratacion?id=36,otra=#/..." agrega rutas puntuales al recorrido.
+  const extra = (process.env.EXTRA || '').split(',').filter(Boolean)
+    .map(s => [s.slice(0, s.indexOf('=')), s.slice(s.indexOf('=') + 1)]);
+  const todas = [...RUTAS, ...extra];
+  const lista = SOLO.length ? todas.filter(([n]) => SOLO.includes(n)) : todas;
 
   for (const [nombre, hash] of lista) {
     consola.length = 0;

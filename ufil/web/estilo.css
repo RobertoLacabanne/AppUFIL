@@ -2915,3 +2915,49 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
   .lista-motivos{grid-template-columns:4ch minmax(0,1fr)}
   .motivo-ejemplos{display:none}
 }
+
+/* ── Ficha: cabecera, migas y secciones ──────────────────────────────────
+   Una ficha empieza por quién es la cosa, no por lo que le falta. Las migas dicen
+   de dónde se vino con una sola palabra; la línea de datos lleva sólo lo que consta
+   y el estado va al final de esa misma línea, sin caja propia. */
+.migas{font-size:var(--t-12); color:var(--tinta-3); margin:0 0 6px}
+.migas a{color:var(--tinta-2); text-decoration:none}
+.migas a:hover{color:var(--tribunal-txt); text-decoration:underline}
+.migas a::after{content:' /'; color:var(--tinta-3); margin-left:4px}
+.ficha-cabeza{margin:0 0 20px}
+.ficha-cabeza h1{margin:0 0 6px}
+.ficha-objeto{font-family:var(--serif); font-size:var(--t-15); color:var(--tinta-2);
+  margin:0 0 10px; max-width:72ch}
+.ficha-meta{display:flex; flex-wrap:wrap; align-items:center; gap:6px 22px;
+  font-size:var(--t-13); color:var(--tinta)}
+.meta-k{color:var(--tinta-3); font-variant-caps:all-small-caps; letter-spacing:.04em;
+  margin-right:4px}
+.nota-seccion{font-size:var(--t-13); color:var(--tinta-2); margin:-4px 0 12px; max-width:80ch}
+.precio-menor{font-weight:600}
+
+/* El procedimiento, como una lista con renglones de guía: la etapa a la izquierda,
+   sus documentos a la derecha, y cada documento con su foja a un clic. */
+.proc-etapas{list-style:none; padding:0; margin:0}
+.proc-etapa{display:grid; grid-template-columns:minmax(12em,18em) 1fr; gap:4px 18px;
+  padding:9px 0; border-bottom:1px solid var(--filete-2)}
+.proc-etapa:first-child{border-top:1px solid var(--filete-2)}
+.proc-nombre{font-weight:600; font-size:var(--t-13); color:var(--tinta)}
+.proc-docs{list-style:none; padding:0; margin:0; display:flex; flex-direction:column;
+  gap:3px; font-size:var(--t-13)}
+.proc-docs li{display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline}
+.proc-dato{color:var(--tinta-3); font-variant-numeric:tabular-nums}
+.proc-id{color:var(--tinta-2); font-size:var(--t-12)}
+.proc-faltan{font-size:var(--t-13); color:var(--tinta-3); margin:10px 0 0; max-width:90ch}
+@media (max-width:720px){ .proc-etapa{grid-template-columns:1fr} }
+
+/* Fechas de un procedimiento: una columna de fechas alineadas y lo que pasó. */
+.crono-lineal{list-style:none; padding:0; margin:0; display:grid;
+  grid-template-columns:max-content 1fr max-content; gap:6px 18px; font-size:var(--t-13)}
+.crono-lineal li{display:contents}
+.crono-fecha{font-variant-numeric:tabular-nums; color:var(--tinta-2)}
+.crono-fuente{text-align:right}
+.crono-que{color:var(--tinta)}
+.meta-par{white-space:nowrap}
+/* Una sección de ficha arranca con aire: pegada a la tira de cifras se leía como
+   su pie. */
+.ficha-cabeza ~ h2{margin-top:30px}

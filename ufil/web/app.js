@@ -127,7 +127,12 @@ const TIPO_DOC = {
   contrato_locacion:'Contrato de locación', factura:'Factura', recibo:'Recibo',
   remito:'Remito', decreto:'Decreto', resolucion:'Resolución', rendicion:'Rendición',
   caratula:'Carátula', nota:'Nota', continuacion:'Continuación',
-  desconocida:'Sin reconocer',
+  desconocida:'Sin reconocer', desconocido:'Sin reconocer',
+  // Los de una contratación: sin ellos la pantalla mostraba la clave de la base.
+  orden_compra:'Orden de compra', orden_pago:'Orden de pago', presupuesto:'Presupuesto',
+  oferta:'Oferta', acta_apertura:'Acta de apertura', pliego:'Pliego',
+  especificacion:'Especificación técnica', adjudicacion:'Adjudicación',
+  dictamen:'Dictamen', cuadro_comparativo:'Cuadro comparativo', pedido:'Pedido',
 };
 const FAMILIA_DOC = {contrato:'Contrato', comprobante:'Comprobante de pago',
                      acto:'Acto administrativo'};
@@ -6170,50 +6175,211 @@ async function vContratacion() {
   const d = await apiOPendiente(`/api/contratacion/${id}`, 'Contratación', 'Contratación');
   if (!d) return;
   const c = d.contratacion;
-  
-  const htmlEtapas = (d.etapas || []).map(e => {
-    if (!e.presente) return `<li><span class="sello neutro">Falta ${esc(e.nombre)}</span></li>`;
-    return `<li><span class="sello ok">${esc(e.nombre)}</span>
-      <ul>${e.documentos.map(doc => `<li><a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(doc.fuente))}' class="enlace-fuente">${esc(doc.etiqueta || doc.tipo)}</a></li>`).join('')}</ul>
-    </li>`;
-  }).join('');
-
+  const etapas = d.etapas || [];
+  const conDocs = etapas.filter(e => e.presente);
+  const sinDocs = etapas.filter(e => !e.presente);
+  const documentos = conDocs.reduce((n, e) => n + (e.documentos || []).length, 0);
   const matriz = d.matriz || {columnas: [], filas: []};
-  const htmlOfertas = tabla([
-    {t: 'Ítem', r: f => esc(f.descripcion ? f.descripcion.normalizada || f.descripcion.literal : 'no consta')},
+  const hallazgos = (d.hallazgos || []).filter(h => !h.ya_no_se_detecta);
+  const oferentes = d.oferentes || [];
+
+  const fuente = (f, texto) => f
+    ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(f))}'
+          class="enlace-fuente" title="${esc(f.archivo || '')}">${texto}</a>`
+    : texto;
+  const foja = f => f && (f.foja ?? f.pagina_nro) != null
+    ? 'f. ' + fmtNum.format(f.foja ?? f.pagina_nro) : 'ver';
+  // Una fecha puede venir suelta o como {valor, literal}: se muestra la normalizada
+  // y, si no la hay, lo que dice el papel.
+  const fecha = v => v == null ? '' : typeof v === 'object'
+    ? (fmtFecha(v.valor) || v.literal || '') : (fmtFecha(v) || String(v));
+  // «Otro documento relacionado», nueve veces seguidas, no distingue nada: el enlace
+  // lleva el tipo del documento, que es lo que la persona busca con la vista.
+  const tipoDoc = doc => TIPO_DOC[doc.tipo] || TIPO_DOC[(doc.fuente || {}).tipo_documento]
+    || ((doc.tipo || '').replace(/_/g, ' ').replace(/^./, m => m.toUpperCase())) || 'Documento';
+
+  /* ── Quién es cada columna de la matriz ──────────────────────────────────
+     El backend titula la columna con la clave de la etapa y el proveedor pegados
+     («orden_compra: sin atribuir»). Eso es el nombre de una variable, no un rótulo.
+     Se arma con lo que la persona reconoce: el tipo de documento y a nombre de quién
+     está; y si todavía no se sabe de quién es, se dice así, sin guiones bajos. */
+  // Cómo se escribe cada identificador en un expediente.
+  const ROTULO_ID = {cuit: 'CUIT', expediente: 'Expte.', resolucion: 'Res.', decreto: 'Dec.',
+    orden_compra: 'O. C.', orden_pago: 'O. P.', factura: 'Fact.', remito: 'Rem.',
+    licitacion: 'Lic.', concurso: 'Conc.'};
+  const oferentePorId = Object.fromEntries(oferentes.map(o => [o.entidad_id, o]));
+  const nombreEtapa = Object.fromEntries(etapas.map(e => [e.clave, e.nombre]));
+  const tituloColumna = col => {
+    const [clave, resto] = String(col.titulo || '').split(':').map(s => s.trim());
+    const o = oferentePorId[col.entidad_id];
+    const quien = o ? (o.nombre && o.nombre !== o.cuit ? o.nombre : `CUIT ${o.cuit}`)
+                    : (resto && resto !== 'sin atribuir' ? resto : 'proveedor sin identificar');
+    const que = nombreEtapa[clave] || TIPO_DOC[clave] || (clave || '').replace(/_/g, ' ');
+    return `${que} · ${quien}`;
+  };
+
+  /* ── La cabecera ─────────────────────────────────────────────────────────
+     Decía «Expediente: no consta · Procedimiento: desconocido»: dos negaciones
+     seguidas antes de cualquier dato. Lo que consta va en la línea; lo que no, no
+     ocupa lugar. En esta ficha la falta de un dato no es noticia: es lo normal de un
+     procedimiento que se está reconstruyendo de a pedazos. */
+  const meta = [
+    c.expediente && ['Expediente', esc(c.expediente)],
+    c.organismo && ['Organismo', esc(c.organismo)],
+    c.procedimiento && c.procedimiento !== 'desconocido'
+      && ['Procedimiento', esc(c.procedimiento.replace(/_/g, ' '))],
+  ].filter(Boolean);
+  const estado = c.estado === 'confirmada'
+    ? sello('ok', 'Confirmada por una persona')
+    : c.estado === 'rechazada' ? sello('alerta', 'Descartada')
+    : sello('neutro', 'Propuesta por el sistema', {titulo:
+        'El sistema agrupó estos documentos porque comparten expediente o ' +
+        'identificadores. Nadie lo confirmó todavía.'});
+
+  /* ── Las cifras ──────────────────────────────────────────────────────────
+     Cuatro conteos que el sistema sabe con certeza. Los importes de adjudicación,
+     facturación y pago van aparte y sólo si hay alguno: tres rayas seguidas en la
+     tira más visible de la pantalla eran tres «no consta» gritados. */
+  const cifra = (rotulo, valor, nota) => `
+    <div class="cifra">
+      <span class="cifra-rotulo">${esc(rotulo)}</span>
+      <span class="cifra-valor">${valor}</span>
+      ${nota ? `<span class="cifra-nota">${nota}</span>` : ''}
+    </div>`;
+  const tot = d.totales || c.totales || {};
+  const importes = [['Adjudicado', tot.adjudicado], ['Facturado', tot.facturado],
+                    ['Pagado', tot.pagado]].filter(([, m]) => m);
+  const pendientes = hallazgos.filter(h => (h.revision || {}).estado === 'pendiente').length;
+  const cifrasHTML = `
+    <div class="cifras cifras-4">
+      ${cifra('Documentos', fmtNum.format(documentos),
+              `en ${fmtNum.format(conDocs.length)} de ${fmtNum.format(etapas.length)} etapas`)}
+      ${cifra('Ítems', fmtNum.format(matriz.filas.length),
+              matriz.columnas.length > 1
+                ? `en ${fmtNum.format(matriz.columnas.length)} documentos` : '')}
+      ${cifra('Oferentes', fmtNum.format(oferentes.length),
+              oferentes.some(o => o.adjudicado) ? 'con adjudicatario identificado' : '')}
+      ${cifra('Hallazgos', hallazgos.length
+                ? `<a href="#/hallazgos?contratacion_id=${c.id}">${fmtNum.format(hallazgos.length)}</a>`
+                : '0',
+              hallazgos.length ? `${fmtNum.format(pendientes)} sin revisar`
+                               : 'ninguna diferencia detectada')}
+    </div>
+    ${importes.length ? `<div class="cifras cifras-4">
+      ${importes.map(([r, m]) => cifra(r, montoHTML(m))).join('')}</div>` : ''}`;
+
+  /* ── Qué se compró ───────────────────────────────────────────────────────
+     Un renglón por ítem, una columna por documento con precios. El literal del papel
+     arriba y lo que entendió el sistema abajo, siempre los dos; cada importe lleva a
+     su foja. */
+  const matrizHTML = matriz.filas.length ? tabla([
+    {t: 'Ítem', c: 'crece', r: f => {
+      const lit = f.descripcion && f.descripcion.literal;
+      const norm = f.descripcion && f.descripcion.normalizada;
+      return `<div class="item-desc">
+        <span class="item-literal">${lit ? esc(lit) : ausente('ilegible')}</span>
+        ${norm && lit && norm.toLowerCase() !== lit.toLowerCase()
+          ? `<span class="item-normalizado">${esc(norm)}</span>` : ''}
+      </div>`;
+    }},
     ...matriz.columnas.map(col => ({
-      t: col.titulo,
-      c: 'num',
+      t: tituloColumna(col), c: 'num',
       r: f => {
         const val = f.valores[col.clave];
-        if (!val) return '<span class="nulo">no cotizó</span>';
-        let html = montoHTML(val);
-        if (f.menor === col.clave) html = `<strong>${html}</strong>`;
-        return html;
+        if (!val) return `<span class="ausente" title="No hay precio leído para este ítem en este documento.">—</span>`;
+        const h = montoHTML(val);
+        return f.menor === col.clave
+          ? `<span class="precio-menor" title="El menor precio de la fila">${h}</span>` : h;
       }
     }))
-  ], matriz.filas);
-  
-  const cronoHTML = (d.cronologia || []).map(ev => `
-    <div class="crono-item">
-      <span class="mono">${esc(fmtFechaHora(ev.fecha))}</span>
-      <span>${esc(ev.etiqueta || ev.etapa)}</span>
-      ${ev.fuente ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(ev.fuente))}' class="enlace-fuente">Ver documento</a>` : ''}
-    </div>
-  `).join('');
+  ], matriz.filas) : `<p class="nota-seccion">No se leyó ningún renglón con precios en
+      los documentos de esta contratación. Si hay una orden de compra o una oferta, puede
+      que su planilla todavía no se haya reconocido como tabla.</p>`;
+
+  /* ── El procedimiento ────────────────────────────────────────────────────
+     Eran trece sellos apilados, la mayoría «FALTA …» con doble filete: una pantalla
+     que empezaba por lo que no hay. Ahora van las etapas con documentación, en orden,
+     cada una con sus documentos y su foja; las demás se nombran juntas, en una línea
+     y en tinta apagada. Que no consten en lo cargado no quiere decir que no hayan
+     existido, y la línea lo dice. */
+  const etapasHTML = `
+    <ol class="proc-etapas">
+      ${conDocs.map(e => `
+        <li class="proc-etapa">
+          <span class="proc-nombre">${esc(e.nombre)}</span>
+          <ul class="proc-docs">
+            ${(e.documentos || []).map(doc => `<li>
+              ${fuente(doc.fuente, esc(tipoDoc(doc)))}
+              ${fecha(doc.fecha) ? `<span class="proc-dato">${esc(fecha(doc.fecha))}</span>` : ''}
+              <span class="proc-dato">${esc(foja(doc.fuente))}</span>
+              ${(doc.identificadores || []).slice(0, 2).map(i =>
+                `<span class="proc-id" title="${esc(i.literal || '')}">${esc(
+                  ROTULO_ID[i.clase] || (i.clase || '').replace(/_/g, ' '))} ${esc(i.valor)}</span>`).join('')}
+            </li>`).join('')}
+          </ul>
+        </li>`).join('')}
+    </ol>
+    ${sinDocs.length ? `<p class="proc-faltan">Sin documentación en lo cargado:
+      ${sinDocs.map(e => esc(e.nombre.toLowerCase())).join(', ')}. Puede estar en fojas
+      que todavía no se cargaron o que no se reconocieron.</p>` : ''}`;
+
+  /* ── Hallazgos, agrupados ────────────────────────────────────────────────
+     Veinticuatro «Renglón sin precio», uno debajo del otro, son un solo hallazgo
+     repetido. Se cuentan por tipo, con el enlace a la lista filtrada. */
+  const porTipo = new Map();
+  hallazgos.forEach(h => {
+    if (!porTipo.has(h.tipo)) porTipo.set(h.tipo, []);
+    porTipo.get(h.tipo).push(h);
+  });
+  const hallazgosHTML = porTipo.size ? `<ul class="lista-motivos">
+      ${[...porTipo.values()].sort((a, b) => b.length - a.length).map(hs => `<li>
+        <span class="motivo-cuenta">${fmtNum.format(hs.length)}</span>
+        <span class="motivo-texto"><a href="#/hallazgos?contratacion_id=${c.id}&tipo=${
+          encodeURIComponent(hs[0].tipo)}">${esc(hs[0].titulo || hs[0].tipo)}</a></span>
+        <span class="motivo-ejemplos">${esc(hs[0].descripcion || '')}</span>
+      </li>`).join('')}
+    </ul>` : '';
+
+  const oferentesHTML = oferentes.length ? tabla([
+    {t: 'Oferente', c: 'crece', r: o => o.nombre && o.nombre !== o.cuit
+        ? `<a href="#/entidad/${o.entidad_id}">${esc(o.nombre)}</a>`
+        : `<a href="#/entidad/${o.entidad_id}">Razón social no leída</a>`},
+    {t: 'CUIT', c: 'fol', r: o => o.cuit ? esc(o.cuit) : ausente('no_consta')},
+    {t: 'Resultado', r: o => o.adjudicado ? sello('ok', 'Adjudicado') : ''},
+  ], oferentes) : '';
+
+  const crono = d.cronologia || [];
+  const cronoHTML = crono.length ? `<ol class="crono-lineal">
+      ${crono.map(ev => `<li>
+        <span class="crono-fecha">${esc(fecha(ev.fecha))}</span>
+        <span class="crono-que">${esc(ev.etiqueta || nombreEtapa[ev.etapa] || ev.etapa)}</span>
+        <span class="crono-fuente">${fuente(ev.fuente, esc(foja(ev.fuente)))}</span>
+      </li>`).join('')}</ol>` : '';
 
   vista.innerHTML = bloque('f. 0000', 'Contratación', `
-    <h1>${esc(c.nombre)}</h1>
-    <p>Expediente: ${esc(c.expediente || 'no consta')} · Procedimiento: ${esc(c.procedimiento || 'no consta')}</p>
-    <h2>Etapas</h2>
-    <ul>${htmlEtapas}</ul>
-    <h2>Matriz de ofertas</h2>
-    ${htmlOfertas}
-    <p>Total adjudicado: ${c.totales && c.totales.adjudicado ? montoHTML(c.totales.adjudicado) : '<span class="nulo">no consta</span>'}</p>
-    <p>Total facturado: ${c.totales && c.totales.facturado ? montoHTML(c.totales.facturado) : '<span class="nulo">no consta</span>'}</p>
-    <p>Total pagado: ${c.totales && c.totales.pagado ? montoHTML(c.totales.pagado) : '<span class="nulo">no consta</span>'}</p>
-    <h2>Cronología</h2>
-    <div class="cronologia">${cronoHTML}</div>
+    <nav class="migas" aria-label="Estás en"><a href="#/contrataciones">Contrataciones</a></nav>
+    <header class="ficha-cabeza">
+      <h1>${esc(c.nombre || 'Contratación sin nombre')}</h1>
+      ${c.objeto ? `<p class="ficha-objeto">${esc(c.objeto)}</p>` : ''}
+      <div class="ficha-meta">
+        ${meta.map(([k, v]) => `<span class="meta-par"><span class="meta-k">${k}</span> ${v}</span>`).join('')}
+        ${estado}
+      </div>
+    </header>
+    ${cifrasHTML}
+
+    <h2>Qué se compró</h2>
+    ${matrizHTML}
+
+    <h2>Procedimiento</h2>
+    ${etapasHTML}
+
+    ${hallazgosHTML ? `<h2>Diferencias detectadas</h2>
+      <p class="nota-seccion">Lo que el sistema marcó para revisar. No son conclusiones:
+        cada una lleva su cálculo y su fuente en la lista de hallazgos.</p>
+      ${hallazgosHTML}` : ''}
+    ${oferentesHTML ? `<h2>Oferentes</h2>${oferentesHTML}` : ''}
+    ${cronoHTML ? `<h2>Fechas</h2>${cronoHTML}` : ''}
   `);
 }
 

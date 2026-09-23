@@ -59,6 +59,7 @@ def main() -> int:
     p.add_argument("--anchos", default="1920x1080,1366x768")
     p.add_argument("--solo", default="", help="rutas separadas por coma")
     p.add_argument("--tema", default="", help="claro u oscuro; vacío = el de fábrica")
+    p.add_argument("--extra", default="", help="nombre=#/ruta,... rutas puntuales de más")
     a = p.parse_args()
 
     base = Path(a.base).resolve()
@@ -94,7 +95,7 @@ def main() -> int:
         for par in a.anchos.split(","):
             ancho, alto = par.lower().split("x")
             env = dict(os.environ, ORIGEN=origen, SALIDA=str(salida), ANCHO=ancho,
-                       ALTO=alto, CDP_PORT=str(a.cdp), SOLO=a.solo, TEMA=a.tema)
+                       ALTO=alto, CDP_PORT=str(a.cdp), SOLO=a.solo, TEMA=a.tema, EXTRA=a.extra)
             print(f"== {ancho}x{alto}", flush=True)
             r = subprocess.run(["node", str(AQUI / "barrido.cjs")], env=env)
             codigo = codigo or r.returncode

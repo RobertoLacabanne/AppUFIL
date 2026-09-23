@@ -95,6 +95,8 @@ def render(script):
     const fmtNum = new Intl.NumberFormat('es-AR', {minimumFractionDigits: 2});
     const fmtFechaHora = d => d;
     const fmtFecha = d => d;
+    const sello = (tono, texto) => `<span class="estado estado--${tono}">${texto}</span>`;
+    const TIPO_DOC = {};
     """
     
     idx_abrir = js.find('let catalogoContrataciones = null;')
@@ -145,8 +147,12 @@ class ContratacionesRender(unittest.TestCase):
         })();
         """)
         self.assertIn("Licitación 1/2026", html)
-        self.assertIn("Falta Factura", html)
-        self.assertIn("no cotizó", html)
+        # Las etapas sin documentación se nombran juntas, sin un cuño «Falta» por cada una.
+        self.assertIn("Sin documentación en lo cargado", html)
+        self.assertIn("factura", html)
+        self.assertNotIn("Falta ", html)
+        # Un documento que no cotiza el ítem es una raya con su motivo, no un texto.
+        self.assertIn("No hay precio leído para este ítem en este documento.", html)
         self.assertIn("data-fuente", html)
         
     def test_pantalla_precios(self):
