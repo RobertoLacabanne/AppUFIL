@@ -3033,3 +3033,4 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
   .tarea .boton{grid-column:2; justify-self:start}
 }
 .vacio-accion{margin-top:16px}
+.celda-corta{display:inline-block; max-width:14em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom}

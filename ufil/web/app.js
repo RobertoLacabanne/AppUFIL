@@ -6022,6 +6022,26 @@ async function vContrataciones() {
        Una pantalla no puede decir «no consta» sobre algo que no preguntó. Mientras el
        listado no traiga las etapas, se dice que hay que entrar a la ficha para verlas,
        que es lo que de verdad ocurre. */
+    /* El listado trae un resumen compacto, {pliego: 1, ofertas: 0, …}: cantidad de
+       documentos por etapa, cero si no consta en lo cargado. Se dibuja en ese orden,
+       que es el del procedimiento. */
+    if (c.etapas && !Array.isArray(c.etapas) && typeof c.etapas === 'object') {
+      const NOMBRE = {pliego: 'Pliego', ofertas: 'Ofertas', adjudicacion: 'Adjudicación',
+        orden_compra: 'Orden de compra', factura: 'Factura', remito: 'Remito', pago: 'Pago'};
+      const claves = Object.keys(NOMBRE).filter(k => k in c.etapas)
+        .concat(Object.keys(c.etapas).filter(k => !(k in NOMBRE)));
+      const marcas = claves.map(k => {
+        const n = Number(c.etapas[k]) || 0;
+        const nombre = NOMBRE[k] || k.replace(/_/g, ' ');
+        const titulo = n ? `${nombre}: ${n > 1 ? `${n} documentos` : 'consta'}`
+                         : `${nombre}: no consta en lo cargado`;
+        return `<span class="etapa ${n ? 'hay' : 'falta'}" title="${esc(titulo)}"
+          >${n > 1 ? fmtNum.format(n) : ''}</span>`;
+      }).join('');
+      const hay = claves.filter(k => Number(c.etapas[k])).length;
+      return `<span class="riel-etapas" role="img"
+        aria-label="${hay} de ${claves.length} etapas con documentación">${marcas}</span>`;
+    }
     if (!Array.isArray(c.etapas))
       return `<a class="etapas-pendiente" href="#/contratacion?id=${c.id}"
                  title="Las etapas de esta contratación se ven en su ficha."
@@ -6315,7 +6335,9 @@ async function vContratacion() {
 
 async function vPrecios() {
   const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
-  const limite = 100;
+  // Cincuenta: con cien la tabla medía seis mil píxeles y la paginación, arriba, ya
+  // no se veía cuando hacía falta.
+  const limite = 50;
   /* De qué pantalla es esta respuesta. Esta consulta es la más lenta del sistema por
      dos órdenes de magnitud —medida sobre el legajo real: 13,4 s con cien renglones
      contra 0,02 s de casi todo lo demás—, así que es la que más tiempo pasa en el
@@ -6349,8 +6371,11 @@ async function vPrecios() {
      el normalizado sería perder la prueba y quedarse con la interpretación. */
   const descripcion = r => {
     const lit = `<span class="item-literal">${esc(r.descripcion.literal)}</span>`;
+    // Si lo normalizado es lo mismo en minúsculas, repetirlo abajo es ruido: una fila
+    // de ciento cincuenta dice lo mismo dos veces.
+    const plano = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
     const norm = r.descripcion.normalizada &&
-                 r.descripcion.normalizada !== r.descripcion.literal
+                 plano(r.descripcion.normalizada) !== plano(r.descripcion.literal)
       ? `<span class="item-normalizado" title="Así lo entendió el sistema para poder
            compararlo. El texto de arriba es el que dice el papel."
            >${esc(r.descripcion.normalizada)}</span>` : '';
@@ -6401,7 +6426,8 @@ async function vPrecios() {
       {t:'Precio unitario', c:'num', r: r => montoHTML(r.precio_unitario)},
       {t:'Total', c:'num', r: r => montoHTML(r.subtotal)},
       {t:'Contratación', r: r => r.contratacion
-          ? `<a href="#/contratacion?id=${r.contratacion.id}">${esc(r.contratacion.nombre)}</a>`
+          ? `<a class="celda-corta" href="#/contratacion?id=${r.contratacion.id}"
+               title="${esc(r.contratacion.nombre)}">${esc(r.contratacion.nombre)}</a>`
           : ausente('no_consta')},
       {t:'Comparación', r: comparacion},
       // La fuente es la columna que sostiene todo lo demás: sin ella ninguno de los
