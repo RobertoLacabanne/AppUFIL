@@ -3716,31 +3716,39 @@ async function guardarNucleo(ruta, cuerpo) {
   return api(ruta, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cuerpo)});
 }
 
-async function vSinReconocer() {
-  const d = await api('/api/piezas/sin-reconocer');
+async async function vSinReconocer() {
+  const d = await api('/api/piezas/sin-reconocer?limite=0');
   if (location.hash !== '#/sin-reconocer') return;
-  vista.innerHTML = bloque('', 'Documentos', `<h2>Todavía sin reconocer</h2>
-    <p class="prosa">Son documentos cargados que el sistema todavía no sabe leer...</p>
+  vista.innerHTML = bloque('', 'Documentos', `<h2>Todav&iacute;a sin reconocer</h2>
+    <p class="prosa">Son documentos cargados que el sistema todav&iacute;a no sabe leer...</p>
     <div id="lista-sin-reconocer"></div>`);
   
-  tablaBuscable($('#lista-sin-reconocer'), [
-    {t: 'Archivo', c: 'mono', r: p => `<a href="#/documento/${p.documento_id}">${esc(p.archivo)}</a>`},
-    {t: 'Fojas', c: 'num', r: p => `${esc(p.pagina_desde)} a ${esc(p.pagina_hasta)} (${esc(p.fojas)})`, b: p => p.fojas},
+  tablaServidor($('#lista-sin-reconocer'), '/api/piezas/sin-reconocer', 'piezas', [
+    {t: 'Archivo', o: 'archivo', c: 'mono', r: p => `<a href="#/documento/${p.documento_id}">${esc(p.archivo)}</a>`},
+    {t: 'Fojas', o: 'foja', c: 'num', r: p => `${esc(p.pagina_desde)} a ${esc(p.pagina_hasta)} (${esc(p.fojas)})`, b: p => p.fojas},
     {t: 'Tipo registrado', r: p => `${esc(d.tipos.find(t => t.clave === p.tipo)?.nombre || p.tipo || 'Sin clasificar')} ${p.clasificado_por ? `(por ${esc(p.clasificado_por)})` : ''}`},
-    {t: 'Clasificar', r: p => `<form style="display:flex;gap:8px" data-pieza="${p.documento_id}"><select name="tipo" required><option value="">Elegí un tipo</option>${d.tipos.map(t => `<option value="${esc(t.clave)}">${esc(t.nombre)}</option>`).join('')}</select> <button class="boton" type="submit">Registrar</button></form>`}
-  ], d.piezas);
-
-  $('#lista-sin-reconocer').addEventListener('submit', async e => {
-    e.preventDefault();
-    const f = e.target.closest('form'); if (!f) return;
-    const b = f.querySelector('button'); b.disabled = true;
-    try {
-      const quien = await conRevisor(); if (!quien) return;
-      await guardarNucleo('/api/pieza/clasificar', {documento_id:+f.dataset.pieza, tipo:f.elements.tipo.value, quien});
-      await vSinReconocer();
-    } catch (err) { toast(err.message); } finally { b.disabled = false; }
+    {t: 'Clasificar', r: p => `<form class="fila-acciones" data-pieza="${p.documento_id}"><select name="tipo" required><option value="">Eleg&iacute; un tipo</option>${d.tipos.map(t => `<option value="${esc(t.clave)}">${esc(t.nombre)}</option>`).join('')}</select> <button class="boton" type="submit">Registrar</button></form>`}
+  ], {
+    placeholder: 'Buscar archivo...',
+    vacio: 'No hay piezas sin reconocer.'
   });
+
+  const contenedor = $('#lista-sin-reconocer');
+  if (!contenedor.dataset.binded) {
+    contenedor.dataset.binded = '1';
+    contenedor.addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.target.closest('form'); if (!f) return;
+      const b = f.querySelector('button'); b.disabled = true;
+      try {
+        const quien = await conRevisor(); if (!quien) return;
+        await guardarNucleo('/api/pieza/clasificar', {documento_id:+f.dataset.pieza, tipo:f.elements.tipo.value, quien});
+        await vSinReconocer();
+      } catch (err) { toast(err.message); } finally { b.disabled = false; }
+    });
+  }
 }
+
 
 function opcionesArchivos(archivos) {
   return '<option value="">Eleg\u00ed un archivo</option>' + archivos.map(a =>
@@ -3889,7 +3897,7 @@ async function vReasociaciones() {
     {t: 'Documento', r: r => `<a href="#/documento/${esc(r.documento_id)}">${esc(r.archivo || 'doc ' + r.documento_id)}</a>`},
     {t: 'Foja', c: 'num', r: r => `<a href="javascript:abrirFojaSuelta('${esc(r.sha256)}', ${r.ancla_pagina}, '${esc(r.archivo)}')">f. ${esc(r.ancla_pagina)}</a>`},
     {t: 'Texto original', c: 'mono', r: r => esc(r.texto)},
-    {t: 'Decisi&oacute;n', r: (r, i) => `<div style="display:flex;gap:8px" data-revision="${i}">
+    {t: 'Decisi&oacute;n', r: (r, i) => `<div class="fila-acciones" data-revision="${i}">
       <label><input type="radio" name="res-${i}" value="reasociar"> Reasociar</label>
       <label><input type="radio" name="res-${i}" value="descartar"> Descartar</label>
       <button class="boton" data-resolver="ejecutar" disabled>Ejecutar</button>
