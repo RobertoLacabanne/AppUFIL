@@ -206,8 +206,121 @@ def seleccion(cx: sqlite3.Connection, documento_ids: list) -> tuple[list, list]:
     return encabezados, filas
 
 
+# ── Contrataciones, precios y hallazgos ──────────────────────────────────────
+# Lo que la investigación se lleva. Mismas reglas que el resto: cada fila dice de qué
+# archivo y foja sale, y nada concluye. Un hallazgo es «diferencia detectada», con su
+# cuenta y su estado de revisión; lo que la persona anotó al revisarlo va tal cual.
+
+def _nombre_contratacion(cx, cid):
+    if cid is None:
+        return ""
+    from . import contrataciones as ct
+    c = cx.execute("SELECT id, clave, nombre, expediente FROM contratacion WHERE id=?", (cid,)).fetchone()
+    if c is None:
+        return ""
+    c = dict(c)
+    ancla = ct.anclas(cx, [c]).get(c["id"])
+    if ancla and not c["expediente"]:
+        return f"{(ancla['tipo'] or 'pieza').replace('_', ' ')} f. {ancla['pagina']} ({ancla['archivo'] or ''})"
+    return c["nombre"]
+
+
+def _fojas(fuentes: list) -> str:
+    vistas = []
+    for f in fuentes or []:
+        s = f"{f.get('archivo') or ''} f. {f.get('foja') or f.get('pagina_nro') or '?'}"
+        if s not in vistas:
+            vistas.append(s)
+    return " · ".join(vistas)
+
+
+def _detalle_hallazgo(tipo: str, datos: dict, calc: dict | None) -> str:
+    """Qué dice ESTE hallazgo; la descripción de la base es la del tipo, igual para todos."""
+    x = datos or {}
+    if tipo in ("facturado_vs_entregado", "facturado_vs_adjudicado"):
+        return f"{(x.get('atributo') or 'producto').capitalize()} que no coincide: {x.get('descripcion') or ''}".strip()
+    if tipo == "documento_faltante" and x.get("etapas_no_encontradas"):
+        return (f"Hay {(x.get('etapa_presente') or 'documentación').replace('_', ' ')}, pero no "
+                + " ni ".join(e.replace("_", " ") for e in x["etapas_no_encontradas"]))
+    if tipo == "subtotal_incorrecto" and calc:
+        ops = {o.get("nombre"): o.get("valor") for o in calc.get("operandos") or []}
+        return (f"{ops.get('cantidad')} × {ops.get('precio_unitario')} da {calc.get('resultado')}; "
+                f"el papel dice {x.get('impreso')}")
+    if tipo == "diferencia_precio" and x.get("diferencia_pct") is not None:
+        return (f"{x['diferencia_pct']} % sobre la mediana ({x.get('analizado')} contra "
+                f"{x.get('referencia')})")
+    if tipo == "precio_sin_rol":
+        return f"{x.get('renglones')} importes impresos sin decir si son por unidad o por renglón"
+    return ""
+
+
+def hallazgos_informe(cx: sqlite3.Connection):
+    import json
+    encabezados = ["Tipo", "Qué se detectó", "Detalle", "Contratación", "Cálculo", "Confianza",
+                   "Motivos de la confianza", "Revisión", "Quién revisó", "Cuándo", "Nota",
+                   "Fuentes (archivo y foja)"]
+    filas = []
+    for h in cx.execute("""SELECT * FROM hallazgo WHERE ya_no_se_detecta=0
+                           ORDER BY contratacion_id, tipo, id"""):
+        calc = json.loads(h["calculo"]) if h["calculo"] else None
+        conf = json.loads(h["confianza"] or "{}")
+        filas.append([h["titulo"], h["descripcion"],
+                      _detalle_hallazgo(h["tipo"], json.loads(h["datos"] or "{}"), calc),
+                      _nombre_contratacion(cx, h["contratacion_id"]),
+                      (f"{calc.get('formula', '')} = {calc.get('resultado', '')}" if calc else ""),
+                      conf.get("nivel", ""), "; ".join(conf.get("motivos") or []),
+                      {"pendiente": "Sin revisar", "relevante": "Relevante",
+                       "descartado": "Descartado"}.get(h["revision_estado"], h["revision_estado"]),
+                      h["quien"] or "", h["cuando"] or "", h["nota"] or "",
+                      _fojas(json.loads(h["fuentes"] or "[]"))])
+    return encabezados, filas
+
+
+def precios_informe(cx: sqlite3.Connection):
+    import json
+    encabezados = ["Ítem (como dice el papel)", "Ítem (normalizado)", "Documento", "Proveedor",
+                   "Fecha", "Cantidad", "Unidad", "Precio unitario (papel)", "Precio unitario",
+                   "Subtotal (papel)", "Moneda", "Contratación", "Archivo", "Foja"]
+    filas = []
+    for r in cx.execute("""SELECT r.*, a.nombre archivo,
+                              (SELECT cd.contratacion_id FROM contratacion_documento cd
+                                WHERE cd.documento_id=r.documento_id AND cd.estado!='rechazada'
+                                LIMIT 1) cid
+                             FROM renglon r JOIN archivo a ON a.sha256=r.sha256
+                            WHERE r.vigente=1 ORDER BY a.nombre, r.pagina_nro, r.fila"""):
+        filas.append([r["desc_literal"], r["desc_norm"], (r["etapa"] or "").replace("_", " "),
+                      r["proveedor_literal"] or r["proveedor_cuit"] or "", r["fecha_precio"] or r["fecha_literal"] or "",
+                      r["cantidad_literal"] or "", r["unidad_literal"] or "",
+                      r["precio_literal"] or "", r["precio_unitario"] or "",
+                      r["subtotal_literal"] or "", r["moneda"] or "",
+                      _nombre_contratacion(cx, r["cid"]), r["archivo"], r["pagina_nro"]])
+    return encabezados, filas
+
+
+def contrataciones_informe(cx: sqlite3.Connection):
+    encabezados = ["Contratación", "Expediente", "Etapa", "Documento", "Archivo", "Fojas", "Estado"]
+    filas = []
+    for r in cx.execute("""SELECT cd.contratacion_id cid, c.expediente, cd.etapa, d.tipo,
+                                  a.nombre archivo, d.pagina_desde, d.pagina_hasta, c.estado
+                             FROM contratacion_documento cd
+                             JOIN contratacion c ON c.id=cd.contratacion_id
+                             JOIN documento d ON d.id=cd.documento_id
+                             JOIN archivo a ON a.sha256=d.sha256
+                            WHERE cd.estado!='rechazada'
+                            ORDER BY cd.contratacion_id, cd.etapa, d.pagina_desde"""):
+        fojas = (f"{r['pagina_desde']}" if r["pagina_desde"] == r["pagina_hasta"]
+                 else f"{r['pagina_desde']}–{r['pagina_hasta']}")
+        filas.append([_nombre_contratacion(cx, r["cid"]), r["expediente"] or "",
+                      (r["etapa"] or "").replace("_", " "), (r["tipo"] or "").replace("_", " "),
+                      r["archivo"], fojas, "propuesta por el sistema" if r["estado"] == "propuesta" else r["estado"]])
+    return encabezados, filas
+
+
 # ── La puerta de entrada ─────────────────────────────────────────────────────
 INFORMES = {
+    "hallazgos": ("Hallazgos", hallazgos_informe),
+    "precios": ("Ítems y precios", precios_informe),
+    "contrataciones": ("Contrataciones y sus documentos", contrataciones_informe),
     "indice": ("Índice documental", indice_documental),
     "cronologia": ("Cronología", cronologia),
     "fichas": ("Fichas", fichas),
@@ -217,6 +330,14 @@ INFORMES = {
 # Qué trae cada informe, para que la pantalla lo diga sin escribirlo ella. Describen
 # el contenido y no lo que prueba, por la misma regla que el resto del módulo.
 DESCRIPCIONES = {
+    "hallazgos": "Cada diferencia detectada, con qué se detectó, la cuenta, la confianza y "
+                 "sus motivos, el estado de revisión con quién y cuándo, la nota de quien "
+                 "revisó y el archivo y la foja de cada fuente. Describe; no concluye.",
+    "precios": "Cada renglón leído de presupuestos, órdenes, facturas y remitos: el ítem "
+               "como lo dice el papel y normalizado, cantidad, unidad, precio tal cual y "
+               "convertido, fecha, contratación, archivo y foja.",
+    "contrataciones": "Cada contratación reconstruida con sus documentos por etapa, el "
+                      "archivo y las fojas de cada uno.",
     "indice": "Cada pieza del legajo con su archivo, sus fojas del PDF, la foliatura del "
               "papel, su tipo y su estado, incluidas las que el sistema todavía no sabe "
               "leer.",
