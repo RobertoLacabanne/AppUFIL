@@ -3034,3 +3034,10 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
 }
 .vacio-accion{margin-top:16px}
 .celda-corta{display:inline-block; max-width:14em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom}
+
+/* Una nota bajo el dato de una celda —la fecha de un precio, el porcentaje de una
+   diferencia—: el mismo renglón, un paso más chico y apagado. */
+.celda-nota{display:block; font-size:var(--t-11); color:var(--tinta-3); font-family:var(--sans)}
+.celda-motivo{font-size:var(--t-12); color:var(--tinta-2)}
+.dif{font-variant-numeric:tabular-nums; font-weight:600}
+.cifra .cifra-valor .cifra-texto{font-family:var(--sans); font-size:var(--t-18); letter-spacing:0}

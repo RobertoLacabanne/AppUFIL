@@ -1611,6 +1611,106 @@ async function vComprobantes() {
    contra eso. Une por CUIT ↔ DNI, no por nombre, que se escribe de mil maneras. */
 async function vCruce() {
   const r = await api('/api/cruce');
+  if (location.hash.split('?')[0] !== '#/cruce') return;
+  /* El contrato viejo era de contratos de personal —una fila por persona, CUIL contra
+     DNI—; el nuevo es de contrataciones: renglón facturado contra el precio contratado
+     u ordenado del mismo ítem. Mientras el servidor sea el viejo, se muestra el viejo. */
+  if (!r || !('faltantes' in r)) return vCrucePersonas(r);
+
+  const filas = r.filas || [];
+  const faltantes = (r.faltantes && r.faltantes.filas) || [];
+  const totalFaltantes = r.faltantes_total ?? faltantes.length;
+  if (!filas.length && !faltantes.length) {
+    return vistaVacia('f. 0006', 'Cruce', 'Facturado contra contratado',
+      'Todavía no hay facturas con renglones legibles',
+      'El cruce pone cada renglón facturado al lado del precio que se contrató u ordenó ' +
+      'para el mismo ítem, en la misma contratación. Aparece cuando hay facturas y ' +
+      'órdenes de compra o adjudicaciones con planillas que el sistema pudo leer.');
+  }
+
+  const fuente = (f, texto) => f
+    ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(f))}'
+          class="enlace-fuente" title="${esc(f.archivo || '')}">${texto}</a>` : texto;
+  const foja = f => f && (f.foja ?? f.pagina_nro) != null ? 'f. ' + fmtNum.format(f.foja ?? f.pagina_nro) : '';
+  const plano = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const item = x => {
+    const d = x.descripcion || {};
+    return `<div class="item-desc">
+      <span class="item-literal">${d.literal ? esc(d.literal) : ausente('ilegible')}</span>
+      ${d.normalizada && plano(d.normalizada) !== plano(d.literal)
+        ? `<span class="item-normalizado">${esc(d.normalizada)}</span>` : ''}</div>`;
+  };
+  const conFecha = (monto, fecha) => monto
+    ? `${montoHTML(monto)}${fecha ? `<span class="celda-nota">${esc(fmtFecha(fecha) || fecha)}</span>` : ''}`
+    : ausente(monto === null ? 'no_consta' : undefined);
+  const CALIDAD = {fuerte: ['ok', 'Comparable'], probable: ['neutro', 'Probable'],
+                   dudoso: ['atencion', 'Dudosa'], no_comparable: ['neutro', 'No comparable']};
+  const calidad = c => {
+    const [tono, txt] = CALIDAD[(c || {}).estado] || ['neutro', 'Sin calificar'];
+    return sello(tono, txt, {titulo: ((c || {}).motivos || []).join(' ')});
+  };
+  const signo = n => Number(n) > 0 ? '+' : Number(n) < 0 ? '−' : '';
+  const diferencia = x => x.diferencia_absoluta == null ? ausente('no_consta') : `
+    <span class="dif">${signo(x.diferencia_absoluta)}$ ${esc(fmtPlata.format(Math.abs(Number(x.diferencia_absoluta))))}</span>
+    ${x.diferencia_porcentual != null ? `<span class="celda-nota">${signo(x.diferencia_porcentual)}${
+      esc(fmtNum.format(Math.abs(Number(x.diferencia_porcentual))))} %</span>` : ''}`;
+  const contratacion = x => x.contratacion_id
+    ? `<a class="celda-corta" href="#/contratacion?id=${x.contratacion_id}">${esc(
+        x.contratacion_nombre || 'Contratación ' + x.contratacion_id)}</a>` : ausente('no_consta');
+  const proveedor = x => x.proveedor
+    ? esc(x.proveedor.nombre || x.proveedor.cuit || '') : ausente('no_consta');
+
+  const cifra = (rotulo, valor, nota) => `<div class="cifra">
+      <span class="cifra-rotulo">${esc(rotulo)}</span>
+      <span class="cifra-valor">${valor}</span>
+      ${nota ? `<span class="cifra-nota">${nota}</span>` : ''}</div>`;
+  const conDif = filas.filter(x => x.diferencia_absoluta != null && Number(x.diferencia_absoluta) !== 0).length;
+
+  vista.innerHTML = bloque('f. 0006', 'Cruce', `
+    <h1>Facturado contra contratado</h1>
+    <p class="prosa">Cada renglón facturado al lado del precio que se contrató u ordenó
+      para el mismo ítem, en la misma contratación. Arriba las diferencias, de mayor a
+      menor; abajo, lo facturado que todavía no tiene con qué compararse. Los precios son
+      nominales, cada uno con su fecha: no se ajustan por inflación.</p>
+    <div class="cifras cifras-4">
+      ${cifra('Renglones comparados', fmtNum.format(r.total ?? filas.length), 'facturado con su referencia')}
+      ${cifra('Con diferencia', fmtNum.format(conDif), conDif ? 'distinto de lo contratado' : '')}
+      ${cifra('Sin referencia', fmtNum.format(totalFaltantes), 'facturados sin contra qué comparar')}
+      ${cifra('Criterio', '<span class="cifra-texto">Precio unitario</span>', esc(r.alcance || ''))}
+    </div>
+
+    ${filas.length ? `<h2>Diferencias</h2>
+      ${tabla([
+        {t: 'Ítem', c: 'crece', r: item},
+        {t: 'Contratación', r: contratacion},
+        {t: 'Proveedor', r: proveedor},
+        {t: 'Contratado', c: 'num', r: x => conFecha(x.contratado, x.fecha_contratado)},
+        {t: 'Facturado', c: 'num', r: x => conFecha(x.facturado, x.fecha_facturado)},
+        {t: 'Diferencia', c: 'num', r: diferencia},
+        {t: 'Comparación', r: x => calidad(x.comparabilidad)},
+        {t: 'Fuentes', r: x => (x.fuentes || []).map(f => fuente(f, esc(foja(f)))).join(' ')},
+      ], filas)}` : `<p class="nota-seccion">Ningún renglón facturado encontró todavía su
+        referencia en la misma contratación, así que no hay diferencias que calcular.</p>`}
+
+    ${faltantes.length ? `<h2>Facturado sin referencia</h2>
+      <p class="nota-seccion">Renglones de factura que no tienen un precio contratado u
+        ordenado con el que compararse. No es una diferencia: es un cruce que no se pudo
+        hacer, y el motivo dice por qué.</p>
+      ${tabla([
+        {t: 'Ítem', c: 'crece', r: item},
+        {t: 'Contratación', r: contratacion},
+        {t: 'Facturado', c: 'num', r: x => conFecha(x.facturado, x.fecha_facturado)},
+        {t: 'Por qué no se compara', r: x => `<span class="celda-motivo">${esc(x.motivo || '')}</span>`},
+        {t: 'Fuente', r: x => (x.fuentes || []).slice(0, 1).map(f => fuente(f, esc(foja(f)))).join('')},
+      ], faltantes)}
+      ${totalFaltantes > faltantes.length ? `<p class="nota-seccion">Se muestran
+        ${fmtNum.format(faltantes.length)} de ${fmtNum.format(totalFaltantes)}.</p>` : ''}` : ''}
+  `);
+}
+
+/* El cruce de contratos de personal, persona por persona. Queda para los servidores que
+   todavía contestan ese contrato; el de contrataciones está arriba. */
+async function vCrucePersonas(r) {
   if (!r.filas.length) return vistaVacia('f. 0006', 'Cruce', 'Lo facturado contra lo contratado',
     'Todavía no hay con qué cruzar',
     'Hace falta al menos un contrato con documento leído. Las facturas se le enganchan ' +
@@ -4372,7 +4472,9 @@ async function vNumeros() {
             es lo mismo que un desacuerdo.` : ''}</p>
     ${tabla([
       {t:'Foja', c:'num', r:f => String(f.pagina_nro)},
-      {t:'Qué dice en letras', c:'nombre', r:f => esc(f.letras)},
+      // Las letras parten renglón: sin eso, una cifra en letras de ochenta caracteres
+      // no entraba y la hoja entera se iba a ancho completo, sin su margen.
+      {t:'Qué dice en letras', c:'crece', r:f => esc(f.letras)},
       {t:'Y en números', c:'mono', r:f => esc(f.digitos)},
       {t:'Cotejo', r:f => f.coinciden === 1
         ? `<span class="estado estado--ok">coinciden</span>`
