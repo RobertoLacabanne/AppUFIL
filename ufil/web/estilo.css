@@ -2840,6 +2840,10 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
 .vacio-titulo { font-size: 16px; font-weight: 600; color: var(--tinta); margin-bottom: 8px; }
 .vacio-texto { font-size: 14px; color: var(--tinta-2); max-width: 400px; line-height: 1.5; }
 
+/* ═══ GEMINI R4 — inicio ═══ */
+
+/* ═══ GEMINI R4 — fin ═══ */
+
 /* ── Comparación de precio ────────────────────────────────────────────────
    Las cuatro cifras que contestan la pregunta —qué precio, contra qué, cuánto se
    aparta, cuánto vale la comparación— van en una sola tira, siempre de a cuatro:
