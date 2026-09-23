@@ -390,6 +390,20 @@ class RenglonesDelCorpus(unittest.TestCase):
         self.assertEqual(self.cx.execute('SELECT count(*) FROM renglon WHERE vigente=1').fetchone()[0], 33)
         self.assertEqual(self.cx.execute('SELECT count(*) FROM palabra').fetchone()[0], antes)
 
+    def test_recalcular_literal_ingles_obsoleto_recupera_precio_sin_ocr(self):
+        r = self.factura()
+        # Misma forma del fallo real, con importes enteramente sintéticos.
+        self.cx.execute("UPDATE tabla_celda SET texto='7,890.12' WHERE tabla_id=? AND fila=1 AND columna=4",(r['tabla_id'],))
+        self.cx.execute("UPDATE renglon SET precio_literal='7,890.12',precio_unitario=NULL,precio_motivo='ilegible' WHERE id=?",(r['id'],))
+        self.cx.commit()
+        palabras = self.cx.execute('SELECT count(*) FROM palabra').fetchone()[0]
+        with patch('ufil.capa1_texto.leer_lote',side_effect=AssertionError('No debe releer')):
+            rg.extraer_archivo(self.cx,r['sha256'])
+        nuevo=rg.fila(self.cx,r['id'])
+        self.assertEqual((nuevo['precio_literal'],nuevo['precio_unitario']),('7,890.12','7890.12'))
+        self.assertEqual(self.cx.execute('SELECT count(*) FROM palabra').fetchone()[0],palabras)
+        self.assertTrue(rg.fuente(self.cx,nuevo,'precio')['celdas'])
+
     def test_paginacion_filtros_y_niveles_invalidos(self):
         r = precios.listar(self.cx, etapa='factura', limite='2', desde='1')
         self.assertEqual((r['total'], r['limite'], r['desde'], len(r['renglones'])), (3, 2, 1, 2))
@@ -419,7 +433,7 @@ class Migracion26(unittest.TestCase):
             cx.close()
             cx = db.abrir(ruta)
             try:
-                self.assertEqual(cx.execute('PRAGMA user_version').fetchone()[0], 26)
+                self.assertEqual(cx.execute('PRAGMA user_version').fetchone()[0], db.ESQUEMA_VERSION)
                 self.assertEqual([tuple(r) for r in cx.execute('SELECT * FROM revision_humana')], antes)
                 self.assertEqual(cx.execute('SELECT count(*) FROM archivo').fetchone()[0], 1)
                 self.assertEqual(cx.execute('PRAGMA foreign_key_check').fetchall(), [])

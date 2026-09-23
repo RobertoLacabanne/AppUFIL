@@ -27,6 +27,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from functools import cached_property
 from difflib import SequenceMatcher
 
 # ── Estados de comparabilidad (§3) ────────────────────────────────────────────
@@ -184,6 +185,22 @@ class Observacion:
     contratacion: int | None = None
     documentada: bool = True                    # False: referencia cargada a mano sin papel
 
+    @cached_property
+    def texto_comparable(self):
+        return _plano(self.desc_norm)
+
+    @cached_property
+    def tokens(self):
+        return tuple(_tokens(self.desc_norm))
+
+    @cached_property
+    def numeros(self):
+        return frozenset(w for w in self.tokens if any(c.isdigit() for c in w))
+
+    @cached_property
+    def atributos_comparables(self):
+        return {k:_plano(getattr(self,k)) for k in _BLOQUEANTES}
+
 
 def _plano(texto) -> str:
     """Sin tildes, en minúscula, con los espacios colapsados. Para comparar atributos."""
@@ -217,6 +234,10 @@ def similitud(a: str, b: str) -> float:
     distintas, así que un número sólo coincide con el mismo número.
     """
     ta, tb = _tokens(a), _tokens(b)
+    return _similitud_tokens(ta,tb)
+
+
+def _similitud_tokens(ta, tb):
     if not ta or not tb:
         return 0.0
     if ta == tb:
@@ -231,7 +252,10 @@ def similitud(a: str, b: str) -> float:
         if any(c.isdigit() for c in w):
             continue
         for x in libres:
-            if not any(c.isdigit() for c in x) and SequenceMatcher(None, w, x).ratio() >= 0.85:
+            # La cota por longitud evita calcular alineamientos que jamás llegan
+            # al umbral. No cambia ninguna coincidencia admitida.
+            if (2*min(len(w),len(x)) >= .85*(len(w)+len(x))
+                    and not any(c.isdigit() for c in x) and SequenceMatcher(None, w, x).ratio() >= 0.85):
                 libres.remove(x)
                 iguales += 1
                 break
@@ -257,8 +281,7 @@ def comparabilidad(a: Observacion, b: Observacion, *, decision_humana: str | Non
     Devuelve `{"estado", "motivos", "similitud"}`.
     """
     u = {**UMBRALES, **(umbrales or {})}
-    sim = 1.0 if _plano(a.desc_norm) == _plano(b.desc_norm) else similitud(a.desc_norm,
-                                                                            b.desc_norm)
+    sim = 1.0 if a.texto_comparable == b.texto_comparable else _similitud_tokens(a.tokens,b.tokens)
     motivos: list[dict] = []
 
     if decision_humana in ("mismo", "distinto"):
@@ -279,7 +302,7 @@ def comparabilidad(a: Observacion, b: Observacion, *, decision_humana: str | Non
                                COINCIDE if sim >= u["similitud_fuerte"] else DIFIERE))
 
     # La especificación que traen los números de la descripción.
-    na, nb = _numeros(a.desc_norm), _numeros(b.desc_norm)
+    na, nb = a.numeros, b.numeros
     if na and nb:
         if na != nb:
             motivos.append(_motivo("especificacion", sorted(na), sorted(nb), BLOQUEA))
@@ -294,7 +317,7 @@ def comparabilidad(a: Observacion, b: Observacion, *, decision_humana: str | Non
     for atributo in _BLOQUEANTES:
         va, vb = getattr(a, atributo), getattr(b, atributo)
         if va is not None and vb is not None:
-            if _plano(va) != _plano(vb):
+            if a.atributos_comparables[atributo] != b.atributos_comparables[atributo]:
                 motivos.append(_motivo(atributo, va, vb, BLOQUEA))
                 bloqueado = True
             else:

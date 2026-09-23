@@ -385,7 +385,7 @@ MOTIVOS = {
 }
 
 
-def api_archivos(cx, *, procesando=False) -> dict:
+def api_archivos(cx, *, procesando=False, filtros=None) -> dict:
     """
     Qué hay cargado y en qué estado está cada archivo.
 
@@ -416,7 +416,7 @@ def api_archivos(cx, *, procesando=False) -> dict:
                 JOIN resultado_etapa e ON e.alcance_id=CAST(p.id AS TEXT)
                 WHERE e.alcance=? AND e.estado='corriendo'""", (tabla,)))
     filas = []
-    for a in cx.execute("""
+    sql_archivos = """
             WITH fojas AS (
                 SELECT g.sha256,COUNT(*) fojas,
                        SUM(CASE WHEN l.pagina_id IS NOT NULL THEN 1 ELSE 0 END) leidas,
@@ -429,7 +429,16 @@ def api_archivos(cx, *, procesando=False) -> dict:
                    COALESCE(f.clasificadas,0) clasificadas,COALESCE(d.documentos,0) documentos
               FROM archivo a LEFT JOIN procedencia p ON p.sha256=a.sha256
               LEFT JOIN fojas f ON f.sha256=a.sha256 LEFT JOIN docs d ON d.sha256=a.sha256
-             ORDER BY a.ingerido_en DESC,a.nombre"""):
+             ORDER BY a.ingerido_en DESC,a.nombre"""
+    pagina = None
+    if filtros is not None:
+        from . import paginacion as pg
+        pagina = pg.consultar(cx, 'archivos', sql_archivos, filtros=filtros,
+            ordenes={'archivo':'nombre','fecha':'ingerido_en','fojas':'fojas'}, defecto='fecha', sentido='desc')
+        seleccion = pagina['archivos']
+    else:
+        seleccion = cx.execute(sql_archivos)
+    for a in seleccion:
         f = dict(a)
         f['revisiones'] = revisiones.get(f['sha256'], 0)
         f['decisiones_humanas'] = decisiones.get(f['sha256'], 0)
@@ -452,6 +461,8 @@ def api_archivos(cx, *, procesando=False) -> dict:
     resumen = {}
     for f in filas:
         resumen[f["estado"]] = resumen.get(f["estado"], 0) + 1
+    if pagina is not None:
+        return {**pagina, 'archivos': filas}
     return {"archivos": filas, "resumen": resumen,
             "fojas": sum(f["fojas"] or 0 for f in filas),
             "falta_leer": sum(f["falta_leer"] for f in filas),
@@ -733,12 +744,12 @@ def api_persona(cx, persona_id: int) -> dict:
             "contratos": len(contratos),
             "sin_monto": len(contratos) - len(con_monto),
             "sin_fechas": sum(1 for c in contratos if not (c["inicio"] and c["fin"])),
-            "acumulado_centavos": sum(c["monto_centavos"] for c in con_monto),
+            "acumulado_centavos": sum(c["monto_centavos"] for c in con_monto) if con_monto else None,
             # Lo facturado va aparte y NUNCA se suma con el acumulado de arriba: son la
             # misma plata vista de los dos lados —lo que se pactó y lo que se cobró—, y
             # un número que las junte la cuenta dos veces.
             "comprobantes": len(comprobantes),
-            "facturado_centavos": sum(f["monto_centavos"] for f in facturado),
+            "facturado_centavos": sum(f["monto_centavos"] for f in facturado) if facturado else None,
             # Las facturas de talonario traen el importe a mano y no se leen. Si no se
             # dice cuántas son, el facturado parece completo y no lo está.
             "comprobantes_sin_importe": len(comprobantes) - len(facturado),
@@ -773,6 +784,11 @@ def api_cola(cx, filtros=None, desde=0, limite=POR_PAGINA) -> dict:
     sobre las 400 que habían llegado y no sobre la cola.
     """
     filtros = filtros or {}
+    from . import paginacion as pg
+    ordenes = {'prioridad': "CASE campo WHEN 'monto' THEN 1 WHEN 'fecha_inicio' THEN 2 WHEN 'fecha_fin' THEN 3 WHEN 'documento' THEN 4 WHEN 'nombre' THEN 5 ELSE 9 END, COALESCE(confianza,0)",
+               'id':'campo_id','campo':'campo','confianza':'confianza','archivo':'archivo'}
+    parametros = pg.parametros(dict(filtros,desde=desde,limite=limite), ordenes, 'prioridad')
+    desde, limite = parametros['desde'], parametros['limite']
     # La consulta versionada arma las columnas y el orden; acá se la envuelve para
     # filtrar y paginar sin duplicarla. Se le saca el punto y coma final para poder
     # meterla como subconsulta.
@@ -786,6 +802,9 @@ def api_cola(cx, filtros=None, desde=0, limite=POR_PAGINA) -> dict:
         if valor:
             condiciones.append(f"q.{columna} = ?")
             valores.append(valor)
+    if filtros.get('q'):
+        condiciones.append('(q.valor LIKE ? OR q.archivo LIKE ? OR q.campo LIKE ?)')
+        valores.extend(['%'+filtros['q']+'%']*3)
     donde = (" WHERE " + " AND ".join(condiciones)) if condiciones else ""
 
     total = cx.execute(f"SELECT COUNT(*) FROM ({base}) q{donde}", valores).fetchone()[0]
@@ -795,48 +814,41 @@ def api_cola(cx, filtros=None, desde=0, limite=POR_PAGINA) -> dict:
     # conservarlo. Es el mismo criterio de 07_cola_revision.sql —lo que más daño hace
     # si queda mal, primero— y si allá cambia, acá hay que cambiarlo.
     cur = cx.execute(f"""SELECT * FROM ({base}) q{donde}
-                          ORDER BY CASE q.campo
-                                     WHEN 'monto' THEN 1 WHEN 'fecha_inicio' THEN 2
-                                     WHEN 'fecha_fin' THEN 3 WHEN 'documento' THEN 4
-                                     WHEN 'nombre' THEN 5 ELSE 9 END,
-                                   COALESCE(q.confianza, 0) ASC, q.campo_id
+                          ORDER BY {ordenes[parametros['orden']]} {parametros['sentido']}, q.campo_id
                           LIMIT ? OFFSET ?""", (*valores, max(1, limite), max(0, desde)))
     columnas = [d[0] for d in cur.description]
     filas = [dict(zip(columnas, f)) for f in cur.fetchall()]
-    medidas = {}
+    # Las medidas y propuestas se cargan juntas para la página solicitada.
+    medidas = {(r['documento_id'],r['nro']):{k:r[k] for k in ('ancho_pt','alto_pt','rotacion')}
+               for r in cx.execute('''SELECT d.id documento_id,p.nro,p.ancho_pt,p.alto_pt,p.rotacion
+                   FROM documento d JOIN pagina p ON p.sha256=d.sha256 JOIN json_each(?) j
+                   ON d.id=json_extract(j.value,'$[0]') AND p.nro=json_extract(j.value,'$[1]')''',
+                   (json.dumps(list({(f['documento_id'],f['pagina_nro']) for f in filas if f['pagina_nro']})),))}
     for f in filas:
         clave = (f["documento_id"], f["pagina_nro"])
-        if clave not in medidas and f["pagina_nro"]:
-            r = cx.execute("""SELECT p.ancho_pt, p.alto_pt, p.rotacion
-                                FROM pagina p JOIN documento d ON d.sha256 = p.sha256
-                               WHERE d.id=? AND p.nro=?""",
-                           (f["documento_id"], f["pagina_nro"])).fetchone()
-            medidas[clave] = dict(r) if r else None
         f["pagina"] = medidas.get(clave)
     # Para los campos que no se encontraron en ninguna foja no hay recuadro, pero sí
     # sirve ver el folio: se ofrece la primera página del contrato.
-    primeras = {}
+    primeras = {r['documento_id']:{k:r[k] for k in ('nro','ancho_pt','alto_pt')}
+                for r in cx.execute('''SELECT d.id documento_id,d.pagina_desde nro,p.ancho_pt,p.alto_pt
+                    FROM documento d JOIN pagina p ON p.sha256=d.sha256 AND p.nro=coalesce(d.pagina_desde,1)
+                    WHERE d.id IN (SELECT value FROM json_each(?))''',
+                    (json.dumps(list({f['documento_id'] for f in filas if f.get('x0') is None})),))}
     for f in filas:
         if f.get("x0") is None:
             d = f["documento_id"]
-            if d not in primeras:
-                r = cx.execute("""SELECT d.pagina_desde AS nro, p.ancho_pt, p.alto_pt
-                                    FROM documento d
-                                    JOIN pagina p ON p.sha256 = d.sha256
-                                                 AND p.nro = COALESCE(d.pagina_desde, 1)
-                                   WHERE d.id=?""", (d,)).fetchone()
-                primeras[d] = dict(r) if r else None
-            f["pagina_respaldo"] = primeras[d]
+            f["pagina_respaldo"] = primeras.get(d)
     # La propuesta del lector de manuscrita, si la hay. Va como PROPUESTA y no como
     # valor: el campo sigue vacío hasta que alguien la confirma mirando el recorte que
     # está al lado. Ver ufil/lector_manuscrito.py.
+    propuestas = {r['campo_id']:{k:r[k] for k in ('valor','ilegible','nota','modelo')}
+                  for r in cx.execute('''SELECT campo_id,valor,ilegible,nota,modelo FROM propuesta
+                      WHERE campo_id IN (SELECT value FROM json_each(?))''',
+                      (json.dumps([f['campo_id'] for f in filas if f.get('motivo')=='manuscrito']),))}
     for f in filas:
         if f.get("motivo") != "manuscrito":
             continue
-        r = cx.execute("""SELECT q.valor, q.ilegible, q.nota, q.modelo
-                            FROM propuesta q JOIN campo c ON c.id = q.campo_id
-                           WHERE c.documento_id=? AND c.nombre=?""",
-                       (f["documento_id"], f["campo"])).fetchone()
+        r = propuestas.get(f['campo_id'])
         if r:
             f["propuesta"] = dict(r)
 
@@ -897,13 +909,16 @@ def api_cola(cx, filtros=None, desde=0, limite=POR_PAGINA) -> dict:
                     "otros": [{"documento_id": d, "archivo": nombres.get(d)}
                               for d in aviso["otros"]]}
 
+    variantes = {}
+    for v in cx.execute('''SELECT k.documento_id,k.campo_nombre,v.ruta,v.valor,v.confianza
+            FROM conflicto k JOIN conflicto_variante v ON v.conflicto_id=k.id JOIN json_each(?) j
+            ON k.documento_id=json_extract(j.value,'$[0]') AND k.campo_nombre=json_extract(j.value,'$[1]')
+            WHERE k.estado='abierto' ORDER BY v.ruta''',
+            (json.dumps(list({(f['documento_id'],f['campo']) for f in filas if f['clase']=='conflicto'})),)):
+        variantes.setdefault((v['documento_id'],v['campo_nombre']),[]).append({k:v[k] for k in ('ruta','valor','confianza')})
     for f in filas:
-        if f["clase"] == "conflicto":
-            k = cx.execute("""SELECT id FROM conflicto WHERE documento_id=? AND campo_nombre=?
-                               AND estado='abierto'""", (f["documento_id"], f["campo"])).fetchone()
-            f["variantes"] = [dict(v) for v in cx.execute(
-                "SELECT ruta, valor, confianza FROM conflicto_variante WHERE conflicto_id=? ORDER BY ruta",
-                (k["id"],))] if k else []
+        if f['clase']=='conflicto':
+            f['variantes'] = variantes.get((f['documento_id'],f['campo']),[])
 
     # Qué hay para elegir en cada filtro, y cuántos de cada uno. Sale de la cola ENTERA,
     # no de esta página: ofrecer «facturas» porque justo hay una en las doscientas que
@@ -936,7 +951,8 @@ def api_cola(cx, filtros=None, desde=0, limite=POR_PAGINA) -> dict:
         "SELECT quien, COUNT(*) FROM revision_humana GROUP BY quien ORDER BY COUNT(*) DESC")]
     return {"filas": filas, "total": total, "total_sin_filtro": total_sin_filtro,
             "revisados": revisados, "revisores": revisores,
-            "desde": desde, "limite": limite, "opciones": opciones}
+            **parametros, "filtros_aplicados": {k:v for k,v in filtros.items() if k in ('familia','campo','clase','q') and v},
+            "opciones": opciones}
 
 
 def api_decidir_campo(cx, campo_id: int, accion: str, valor, quien: str,
@@ -1339,8 +1355,34 @@ class Manejador(BaseHTTPRequestHandler):
             if ruta.startswith("/api/"):
                 cx = _cx()
                 try:
+                    from . import listas_api
+                    listado = listas_api.resolver(cx, ruta, {k:v[0] for k,v in q.items()})
+                    if listado is not None:
+                        # Los clientes antiguos de estas rutas esperan un array.
+                        # La primera página conserva esa forma; pedir paginación
+                        # explícita activa el sobre común con total y filtros.
+                        legadas = {'/api/contratos':'contratos', '/api/comprobantes':'comprobantes',
+                                   '/api/documentos':'personas', '/api/fusiones':'fusiones',
+                                   '/api/interpretaciones':'interpretaciones', '/api/numeros':'numeros',
+                                   '/api/excepciones':'excepciones'}
+                        if ruta in legadas and not set(q) & {'desde','limite','orden','sentido','paginado'}:
+                            return self._json(listado[legadas[ruta]])
+                        return self._json(listado)
                     # Incremento 7a: catálogo, precios y comparación trazable.
                     import re
+                    from . import agregados_api
+                    if ruta == '/api/resumen':
+                        return self._json(agregados_api.resumen(cx))
+                    if ruta == '/api/resumen/operandos':
+                        return self._json(agregados_api.operandos(cx, {k:v[0] for k,v in q.items()}))
+                    if re.fullmatch(r'/api/proveedor/\d+', ruta):
+                        from . import renglones
+                        try:
+                            return self._json(agregados_api.proveedor(cx, int(ruta.rsplit('/',1)[1]), {k:v[0] for k,v in q.items()}))
+                        except renglones.NoEncontrado as e:
+                            return self._json({'error':str(e),'no_encontrado':True},404)
+                    if ruta == '/api/cruce':
+                        return self._json(agregados_api.cruce(cx, {k:v[0] for k,v in q.items()}))
                     # Incremento 7b: contrataciones propuestas y hallazgos revisables.
                     if ruta in ('/api/contrataciones', '/api/hallazgos') or re.fullmatch(r'/api/contratacion/\d+', ruta):
                         from . import contrataciones, hallazgos, renglones
@@ -1368,7 +1410,8 @@ class Manejador(BaseHTTPRequestHandler):
                     if m_precio:
                         from . import precios, renglones
                         try:
-                            return self._json(precios.comparar(cx, int(m_precio[1]), q.get("niveles", [None])[0]))
+                            return self._json(precios.comparar(cx, int(m_precio[1]), q.get("niveles", [None])[0],
+                                               paginacion={k:v[0] for k,v in q.items()}))
                         except renglones.NoEncontrado as e:
                             return self._json({"error": str(e), "no_encontrado": True}, 404)
                         except ValueError as e:
@@ -1419,8 +1462,7 @@ class Manejador(BaseHTTPRequestHandler):
                     if ruta == "/api/cola":
                         return self._json(api_cola(
                             cx,
-                            filtros={k: q.get(k, [""])[0]
-                                     for k in ("familia", "campo", "clase")},
+                            filtros={k:v[0] for k,v in q.items()},
                             desde=int(q.get("desde", ["0"])[0] or 0),
                             limite=int(q.get("limite", [str(POR_PAGINA)])[0] or POR_PAGINA)))
                     if ruta == "/api/fusiones":
@@ -1536,7 +1578,7 @@ class Manejador(BaseHTTPRequestHandler):
                     if ruta == "/api/fojas":
                         return self._json(api_fojas(cx))
                     if ruta == "/api/archivos":
-                        return self._json(api_archivos(cx, procesando=_procesador().ocupado()))
+                        return self._json(api_archivos(cx, procesando=_procesador().ocupado(), filtros={k:v[0] for k,v in q.items()}))
                     if ruta == "/api/papelera/archivos":
                         try:
                             parametros = parse_qs(u.query, keep_blank_values=True)

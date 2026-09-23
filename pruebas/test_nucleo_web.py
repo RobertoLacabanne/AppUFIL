@@ -92,8 +92,11 @@ class NucleoPorHTTP(unittest.TestCase):
         return respuesta
 
     def test_sin_reconocer_vacio(self):
-        self.assertEqual(self.pedir('/api/piezas/sin-reconocer'),
-                         (200, {'piezas': [], 'tipos': piezas.tipos_posibles()}))
+        estado, r = self.pedir('/api/piezas/sin-reconocer')
+        self.assertEqual(estado, 200)
+        self.assertEqual(r['piezas'], [])
+        self.assertEqual(r['tipos'], piezas.tipos_posibles())
+        self.assertEqual((r['total'],r['desde'],r['limite']), (0,0,50))
 
     def test_sin_reconocer_con_material(self):
         doc = self.sembrar()

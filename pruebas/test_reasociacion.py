@@ -208,7 +208,8 @@ class ContratoHTTP(unittest.TestCase):
         self.assertNotIn('candidatas', corto['revisiones'][0])
         status, r = self.pedir('/api/reasociacion/resolver', self.cuerpo('reasociar'))
         self.assertEqual((status, r['estado'], r['orden']), (200, 'vigente', 2))
-        self.assertEqual(self.pedir('/api/reasociaciones/pendientes'), (200, {'revisiones': []}))
+        estado, r = self.pedir('/api/reasociaciones/pendientes')
+        self.assertEqual((estado, r['revisiones'], r['total']), (200, [], 0))
 
     def test_post_pendiente_y_descartar(self):
         for accion, estado in [('pendiente', 'requiere_reasociacion'), ('descartar', 'descartada')]:

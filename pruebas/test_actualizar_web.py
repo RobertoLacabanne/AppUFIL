@@ -152,7 +152,9 @@ class ActualizarPorHTTP(unittest.TestCase):
             esperado = ac.reasociaciones(cx)
         finally:
             cx.close()
-        self.assertEqual(self.pedir('/api/reasociaciones'), (200, {'revisiones': esperado}))
+        estado, r = self.pedir('/api/reasociaciones')
+        self.assertEqual((estado, r['revisiones']), (200, esperado))
+        self.assertEqual((r['total'],r['desde'],r['limite']), (1,0,50))
         self.assertEqual(esperado[0]['valor'], 'dato humano')
 
 

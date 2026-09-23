@@ -626,6 +626,10 @@ CREATE TABLE IF NOT EXISTS renglon (
 CREATE INDEX IF NOT EXISTS ix_renglon_documento ON renglon(documento_id);
 CREATE INDEX IF NOT EXISTS ix_renglon_archivo ON renglon(sha256, vigente);
 CREATE INDEX IF NOT EXISTS ix_renglon_precio ON renglon(etapa, fecha_precio);
+CREATE INDEX IF NOT EXISTS ix_renglon_proveedor_fecha ON renglon(proveedor_id, vigente, fecha_precio, id);
+CREATE INDEX IF NOT EXISTS ix_renglon_compra_item ON renglon(contratacion_id, vigente, desc_norm, etapa);
+CREATE INDEX IF NOT EXISTS ix_contratacion_documento_doc ON contratacion_documento(documento_id, estado, contratacion_id);
+CREATE INDEX IF NOT EXISTS ix_contratacion_estado_procedimiento ON contratacion(estado, procedimiento, id);
 -- El vínculo no depende del id efímero de la celda: clave = pieza + región.
 CREATE TABLE IF NOT EXISTS renglon_item (
   id INTEGER PRIMARY KEY,
@@ -655,6 +659,11 @@ CREATE TABLE IF NOT EXISTS hallazgo_fuente (
   renglon_clave TEXT REFERENCES renglon(clave) ON DELETE SET NULL,
   clave TEXT NOT NULL, UNIQUE(hallazgo_id, clave)
 );
+CREATE INDEX IF NOT EXISTS ix_hallazgo_revision ON hallazgo(revision_estado, ya_no_se_detecta, id);
+CREATE INDEX IF NOT EXISTS ix_hallazgo_contratacion ON hallazgo(contratacion_id, ya_no_se_detecta, tipo);
+CREATE INDEX IF NOT EXISTS ix_hallazgo_renglon ON hallazgo(json_extract(datos, '$.renglon_id'));
+CREATE INDEX IF NOT EXISTS ix_hallazgo_fuente_renglon ON hallazgo_fuente(renglon_clave, hallazgo_id);
+CREATE INDEX IF NOT EXISTS ix_hallazgo_fuente_doc ON hallazgo_fuente(documento_id, hallazgo_id);
 
 -- ───────────────────────────────────── LA FOLIATURA QUE TIENE EL PAPEL ──
 -- Cuatro numeraciones distintas conviven en un expediente y NO son la misma:

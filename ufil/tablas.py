@@ -393,14 +393,15 @@ def ver(cx: sqlite3.Connection, tabla_id: int) -> dict:
     return _arma(cx, f)
 
 
-def _arma(cx, f) -> dict:
+def _arma(cx, f, *, celdas=None) -> dict:
+    if celdas is None:
+        celdas = cx.execute('SELECT * FROM tabla_celda WHERE tabla_id=? ORDER BY fila,columna', (f['id'],))
     celdas = [{"fila": c["fila"], "columna": c["columna"], "texto": c["texto"],
                "es_encabezado": bool(c["es_encabezado"]),
                "filas_ocupa": c["filas_ocupa"], "columnas_ocupa": c["columnas_ocupa"],
                "confianza": c["confianza"],
                "caja": None if c["x0"] is None else [c["x0"], c["y0"], c["x1"], c["y1"]]}
-              for c in cx.execute("""SELECT * FROM tabla_celda WHERE tabla_id=?
-                                      ORDER BY fila, columna""", (f["id"],))]
+              for c in celdas]
     return {"id": f["id"], "sha256": f["sha256"], "pagina_nro": f["pagina_nro"],
             "documento_id": f["documento_id"], "filas": f["filas"],
             "columnas": f["columnas"], "origen": f["origen"],
