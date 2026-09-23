@@ -215,14 +215,38 @@ def _ancla(celdas, pagina):
                                max(c['x1'] for c in celdas), max(c['y1'] for c in celdas))))}
 
 
-_IMPORTE = re.compile(r'(?<![\w.,])(?:\$\s*)?[+-]?\d+(?:[.,]\d+)+(?![\w.,]|\s*%)')
+_IMPORTE = re.compile(
+    r'(?<![\w.,])(?:'
+    r'(?:\$|ARS|USD|EUR)\s*[+-]?\d+(?:[.,]\d+)*'
+    r'|[+-]?\d+(?:[.,]\d+)*\s*(?:ARS|USD|EUR)'
+    r'|[+-]?\d+(?:[.,]\d+)*[.,]\d{2}'
+    r')(?![\w.,]|\s*%)', re.I)
+
+
+# Cuántos dígitos puede tener un importe con moneda y SIN ningún separador.
+#
+# `$ 100` es un precio impreso así. `$163865` no: un importe de seis cifras se imprime
+# con separador de miles, así que la falta del separador dice que el OCR se lo comió.
+# Y el caso está documentado en el legajo: `$163865|` es cómo salió leído `$1.638,65`.
+# Tomarlo por 163.865 es equivocarse por cien veces en un precio, que es justo el número
+# que después se compara. Cuatro cifras es donde todavía no hace falta separador.
+DIGITOS_SIN_SEPARADOR = 4
 
 
 def importes(texto, notacion=','):
-    """Tokens completos con decimales; ni porcentajes ni reparación OCR."""
+    """Tokens con dos decimales o moneda explícita; nunca códigos de miles.
+
+    La conversión valida los grupos y la notación, sin reparar OCR ni porcentajes.
+    """
     return [m.group() for m in _IMPORTE.finditer(texto or '')
-            if re.search(r'[.,]\d{2,}$', m.group())
-            and decimal_argentino(m.group(), notacion) is not None]
+            if decimal_argentino(m.group(), notacion) is not None
+            and _separadores_creibles(m.group())]
+
+
+def _separadores_creibles(token: str) -> bool:
+    """Un entero largo sin separadores es un OCR que se los comió, no un importe."""
+    digitos = re.sub(r'\D', '', token)
+    return bool(re.search(r'[.,]', token)) or len(digitos) <= DIGITOS_SIN_SEPARADOR
 
 
 def importe_sin_rol(texto, notacion=','):

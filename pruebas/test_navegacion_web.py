@@ -138,5 +138,31 @@ class LaFilaEnfocadaSeVeYSeAnuncia(unittest.TestCase):
                       "un lector de pantalla tiene que poder anunciar la fila activa")
 
 
+class LaInterfazTieneQuePoderCargarse(unittest.TestCase):
+    """
+    La prueba más barata y la que más falta hacía.
+
+    El 22/09/2026 la aplicación estuvo rota en producción sin que ninguna prueba se
+    enterara: `app.js` tenía ocho líneas huérfanas —el final duplicado de una función,
+    escombro de una edición— y el navegador no ejecutaba NADA del archivo. La pantalla
+    quedaba en blanco. Todas las demás pruebas de interfaz seguían en verde porque
+    extraen un pedazo del archivo y lo corren suelto, así que el pedazo roto nunca se
+    miraba. Un archivo que no parsea no es una pantalla con un defecto: es ninguna
+    pantalla.
+    """
+
+    def test_el_javascript_de_la_aplicacion_parsea(self):
+        import shutil
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("sin node: no se puede comprobar que el archivo parsee")
+        ruta = RAIZ / "ufil/web/app.js"
+        r = subprocess.run([node, "--check", str(ruta)], capture_output=True, text=True,
+                           encoding="utf-8", timeout=60)
+        self.assertEqual(r.returncode, 0,
+                         "app.js no parsea, así que el navegador no ejecuta nada:\n"
+                         + (r.stderr or "")[:1200])
+
+
 if __name__ == "__main__":
     unittest.main()

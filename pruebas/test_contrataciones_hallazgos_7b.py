@@ -21,7 +21,14 @@ class OCRPlanillas(unittest.TestCase):
         self.assertEqual(str(rg.decimal_argentino('$1.638,65|')), '1638.65')
         self.assertEqual(rg.importes('$1.638,65| S32% $'), ['$1.638,65'])
         self.assertEqual(rg.importes('10,00 %'), [])
+        # `$163865|` es cómo salió leído `$1.638,65`: el OCR se comió los separadores.
+        # Tomarlo por 163.865 es equivocarse por cien veces en un precio. Un importe de
+        # seis cifras se imprime con separador de miles; que no lo tenga es la señal.
         self.assertEqual(rg.importes('$163865|'), [])
+        self.assertEqual(rg.importes('$ 12000'), [], 'también se imprimiría con separador')
+        # Pero un precio corto se imprime así, con moneda y sin separador.
+        self.assertEqual(rg.importes('$ 100'), ['$ 100'])
+        self.assertEqual(rg.importes('$ 1200'), ['$ 1200'])
         self.assertEqual(rg.importes('1O0,00'), [])
 
     def test_encabezados_danados(self):
