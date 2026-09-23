@@ -137,7 +137,7 @@ const DIAG = `(() => {
       await evaluar(`location.hash = ${JSON.stringify(hash)}`);
       await pausa(300);
       for (let i = 0; i < 80; i++) {
-        if (await evaluar(`!document.querySelector('#vista .esqueleto')`)) break;
+        if (await evaluar(`!document.querySelector('#vista .esqueleto, #vista .cargando, #vista .cargando-tabla')`)) break;
         await pausa(100);
       }
       await pausa(700);

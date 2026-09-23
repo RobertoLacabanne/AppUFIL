@@ -47,7 +47,7 @@ const pausa = ms => new Promise(r => setTimeout(r, ms));
   // Quieta es cuando no queda un esqueleto de carga y la vista ya tiene algo escrito.
   const quieto = async () => {
     for (let i = 0; i < 150; i++) {
-      if (await evaluar(`!document.querySelector('#vista .esqueleto') &&
+      if (await evaluar(`!document.querySelector('#vista .esqueleto, #vista .cargando, #vista .cargando-tabla') &&
           (document.querySelector('#vista')?.innerText || '').trim().length > 40`)) break;
       await pausa(100);
     }

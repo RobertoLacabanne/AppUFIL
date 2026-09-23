@@ -3797,17 +3797,19 @@ async function guardarNucleo(ruta, cuerpo) {
 }
 
 async function vSinReconocer() {
-  const d = await api('/api/piezas/sin-reconocer?limite=0');
+  // Sólo interesa el catálogo de tipos: se pide una fila, que es el mínimo que acepta
+  // el servidor (con `limite=0` contestaba 400 y la pantalla mostraba un error).
+  const d = await api('/api/piezas/sin-reconocer?limite=1');
   if (location.hash !== '#/sin-reconocer') return;
-  vista.innerHTML = bloque('', 'Documentos', `<h2>Todavía sin reconocer</h2>
+  vista.innerHTML = bloque('f. 0000', 'Revisión', `<h2>Todavía sin reconocer</h2>
     <p class="prosa">Son documentos cargados que el sistema todavía no sabe leer...</p>
     <div id="lista-sin-reconocer"></div>`);
   
   tablaServidor($('#lista-sin-reconocer'), '/api/piezas/sin-reconocer', 'piezas', [
     {t: 'Archivo', o: 'archivo', c: 'mono', r: p => `<a href="#/documento/${p.documento_id}">${esc(p.archivo)}</a>`},
     {t: 'Fojas', o: 'foja', c: 'num', r: p => `${esc(p.pagina_desde)} a ${esc(p.pagina_hasta)} (${esc(p.fojas)})`, b: p => p.fojas},
-    {t: 'Tipo registrado', r: p => `${esc(d.tipos.find(t => t.clave === p.tipo)?.nombre || p.tipo || 'Sin clasificar')} ${p.clasificado_por ? `(por ${esc(p.clasificado_por)})` : ''}`},
-    {t: 'Clasificar', r: p => `<form class="fila-acciones" data-pieza="${p.documento_id}"><select name="tipo" required><option value="">Elegí un tipo</option>${d.tipos.map(t => `<option value="${esc(t.clave)}">${esc(t.nombre)}</option>`).join('')}</select> <button class="boton" type="submit">Registrar</button></form>`}
+    {t: 'Tipo registrado', r: p => `${esc(TIPO_DOC[p.tipo] || d.tipos.find(t => t.clave === p.tipo)?.nombre || p.tipo || 'Sin clasificar')} ${p.clasificado_por ? `(por ${esc(p.clasificado_por)})` : ''}`},
+    {t: 'Clasificar', r: p => `<form class="fila-acciones" data-pieza="${p.documento_id}"><select name="tipo" required><option value="">Elegí un tipo</option>${d.tipos.map(t => `<option value="${esc(t.clave)}">${esc(TIPO_DOC[t.clave] || t.nombre)}</option>`).join('')}</select> <button class="boton" type="submit">Registrar</button></form>`}
   ], {
     placeholder: 'Buscar archivo...',
     vacio: 'No hay piezas sin reconocer.'
