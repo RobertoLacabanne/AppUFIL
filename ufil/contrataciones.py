@@ -258,6 +258,31 @@ def _reaplicar_decisiones(cx):
                    (d['contratacion_id'],doc[0],d['etapa'],d['estado'],d['quien'],d['cuando'],d['confianza']))
 
 
+def anclas(cx, contrataciones):
+    """
+    De qué pieza sale cada contratación que se armó sin expediente leído.
+
+    Esas se llaman todas «Contratación por verificar»: en un legajo real eran once de
+    veinte con el mismo nombre, y no había forma de distinguirlas sin abrirlas. La
+    clave dice sobre qué pieza se armó (`pieza:<archivo>:<foja>`); acá se devuelve el
+    tipo de esa pieza, la foja y el archivo, que es como la persona la reconoce.
+    """
+    pedidas = {}
+    for c in contrataciones:
+        partes = str(c.get('clave') or '').split(':')
+        if len(partes) == 3 and partes[0] == 'pieza' and partes[2].isdigit():
+            pedidas[c['id']] = (partes[1], int(partes[2]))
+    if not pedidas:
+        return {}
+    salida = {}
+    for cid, (sha, nro) in pedidas.items():
+        r = cx.execute("""SELECT d.tipo, a.nombre archivo FROM documento d JOIN archivo a ON a.sha256=d.sha256
+                          WHERE d.sha256=? AND ? BETWEEN d.pagina_desde AND d.pagina_hasta
+                          ORDER BY d.pagina_desde DESC LIMIT 1""", (sha, nro)).fetchone()
+        salida[cid] = dict(tipo=r['tipo'] if r else None, archivo=r['archivo'] if r else None, pagina=nro)
+    return salida
+
+
 def listar(cx, **filtros):
     from . import paginacion as pg
     where = ["EXISTS(SELECT 1 FROM contratacion_documento cd WHERE cd.contratacion_id=c.id AND cd.estado!='rechazada')"]
@@ -295,6 +320,16 @@ def listar(cx, **filtros):
             clave = 'ofertas' if r['etapa'] == 'oferta' else r['etapa']
             if clave in claves:
                 filas[r['contratacion_id']]['etapas'][clave] = r['cantidad']
+        # Cuántos hallazgos vigentes tiene cada una: sin esto la columna quedaba vacía y
+        # no había forma de saber por cuál empezar sin abrir las veinte fichas.
+        for c in filas.values():
+            c['hallazgos'] = 0
+        for r in cx.execute('''SELECT contratacion_id,count(*) n FROM hallazgo
+                WHERE ya_no_se_detecta=0 AND contratacion_id IN (SELECT value FROM json_each(?))
+                GROUP BY contratacion_id''', (json.dumps(list(filas)),)):
+            filas[r['contratacion_id']]['hallazgos'] = r['n']
+        for cid, ancla in anclas(cx, filas.values()).items():
+            filas[cid]['ancla'] = ancla
     return resultado
 
 
@@ -365,7 +400,11 @@ def ficha(cx, cid, *, docs=None, incluir_hallazgos=True):
     estado_etapas = [dict(clave='ofertas' if e['clave']=='oferta' else e['clave'], rotulo=e['rotulo'],
                          presente=e['presente'], cantidad=e['cantidad'], documentos=e['documento_ids'], ausencia=e['ausencia'])
                      for e in etapas if e['clave'] in ('pliego','oferta','adjudicacion','orden_compra','factura','remito','pago')]
-    return dict(contratacion=dict(c), etapas=etapas, estado_etapas=estado_etapas, oferentes=list(oferentes.values()),
+    cd = dict(c)
+    ancla = anclas(cx, [cd]).get(cd['id'])
+    if ancla:
+        cd['ancla'] = ancla
+    return dict(contratacion=cd, etapas=etapas, estado_etapas=estado_etapas, oferentes=list(oferentes.values()),
                 matriz=dict(columnas=list(columnas.values()), filas=list(filas.values())), totales=totales,
                 cronologia=sorted(cronologia, key=lambda e: e['fecha']),
                 decisiones_sin_pieza=[d for d in _decisiones(cx).values() if d['contratacion_id'] == cid and

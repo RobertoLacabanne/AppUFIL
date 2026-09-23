@@ -3056,3 +3056,15 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
 .aviso-floja{margin:0 0 12px}
 .formula-completa > summary{font-size:var(--t-12); color:var(--tinta-2); margin:4px 0}
 .advertencias + h2{margin-top:22px}
+/* Un título que sigue a otro contenido arranca con aire: pegado a la lista de arriba
+   se leía como su último renglón. */
+.cuerpo > :not(h2):not(h3) + h3{margin-top:28px}
+.cuerpo > :not(h2):not(h3) + h2{margin-top:32px}
+
+/* Todo enlace de la vista tiene el color de enlace del sistema, tenga o no clase.
+   Sólo los que no tenían clase lo recibían; los demás —el nombre de una contratación
+   en el listado, por ejemplo— salían con el azul del navegador, ilegible sobre el
+   folio oscuro. Las clases que definen su propio color lo siguen pisando. */
+main a, main a:visited{color:var(--tribunal-txt)}
+a.item-literal{text-decoration:none; font-weight:600}
+a.item-literal:hover{text-decoration:underline}

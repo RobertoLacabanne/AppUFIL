@@ -101,7 +101,10 @@ def render(script):
     idx_abrir = js.find('let catalogoContrataciones = null;')
     trozo_nuevo = js[idx_abrir:]
 
-    full_js = "\n".join([mock_dom, trozo_utils, trozo_nuevo, script])
+    # El nombre de una contratación lo arma una función compartida: se toma de app.js tal cual.
+    trozo_nombre = js[js.index('function nombreContratacion('):js.index('const FAMILIA_DOC')]
+    const_nombre = "const nombreArchivo = n => String(n || '');"
+    full_js = "\n".join([mock_dom, trozo_utils, trozo_nombre, const_nombre, trozo_nuevo, script])
     
     # Por archivo y no con `node -e`: app.js ya pasa el largo máximo de una línea de
     # comandos de Windows (32.767 caracteres) y el proceso ni arrancaba.

@@ -46,7 +46,9 @@ class BackendFinal(unittest.TestCase):
         sql=[]; self.cx.set_trace_callback(sql.append)
         r=ct.listar(self.cx)
         self.cx.set_trace_callback(None)
-        self.assertEqual(len(sql),3)
+        # Cuenta, página, etapas agregadas y hallazgos agregados: cuatro consultas fijas,
+        # cualquiera sea el largo de la página. Si crece con las filas, volvió el N+1.
+        self.assertEqual(len(sql),4)
         self.assertEqual(r['contrataciones'][0]['etapas'],dict(pliego=1,ofertas=1,adjudicacion=0,orden_compra=0,factura=0,remito=0,pago=0))
         self.assertEqual(ct.listar(self.cx,etapa_faltante='ofertas')['total'],0)
         self.assertEqual(ct.listar(self.cx,etapa_faltante='pago')['total'],1)

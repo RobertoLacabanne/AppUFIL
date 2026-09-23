@@ -60,6 +60,7 @@ def main() -> int:
     p.add_argument("--anchos", default="1920x1080,1366x768")
     p.add_argument("--solo", default="", help="rutas separadas por coma")
     p.add_argument("--tema", default="", help="claro u oscuro; vacío = el de fábrica")
+    p.add_argument("--completa", action="store_true", help="capturas de la página entera")
     p.add_argument("--extra", default="", help="nombre=#/ruta,... rutas puntuales de más")
     p.add_argument("--modo", default="barrido", choices=["barrido", "flujo", "ambos"],
                    help="barrido: todas las pantallas; flujo: el recorrido de una persona (flujo.cjs)")
@@ -98,7 +99,7 @@ def main() -> int:
         for par in a.anchos.split(","):
             ancho, alto = par.lower().split("x")
             env = dict(os.environ, ORIGEN=origen, SALIDA=str(salida), ANCHO=ancho,
-                       ALTO=alto, CDP_PORT=str(a.cdp), SOLO=a.solo, TEMA=a.tema, EXTRA=a.extra)
+                       ALTO=alto, CDP_PORT=str(a.cdp), SOLO=a.solo, TEMA=a.tema, EXTRA=a.extra, COMPLETA='1' if a.completa else '')
             print(f"== {ancho}x{alto}", flush=True)
             guiones = {"barrido": ["barrido.cjs"], "flujo": ["flujo.cjs"],
                        "ambos": ["barrido.cjs", "flujo.cjs"]}[a.modo]

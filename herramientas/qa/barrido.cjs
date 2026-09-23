@@ -142,7 +142,14 @@ const DIAG = `(() => {
       }
       await pausa(700);
       const diag = await evaluar(DIAG);
-      const shot = await cdp('Page.captureScreenshot', {format:'png'});
+      // COMPLETA=1 captura la página entera y no sólo lo que entra en la ventana.
+      let shot;
+      if (process.env.COMPLETA) {
+        const m = await cdp('Page.getLayoutMetrics');
+        const alto = Math.min(Math.ceil((m.cssContentSize || m.contentSize).height), 16000);
+        shot = await cdp('Page.captureScreenshot', {format:'png', captureBeyondViewport:true,
+          clip:{x:0, y:0, width:ANCHO, height:alto, scale:1}});
+      } else shot = await cdp('Page.captureScreenshot', {format:'png'});
       fs.writeFileSync(path.join(SALIDA, `${nombre}-${ANCHO}.png`), Buffer.from(shot.data, 'base64'));
       informe.push({ruta:nombre, hash, ...diag, consola:[...consola]});
       process.stdout.write(`${nombre} ok ${diag.alto}px${diag.desborde ? ' DESBORDE' : ''}${diag.vacio ? ' VACIO' : ''}${consola.length ? ' ' + consola.length + 'err' : ''}\n`);

@@ -134,6 +134,17 @@ const TIPO_DOC = {
   especificacion:'Especificación técnica', adjudicacion:'Adjudicación',
   dictamen:'Dictamen', cuadro_comparativo:'Cuadro comparativo', pedido:'Pedido',
 };
+/* Cómo se llama una contratación en pantalla. Las que se armaron sin expediente leído
+   se llaman todas «Contratación por verificar» en la base; se las nombra por la pieza
+   de la que salen —«Orden de compra, f. 7»— y el archivo va aparte, en chico. */
+function nombreContratacion(c) {
+  if (!c) return '';
+  if (c.ancla && (!c.expediente || /por verificar/i.test(c.nombre || ''))) {
+    const tipo = TIPO_DOC[c.ancla.tipo] || (c.ancla.tipo ? String(c.ancla.tipo).replace(/_/g, ' ') : 'Pieza');
+    return `${tipo.charAt(0).toUpperCase() + tipo.slice(1)}, f. ${fmtNum.format(c.ancla.pagina)}`;
+  }
+  return c.nombre || 'Contratación sin nombre';
+}
 const FAMILIA_DOC = {contrato:'Contrato', comprobante:'Comprobante de pago',
                      acto:'Acto administrativo'};
 /* Por qué está esperando este campo. Es lo que se filtra en la cola. */
@@ -1528,11 +1539,14 @@ async function vPanel() {
      las que más. Es por dónde se empieza a leer un legajo de cien contrataciones. */
   const etapasDe = c => c.etapas && !Array.isArray(c.etapas)
     ? Object.values(c.etapas).filter(Boolean).length : 0;
+  const hzPorContratacion = {};
+  hallazgos.forEach(h => { if (h.contratacion_id) hzPorContratacion[h.contratacion_id] = (hzPorContratacion[h.contratacion_id] || 0) + 1; });
+  contrataciones.forEach(c => { if (c.hallazgos == null) c.hallazgos = hzPorContratacion[c.id] || 0; });
   const primeras = [...contrataciones]
     .sort((a, b) => (b.hallazgos || 0) - (a.hallazgos || 0) || etapasDe(b) - etapasDe(a))
     .slice(0, 6);
   const contratacionesHTML = primeras.length ? tabla([
-    {t: 'Contratación', c: 'crece', r: c => `<a href="#/contratacion?id=${c.id}">${esc(c.nombre)}</a>
+    {t: 'Contratación', c: 'crece', r: c => `<a href="#/contratacion?id=${c.id}">${esc(nombreContratacion(c))}</a>
         ${c.objeto ? `<span class="item-normalizado">${esc(c.objeto)}</span>` : ''}`},
     {t: 'Expediente', c: 'fol', r: c => c.expediente ? esc(c.expediente) : ausente('no_consta')},
     {t: 'Hallazgos', c: 'num', r: c => c.hallazgos
@@ -1557,6 +1571,56 @@ async function vPanel() {
           >${esc(hs[0].titulo || tipo)}</a></span>
         <span class="motivo-ejemplos">${esc(hs[0].descripcion || '')}</span>
       </li>`).join('')}</ul>` : '';
+
+  /* ── La plata que dicen los papeles, por etapa ───────────────────────────
+     Suma de los subtotales de los renglones leídos, por etapa y moneda: no el total
+     que imprime cada documento. Las etapas no se suman entre sí —la orden de compra y
+     su factura son la misma plata vista dos veces— y lo provisional va aparte de lo
+     firme. Cada fila dice cuántos renglones tienen importe y cuántos no, porque una
+     suma a la que le faltan sumandos no es un total. */
+  const ETAPA_PLURAL = {presupuesto: 'Presupuestos', oferta: 'Ofertas', adjudicacion: 'Adjudicaciones',
+    orden_compra: 'Órdenes de compra', factura: 'Facturas', remito: 'Remitos',
+    orden_pago: 'Órdenes de pago', pago: 'Pagos', otro: 'Otros documentos'};
+  const ORDEN_ETAPA = ['presupuesto', 'oferta', 'adjudicacion', 'orden_compra', 'remito',
+                       'factura', 'orden_pago', 'pago', 'otro'];
+  // Una etapa puede venir partida en dos grupos: los renglones con moneda leída y los
+  // que no. Se juntan en una fila —la suma es la de los que tienen importe; el resto
+  // cuenta como renglones sin importe— para no mostrar «Remitos» dos veces.
+  const juntos = new Map();
+  ((res && res.dinero) || []).filter(g => g.renglones).forEach(g => {
+    const k = g.etapa + '|' + g.estado + '|' + (g.moneda || '');
+    const sinMoneda = g.etapa + '|' + g.estado + '|';
+    if (!g.moneda) {
+      const x = juntos.get(sinMoneda) || {...g, valor: null, con_valor: 0, renglones: 0};
+      x.renglones += g.renglones; juntos.set(sinMoneda, x); return;
+    }
+    juntos.set(k, {...g});
+  });
+  for (const [k, g] of [...juntos]) {
+    if (g.moneda) continue;
+    const conMoneda = [...juntos.entries()].find(([k2, h]) => h.moneda && h.etapa === g.etapa && h.estado === g.estado);
+    if (conMoneda) {
+      conMoneda[1].renglones += g.renglones;
+      if (!conMoneda[1].fecha_desde) { conMoneda[1].fecha_desde = g.fecha_desde; conMoneda[1].fecha_hasta = g.fecha_hasta; }
+      juntos.delete(k);
+    }
+  }
+  const dinero = [...juntos.values()]
+    .sort((a, b) => ORDEN_ETAPA.indexOf(a.etapa) - ORDEN_ETAPA.indexOf(b.etapa)
+                    || String(a.estado).localeCompare(String(b.estado)));
+  const dineroHTML = dinero.length ? tabla([
+    {t: 'Etapa', c: 'crece', r: g => esc(ETAPA_PLURAL[g.etapa] || String(g.etapa).replace(/_/g, ' '))},
+    {t: 'Suma leída', c: 'num', r: g => g.valor != null
+        ? `<span class="${g.estado === 'firme' ? '' : 'provisional'}">${esc(
+            (g.moneda && g.moneda !== 'ARS' ? g.moneda + ' ' : '$ ') + fmtPlata.format(Number(g.valor)))}</span>`
+        : ausente(g.ausencia || 'no_consta')},
+    {t: 'Renglones con importe', c: 'num', r: g => `${n(g.con_valor)}<span class="celda-nota">de ${n(g.renglones)}</span>`},
+    {t: 'Estado', r: g => g.estado === 'firme' ? sello('ok', 'Firme')
+        : sello('neutro', 'Provisional', {titulo: 'Leído por el sistema y todavía sin revisar contra la foja.'})},
+    {t: 'Fechas', c: 'fol', r: g => g.fecha_desde
+        ? esc(fmtFecha(g.fecha_desde) + (g.fecha_hasta && g.fecha_hasta !== g.fecha_desde ? ' – ' + fmtFecha(g.fecha_hasta) : ''))
+        : ausente('no_consta')},
+  ], dinero) : '';
 
   /* ── Lo técnico, al final y en un solo lugar ─────────────────────────────
      Fojas leídas, datos firmes y en conflicto: dice cuánto se puede confiar en lo de
@@ -1598,12 +1662,19 @@ async function vPanel() {
       <h2>Qué hacer ahora</h2>
       ${tareasHTML}`) +
 
-    (contratacionesHTML || hallazgosHTML ? bloque('f. 0002', 'Investigación', `
-      ${hallazgosHTML ? `<h2>Hallazgos sin revisar, por tipo</h2>
+    (contratacionesHTML || hallazgosHTML || dineroHTML ? bloque('f. 0002', 'Investigación', `
+      <h2>Para investigar</h2>
+      ${hallazgosHTML ? `<h3>Hallazgos sin revisar, por tipo</h3>
         <p class="nota-seccion">Ninguno es una conclusión: cada uno dice qué se detectó y de
           qué foja sale, para que una persona lo verifique.</p>
         ${hallazgosHTML}` : ''}
-      ${contratacionesHTML ? `<h2>Contrataciones para empezar</h2>
+      ${dineroHTML ? `<h3>Lo que dicen los papeles, en plata</h3>
+        <p class="nota-seccion">Suma de los subtotales de los renglones leídos, por etapa. No
+          es el total que imprime cada documento, y las etapas no se suman entre sí: una orden
+          de compra y su factura son la misma plata vista dos veces. Lo provisional todavía no
+          lo revisó nadie contra la foja.</p>
+        ${dineroHTML}` : ''}
+      ${contratacionesHTML ? `<h3>Contrataciones para empezar</h3>
         <p class="nota-seccion">Las que tienen más hallazgos. Están las
           ${n(totalContrataciones)} en <a href="#/contrataciones">Contrataciones</a>.</p>
         ${contratacionesHTML}` : ''}`) : '') +
@@ -6299,14 +6370,18 @@ async function vContrataciones() {
       // Lo que identifica una contratación en un expediente es el expediente. El
       // nombre lleva el enlace, que es donde la mano va a ir igual.
       {t:'Contratación', c:'crece', r: c => `<div class="item-desc">
-          <a class="item-literal" href="#/contratacion?id=${c.id}">${esc(c.nombre)}</a>
-          ${c.objeto ? `<span class="item-normalizado">${esc(c.objeto)}</span>` : ''}
+          <a class="item-literal" href="#/contratacion?id=${c.id}">${esc(nombreContratacion(c))}</a>
+          ${c.objeto ? `<span class="item-normalizado">${esc(c.objeto)}</span>`
+            : c.ancla ? `<span class="item-normalizado">Sin expediente leído · ${esc(String(c.ancla.archivo || '').replace(/\.pdf$/i, ''))}</span>` : ''}
         </div>`},
       // `ausencias` viene del backend y dice POR QUÉ falta cada campo: no_consta,
       // ilegible, no_cargado, pendiente. Se usa para el título de la raya, así que la
       // explicación es la del sistema y no una que invente la pantalla.
       {t:'Expediente', c:'fol', r: c => c.expediente
           ? esc(c.expediente) : ausente((c.ausencias || {}).expediente)},
+      // Proveedor y adjudicado sólo si el listado los trae: dos columnas vacías de punta
+      // a punta no dicen «no consta», dicen que la pantalla pidió algo que no sabe.
+      ...(d.contrataciones.some(c => Array.isArray(c.proveedores)) ? [
       {t:'Proveedor', r: c => {
          // Lo mismo que con las etapas: el listado todavía no trae los proveedores.
          // Decir «—» acá sería afirmar que la contratación no tiene ninguno.
@@ -6319,10 +6394,11 @@ async function vContrataciones() {
            ? ` <span class="mas" title="${esc(p.slice(1).map(x => x.nombre).join(', '))}"
                 >+${p.length - 1}</span>` : '';
          return esc(p[0].nombre) + resto;
-       }},
+       }}] : []),
       {t:'Etapas', r: riel},
+      ...(d.contrataciones.some(c => c.totales) ? [
       {t:'Adjudicado', c:'num', r: c => !c.totales ? ''
-          : c.totales.adjudicado ? montoHTML(c.totales.adjudicado) : ausente('no_consta')},
+          : c.totales.adjudicado ? montoHTML(c.totales.adjudicado) : ausente('no_consta')}] : []),
       // «0 hallazgos» no es información: lo normal es que no haya. Sólo se dice
       // cuando hay algo que mirar, y entonces se dice cuánto.
       {t:'Hallazgos', c:'num', r: c => c.hallazgos
@@ -6522,7 +6598,7 @@ async function vContratacion() {
   vista.innerHTML = bloque('f. 0000', 'Contratación', `
     <nav class="migas" aria-label="Estás en"><a href="#/contrataciones">Contrataciones</a></nav>
     <header class="ficha-cabeza">
-      <h1>${esc(c.nombre || 'Contratación sin nombre')}</h1>
+      <h1>${esc(nombreContratacion(c))}</h1>
       ${c.objeto ? `<p class="ficha-objeto">${esc(c.objeto)}</p>` : ''}
       <div class="ficha-meta">
         ${meta.map(([k, v]) => `<span class="meta-par"><span class="meta-k">${k}</span> ${v}</span>`).join('')}
@@ -6950,7 +7026,18 @@ async function vHallazgosContrataciones() {
           : esc(h.descripcion || '');
       case 'precio_ausente':
         return `${x.renglon_id ? `<a href="#/renglon?id=${esc(x.renglon_id)}">Renglón</a>` : 'Renglón'}
-          con el precio ${x.motivo === 'ilegible' ? 'ilegible en el papel' : 'sin leer'}`;
+          ${x.motivo === 'ilegible' ? 'con el precio ilegible en el papel'
+            : x.motivo === 'ausente' ? 'sin precio en el papel' : 'con el precio sin leer'}`;
+      case 'subtotal_incorrecto': {
+        const ops = Object.fromEntries(((h.calculo || {}).operandos || []).map(o => [o.nombre, o.valor]));
+        return ops.cantidad && ops.precio_unitario
+          ? `${fmtNum.format(Number(ops.cantidad))} × ${esc(plata(ops.precio_unitario))} da ${esc(
+              plata(h.calculo.resultado))}; el papel dice ${esc(plata(x.impreso))}`
+          : `El subtotal impreso (${esc(plata(x.impreso))}) no da la cuenta`;
+      }
+      case 'precio_sin_rol':
+        return `${fmtNum.format(x.renglones || 0)} importes impresos sin decir si son
+          por unidad o por renglón`;
       case 'oferente_unico':
         return `Se encontró ${fmtNum.format(x.ofertas || 1)} oferta en lo cargado`;
       case 'diferencia_precio':
@@ -6975,6 +7062,9 @@ async function vHallazgosContrataciones() {
         <span class="hz-rotulo">Cálculo</span>
         <p class="formula mono">${esc(h.calculo.formula || '')}${h.calculo.resultado != null
           ? ` = ${esc(String(h.calculo.resultado))}` : ''}</p>
+        ${(h.calculo.operandos || []).length ? `<ul class="operandos">${h.calculo.operandos.map(op =>
+          `<li><span class="op-nombre">${esc(String(op.nombre || '').replace(/_/g, ' '))}</span>
+           ${op.fuente ? fuente(op.fuente, esc(String(op.valor))) : esc(String(op.valor))}</li>`).join('')}</ul>` : ''}
       </div>` : '';
     return `<details class="hz" data-hallazgo="${esc(h.id)}">
       <summary class="hz-fila">
