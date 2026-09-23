@@ -245,7 +245,7 @@ class CadaValorDesplegadoDiceDeQueColumnaEs(unittest.TestCase):
     def test_la_celda_lleva_el_rotulo_de_su_columna(self):
         """Sin el encabezado arriba, `$164.900,00` suelto no dice si es el monto de
         este contrato o la suma de los dos."""
-        self.assertEqual(APP.count('data-rotulo="${esc(c.t)}"'), 2,
+        self.assertEqual(APP.count('data-rotulo="${esc(c.t)}"'), 3,
                          "alguna de las dos tablas dejó de poner el rótulo en la celda")
         self.assertIn('content:attr(data-rotulo)', LIMPIO.replace(" ", ""),
                       "el rótulo está en el HTML y no se muestra")
