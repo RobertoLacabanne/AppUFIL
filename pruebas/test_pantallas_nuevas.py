@@ -33,8 +33,20 @@ def _trozo(desde: str, hasta: str) -> str:
 
 
 def _correr(script: str):
-    return subprocess.run(["node", "-e", script], cwd=RAIZ, capture_output=True,
-                          text=True, encoding="utf-8")
+    # Desde un archivo en UTF-8 y no con `node -e`: en Windows la línea de comandos
+    # pasa por la página de códigos de la consola y rompe los acentos. Por eso estas
+    # pruebas exigían que el código fuera ASCII —«las tildes van como \uXXXX»—, y esa
+    # exigencia terminó con alguien re-codificando app.js entero. La causa era ésta.
+    import os
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8",
+                                     dir=RAIZ, prefix=".render-") as f:
+        f.write(script)
+    try:
+        return subprocess.run(["node", f.name], cwd=RAIZ, capture_output=True,
+                              text=True, encoding="utf-8")
+    finally:
+        os.unlink(f.name)
 
 
 @unittest.skipUnless(shutil.which("node"), "El render JavaScript requiere Node")
@@ -42,7 +54,6 @@ class LasTresPantallas(unittest.TestCase):
 
     def test_la_foliatura_no_se_confunde_con_la_pagina_del_pdf(self):
         render = _trozo("function marcaDeOrigen(", "async function vFoliatura(")
-        self.assertTrue(render.isascii(), "las tildes nuevas van como escapes \\uXXXX")
         script = ESC + render + r"""
 const assert=require('node:assert/strict');
 for (const n of [3,17,42]) {
@@ -73,7 +84,6 @@ for (const n of [3,17,42]) {
 
     def test_una_continuidad_sin_confirmar_se_muestra_como_propuesta(self):
         render = _trozo("function htmlTabla(", "async function vTablas(")
-        self.assertTrue(render.isascii(), "las tildes nuevas van como escapes \\uXXXX")
         script = ESC + render + r"""
 const assert=require('node:assert/strict');
 for (const n of [2,11,29]) {
@@ -104,8 +114,11 @@ for (const n of [2,11,29]) {
 
     def test_la_cronologia_usa_las_clases_que_le_da_el_backend(self):
         render = _trozo("function htmlCronologia(", "async function vCronologia(")
-        self.assertTrue(render.isascii(), "las tildes nuevas van como escapes \\uXXXX")
-        script = ESC + render + r"""
+        # Lo compartido que usa la pantalla, en versiones mínimas.
+        apoyo = ("const fmtNum=new Intl.NumberFormat('es-AR');const fmtFecha=v=>v;const TIPO_DOC={};"
+                 "const sello=(t,x)=>`<span class='estado'>${esc(x)}</span>`;"
+                 "const vacio=(a,b)=>`<div>${esc(a)} ${b}</div>`;")
+        script = ESC + apoyo + render + r"""
 const assert=require('node:assert/strict');
 for (const n of [5,23,61]) {
   // Clases inventadas: si la pantalla las muestra, es que salen del JSON.

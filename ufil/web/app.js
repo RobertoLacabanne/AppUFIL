@@ -5290,25 +5290,46 @@ async function vTablas(sha) {
    firmada en abril y recibida en mayo, apareceria en el lugar equivocado si se las
    mezclara. */
 function htmlCronologia(d, clase) {
-  let opts = d.clases.map(c => `<option value="${esc(c.clave)}" ${clase===c.clave?'selected':''}>${esc(c.rotulo)} (${c.n})</option>`).join('');
-  let evs = d.filas.map(f => `<div class="evento-timeline">
-    <div class="evento-fecha">${esc(fmtFecha(f.fecha))}</div>
+  // El servidor manda `linea` y cada clase con `clave` y `que_es`; se aceptan también
+  // los nombres viejos, para no depender de la versión del otro lado.
+  const filas = d.linea || d.filas || [];
+  const cuenta = {};
+  filas.forEach(f => { cuenta[f.clase] = (cuenta[f.clase] || 0) + 1; });
+  const opts = (d.clases || []).map(c => `<option value="${esc(c.clave)}" ${clase === c.clave ? 'selected' : ''}>${
+    esc(c.rotulo || c.que_es || c.clave)}${cuenta[c.clave] ? ` (${fmtNum.format(cuenta[c.clave])})` : ''}</option>`).join('');
+  const queEs = Object.fromEntries((d.clases || []).map(c => [c.clave, c.que_es || c.rotulo || c.clave]));
+  const evs = filas.map(f => `<div class="evento-timeline">
+    <div class="evento-fecha">${esc(fmtFecha(f.fecha) || f.literal || '')}</div>
     <div class="evento-cuerpo">
-      <div class="evento-clase">${esc(f.clase_rotulo)}</div>
-      <div class="evento-doc">${esc(f.documento)}</div>
-      <a class="evento-fuente falso-enlace" href="javascript:void(0)" onclick="abrirFojaSuelta('${f.sha256}', ${f.pagina_nro})">ver foja ${f.pagina_nro}</a>
+      <div class="evento-clase">${esc(f.clase_rotulo || f.que_es || queEs[f.clase] || f.clase || '')}${
+        f.literal ? ` <span class="celda-nota">«${esc(f.literal)}»</span>` : ''}</div>
+      <div class="evento-doc">${esc(f.documento || TIPO_DOC[f.tipo] || f.tipo || '')}${f.archivo ? ` · ${esc(String(f.archivo).replace(/\.pdf$/i, ''))}` : ''}</div>
+      ${f.origen === 'humano' ? `<div class="evento-doc">${sello('neutro', 'La cargó ' + (f.quien || 'una persona'))}</div>` : ''}
+      ${f.sha256 ? `<a class="evento-fuente" href="javascript:void(0)" onclick="abrirFojaSuelta('${esc(f.sha256)}', ${Number(f.pagina_nro)})">ver foja ${esc(String(f.pagina_nro))}</a>` : ''}
     </div>
   </div>`).join('');
-
-  return `<p class="prosa">Ordenada por <strong>fecha</strong>, no por el orden en que están las fojas.</p>
-    <div class="filtros-fila"><label>Clase de fecha <select id="sel-clase"><option value="">todas</option>${opts}</select></label></div>
-    <div class="timeline">${evs}</div>`;
+  const total = d.total ?? filas.length;
+  return `<h2>Cronología</h2>
+    <p class="prosa">Ordenada por <strong>fecha</strong>, no por el orden en que están las fojas.
+      Cada hecho dice qué clase de fecha es y de qué foja sale.</p>
+    <div class="filtros-fila"><label>Clase de fecha <select id="sel-clase"><option value="">todas</option>${opts}</select></label>
+      <span class="cuantas">${fmtNum.format(total)} ${total === 1 ? 'hecho' : 'hechos'}</span></div>
+    ${Array.isArray(d.desordenes) && d.desordenes.length ? `<h3>Lo que la cronología muestra</h3>
+      <p class="nota-seccion">Un expediente se arma por incorporación: lo que se agregó último
+        puede relatar lo que pasó primero. Esto se señala, no se denuncia.</p>
+      <ul class="advertencias">${d.desordenes.map(x => `<li>${sello('atencion',
+        String(x.clase || '').replace(/_/g, ' '))} ${esc(x.archivo || '')} ${esc(x.detalle || '')}</li>`).join('')}</ul>` : ''}
+    ${filas.length ? `<div class="timeline">${evs}</div>` : vacio('Todavía no hay hechos fechados',
+      'La línea de tiempo se arma con las fechas ya leídas de los documentos —la de emisión, ' +
+      'una firma, una recepción—, y sólo entran las que están en estado firme: una fecha dudosa ' +
+      'en una cronología se lee igual que una segura.')}
+    ${total > filas.length ? `<p class="nota-seccion">Se muestran los primeros ${fmtNum.format(filas.length)}.</p>` : ''}`;
 }
 async function vCronologia() {
   const clase = new URLSearchParams(location.hash.split('?')[1] || '').get('clase') || '';
-  const d = await api('/api/cronologia' + (clase ? '?clase=' + encodeURIComponent(clase) : ''));
+  const d = await api('/api/cronologia?limite=200' + (clase ? '&clase=' + encodeURIComponent(clase) : ''));
   if (location.hash.indexOf('#/cronologia') !== 0) return;
-  vista.innerHTML = bloque('', 'Documentos', htmlCronologia(d, clase));
+  vista.innerHTML = bloque('f. 0000', 'Investigación', htmlCronologia(d, clase));
   const sel = $('#sel-clase');
   if (sel) sel.onchange = () => {
     location.hash = '#/cronologia' + (sel.value ? '?clase=' + sel.value : '');
