@@ -5418,7 +5418,25 @@ async function rutear() {
   for (const [re, fn] of rutas) {
     const m = h.match(re);
     if (m) {
-      try { const hecho = await fn(m[1]); vigilarCortes(vista); return hecho; }
+      /* La red de abajo, para las vistas que no traen la guarda puesta.
+
+         Sólo seis de las cuarenta y pico comprueban, después de esperar al servidor,
+         que la persona siga en la pantalla que pidió. Las otras pintan lo que trajeron
+         sin mirar dónde están, y con una consulta lenta eso significa tapar la pantalla
+         que se está leyendo con el contenido de otra. Poner la guarda en cada vista
+         una por una arregla las de hoy y no las que se escriban mañana.
+
+         Acá no se puede evitar que la vista tardía pinte —ya pintó—, pero sí que quede
+         puesta: si mientras esperábamos cambió el hash, se vuelve a rutear y gana lo
+         que la persona pidió último, que es lo que tiene que estar en pantalla.
+         Converge porque cada vuelta arranca del hash actual. */
+      try {
+        const pedido = h;
+        const hecho = await fn(m[1]);
+        if (location.hash !== pedido) return rutear();
+        vigilarCortes(vista);
+        return hecho;
+      }
       catch (e) {
         // Lo que no existe y lo que se rompió no son lo mismo, y no se muestran igual.
         const cuerpo = e.noEncontrado
@@ -6062,8 +6080,20 @@ async function vContratacion() {
 async function vPrecios() {
   const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
   const limite = 100;
+  /* De qué pantalla es esta respuesta. Esta consulta es la más lenta del sistema por
+     dos órdenes de magnitud —medida sobre el legajo real: 13,4 s con cien renglones
+     contra 0,02 s de casi todo lo demás—, así que es la que más tiempo pasa en el
+     aire, y en ese rato da tiempo de sobra a irse a otra pantalla.
+
+     Sin esta guarda, la respuesta llegaba tarde y pintaba los ítems y precios ENCIMA
+     de la pantalla que la persona estaba mirando. Verificado en el barrido: la
+     captura rotulada «Superposiciones» mostraba, en realidad, la tabla de ítems y
+     precios. En una herramienta que se usa para leer un expediente, creer que se
+     está mirando una pantalla y estar mirando otra no es un defecto cosmético. */
+  const pedido = location.hash;
   const d = await api(`/api/precios?desde=${desde}&limite=${limite}`);
-  
+  if (pedido !== location.hash) return;
+
   if (!d.renglones || !d.renglones.length) {
     return vistaVacia('f. 0000', 'Ítems y precios', 'Ítems y precios', 'No hay ítems para mostrar', '');
   }
