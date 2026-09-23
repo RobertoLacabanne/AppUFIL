@@ -596,8 +596,9 @@ const GRUPOS = [
     {id: 'contrataciones', rotulo: 'Contrataciones', hash: '#/contrataciones', tambien: ['#/contratacion']},
     {id: 'precios', rotulo: 'Ítems y precios', hash: '#/precios', tambien: ['#/renglon']},
     {id: 'proveedores', rotulo: 'Proveedores', items: [
-      {hash: '#/entidades', rotulo: 'Empresas y entidades'},
-      {hash: '#/personas', rotulo: 'Personas'}
+      {hash: '#/proveedores', rotulo: 'Empresas proveedoras'},
+      {hash: '#/personas', rotulo: 'Personas'},
+      {hash: '#/entidades', rotulo: 'Todas las fichas'}
     ], tambien: ['#/entidad', '#/persona', '#/proveedor']},
     // «Hallazgos» queda con una sola cosa adentro: los hallazgos revisables. Los
     // cruces pasan a «Comparaciones», que es lo que son: análisis transversales que
@@ -4890,6 +4891,7 @@ const TITULOS = {
      Si de ahí se sigue una conclusión, la firma una persona. */
   '#/renglon': 'Comparación de precio',
   '#/proveedor': 'Proveedor',
+  '#/proveedores': 'Proveedores',
   '#/hallazgos': 'Hallazgos',
   '#/acerca': 'Acerca del sistema',
   '#/equipo': 'Trabajo del equipo',
@@ -5600,6 +5602,7 @@ const rutas = [
   [/^#\/entidades(\?.*)?$/, vEntidades],
   [/^#\/entidad\/(\d+)$/, vEntidad],
   [/^#\/proveedor\/(\d+)$/, vProveedor],
+  [/^#\/proveedores(\?.*)?$/, vProveedores],
   [/^#\/relaciones$/, vRelaciones],
   [/^#\/guardadas$/, vGuardadas],
   [/^#\/colecciones$/, vColecciones],
@@ -6676,6 +6679,39 @@ async function vContratacion() {
   `);
 }
 
+/* ── Proveedores ──────────────────────────────────────────────────────────
+   La puerta para buscar un proveedor. «Todas las fichas» mezcla personas, empresas,
+   organismos y expedientes, y ordenada por nombre abre con personas sin nombre: para
+   la pregunta «¿a quién se le compró?» no sirve. Acá van sólo las empresas, las que
+   más documentos tienen primero, y cada una lleva a su ficha. */
+function formatoCuit(c) {
+  const d = String(c || '').replace(/\D/g, '');
+  return d.length === 11 ? `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}` : String(c || '');
+}
+async function vProveedores() {
+  vista.innerHTML = bloque('f. 0000', 'Proveedores', `
+    <h1>Proveedores</h1>
+    <p class="prosa">Las empresas que aparecen en el legajo, identificadas por su CUIT. Las
+      que más documentos tienen van primero. Cada una lleva a su ficha: qué se le compró, a
+      qué precio, cuánto se le ordenó y facturó, y qué diferencias hay.</p>
+    <div id="lista-proveedores"></div>
+    <p class="nota-seccion">Personas, organismos y el resto de las fichas están en
+      <a href="#/entidades">Todas las fichas</a>.</p>`);
+  const sinNombre = e => !e.nombre || String(e.nombre).replace(/\D/g, '') === String(e.clave_fuerte || '');
+  tablaServidor($('#lista-proveedores'), '/api/entidades?clase=empresa', 'entidades', [
+    {t: 'Proveedor', c: 'crece', o: 'nombre', r: e => sinNombre(e)
+        ? `<div class="item-desc"><a class="item-literal" href="#/proveedor/${e.id}">CUIT ${esc(formatoCuit(e.clave_fuerte))}</a>
+             <span class="item-normalizado">Razón social no leída en ningún documento</span></div>`
+        : `<div class="item-desc"><a class="item-literal" href="#/proveedor/${e.id}">${esc(e.nombre)}</a></div>`},
+    {t: 'CUIT', c: 'fol', r: e => e.clave_fuerte ? esc(formatoCuit(e.clave_fuerte)) : ausente('no_consta')},
+    {t: 'Documentos', c: 'num', o: 'documentos', r: e => fmtNum.format(e.documentos || 0)},
+    {t: 'Menciones', c: 'num', o: 'menciones', r: e => fmtNum.format(e.menciones || 0)},
+    {t: 'Contrataciones', r: e => e.con_contrataciones ? sello('ok', 'Con contrataciones') : ''},
+  ], {orden: 'documentos', sentido: 'desc', placeholder: 'Buscar por nombre o CUIT…',
+      alClic: e => { location.hash = '#/proveedor/' + e.id; },
+      vacio: 'Todavía no se identificó ninguna empresa. Aparecen cuando el sistema lee un CUIT en un documento.'});
+}
+
 /* ── Ficha de proveedor ────────────────────────────────────────────────────
    La pregunta de la investigación, de un lado: ¿con quién se contrató, qué le
    compraron, a qué precio, cuánto se facturó y qué diferencias hay? Todo sale de
@@ -6740,7 +6776,7 @@ async function vProveedor(id) {
       fuente(x.fuente, esc(`${tipo} ${foja(x.fuente)}`))).join(' · ')}</p>` : '';
 
   vista.innerHTML = bloque('f. 0000', 'Proveedor', `
-    <nav class="migas" aria-label="Estás en"><a href="#/entidades">Proveedores</a></nav>
+    <nav class="migas" aria-label="Estás en"><a href="#/proveedores">Proveedores</a></nav>
     <header class="ficha-cabeza">
       <h1>${sinNombre ? `CUIT ${esc(cuit || '')}` : esc(p.nombre)}</h1>
       <div class="ficha-meta">
