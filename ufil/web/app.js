@@ -6667,13 +6667,26 @@ async function vRenglon() {
   const d = await api(`/api/renglon/${id}/comparacion?niveles=A,B,C,D,E&limite=200`);
   const r = d.renglon;
   
-  const renderMotivos = motivos => (motivos || []).map(m => `<li>${esc(m.atributo)}: ${esc(m.a)} vs ${esc(m.b)} (${esc(m.efecto)})</li>`).join('');
+  /* Cada referencia con lo que la hace comparable o no, dicho como se diría: «unidad:
+     metro contra rollo». El estado va en el mismo sello que en el resto del sistema. */
+  const TONO_COMP = {fuerte: ['ok', 'Comparable'], probable: ['neutro', 'Probable'],
+                     dudoso: ['atencion', 'Dudosa'], no_comparable: ['alerta', 'No comparable']};
+  const renderMotivos = motivos => (motivos || []).map(m => `<span class="hz-motivo">${
+    esc(String(m.atributo || '').replace(/_/g, ' '))}: ${esc(m.a ?? '—')} contra ${esc(m.b ?? '—')}${
+    m.efecto ? ` <span class="celda-nota">${esc(m.efecto)}</span>` : ''}</span>`).join('');
   const renderRefs = refs => tabla([
-    {t:'Fecha', c:'mono', r: x => x.renglon.fecha ? esc(x.renglon.fecha.literal) : '<span class="nulo">no consta</span>'},
-    {t:'Proveedor', r: x => x.renglon.proveedor ? esc(x.renglon.proveedor.nombre) : '<span class="nulo">no consta</span>'},
+    {t:'Ítem', c:'crece', r: x => `<div class="item-desc"><span class="item-literal">${
+        esc((x.renglon.descripcion || {}).literal || '')}</span>${x.renglon.contratacion
+        ? `<a class="item-normalizado" href="#/contratacion?id=${x.renglon.contratacion.id}">${
+            esc(x.renglon.contratacion.nombre)}</a>` : ''}</div>`},
+    {t:'Fecha', c:'fol', r: x => x.renglon.fecha
+        ? esc(fmtFecha(x.renglon.fecha.valor) || x.renglon.fecha.literal) : ausente('no_consta')},
+    {t:'Proveedor', r: x => x.renglon.proveedor ? esc(x.renglon.proveedor.nombre) : ausente('no_consta')},
     {t:'Precio', c:'num', r: x => montoHTML(x.renglon.precio_unitario)},
-    {t:'Nivel', r: x => esc(x.nivel)},
-    {t:'Comparabilidad', r: x => `Estado: ${esc(x.comparabilidad.estado)}<ul>${renderMotivos(x.comparabilidad.motivos)}</ul>`}
+    {t:'Comparabilidad', r: x => {
+       const [tono, txt] = TONO_COMP[(x.comparabilidad || {}).estado] || ['neutro', 'Sin calificar'];
+       return sello(tono, txt) + renderMotivos((x.comparabilidad || {}).motivos);
+     }}
   ], refs);
 
   const refsPorNivel = {};
@@ -6691,7 +6704,7 @@ async function vRenglon() {
      filas, y una lista de ciento cincuenta y tres renglones descartados no la lee
      nadie. Ahora van agrupadas por motivo, más abajo. */
 
-  const ads = (d.advertencias || []).map(a => `<li><span class="sello atencion">${esc(a)}</span></li>`).join('');
+  const ads = (d.advertencias || []).map(a => `<li>${sello('atencion', a)}</li>`).join('');
 
   /* ── Las cifras, arriba y juntas ─────────────────────────────────────────
      Estaban como párrafos sueltos: «n: 3», «Mediana: ...», «Diferencia porcentual:
@@ -6710,9 +6723,28 @@ async function vRenglon() {
     </div>`;
 
   const est = d.estadisticas, dif = d.diferencia;
-  const signo = n => (Number(n) > 0 ? '+' : '');
+  // El signo va siempre: una diferencia de −7 millones escrita sin el menos se lee como
+  // un precio siete millones más caro, que es exactamente lo contrario.
+  const signo = n => (Number(n) > 0 ? '+' : Number(n) < 0 ? '−' : '');
+  /* Una comparación de calidad baja —referencias aproximadas, una sola referencia— no
+     se presenta como una cifra firme. Se muestra, porque esconderla sería decidir por
+     la persona, pero apagada y con el motivo arriba: sirve para saber que hay que
+     buscar mejores referencias, no para afirmar una diferencia. */
+  const floja = (d.calidad && d.calidad.nivel === 'baja') || (est && (est.nivel === 'E' || est.n < 2));
+  const nombreOperando = n => {
+    const m = /^referencia_(\d+)$/.exec(n || '');
+    if (m) return `referencia (renglón ${m[1]})`;
+    return ({analizado: 'precio analizado', mediana: 'mediana', segunda_oferta: 'segunda oferta'})[n]
+      || String(n || '').replace(/_/g, ' ');
+  };
   const cifras = est ? `
-    <div class="cifras cifras-4">
+    ${floja ? `<div class="aviso aviso-floja">
+      ${sello('atencion', 'Comparación de calidad baja')}
+      <span>${est.n < 2 ? 'Hay una sola referencia' : `Hay ${fmtNum.format(est.n)} referencias`}${
+        est.nivel === 'E' ? ', y es aproximada (nivel E)' : ''}. La diferencia de abajo no alcanza
+        para afirmar nada sobre este precio: dice que hacen falta referencias mejores —el
+        mismo producto, con la misma unidad y de fecha cercana—.</span></div>` : ''}
+    <div class="cifras cifras-4${floja ? ' cifras-flojas' : ''}">
       ${cifra('Precio analizado', montoHTML(r.precio_unitario),
               r.fecha ? esc(fmtFecha(r.fecha.valor) || r.fecha.literal) : '')}
       ${cifra('Mediana de las referencias',
@@ -6720,7 +6752,7 @@ async function vRenglon() {
               `${fmtNum.format(est.n)} ${est.n === 1 ? 'referencia' : 'referencias'} · nivel ${esc(est.nivel)}`)}
       ${cifra('Diferencia',
               dif ? esc(signo(dif.absoluta) + '$ ' + fmtPlata.format(Math.abs(Number(dif.absoluta)))) : '—',
-              dif ? esc(signo(dif.porcentual) + fmtNum.format(Number(dif.porcentual)) + ' %') : '')}
+              dif ? esc(signo(dif.porcentual) + fmtNum.format(Math.abs(Number(dif.porcentual))) + ' %') : '')}
       ${cifra('Calidad de la comparación',
               `<span class="calidad ${esc(d.calidad ? d.calidad.nivel : 'desconocida')}"
                  >${esc(d.calidad ? d.calidad.nivel : 'desconocida')}</span>`,
@@ -6791,9 +6823,10 @@ async function vRenglon() {
 
     ${d.calculo ? `
       <h2>De dónde sale el número</h2>
-      <p class="formula mono">${esc(d.calculo.formula)}</p>
+      <details class="formula-completa"><summary>Ver la fórmula completa</summary>
+        <p class="formula mono">${esc(d.calculo.formula)}</p></details>
       <ul class="operandos">
-        ${d.calculo.operandos.map(op => `<li><span class="op-nombre">${esc(op.nombre)}</span>
+        ${d.calculo.operandos.map(op => `<li><span class="op-nombre">${esc(nombreOperando(op.nombre))}</span>
           ${op.fuente
             ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(op.fuente))}'
                   class="enlace-fuente">${esc(op.valor)}</a>`

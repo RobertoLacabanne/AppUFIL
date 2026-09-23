@@ -3046,3 +3046,13 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
    a un «Cargando…» vacío entre página y página hace perder el lugar de lectura. */
 .tabla-env.cargando-tabla{opacity:.55; transition:opacity var(--paso) var(--curva)}
 .buscador-tabla .paginacion{margin-left:auto}
+
+/* Un importe en la tira de cifras no se parte: «$» arriba y el número abajo se lee
+   como dos datos. Donde el ancho no alcanza, baja un paso de la escala. */
+.cifras-4 .cifra .cifra-valor{white-space:nowrap}
+@media (max-width:1500px){ .cifras-4 .cifra .cifra-valor{font-size:var(--t-18)} }
+/* La comparación floja se ve, pero apagada: no compite con una firme. */
+.cifras-flojas .cifra:nth-child(n+2) .cifra-valor{color:var(--tinta-3); font-style:italic}
+.aviso-floja{margin:0 0 12px}
+.formula-completa > summary{font-size:var(--t-12); color:var(--tinta-2); margin:4px 0}
+.advertencias + h2{margin-top:22px}
