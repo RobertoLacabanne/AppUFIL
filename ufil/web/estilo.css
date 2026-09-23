@@ -2977,7 +2977,7 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
 .chip-filtro.activo .chip-n{color:inherit}
 .hz-lista{margin-top:14px; border-top:1.5px solid var(--tinta)}
 .hz-cabeza, .hz-fila{display:grid;
-  grid-template-columns:minmax(11em,15em) minmax(0,1fr) minmax(9em,13em) 6em 10em;
+  grid-template-columns:minmax(15em,18em) minmax(0,1fr) minmax(9em,13em) 6em 10em;
   gap:0 16px; align-items:baseline; padding:8px 10px}
 .hz-cabeza{font-size:var(--t-11); font-weight:600; letter-spacing:.045em;
   font-variant-caps:all-small-caps; color:var(--tinta-2); padding-top:6px; padding-bottom:6px;
@@ -3007,7 +3007,7 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
 .paginador{display:flex; align-items:center; gap:14px; margin-top:14px;
   font-size:var(--t-13); color:var(--tinta-2)}
 @media (max-width:1400px){
-  .hz-cabeza, .hz-fila{grid-template-columns:minmax(10em,13em) minmax(0,1fr) 5em 9em}
+  .hz-cabeza, .hz-fila{grid-template-columns:minmax(14em,17em) minmax(0,1fr) 5em 9em}
   .hz-cabeza > :nth-child(3), .hz-donde{display:none}
 }
 @media (max-width:900px){ .hz-detalle{grid-template-columns:1fr} }
