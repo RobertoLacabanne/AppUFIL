@@ -5106,35 +5106,65 @@ function htmlFoliatura(d) {
       <td>${h.foliaturas.map(marcaDeOrigen).join(' ')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
+async function fetchFoliatura(sha) {
+  return await api('/api/foliatura?sha=' + encodeURIComponent(sha));
+}
+async function fetchArchivos() {
+  return await api('/api/archivos');
+}
+
 async function vFoliatura(sha) {
-  const d = await api('/api/archivos');
   if (location.hash.indexOf('#/foliatura') !== 0) return;
+  const d = await fetchArchivos();
   const archivos = d.archivos || [];
+  
   if (!archivos.length) {
     vista.innerHTML = bloque('', 'Documentos', '<p class="prosa">No hay archivos cargados todavía.</p>');
     return;
   }
+  
   const elegido = sha || archivos[0].sha256;
-  const f = await api('/api/foliatura?sha=' + encodeURIComponent(elegido));
+  const f = await fetchFoliatura(elegido);
   if (location.hash.indexOf('#/foliatura') !== 0) return;
   
-  const conAlgo = f.fojas.filter(h => h.foliaturas.length).length;
-  vista.innerHTML = bloque('', 'Documentos', selectorArchivo(archivos, elegido) + `
-    <p class="prosa">${esc(conAlgo)} de ${esc(f.fojas.length)} fojas tienen foliatura anotada.</p>
-    ${f.saltos.length ? `<h3>Saltos de foliatura</h3><ul>${f.saltos.map(x => `<li><span class="sello atencion">${esc(x.clase)}</span> ${esc(x.detalle)}</li>`).join('')}</ul>` : ''}
+  const conAlgo = f.fojas && f.fojas.filter ? f.fojas.filter(h => h.foliaturas && h.foliaturas.length).length : 0;
+  
+  vista.innerHTML = bloque('', 'Documentos', `
+    <div class="encabezado-vista">
+      <h2>Foliatura del papel</h2>
+      <p class="prosa">${esc(conAlgo)} de ${esc(f.total || (f.fojas && f.fojas.length) || 0)} fojas tienen foliatura anotada.</p>
+    </div>
+    
+    <div class="controles-tabla">
+      <div class="filtros-fila">
+        ${selectorArchivo(archivos, elegido)}
+      </div>
+    </div>
+    
+    ${f.saltos && f.saltos.length ? `<h3>Saltos de foliatura</h3><ul>${f.saltos.map(x => `<li><span class="sello atencion">${esc(x.clase)}</span> ${esc(x.detalle)}</li>`).join('')}</ul>` : ''}
+    
     <h3>Foja por foja</h3>
-    <div id="lista-foliatura"></div>
+    <div id="lista-foliatura-paginada"></div>
   `);
-
-  tablaBuscable($('#lista-foliatura'), [
-    {t: 'Página del PDF', c: 'mono', r: h => esc(h.pagina_pdf), b: h => h.pagina_pdf},
-    {t: 'Foliatura del papel', r: h => h.foliaturas.length ? h.foliaturas.map(x => `<span class="mono">${esc(x.nro)}</span>`).join(' o ') : '<span class="nulo">sin lectura</span>'},
-    {t: 'De dónde sale', r: h => h.foliaturas.length ? h.foliaturas.map(x => `<a href="#/foja/${x.sha256}/${h.pagina_pdf}" class="chip">${esc(x.texto)}</a>`).join(' ') : '—'}
-  ], f.fojas);
 
   const sel = $('#sel-archivo');
   if (sel) sel.onchange = () => { location.hash = '#/foliatura/' + sel.value; };
+
+  tablaServidor($('#lista-foliatura-paginada'), '/api/foliatura?sha=' + encodeURIComponent(elegido), 'fojas', [
+    {t: 'Página del PDF', r: h => esc(h.pagina_pdf || h.foja), c: 'mono', o: 'id'},
+    {t: 'Foliatura del papel', r: h => h.foliaturas && h.foliaturas.length ? h.foliaturas.map(x => `<span class="mono">${esc(x.nro)}</span>`).join(' o ') : ausente('Sin lectura')},
+    {t: 'De dónde sale', r: h => h.foliaturas && h.foliaturas.length ? h.foliaturas.map(x => `<span class="chip">${esc(x.texto)}</span>`).join(' ') : '—'}
+  ], {
+    placeholder: 'Buscar foja...',
+    vacio: 'No se encontraron fojas.',
+    alClic: h => {
+        if (h.foliaturas && h.foliaturas.length) {
+            location.hash = '#/foja/' + encodeURIComponent(h.foliaturas[0].sha256) + '/' + (h.pagina_pdf || h.foja);
+        }
+    }
+  });
 }
+
 
 /* -- Las tablas, como tablas y no como texto -------------------------------
    Una planilla dice lo que dice por renglon. Mostrarla aplanada pierde justamente lo
