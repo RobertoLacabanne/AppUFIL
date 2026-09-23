@@ -541,55 +541,99 @@ function interpHTML(i) {
 
    Las cuentas de trabajo pendiente suben a la sección: si «Revisión» esconde 88 campos
    esperando, la barra tiene que decir 88 sin que haya que entrar. */
-const SECCIONES = [
-  {id: 'panel', rotulo: 'Resumen', hash: '#/panel'},
-  {id: 'contrataciones', rotulo: 'Contrataciones', hash: '#/contrataciones', tambien: ['#/contratacion']},
-  {id: 'precios', rotulo: 'Ítems y precios', hash: '#/precios', tambien: ['#/renglon']},
-  {id: 'proveedores', rotulo: 'Proveedores', items: [
-    {hash: '#/entidades', rotulo: 'Empresas y entidades'},
-    {hash: '#/personas', rotulo: 'Personas'}
-  ], tambien: ['#/entidad', '#/persona']},
-  {id: 'hallazgos', rotulo: 'Hallazgos', items: [
-    {hash: '#/hallazgos', rotulo: 'De contrataciones'},
-    {hash: '#/superposiciones', rotulo: 'Superposiciones'},
-    {hash: '#/cruce',           rotulo: 'Facturado vs. contratado'},
-    {hash: '#/interpretacion',  rotulo: 'Interpretación'},
-    {hash: '#/numeros',         rotulo: 'Números escritos dos veces'},
-    {hash: '#/consultas',       rotulo: 'Consultas'},
+/* ── La barra lateral, agrupada por lo que la persona vino a hacer ─────────
+   Esto era una lista de trece secciones de primer nivel ordenadas por el orden en que
+   se fueron implementando. Trece entradas planas no son una jerarquía: son una lista,
+   y el orden no le decía nada a quien trabaja porque respondía a cómo se construyó el
+   sistema y no a lo que se viene a hacer.
+
+   Peor que el largo era la mezcla. «Foliatura» y «Tablas» —que son trabajo de
+   revisión del mismo calibre que la cola— estaban enterradas dentro de «Documentos»,
+   donde nadie las busca cuando se sienta a revisar; «Relaciones» estaba sola en primer
+   nivel haciendo el mismo trabajo; «Consultas» colgaba de «Hallazgos» siendo una
+   herramienta de búsqueda; y «Cargar escaneos» vivía en «Documentos» siendo
+   administración del legajo.
+
+   Ahora son cinco grupos nombrados por la pregunta que contestan. El grupo es un
+   rótulo, no un destino: no se navega a un grupo. El razonamiento completo, y por qué
+   cada cosa se movió a donde se movió, está en docs/NAVEGACION_RONDA_FINAL.md. */
+const GRUPOS = [
+  {grupo: 'Investigación', entradas: [
+    {id: 'panel', rotulo: 'Resumen', hash: '#/panel'},
+    {id: 'contrataciones', rotulo: 'Contrataciones', hash: '#/contrataciones', tambien: ['#/contratacion']},
+    {id: 'precios', rotulo: 'Ítems y precios', hash: '#/precios', tambien: ['#/renglon']},
+    {id: 'proveedores', rotulo: 'Proveedores', items: [
+      {hash: '#/entidades', rotulo: 'Empresas y entidades'},
+      {hash: '#/personas', rotulo: 'Personas'}
+    ], tambien: ['#/entidad', '#/persona']},
+    // «Hallazgos» queda con una sola cosa adentro: los hallazgos revisables. Los
+    // cruces pasan a «Comparaciones», que es lo que son: análisis transversales que
+    // PRODUCEN hallazgos, no hallazgos ellos mismos. Tenerlos adentro hacía que el
+    // contador de la sección mezclara «esto hay que mirarlo» con «esta herramienta
+    // existe».
+    {id: 'hallazgos', rotulo: 'Hallazgos', hash: '#/hallazgos'},
+    {id: 'comparaciones', rotulo: 'Comparaciones', items: [
+      {hash: '#/cruce',           rotulo: 'Facturado contra contratado'},
+      {hash: '#/superposiciones', rotulo: 'Superposiciones'},
+      {hash: '#/numeros',         rotulo: 'Números escritos dos veces'},
+      {hash: '#/interpretacion',  rotulo: 'Interpretación'},
+    ]},
+    {id: 'cronologia', rotulo: 'Cronología', hash: '#/cronologia'},
   ]},
-  {id: 'documentos', rotulo: 'Documentos', items: [
-    {hash: '#/ingesta',       rotulo: 'Cargar escaneos'},
-    {hash: '#/sin-reconocer', rotulo: 'Todavía sin reconocer'},
-    {hash: '#/conjuntos',     rotulo: 'Conjuntos documentales'},
-    {hash: '#/contratos',     rotulo: 'Contratos'},
-    {hash: '#/comprobantes',  rotulo: 'Facturas y recibos'},
-    {hash: '#/fojas',         rotulo: 'Fojas del expediente'},
-    {hash: '#/foliatura',     rotulo: 'Foliatura del papel'},
-    {hash: '#/tablas',        rotulo: 'Tablas'},
-  ], tambien: ['#/documento']},
-  {id: 'cronologia', rotulo: 'Cronología', hash: '#/cronologia'},
-  {id: 'relaciones', rotulo: 'Relaciones', hash: '#/relaciones'},
-  {id: 'busqueda', rotulo: 'Búsqueda', items: [
-    {hash: '#/buscar', rotulo: 'Buscar'},
-    {hash: '#/guardadas', rotulo: 'Consultas guardadas'}
+  {grupo: 'Documentación', entradas: [
+    {id: 'documentos', rotulo: 'Documentos', items: [
+      {hash: '#/contratos',    rotulo: 'Contratos'},
+      {hash: '#/comprobantes', rotulo: 'Facturas y recibos'},
+      {hash: '#/fojas',        rotulo: 'Fojas del expediente'},
+      {hash: '#/conjuntos',    rotulo: 'Conjuntos documentales'},
+    ], tambien: ['#/documento']},
+    {id: 'busqueda', rotulo: 'Búsqueda', items: [
+      {hash: '#/buscar',    rotulo: 'Buscar'},
+      {hash: '#/guardadas', rotulo: 'Consultas guardadas'},
+      // Se muda desde «Hallazgos»: es una herramienta de búsqueda, no un hallazgo.
+      {hash: '#/consultas', rotulo: 'Consultas'},
+    ]},
+    {id: 'colecciones', rotulo: 'Colecciones', hash: '#/colecciones', tambien: ['#/coleccion']},
   ]},
-  {id: 'colecciones', rotulo: 'Colecciones', hash: '#/colecciones', tambien: ['#/coleccion']},
-  {id: 'informes', rotulo: 'Informes', hash: '#/informes'},
-  {id: 'revision', rotulo: 'Revisión', items: [
-    {hash: '#/cola',      rotulo: 'Cola de revisión', cuenta: 'a_revisar'},
-    {hash: '#/identidad', rotulo: 'Identidad',        cuenta: 'fusiones'},
-    {hash: '#/afuera',    rotulo: 'Quedaron afuera',  cuenta: 'afuera'},
-    {hash: '#/reasociaciones', rotulo: 'Revisiones desplazadas'},
-    {hash: '#/equipo',    rotulo: 'Trabajo del equipo'},
+  /* El cambio de fondo de esta ronda. Todo lo que le pide una DECISIÓN a una persona
+     vive en un solo lugar, y el grupo lleva la suma de lo que quedó pendiente. Antes
+     había que saber que la foliatura se corrige desde «Documentos» y las identidades
+     desde «Revisión», que son la misma tarea con dos domicilios. */
+  {grupo: 'Revisión', entradas: [
+    {id: 'revision', rotulo: 'Cola de revisión', hash: '#/cola', cuenta: 'a_revisar'},
+    {id: 'identidad', rotulo: 'Identidades', hash: '#/identidad', cuenta: 'fusiones'},
+    {id: 'relaciones', rotulo: 'Relaciones', hash: '#/relaciones'},
+    {id: 'foliatura', rotulo: 'Foliatura del papel', hash: '#/foliatura'},
+    {id: 'tablas', rotulo: 'Tablas', hash: '#/tablas'},
+    {id: 'pendientes', rotulo: 'Otros pendientes', items: [
+      {hash: '#/sin-reconocer',  rotulo: 'Todavía sin reconocer'},
+      {hash: '#/afuera',         rotulo: 'Quedaron afuera', cuenta: 'afuera'},
+      {hash: '#/reasociaciones', rotulo: 'Revisiones desplazadas'},
+      {hash: '#/equipo',         rotulo: 'Trabajo del equipo'},
+    ]},
   ]},
-  {id: 'sistema', rotulo: 'Sistema', items: [
-    {hash: '#/actualizacion', rotulo: 'Actualizar análisis'},
-    {hash: '#/legajos',       rotulo: 'Legajos'},
-    {hash: '#/papelera',      rotulo: 'Papelera de archivos'},
-    {hash: '#/como-funciona', rotulo: 'Cómo funciona'},
-    {hash: '#/salud',         rotulo: 'Estado del sistema'},
+  /* «Exportaciones» no tiene pantalla propia: hoy vive como acciones dentro de
+     Informes y de las listas. No se crea una entrada vacía para que el menú parezca
+     completo; entra el día que haya algo detrás. */
+  {grupo: 'Salida', entradas: [
+    {id: 'informes', rotulo: 'Informes', hash: '#/informes'},
+  ]},
+  {grupo: 'Administración', entradas: [
+    {id: 'ingesta', rotulo: 'Cargar escaneos', hash: '#/ingesta'},
+    {id: 'legajos', rotulo: 'Legajos', hash: '#/legajos'},
+    {id: 'actualizacion', rotulo: 'Actualizar análisis', hash: '#/actualizacion'},
+    {id: 'papelera', rotulo: 'Papelera de archivos', hash: '#/papelera'},
+    {id: 'sistema', rotulo: 'Estado del sistema', items: [
+      {hash: '#/salud',         rotulo: 'Estado del sistema'},
+      {hash: '#/como-funciona', rotulo: 'Cómo funciona'},
+    ]},
   ]},
 ];
+
+/* La lista plana de siempre, derivada de los grupos. Todo lo que ya consultaba
+   `SECCIONES` —`seccionDe`, el apagado sin legajo, las pruebas— sigue andando sin
+   enterarse de que ahora hay grupos. */
+const SECCIONES = GRUPOS.flatMap(g => g.entradas);
 
 /* Las últimas cuentas que devolvió el panel, para pintar los números de la barra. */
 let cuentas = {};
@@ -612,6 +656,27 @@ const ICONO_SECCION = {
   hallazgos:  '<circle cx="8.6" cy="8.6" r="5.1" fill="none"/><path d="M12.4 12.4 17 17" fill="none"/>',
   revision:   '<path d="M3 5.4 5 7.4 8.4 4M3 13.4l2 2 3.4-3.4M11 5.6h6M11 13.6h6" fill="none"/>',
   sistema:    '<circle cx="10" cy="10" r="2.6" fill="none"/><path d="M10 2.6v2.2M10 15.2v2.2M2.6 10h2.2M15.2 10h2.2M4.8 4.8l1.6 1.6M13.6 13.6l1.6 1.6M15.2 4.8l-1.6 1.6M6.4 13.6l-1.6 1.6" fill="none"/>',
+  /* El resto del juego. Faltaban y todas esas entradas caían en el engranaje de
+     «Sistema», que no es neutro: dibuja una tuerca al lado de «Relaciones» y de
+     «Proveedores» y las hace parecer configuración. Con veintidós entradas, dieciséis
+     tuercas iguales no distinguen nada y encima mienten. Mismo trazo simple y sin
+     relleno que las que ya estaban. */
+  contrataciones: '<path d="M4.5 3.5h11v13h-11zM7 7h6M7 10h6M7 13h3.5" fill="none"/>',
+  precios:        '<path d="M10 3v14M13 6.2c0-1.5-1.3-2.2-3-2.2s-3 .7-3 2.2 1.2 2 3 2.6 3 1.1 3 2.6-1.3 2.4-3 2.4-3-.9-3-2.4" fill="none"/>',
+  proveedores:    '<circle cx="7.2" cy="7" r="2.6" fill="none"/><path d="M2.6 16.4a4.6 4.6 0 0 1 9.2 0M13 5.2a2.6 2.6 0 0 1 0 5.2M14.4 16.4a4.6 4.6 0 0 0-1.6-3.5" fill="none"/>',
+  comparaciones:  '<path d="M4 15.5V8M8 15.5V4.5M12 15.5v-5M16 15.5V6.5" fill="none"/>',
+  cronologia:     '<circle cx="10" cy="10" r="7" fill="none"/><path d="M10 5.6V10l3 1.8" fill="none"/>',
+  busqueda:       '<circle cx="8.6" cy="8.6" r="5.1" fill="none"/><path d="M12.4 12.4 17 17" fill="none"/>',
+  colecciones:    '<path d="M2.6 6.4 10 3l7.4 3.4-7.4 3.4zM2.6 10.4 10 13.8l7.4-3.4M2.6 14 10 17.4 17.4 14" fill="none"/>',
+  informes:       '<path d="M4.5 2.5h8L15.5 6v11.5h-11zM12 2.6V6h3.4M7.5 13.5v-2M10 13.5v-4M12.5 13.5v-6" fill="none"/>',
+  identidad:      '<circle cx="6.6" cy="7.4" r="2.5" fill="none"/><circle cx="13.4" cy="7.4" r="2.5" fill="none"/><path d="M2.6 16a4 4 0 0 1 8 0M9.4 16a4 4 0 0 1 8 0" fill="none"/>',
+  relaciones:     '<circle cx="5" cy="5.4" r="2.2" fill="none"/><circle cx="15" cy="5.4" r="2.2" fill="none"/><circle cx="10" cy="14.6" r="2.2" fill="none"/><path d="M6.7 6.9 8.9 12.7M13.3 6.9 11.1 12.7M7.2 5.4h5.6" fill="none"/>',
+  foliatura:      '<path d="M5.5 2.8h9v14.4h-9zM8 5.6h4M8 8.6h4M11.5 14.6h2" fill="none"/>',
+  tablas:         '<path d="M2.8 4.4h14.4v11.2H2.8zM2.8 8.2h14.4M2.8 11.8h14.4M8 4.4v11.2M13 4.4v11.2" fill="none"/>',
+  pendientes:     '<circle cx="10" cy="10" r="7" fill="none"/><path d="M10 6v4.6M10 13.4v.1" fill="none"/>',
+  legajos:        '<path d="M2.6 5.2h5.2l1.4 1.8h8.2v9.4H2.6zM2.6 5.2V4h5.2" fill="none"/>',
+  actualizacion:  '<path d="M16.4 10a6.4 6.4 0 1 1-2-4.6M16.6 3.2v3.4h-3.4" fill="none"/>',
+  papelera:       '<path d="M3.8 5.6h12.4M8 5.6V3.6h4v2M5.4 5.6l.8 11.2h7.6l.8-11.2M8.4 8.6v5.4M11.6 8.6v5.4" fill="none"/>',
 };
 const iconoSeccion = id =>
   `<svg class="ico" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"
@@ -642,7 +707,7 @@ function pintarNav(hash) {
   const apagada = s => sinLegajo() &&
     !SIN_LEGAJO_IGUAL_ANDAN.has(s.hash || (s.items && s.items[0] && s.items[0].hash));
 
-  $('#nav-secciones').innerHTML = SECCIONES.map(s => {
+  const pintarSeccion = s => {
     const abierta = s === activa;
     const gris = apagada(s) ? ' apagado' : '';
     const porque = apagada(s) ? ' title="Necesita un legajo abierto"' : '';
@@ -660,7 +725,27 @@ function pintarNav(hash) {
          ><span class="txt">${esc(i.rotulo)}</span>${chip(i.cuenta ? num(i.cuenta) : 0, 'cosa')}</a>`
     ).join('');
     return `<div class="grupo">${cabeza}<div class="items">${items}</div></div>`;
-  }).join('');
+  };
+
+  /* El rótulo del grupo es un encabezado, no un enlace: nombra a qué vino la persona
+     y no lleva a ningún lado. Va como `<h2>` para que un lector de pantalla pueda
+     saltar de grupo en grupo, que es justo la navegación que el agrupamiento promete. */
+  $('#nav-secciones').innerHTML = GRUPOS.map(g =>
+    `<div class="nav-grupo">
+       <h2 class="nav-grupo-rotulo">${esc(g.grupo)}</h2>
+       ${g.entradas.map(pintarSeccion).join('')}
+     </div>`).join('');
+
+  /* Con veintidós entradas y cinco grupos, en una pantalla de 768 px de alto la mitad
+     de la barra queda abajo del pliegue. Que se desplace está bien; lo que no está
+     bien es entrar a una pantalla del final de la lista y no ver marcada ninguna,
+     porque la marca quedó fuera de cuadro. Al pintar, la activa se trae a la vista.
+
+     `block:'nearest'` y no `'center'`: si ya se ve, no se mueve nada. Centrar una
+     entrada que estaba perfectamente visible hace saltar la barra en cada clic, y eso
+     se siente como un error del sistema. */
+  const marcada = $('#nav-secciones .cabeza.activo');
+  if (marcada) marcada.scrollIntoView({block: 'nearest'});
   medirTecho();
 }
 
@@ -4613,7 +4698,14 @@ const TITULOS = {
   '#/contrataciones': 'Contrataciones',
   '#/contratacion': 'Contratación',
   '#/precios': 'Ítems y precios',
-  '#/renglon': 'Posible sobreprecio',
+  /* Decía «Posible sobreprecio». Un título es una afirmación: es lo primero que se
+     lee, es lo que queda en la pestaña del navegador y es lo que alguien recuerda
+     cuando cuenta lo que vio. «Sobreprecio» —aun con «posible» adelante— nombra una
+     conclusión, y las conclusiones las escribe Fiscalía, no el sistema. Esta pantalla
+     no concluye nada: pone al lado el precio analizado y sus referencias, dice de
+     dónde salió cada número y cuán comparables son entre sí. Eso es una comparación.
+     Si de ahí se sigue que hubo un sobreprecio, lo firma una persona. */
+  '#/renglon': 'Comparación de precio',
   '#/hallazgos': 'Hallazgos',
   '#/acerca': 'Acerca del sistema',
   '#/equipo': 'Trabajo del equipo',
@@ -6037,7 +6129,7 @@ async function vRenglon() {
 
   const ads = (d.advertencias || []).map(a => `<li><span class="sello atencion">${esc(a)}</span></li>`).join('');
 
-  vista.innerHTML = bloque('f. 0000', 'Posible sobreprecio', `
+  vista.innerHTML = bloque('f. 0000', 'Comparación de precio', `
     <h1>Análisis de precio: ${esc(r.descripcion.literal)}</h1>
     <p>Precio analizado: ${montoHTML(r.precio_unitario)}</p>
     ${d.calidad && d.calidad.nivel === 'baja' || (r.comparacion && r.comparacion.nivel === 'E') ? '<div class="sello alerta">Esta comparación tiene calidad baja o dudosa y requiere revisión. No es una conclusión firme.</div>' : ''}

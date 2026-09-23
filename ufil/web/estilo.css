@@ -469,6 +469,50 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
              overscroll-behavior:contain}
 .nav-lateral .grupo, .nav-lateral > a{scroll-snap-align:start}
 .nav-lateral .grupo{margin-top:2px}
+
+/* ── El rótulo del grupo ───────────────────────────────────────────────────
+   Nombra a qué vino la persona —Investigación, Documentación, Revisión, Salida,
+   Administración— y no lleva a ningún lado. Por eso no se parece a una entrada:
+   ni caja, ni borde, ni fondo, ni ícono. Versalitas chicas y tinta apagada, que es
+   el tratamiento de la marginalia en el resto del sistema.
+
+   El contraste es deliberadamente bajo (--barra-txt-2): tiene que poder ignorarse.
+   Quien ya sabe dónde va salta directo a la entrada; el rótulo está para el que
+   todavía está buscando. Un rótulo de grupo que compite con sus propias entradas
+   convierte cinco palabras de ayuda en cinco distracciones.
+
+   El primero no lleva separación arriba: la barra ya viene de la identidad y un
+   espacio de más ahí se lee como si faltara algo. */
+.nav-grupo + .nav-grupo{margin-top:14px; padding-top:12px;
+                        border-top:1px solid var(--barra-3)}
+.nav-grupo-rotulo{
+  margin:0 0 4px; padding:0 10px;
+  font-size:10px; font-weight:600; line-height:1.4;
+  text-transform:uppercase; letter-spacing:.09em;
+  color:var(--barra-txt-2);
+}
+
+/* ── Pantallas bajas ───────────────────────────────────────────────────────
+   1366×768 es una de las dos resoluciones que tienen que quedar bien, y es la
+   apretada: son 768 px de alto menos el encabezado y menos el pie de la barra, y
+   quedan unos 530 px para veintidós entradas. No entran, y no hay tipografía lo
+   bastante chica que las haga entrar sin volverlas ilegibles.
+
+   Así que la barra se desplaza —ya lo hacía— y acá se hacen las dos cosas que
+   convierten eso de un defecto en algo que no molesta: se aprieta el ritmo vertical
+   donde no cuesta legibilidad, y se lleva la entrada activa a la vista al pintar
+   (ver `pintarNav`), que es lo que evita el momento de «¿dónde estoy?» al entrar a
+   una pantalla del final de la lista.
+
+   Se dispara por ALTO de ventana y no por ancho: el problema es el alto. Una ventana
+   angosta y alta no tiene por qué apretarse. */
+@media (max-height: 860px){
+  .nav-lateral{padding:6px 8px 10px}
+  .nav-lateral .cabeza{padding:5px 10px; font-size:12.5px}
+  .nav-lateral .items a{padding-top:4px; padding-bottom:4px}
+  .nav-grupo + .nav-grupo{margin-top:9px; padding-top:8px}
+  .nav-grupo-rotulo{margin-bottom:2px; font-size:9.5px}
+}
 .nav-lateral .cabeza{
   display:flex; align-items:center; gap:9px; width:100%; text-align:left;
   padding:8px 10px; border-radius:var(--radio); font-size:13px; font-weight:500;
