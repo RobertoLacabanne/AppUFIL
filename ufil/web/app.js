@@ -295,7 +295,7 @@ function barraConf(c) {
 
 function celdaValor(c) {
   if (c.nulo_motivo)
-    return `<span class="nulo ${c.nulo_motivo === 'conflicto' ? 'conf' : ''}">Ø ${esc(c.nulo_motivo)}</span>`;
+    return `<span class=\"nulo ${c.nulo_motivo === 'conflicto' ? 'conf' : ''}\" title=\"\">—</span>`;
   const dudoso = c.confianza != null && c.confianza < 0.85 ? ' dudoso' : '';
   return `<span class="mono${dudoso}">${esc(c.valor_literal)}</span>`;
 }
@@ -1015,7 +1015,7 @@ function pedirEliminar(l) {
    legajo para confirmar. */
 function pedirRestaurar(activos) {
   if (!activos.length) {
-    return alert('Primero creá el legajo donde querés cargar la copia. Después volvé acá.');
+    return toast('Primero creá el legajo donde querés cargar la copia. Después volvé acá.');
   }
   const d = dialogo(`
     <form method="dialog" id="f-restaurar">
@@ -1106,7 +1106,7 @@ function pedirRestaurar(activos) {
       d.close();
       // Decir dónde quedó lo que se apartó: si la copia no era la que la persona
       // pensaba, este nombre es el camino de vuelta, y no está en ninguna otra parte.
-      alert(`Listo. El legajo ${numero} quedó con ${plural(r.documentos, 'documento',
+      toast(`Listo. El legajo ${numero} quedó con ${plural(r.documentos, 'documento',
         'documentos')} y ${plural(r.revisiones, 'campo revisado a mano',
         'campos revisados a mano')}.`
         + (r.apartada ? `\n\nLa base que estaba quedó guardada como:\n`
@@ -1155,7 +1155,7 @@ function engancharPapelera(p) {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({marca: b.dataset.restaurar})});
       vLegajos();
-    } catch (e) { alert('No se pudo restaurar: ' + e.message); b.disabled = false; }
+    } catch (e) { toast('No se pudo restaurar: ' + e.message); b.disabled = false; }
   });
   vista.querySelectorAll('[data-destruir]').forEach(b => b.onclick = () => {
     const f = p.find(x => x.marca === b.dataset.destruir);
@@ -1529,15 +1529,15 @@ async function vContratos() {
       {t:'Archivo', k:'archivo', c:'fol'},
       {t:'Cámara', b:f => camaraTexto(f.camara), r:f => esc(camaraTexto(f.camara))},
       {t:'Contratado/a', c:'nombre', b:f => f.nombre_literal,
-       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo">Ø sin dato</span>'},
+       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
       {t:'Documento', c:'mono', b:f => f.documento_literal,
-       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo">Ø sin dato</span>'},
+       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
       {t:'Inicio', c:'mono', b:f => f.inicio,
-       r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class="nulo">Ø sin dato</span>'},
+       r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
       {t:'Fin', c:'mono', b:f => f.fin,
-       r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class="nulo">Ø sin dato</span>'},
+       r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
       {t:'Monto', c:'num', b:f => f.monto_centavos,
-       r:f => f.monto_centavos == null ? '<span class="nulo">Ø sin dato</span>' : esc(fmtPesos(f.monto_centavos))},
+       r:f => f.monto_centavos == null ? '<span class=\"nulo\" title=\"sin dato\">—</span>' : esc(fmtPesos(f.monto_centavos))},
       {t:'Conf.', c:'num', b:f => f.confianza_min, r:f => barraConf(f.confianza_min)},
     ], filas, {alClic: f => location.hash = '#/documento/' + f.documento_id,
                placeholder: 'Buscar por nombre, documento, archivo…'});
@@ -1573,15 +1573,15 @@ async function vComprobantes() {
       {t:'Tipo', b:f => TIPO_DOC[f.tipo] || f.tipo, r:f => esc(TIPO_DOC[f.tipo] || f.tipo)},
       {t:'Archivo', k:'archivo', c:'fol'},
       {t:'Emisor', b:f => f.nombre_literal,
-       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo">Ø sin dato</span>'},
+       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
       {t:'CUIT', c:'mono', b:f => f.documento_literal,
-       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo">Ø sin dato</span>'},
+       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
       {t:'Comprobante', c:'mono', b:f => f.comprobante,
-       r:f => f.comprobante ? esc(f.comprobante) : '<span class="nulo">Ø sin dato</span>'},
+       r:f => f.comprobante ? esc(f.comprobante) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
       {t:'Emitida', c:'mono', b:f => f.emitida,
-       r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class="nulo">Ø sin dato</span>'},
+       r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
       {t:'Importe', c:'num', b:f => f.monto_centavos,
-       r:f => f.monto_centavos == null ? '<span class="nulo">Ø a mano</span>' : esc(fmtPesos(f.monto_centavos))},
+       r:f => f.monto_centavos == null ? '<span class=\"nulo\" title=\"a mano\">—</span>' : esc(fmtPesos(f.monto_centavos))},
       {t:'Conf.', c:'num', b:f => f.confianza_min, r:f => barraConf(f.confianza_min)},
     ], filas, {alClic: f => location.hash = '#/documento/' + f.documento_id,
                placeholder: 'Buscar por emisor, CUIT, número de comprobante…'});
@@ -1632,16 +1632,16 @@ async function vCruce() {
       {t:'Contratos', c:'num', k:'contratos'},
       {t:'Período', c:'mono', b:f => f.contrato_desde, r:f => f.contrato_desde
           ? `${esc(fmtFecha(f.contrato_desde))} → ${esc(fmtFecha(f.contrato_hasta))}`
-          : '<span class="nulo">Ø sin fechas</span>'},
+          : '<span class=\"nulo\" title=\"sin fechas\">—</span>'},
       // Mensual y total son magnitudes distintas y se muestran en columnas distintas.
       // El total es el único comparable con la facturación acumulada de al lado.
       {t:'Mensual pactado', c:'num', b:f => f.mensual_centavos, r:f => f.mensual_centavos
-          ? esc(fmtPesos(f.mensual_centavos)) : '<span class="nulo">Ø sin dato</span>'},
+          ? esc(fmtPesos(f.mensual_centavos)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
       // Cuando NINGÚN contrato trae el total legible, la celda no muestra $0,00: cero
       // se lee como «no se contrató nada» y lo que pasa es que no se pudo leer.
       {t:'Total contratado', c:'num', b:f => f.contratado_centavos,
        r:f => f.contratos_sin_total_firme >= f.contratos
-          ? '<span class="nulo">Ø sin leer</span>'
+          ? '<span class=\"nulo\" title=\"sin leer\">—</span>'
           : esc(fmtPesos(f.contratado_centavos)) + (f.contratos_sin_total_firme
               ? ` <span class="sello atencion">faltan ${f.contratos_sin_total_firme}</span>` : '')},
       {t:'Facturas', c:'num', k:'facturas'},
@@ -1728,9 +1728,9 @@ async function vSuperposiciones() {
       {t:'Folios', c:'fol', r:f =>
         `${nombreArchivo(f.archivo_a)}${nombreArchivo(f.archivo_b)}`},
       {t:'Contratado/a', c:'nombre', r:f => f.contratado ? esc(f.contratado)
-          : '<span class="nulo">Ø sin nombre</span>'},
+          : '<span class=\"nulo\" title=\"sin nombre\">—</span>'},
       {t:'Documento', c:'mono', r:f => f.documento ? esc(f.documento)
-          : '<span class="nulo">Ø sin dato</span>'},
+          : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
       {t:'Cruce', r:f => f.cruce === 'intercámara' ? `<span class="marca">${esc(f.cruce)}</span>` : esc(f.cruce)},
       /* En formato argentino y sin partirse. La consulta los devuelve unidos y en
          ISO —`2020-03-19 → 2021-01-18`—, que es lo correcto para ordenar y lo
@@ -1845,12 +1845,12 @@ async function vDocumento(id) {
   cargarRelacionesDocumento(id);
   vista.querySelectorAll('.deshacer').forEach(b => b.onclick = async () => {
     const quien = await conRevisor(); if (!quien) return;
-    if (!confirm('¿Deshacer esta revisión? El campo vuelve a lo que había leído el sistema.')) return;
+    if (!await dialogo('¿Deshacer esta revisión? El campo vuelve a lo que había leído el sistema.')) return;
     try {
       await api('/api/campo', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({campo_id:+b.dataset.campo, accion:'revertir', quien})});
       await vDocumento(id); refrescarCuentas();
-    } catch (e) { alert('No se pudo deshacer: ' + e.message); }
+    } catch (e) { toast('No se pudo deshacer: ' + e.message); }
   });
 
   const recuadro = $('#recuadro');
@@ -2923,11 +2923,11 @@ async function decidir(campoId, accion, valor) {
     if (e.estado === 409) {
       // No es un error de quien apretó: el mundo cambió abajo. Se recarga la cola para
       // que vea cómo quedó, y recién ahí decide de nuevo.
-      alert(e.message);
+      toast(e.message);
       await vCola(); pintarFoco(); refrescarCuentas();
       return;
     }
-    alert('No se pudo guardar: ' + e.message);
+    toast('No se pudo guardar: ' + e.message);
   }
 }
 
@@ -2971,7 +2971,7 @@ function mostrarDeshacer() {
       ultimaDecision = null;
       barra.hidden = true;
       await vCola(); pintarFoco(); refrescarCuentas();
-    } catch (e) { alert('No se pudo deshacer: ' + e.message); }
+    } catch (e) { toast('No se pudo deshacer: ' + e.message); }
   };
 }
 
@@ -3077,7 +3077,7 @@ async function vIdentidad() {
       await api('/api/fusion', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({id:+b.dataset.fus, aceptar: b.dataset.ok === '1', quien})});
       await vIdentidad(); refrescarCuentas();
-    } catch (e) { alert('No se pudo guardar: ' + e.message); }
+    } catch (e) { toast('No se pudo guardar: ' + e.message); }
   });
 }
 
@@ -3250,7 +3250,7 @@ async function vPersonas() {
   tablaBuscable($('#tabla-personas'), [
       {t:'Contratado/a', c:'nombre', k:'contratado'},
       {t:'Documento', c:'mono', b:f => f.documento,
-       r:f => f.documento ? esc(f.documento) : '<span class="nulo">Ø sin dato</span>'},
+       r:f => f.documento ? esc(f.documento) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
       {t:'Contratos', k:'contratos', c:'num'},
       {t:'Sin monto', c:'num', b:f => f.contratos_sin_monto,
        r:f => f.contratos_sin_monto
@@ -3390,9 +3390,9 @@ async function vPersona(id) {
       {t:'Archivo', k:'archivo', c:'fol'},
       {t:'Cámara', r:f => esc(camaraTexto(f.camara))},
       {t:'Cargo', r:f => esc(f.cargo || '—')},
-      {t:'Inicio', c:'mono', r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class="nulo">Ø sin dato</span>'},
-      {t:'Fin', c:'mono', r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class="nulo">Ø sin dato</span>'},
-      {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '<span class="nulo">Ø sin dato</span>' : esc(fmtPesos(f.monto_centavos))},
+      {t:'Inicio', c:'mono', r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+      {t:'Fin', c:'mono', r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+      {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '<span class=\"nulo\" title=\"sin dato\">—</span>' : esc(fmtPesos(f.monto_centavos))},
       {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
     ], d.contratos, {alClic:true, lista:'contratos'})}
 
@@ -3403,10 +3403,10 @@ async function vPersona(id) {
       ${tabla([
         {t:'Archivo', k:'archivo', c:'fol'},
         {t:'Tipo', r:f => esc(TIPO_DOC[f.tipo] || f.tipo)},
-        {t:'Comprobante', c:'mono', r:f => f.comprobante ? esc(f.comprobante) : '<span class="nulo">Ø sin dato</span>'},
-        {t:'Emitida', c:'mono', r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class="nulo">Ø sin dato</span>'},
+        {t:'Comprobante', c:'mono', r:f => f.comprobante ? esc(f.comprobante) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+        {t:'Emitida', c:'mono', r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
         {t:'Importe', c:'num', r:f => f.monto_centavos == null
-            ? '<span class="nulo">Ø a mano</span>' : esc(fmtPesos(f.monto_centavos))},
+            ? '<span class=\"nulo\" title=\"a mano\">—</span>' : esc(fmtPesos(f.monto_centavos))},
         {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
       ], d.comprobantes, {alClic:true, lista:'comprobantes'})}` : ''}
 
@@ -3534,7 +3534,7 @@ async function vSinReconocer() {
       const quien = await conRevisor(); if (!quien) return;
       await guardarNucleo('/api/pieza/clasificar', {documento_id:+f.dataset.pieza, tipo:f.elements.tipo.value, quien});
       await vSinReconocer();
-    } catch (e) { alert(e.message); } finally { b.disabled = false; }
+    } catch (e) { toast(e.message); } finally { b.disabled = false; }
   });
 }
 
@@ -3586,7 +3586,7 @@ async function cargarContinuidad(id, sha) {
         await guardarNucleo('/api/pieza/continuar', {documento_id:+id, sha256:f.elements.sha256.value,
           pagina_desde:+f.elements.pagina_desde.value, pagina_hasta:+f.elements.pagina_hasta.value, quien});
         await cargarContinuidad(id, sha);
-      } catch (e) { alert(e.message); } finally { b.disabled = false; }
+      } catch (e) { toast(e.message); } finally { b.disabled = false; }
     };
     host.querySelectorAll('[data-separar]').forEach(b => b.onclick = async () => {
       b.disabled = true;
@@ -3594,7 +3594,7 @@ async function cargarContinuidad(id, sha) {
         const quien = await conRevisor(); if (!quien) return;
         await guardarNucleo('/api/pieza/separar', {tramo_id:+b.dataset.separar, quien});
         await cargarContinuidad(id, sha);
-      } catch (e) { alert(e.message); } finally { b.disabled = false; }
+      } catch (e) { toast(e.message); } finally { b.disabled = false; }
     });
   } catch (e) { if (host.isConnected) host.textContent = e.message; }
 }
@@ -3637,7 +3637,7 @@ async function vConjuntos(elegido) {
       for (const k of ['organismo','expediente','nota']) datos[k] = datos[k].trim() || null;
       datos.anio = datos.anio ? +datos.anio : null;
       const c = await guardarNucleo('/api/conjunto/crear', datos); await vConjuntos(c.id);
-    } catch(e) { alert(e.message); } finally { b.disabled=false; }
+    } catch(e) { toast(e.message); } finally { b.disabled=false; }
   };
   const selector = $('#elegir-conjunto');
   if (!selector) return;
@@ -3655,7 +3655,7 @@ async function mostrarConjunto(id, archivos) {
     const cambiar = async (ruta, datos) => {
       host.querySelectorAll('button').forEach(b => b.disabled=true);
       try { await guardarNucleo(ruta, {conjunto_id:+id,...datos}); await vConjuntos(id); }
-      catch(e) { alert(e.message); await mostrarConjunto(id, archivos); }
+      catch(e) { toast(e.message); await mostrarConjunto(id, archivos); }
     };
     $('#agregar-parte',host).onsubmit = e => {
       e.preventDefault(); cambiar('/api/conjunto/agregar', {sha256:e.currentTarget.elements.sha256.value});
@@ -3766,9 +3766,9 @@ async function vActualizacion() {
       try {
         const r = await api('/api/actualizar', {method: 'POST',
           headers: {'Content-Type': 'application/json'}, body: '{}'});
-        if (!r.ok) { alert(r.motivo); b.disabled = false; return; }
+        if (!r.ok) { toast(r.motivo); b.disabled = false; return; }
         await seguirTrabajo();
-      } catch (e) { alert(e.message); b.disabled = false; }
+      } catch (e) { toast(e.message); b.disabled = false; }
     };
   }
   pintarTrabajo(t);
@@ -3885,13 +3885,13 @@ async function vIngesta() {
     try {
       const r = await api('/api/procesar', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({})});
-      if (!r.ok) return alert(r.motivo || 'No se pudo arrancar');
+      if (!r.ok) return toast(r.motivo || 'No se pudo arrancar');
       seguirTrabajo();
     } catch (e) {
       // 409 sin legajo: el servidor tiene razón y la pantalla está vieja. Se la manda
       // a elegir uno en vez de mostrarle el texto del error.
       if (e.estado === 409) return vistaSinLegajo('Cargar escaneos');
-      alert(e.message);
+      toast(e.message);
     }
   };
   if (t.estado === 'corriendo') seguirTrabajo(); else pintarTrabajo(t);
@@ -3901,10 +3901,10 @@ async function subir(archivos) {
   if (subiendo || !archivos.length) return;
   const pdfs = archivos.filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
   const salteados = archivos.length - pdfs.length;
-  if (!pdfs.length) return alert('Ninguno de esos archivos es un PDF.');
+  if (!pdfs.length) return toast('Ninguno de esos archivos es un PDF.');
 
   const lote = ($('#i-lote').value || '').trim();
-  if (!lote) { $('#i-lote').focus(); return alert('Poné un nombre de lote antes de subir.'); }
+  if (!lote) { $('#i-lote').focus(); return toast('Poné un nombre de lote antes de subir.'); }
   localStorage.setItem('ufil.lote', lote);
   const operador = ($('#i-operador').value || '').trim();
   if (operador) localStorage.setItem('ufil.revisor', operador);
@@ -4042,7 +4042,7 @@ function pintarTrabajo(t) {
     try { await api('/api/detener', {method: 'POST',
                                      headers: {'Content-Type': 'application/json'},
                                      body: '{}'}); }
-    catch (e) { alert('No se pudo parar: ' + e.message); parar.disabled = false; }
+    catch (e) { toast('No se pudo parar: ' + e.message); parar.disabled = false; }
   };
 }
 
@@ -5082,7 +5082,7 @@ function htmlTiposRelacion(tipos) {
 }
 async function accionInterfaz(b, tarea) {
   b.disabled = true;
-  try { await tarea(); } catch (e) { alert(e.message); } finally { b.disabled = false; }
+  try { await tarea(); } catch (e) { toast(e.message); } finally { b.disabled = false; }
 }
 async function vEntidades() {
   const hash = location.hash, clase = new URLSearchParams(hash.split('?')[1] || '').get('clase') || '';
@@ -5145,7 +5145,7 @@ async function vGuardadas() {
   vista.innerHTML = bloque('', 'Consultas guardadas', htmlGuardadas(d));
   vista.querySelectorAll('[data-ejecutar]').forEach(b => b.onclick = () => {
     const c = d.consultas.find(c => String(c.id) === b.dataset.ejecutar);
-    if (Object.keys(c.filtros || {}).length) { alert('El servidor de b\u00fasqueda no expone filtros todav\u00eda. No se ejecutar\u00e1 una consulta distinta de la guardada.'); return; }
+    if (Object.keys(c.filtros || {}).length) { toast('El servidor de b\u00fasqueda no expone filtros todav\u00eda. No se ejecutar\u00e1 una consulta distinta de la guardada.'); return; }
     location.hash = '#/buscar/' + encodeURIComponent(c.consulta);
   });
   vista.querySelectorAll('[data-borrar-consulta]').forEach(b => b.onclick = () => accionInterfaz(b, async () => { await guardarNucleo('/api/consulta/borrar', {id:Number(b.dataset.borrarConsulta)}); await vGuardadas(); }));
@@ -6148,9 +6148,28 @@ document.addEventListener('click', async e => {
       });
       await redibujarTrasAccion('Revisión guardada', vHallazgosContrataciones);
     } catch (err) {
-      alert('Falló: ' + err.message);
+      toast('Falló: ' + err.message);
     } finally {
       boton.disabled = false;
     }
   }
 });
+
+function toast(msj) {
+  let t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msj;
+  document.body.appendChild(t);
+  setTimeout(() => { t.classList.add('fadeout'); setTimeout(() => t.remove(), 300); }, 3000);
+}
+function dialogo(msj) {
+  return new Promise(resolve => {
+    let d = document.createElement('dialog');
+    d.innerHTML = <p>\</p>
+      <div class="acciones-fila"><button type="button" class="boton" id="d-ok">Aceptar</button><button type="button" class="boton gris" id="d-no">Cancelar</button></div>;
+    document.body.appendChild(d);
+    d.querySelector('#d-ok').onclick = () => { d.close(); d.remove(); resolve(true); };
+    d.querySelector('#d-no').onclick = () => { d.close(); d.remove(); resolve(false); };
+    d.showModal();
+  });
+}

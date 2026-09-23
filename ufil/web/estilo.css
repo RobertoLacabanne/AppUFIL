@@ -456,7 +456,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
   .identidad-organismo{margin-top:8px}
 }
 .rotulo-fiscales{font-size:11px; font-weight:600; letter-spacing:.13em;
-  text-transform:uppercase; color:var(--barra-txt-2); margin-bottom:2px}
+  color:var(--barra-txt-2); margin-bottom:2px}
 .nombre-fiscal{font-size:11px; line-height:1.35; color:var(--barra-txt-2)}
 
 /* Ningún ítem partido por la mitad. La lista se desplaza cuando no entra —el pie
@@ -524,7 +524,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    identifique no puede decidir nada y conviene que lo vea antes de intentarlo. */
 #b-revisor{align-items:center}
 #b-revisor .txt{display:flex; flex-direction:column; line-height:1.25; min-width:0}
-#b-revisor .etq{font-size:11px; letter-spacing:.11em; text-transform:uppercase;
+#b-revisor .etq{font-size:11px; letter-spacing:.11em; 
                 color:var(--barra-txt-2)}
 #b-revisor .quien{font-size:12px; font-weight:600; color:var(--barra-txt);
                   overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -559,7 +559,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
 }
 .techo-legajo:hover{background:var(--realce)}
 .techo-legajo .etq{font-size:11px; font-weight:600; letter-spacing:.13em;
-                   text-transform:uppercase; color:var(--tinta-3); flex:none}
+                   color:var(--tinta-3); flex:none}
 .techo-legajo b{font-size:15px; font-weight:650; font-variant-numeric:tabular-nums;
                 letter-spacing:-.01em; flex:none}
 /* La carátula NO es un dato leído de un papel: es el nombre de la causa, y va en la
@@ -579,7 +579,7 @@ body{display:grid; grid-template-columns:var(--lateral) minmax(0,1fr);
    carátula parecía parte de ella. */
 .techo-dato #f-lote{font-size:11px; color:var(--tinta-2)}
 .techo-dato .etq{font-size:11px; font-weight:600; letter-spacing:.13em;
-                 text-transform:uppercase; color:var(--tinta-3)}
+                 color:var(--tinta-3)}
 /* `flex-shrink:3` contra el 1 del legajo: la búsqueda cede tres veces más rápido, y
    por eso es la que se angosta primero. No baja de 150 px, que es donde el marcador
    deja de decir qué se busca. */
@@ -791,7 +791,7 @@ h3{margin:0 0 9px; font-size:15px; font-weight:650; letter-spacing:-.005em}
    interletrado la separa todavía más: queda gris y sin color. Llevarla al 92 % del
    eje de ancho le devuelve densidad sin cambiar de fuente, de cuerpo ni de peso. Es
    el tipo de cosa que la fuente variable trae de fábrica y casi nadie usa. */
-.rotulo{font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+.rotulo{font-size:11px; font-weight:600; letter-spacing:.14em; 
         font-stretch:92%; color:var(--tinta-3)}
 thead th, .rotulo-fiscales, .identidad-area, .techo-legajo .etq, .techo-dato .etq,
 .bloque > .marginalia .rotulo{font-stretch:92%}
@@ -1045,7 +1045,7 @@ table{border-collapse:collapse; width:100%; font-size:12px}
    una caja. El fondo sigue declarado —hace falta para que `position:sticky` no deje
    ver el dato pasando por debajo— pero es el del folio, no un color. */
 thead th{text-align:left; font-size:11px; font-weight:600; letter-spacing:.055em;
-         text-transform:uppercase;
+         
          color:var(--tinta-2); padding:2px 11px 7px; white-space:nowrap;
          border-bottom:1.5px solid var(--tinta); position:sticky; top:0;
          background:var(--folio); z-index:1}
@@ -1059,7 +1059,7 @@ tbody tr + tr td{border-top:1px solid color-mix(in srgb, var(--filete) 55%, tran
 tbody tr:hover{background:var(--realce)}
 tbody tr.clic{cursor:pointer}
 tbody tr.clic:focus{outline:2px solid var(--sello); outline-offset:-2px; background:var(--realce)}
-.num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+.num{font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
 /* El rótulo se alinea como su dato. Con el rótulo a la izquierda y el número a la
    derecha, en una tabla ancha quedan a cuatrocientos píxeles y el ojo no los conecta:
    parece que el número es de otra columna. */
@@ -1111,7 +1111,7 @@ table td{overflow-wrap:normal; word-break:normal; hyphens:none}
    nulo que no se lee vuelve a ser una celda en blanco, que es exactamente lo que la
    regla «nada se inventa en un campo de datos» existe para impedir. Estaba en
    `--tinta-3` y daba 3,83:1 sobre su propio fondo gris. */
-.nulo{font-size:11px; font-weight:600; letter-spacing:.11em; text-transform:uppercase;
+.nulo{font-size:11px; font-weight:600; letter-spacing:.11em; 
       color:var(--tinta-2); background:var(--papel-2); border:1px solid var(--filete-2);
       padding:1px 6px; white-space:nowrap}
 .nulo.conf{color:var(--lapiz); border-color:var(--lapiz); background:var(--lapiz-suave)}
@@ -1123,7 +1123,7 @@ table td{overflow-wrap:normal; word-break:normal; hyphens:none}
 .barra-conf.media i.on{background:var(--ambar)}
 .barra-conf.baja i.on{background:var(--lapiz)}
 
-.ancla{font-family:var(--mono); font-size:11px; border:1px solid var(--borde-control);
+.ancla{font-size:11px; border:1px solid var(--borde-control);
        border-radius:var(--radio); background:var(--papel-2); color:var(--sello);
        padding:1px 5px; margin-left:7px; cursor:pointer; white-space:nowrap}
 .ancla:hover{background:var(--sello-suave); border-color:var(--sello)}
@@ -1136,7 +1136,7 @@ table td{overflow-wrap:normal; word-break:normal; hyphens:none}
                line-height:1.58; color:var(--tinta); margin:8px 0 10px; max-width:74ch}
 .interp .fuentes{display:flex; flex-wrap:wrap; gap:5px; padding-top:9px;
                  border-top:1px solid var(--interp-filete)}
-.chip{font-family:var(--mono); font-size:11px; padding:1px 6px; border-radius:var(--radio);
+.chip{font-size:11px; padding:1px 6px; border-radius:var(--radio);
       border:1px solid var(--interp-filete); color:var(--tinta-2); background:transparent;
       cursor:pointer; text-decoration:none}
 .chip:hover{background:var(--sello-suave); color:var(--tinta)}
@@ -1162,7 +1162,7 @@ table td{overflow-wrap:normal; word-break:normal; hyphens:none}
           transition:all .26s cubic-bezier(.4,0,.2,1); pointer-events:none}
 .recuadro.conf{border-color:var(--lapiz); background:rgba(150,48,31,.10)}
 @media (prefers-reduced-motion:reduce){.recuadro{transition:none}}
-.pie-lamina{font-family:var(--mono); font-size:11px; color:var(--tinta-2);
+.pie-lamina{font-size:11px; color:var(--tinta-2);
             display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap}
 
 .campo{display:grid; grid-template-columns:118px 1fr; gap:10px; align-items:baseline;
@@ -1222,7 +1222,7 @@ kbd{font-family:var(--mono); font-size:11px; border:1px solid var(--borde-contro
     border-bottom-width:2px; padding:0 5px; background:var(--papel); color:var(--tinta);
     min-width:19px; display:inline-block; text-align:center}
 
-input[type=text]{font-family:var(--mono); font-size:12px; padding:4px 7px;
+input[type=text]{font-size:12px; padding:4px 7px;
   border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta); border-radius:0}
 /* Un botón de 11,5 px con el texto subrayado adentro —porque a veces es un `<a>` y
    heredaba el subrayado de los enlaces— no se lee como un botón: se lee como un
@@ -1346,10 +1346,10 @@ pre.sql{font-family:var(--mono); font-size:12px; margin:0; padding:12px 14px;
 .subida{display:grid; grid-template-columns:60px 1fr 150px; gap:10px; padding:6px 12px;
   border-bottom:1px solid var(--filete-2); align-items:baseline; font-size:12px}
 .subida:last-child{border-bottom:none}
-.subida .nom{font-family:var(--mono); font-size:12px; overflow:hidden;
+.subida .nom{font-size:12px; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap}
 .subida .res{text-align:right; font-size:11px}
-.ok-txt{color:var(--verde); font-family:var(--mono); font-size:11px}
+.ok-txt{color:var(--verde); font-size:11px}
 .progreso{border:1px solid var(--filete); padding:14px 16px; margin-top:14px}
 .progreso .cab{display:flex; justify-content:space-between; gap:12px; margin-bottom:9px;
   align-items:baseline; font-size:11px}
@@ -1429,7 +1429,7 @@ td.pista{vertical-align:middle}
    celda ya mide dos renglones por la columna de períodos— y queda pegado a lo que
    explica. */
 .pista-caja{display:flex; flex-direction:column; gap:2px}
-.pista-dias{font-family:var(--mono); font-size:var(--t-11);
+.pista-dias{font-size:var(--t-11);
   font-variant-numeric:tabular-nums; white-space:nowrap; color:var(--tinta-2)}
 td.pista .pista-par{min-width:200px}
 /* Ocho columnas, y la última —la confianza— quedaba cortada contra el borde derecho
@@ -1465,7 +1465,7 @@ table[data-lista="superposiciones"] td{padding-left:8px; padding-right:8px}
 .tramo-pista{position:relative; height:15px}
 .tramo-fila.eje .tramo-pista{height:13px}
 .guia{position:absolute; top:-3px; bottom:-3px; width:1px; background:var(--filete-2)}
-.anio{position:absolute; top:0; transform:translateX(-50%); font-family:var(--mono);
+.anio{position:absolute; top:0; transform:translateX(-50%); 
   font-size:11px; color:var(--tinta-3); white-space:nowrap}
 .tramo{position:absolute; top:3px; height:9px; background:var(--marca); display:block;
   box-shadow:0 0 0 2px var(--papel); border-radius:0}
@@ -1740,7 +1740,7 @@ main a:not([class]):hover{text-decoration-color:var(--sello)}
 .consejo p{font-family:var(--serif); font-size:15px; line-height:1.58;
   color:var(--tinta-2); margin:0 0 9px; max-width:none}
 .consejo p:last-child{margin-bottom:0}
-.consejo p.medido{font-family:var(--mono); font-size:12px; line-height:1.55;
+.consejo p.medido{font-size:12px; line-height:1.55;
   background:var(--papel); border:1px solid var(--filete-2); padding:8px 11px}
 .consejo strong{color:var(--tinta)}
 
@@ -2017,7 +2017,7 @@ body.con-visor{background-color:var(--fondo)}
   background:var(--interp); border-left:2px solid var(--interp-filete);
   border-radius:0 var(--radio) var(--radio) 0}
 .mismo-papel strong{font-style:normal; color:var(--tinta)}
-.mismo-papel a{font-family:var(--mono); font-style:normal; font-size:var(--t-12)}
+.mismo-papel a{font-style:normal; font-size:var(--t-12)}
 
 /* ── La foja entera, a pantalla completa ───────────────────────────────────
    El escaneo al tamaño en que se hizo —200 DPI— y con desplazamiento en los dos ejes.
@@ -2395,7 +2395,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   flex-wrap:wrap; background:var(--papel-2); border:1px solid var(--filete);
   border-left:3px solid var(--sello); padding:8px 13px; margin:10px 0 2px;
   font-size:12px}
-.deshacer-barra .fol{font-family:var(--mono); font-size:12px; color:var(--tinta-2)}
+.deshacer-barra .fol{font-size:12px; color:var(--tinta-2)}
 
 /* Traer más de la cola. Es un botón y no un scroll infinito a propósito: con carga
    automática, el final de la lista se corre solo y nunca se llega a «terminé». */
@@ -2473,7 +2473,7 @@ ul.fallas li{margin-bottom:6px; color:var(--lapiz)}
   border:1px solid var(--borde-control); background:var(--papel); color:var(--tinta);
   border-radius:0; min-height:34px}
 .campo-buscar input:focus{border-color:var(--sello)}
-.buscador-tabla .cuantas{font-family:var(--mono); font-size:12px; color:var(--tinta-2);
+.buscador-tabla .cuantas{font-size:12px; color:var(--tinta-2);
   white-space:nowrap}
 .buscador-tabla .cuantas b{color:var(--tinta); font-size:13px}
 .buscador-tabla .boton{padding:5px 11px; font-size:12px; min-height:34px}
@@ -2636,3 +2636,18 @@ details.consejo[open]>summary{border-bottom:1px solid var(--filete-2); margin-bo
 .crono-item:last-child{border-bottom:0}
 /* Estado de un campo que una persona cerró sin valor: no es alerta ni acierto. */
 .sello.neutro{color:var(--tinta-2)}
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--tinta); color: var(--papel); padding: 12px 24px;
+  border-radius: var(--radio); z-index: 9999; box-shadow: var(--sombra-alta);
+  font-weight: 500; transition: opacity 0.3s var(--curva);
+}
+.toast.fadeout { opacity: 0; }
+
+dialog {
+  border: none; border-radius: var(--radio); box-shadow: var(--sombra-alta);
+  padding: 24px; background: var(--folio); color: var(--tinta);
+  max-width: 400px;
+}
+dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
