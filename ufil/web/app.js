@@ -905,6 +905,117 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
   pintar();
 }
 
+/* ── Una tabla cuyas filas vienen del servidor, de a una página ────────────
+   `tablaBuscable` filtra y ordena en el navegador sobre todo lo que le pasaron. Con
+   las listas paginadas del servidor eso ya no sirve: la respuesta trae sólo la
+   primera página, y una tabla que pagina en el cliente sobre esa página muestra
+   cincuenta filas creyendo que son todas. Ésta pide al servidor cada página, cada
+   búsqueda y cada orden, y dice siempre cuántas hay en total.
+
+   Mismo marcado y mismas clases que `tablaBuscable`, para que se vean iguales.
+     ruta     la lista, con sus filtros fijos ya puestos (`/api/entidades?clase=x`)
+     clave    dónde vienen las filas en la respuesta (`entidades`)
+     cols     como en `tabla`; `o` es el campo por el que el servidor ordena esa
+              columna (sin `o`, la columna no se ordena)
+     opts     limite, placeholder, alClic(fila), lista, vacio (texto sin filas),
+              alCargar(respuesta) para pintar lo que venga además de las filas */
+function tablaServidor(destino, ruta, clave, cols, opts = {}) {
+  const limite = opts.limite || 50;
+  const estado = {q: '', orden: opts.orden || null, sentido: opts.sentido || 'asc', desde: 0};
+  let pedido = 0, filas = [], total = 0, esperaQ = null;
+
+  const url = () => {
+    const [base, qs] = ruta.split('?');
+    const p = new URLSearchParams(qs || '');
+    p.set('desde', String(estado.desde)); p.set('limite', String(limite));
+    if (estado.q) p.set('q', estado.q);
+    if (estado.orden) { p.set('orden', estado.orden); p.set('sentido', estado.sentido); }
+    return base + '?' + p.toString();
+  };
+
+  async function cargar() {
+    const este = ++pedido;
+    const tabla = destino.querySelector('.tabla-env');
+    if (tabla) tabla.classList.add('cargando-tabla');
+    let r;
+    try { r = await api(url()); }
+    catch (e) {
+      if (este !== pedido) return;
+      destino.innerHTML = `<div class="aviso"><span>No se pudo traer la lista:
+        ${esc(e.message || String(e))}</span></div>`;
+      return;
+    }
+    if (este !== pedido) return;          // llegó tarde: ya se pidió otra cosa
+    filas = (r && r[clave]) || [];
+    total = r && r.total != null ? r.total : filas.length;
+    if (opts.alCargar) opts.alCargar(r);
+    pintar();
+  }
+
+  function pintar() {
+    const buscarViejo = destino.querySelector('input[type=search]');
+    const conFoco = buscarViejo && document.activeElement === buscarViejo;
+    const pos = conFoco ? buscarViejo.selectionStart : null;
+    const th = cols.map((c, i) => {
+      const act = c.o && estado.orden === c.o ? (estado.sentido === 'desc' ? ' desc' : ' asc') : '';
+      const aria = act ? ` aria-sort="${estado.sentido === 'desc' ? 'descending' : 'ascending'}"` : '';
+      return `<th class="${c.o ? 'ord' : ''}${act} ${claseCol(cols, c, i, filas)}" data-col="${i}"${aria}
+                ${c.o ? `title="ordenar por ${esc(c.t)}"` : ''}>${esc(c.t)}</th>`;
+    }).join('');
+    const tr = filas.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}" data-i="${i}"${
+        opts.alClic ? ' tabindex="0"' : ''}>${cols.map((c, j) =>
+        `<td class="${claseCol(cols, c, j, filas)}" data-rotulo="${esc(c.t)}">${
+          c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')}</tr>`).join('');
+    const hasta = Math.min(estado.desde + filas.length, total);
+    destino.innerHTML = `
+      <div class="buscador-tabla">
+        <label class="campo-buscar">
+          <input type="search" placeholder="${esc(opts.placeholder || 'Buscar…')}"
+                 value="${esc(estado.q)}" autocomplete="off">
+        </label>
+        <span class="cuantas">${total
+          ? `${fmtNum.format(estado.desde + 1)}–${fmtNum.format(hasta)} de <b>${fmtNum.format(total)}</b>`
+          : 'ninguna'}</span>
+        <span class="paginacion">
+          ${estado.desde > 0 ? '<button type="button" class="boton gris pag-ant">Anteriores</button>' : ''}
+          ${hasta < total ? '<button type="button" class="boton gris pag-sig">Siguientes</button>' : ''}
+        </span>
+      </div>
+      ${filas.length ? `<div class="tabla-env" data-ordenable="si"><table${
+          opts.lista ? ` data-lista="${esc(opts.lista)}"` : ''}><thead><tr>${th}</tr></thead>
+          <tbody>${tr}</tbody></table></div>`
+        : `<div class="tabla-env"><div class="vacio">${estado.q
+            ? `Ninguna fila dice «${esc(estado.q)}».`
+            : esc(opts.vacio || 'No hay nada para mostrar.')}</div></div>`}`;
+
+    const buscar = destino.querySelector('input[type=search]');
+    if (conFoco) { buscar.focus(); buscar.setSelectionRange(pos, pos); }
+    // Se espera a que la persona deje de escribir: una consulta por tecla es una
+    // consulta por letra, y la respuesta de «pr» puede llegar después que la de «pro».
+    buscar.oninput = () => {
+      clearTimeout(esperaQ);
+      esperaQ = setTimeout(() => { estado.q = buscar.value.trim(); estado.desde = 0; cargar(); }, 250);
+    };
+    destino.querySelectorAll('th.ord').forEach(th => th.onclick = () => {
+      const c = cols[+th.dataset.col];
+      estado.sentido = estado.orden === c.o && estado.sentido === 'asc' ? 'desc' : 'asc';
+      estado.orden = c.o; estado.desde = 0; cargar();
+    });
+    const ant = destino.querySelector('.pag-ant'), sig = destino.querySelector('.pag-sig');
+    if (ant) ant.onclick = () => { estado.desde = Math.max(0, estado.desde - limite); cargar(); };
+    if (sig) sig.onclick = () => { estado.desde += limite; cargar(); };
+    if (opts.alClic) destino.querySelectorAll('tbody tr').forEach(tr => {
+      tr.onclick = e => { if (!e.target.closest('a, button, input, select, textarea')) opts.alClic(filas[+tr.dataset.i]); };
+      tr.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); opts.alClic(filas[+tr.dataset.i]); } };
+    });
+    vigilarCortes(destino);
+  }
+
+  destino.innerHTML = '<div class="cargando">Cargando…</div>';
+  cargar();
+  return {recargar: () => cargar()};
+}
+
 /* ── vistas ────────────────────────────────────────────────────────────── */
 /* ── legajos ───────────────────────────────────────────────────────────────
    La portada. Se entra por acá y recién después se ve nada más.

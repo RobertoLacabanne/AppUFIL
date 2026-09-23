@@ -3041,3 +3041,8 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
 .celda-motivo{font-size:var(--t-12); color:var(--tinta-2)}
 .dif{font-variant-numeric:tabular-nums; font-weight:600}
 .cifra .cifra-valor .cifra-texto{font-family:var(--sans); font-size:var(--t-18); letter-spacing:0}
+
+/* Mientras llega la página siguiente, la tabla de antes se queda y se apaga: saltar
+   a un «Cargando…» vacío entre página y página hace perder el lugar de lectura. */
+.tabla-env.cargando-tabla{opacity:.55; transition:opacity var(--paso) var(--curva)}
+.buscador-tabla .paginacion{margin-left:auto}
