@@ -31,7 +31,7 @@ es un rótulo, no un destino: no se navega a un grupo.
 | Resumen | `#/panel` | qué hay y qué necesita atención |
 | Contrataciones | `#/contrataciones` `#/contratacion` | el procedimiento reconstruido |
 | Ítems y precios | `#/precios` `#/renglon` | la tabla y el comparador |
-| Proveedores | `#/entidades` `#/personas` `#/entidad` `#/persona` | empresas y personas |
+| Proveedores | `#/proveedores` `#/proveedor/<id>` `#/personas` `#/entidades` `#/entidad` `#/persona` | empresas proveedoras (listado y ficha), personas, todas las fichas |
 | Hallazgos | `#/hallazgos` | diferencias detectadas, con su evidencia |
 | Comparaciones | `#/cruce` `#/superposiciones` `#/numeros` `#/interpretacion` | los cruces que hoy cuelgan de Hallazgos |
 | Cronología | `#/cronologia` | línea temporal |
@@ -45,7 +45,7 @@ interpretación) pasan a «Comparaciones», que es lo que son: análisis transve
 
 | entrada | ruta |
 |---|---|
-| Documentos | `#/contratos` `#/comprobantes` `#/fojas` `#/conjuntos` `#/documento` |
+| Documentos | `#/piezas` (todos, por tipo) `#/contratos` `#/comprobantes` `#/fojas` `#/conjuntos` `#/documento` |
 | Búsqueda | `#/buscar` `#/guardadas` `#/consultas` |
 | Colecciones | `#/colecciones` `#/coleccion` |
 
@@ -145,3 +145,14 @@ aplicación **no concluye**. Pasa a decir **«Comparación de precio»**, y la p
 presenta la evidencia —precio analizado, referencias, mediana, diferencia absoluta,
 diferencia porcentual, calidad de la comparación, por qué son comparables, fuentes—
 sin calificar el resultado. La conclusión la escribe Fiscalía.
+
+## Agregado el 23/09/2026
+
+- **Proveedores** abre `#/proveedores`: las empresas del legajo por CUIT, las que más
+  documentos tienen primero, y cada una lleva a `#/proveedor/<id>` (qué se le compró, a
+  qué precio, cuánto se le ordenó y facturó, qué diferencias hay). «Todas las fichas»
+  (`#/entidades`) queda como tercera entrada del grupo.
+- **Documentos** abre `#/piezas`: todas las piezas por tipo, con chips y paginación del
+  servidor. Contratos y Facturas y recibos siguen como entradas del grupo.
+- El enrutador compara sin la consulta cuando una ruta no la contempla: `#/precios?desde=50`
+  llega a Ítems y precios.
