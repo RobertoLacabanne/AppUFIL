@@ -36,9 +36,12 @@ CHROMES = [
 ]
 
 
-def esperar(url: str, segundos: float = 60) -> None:
+def esperar(url: str, segundos: float = 90, proceso=None) -> None:
     fin = time.time() + segundos
     while time.time() < fin:
+        if proceso is not None and proceso.poll() is not None:
+            raise SystemExit(f"el proceso terminó antes de responder en {url}; "
+                             "mirá servidor.log en la carpeta de salida")
         try:
             urllib.request.urlopen(url, timeout=2).read()
             return
@@ -55,6 +58,7 @@ def main() -> int:
     p.add_argument("--cdp", type=int, default=9222)
     p.add_argument("--anchos", default="1920x1080,1366x768")
     p.add_argument("--solo", default="", help="rutas separadas por coma")
+    p.add_argument("--tema", default="", help="claro u oscuro; vacío = el de fábrica")
     a = p.parse_args()
 
     base = Path(a.base).resolve()
@@ -70,7 +74,8 @@ def main() -> int:
     servidor = subprocess.Popen(
         [sys.executable, "-m", "ufil.cli", "--base", str(base), "servir",
          "--puerto", str(a.puerto)],
-        cwd=RAIZ, env=entorno, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cwd=RAIZ, env=entorno, stdout=subprocess.DEVNULL,
+        stderr=open(salida / "servidor.log", "w", encoding="utf-8"))
     chrome_exe = next((c for c in CHROMES if shutil.which(c) or Path(c).exists()), None)
     if not chrome_exe:
         servidor.terminate()
@@ -83,13 +88,13 @@ def main() -> int:
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         origen = f"http://127.0.0.1:{a.puerto}"
-        esperar(origen + "/")
+        esperar(origen + "/", proceso=servidor)
         esperar(f"http://127.0.0.1:{a.cdp}/json/version")
         codigo = 0
         for par in a.anchos.split(","):
             ancho, alto = par.lower().split("x")
             env = dict(os.environ, ORIGEN=origen, SALIDA=str(salida), ANCHO=ancho,
-                       ALTO=alto, CDP_PORT=str(a.cdp), SOLO=a.solo)
+                       ALTO=alto, CDP_PORT=str(a.cdp), SOLO=a.solo, TEMA=a.tema)
             print(f"== {ancho}x{alto}", flush=True)
             r = subprocess.run(["node", str(AQUI / "barrido.cjs")], env=env)
             codigo = codigo or r.returncode

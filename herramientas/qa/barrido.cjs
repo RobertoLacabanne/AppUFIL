@@ -114,6 +114,13 @@ const DIAG = `(() => {
   await cdp('Runtime.enable'); await cdp('Page.enable');
   await cdp('Emulation.setDeviceMetricsOverride', {width:ANCHO, height:ALTO, deviceScaleFactor:1, mobile:false});
   await cdp('Page.navigate', {url: ORIGEN + '/#/panel'});
+  await pausa(1500);
+  // Sin revisor, la aplicación abre «¿Quién está trabajando?» encima de todo y cada
+  // captura sale tapada. TEMA=claro|oscuro fija el tema; sin TEMA queda el de fábrica.
+  await evaluar(`localStorage.setItem('ufil.revisor', 'qa.barrido');
+    ${process.env.TEMA ? `localStorage.setItem('ufil.tema', ${JSON.stringify(process.env.TEMA)});` : ''}
+    true`);
+  await cdp('Page.navigate', {url: ORIGEN + '/#/panel'});
   await pausa(3000);
 
   fs.mkdirSync(SALIDA, {recursive:true});
