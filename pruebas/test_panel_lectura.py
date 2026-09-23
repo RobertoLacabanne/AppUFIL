@@ -51,9 +51,9 @@ class ElPanelDiceCuantoSeLeyo(unittest.TestCase):
 
     def test_la_pantalla_muestra_las_leidas_y_no_el_total(self):
         app = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
-        i = app.index("<span>páginas leídas</span>")
-        self.assertIn("p.paginas_leidas", app[i - 120:i],
-                      "el rótulo «páginas leídas» tiene que ir con las fojas que tienen lectura")
+        i = app.index("cifra('Fojas leídas'")
+        self.assertIn("p.paginas_leidas", app[i:i + 120],
+                      "el rótulo «Fojas leídas» tiene que ir con las fojas que tienen lectura")
 
 
 if __name__ == "__main__":

@@ -154,10 +154,12 @@ class LoQueFaltaSeDiceComoFalta(unittest.TestCase):
         app = (RAIZ / "ufil/web/app.js").read_text(encoding="utf-8")
         i = app.index("async function vSuperposiciones")
         cuerpo = app[i:i + 2500]
-        self.assertIn('Ø sin nombre', cuerpo,
-                      "la columna «Contratado/a» dejó de marcar el nulo")
-        self.assertIn('class="nulo"', cuerpo,
-                      "el nulo se escribe sin el componente que lo distingue de un dato")
+        # La falta se marca con el componente de ausencia —una raya discreta con el
+        # motivo en el título—, nunca con un texto que parezca un dato ni con «Ø», que
+        # es notación interna del sistema.
+        self.assertTrue('class="nulo"' in cuerpo or 'ausente(' in cuerpo,
+                        "la columna «Contratado/a» dejó de marcar el nulo con su componente")
+        self.assertNotIn('Ø', cuerpo, "volvió la Ø, que es notación interna")
 
 
 class LaMonoespaciadaSignificaUnaSolaCosa(unittest.TestCase):
