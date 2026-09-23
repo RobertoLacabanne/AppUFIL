@@ -6350,45 +6350,118 @@ async function vRenglon() {
     ${renderRefs(refsPorNivel[nivel])}
   `).join('');
   
-  const excluidasHTML = (d.excluidas || []).length > 0 ? `
-    <h3>Excluidas</h3>
-    ${tabla([
-      {t:'Ítem original', r: x => esc(x.renglon.descripcion.literal)},
-      {t:'Precio', c:'num', r: x => montoHTML(x.renglon.precio_unitario)},
-      {t:'Motivo', r: x => esc(x.motivo)}
-    ], d.excluidas)}
-  ` : '';
+  /* La tabla de excluidas se fue: con el legajo real son ciento cincuenta y tres
+     filas, y una lista de ciento cincuenta y tres renglones descartados no la lee
+     nadie. Ahora van agrupadas por motivo, más abajo. */
 
   const ads = (d.advertencias || []).map(a => `<li><span class="sello atencion">${esc(a)}</span></li>`).join('');
 
-  vista.innerHTML = bloque('f. 0000', 'Comparación de precio', `
-    <h1>Análisis de precio: ${esc(r.descripcion.literal)}</h1>
-    <p>Precio analizado: ${montoHTML(r.precio_unitario)}</p>
-    ${d.calidad && d.calidad.nivel === 'baja' || (r.comparacion && r.comparacion.nivel === 'E') ? '<div class="sello alerta">Esta comparación tiene calidad baja o dudosa y requiere revisión. No es una conclusión firme.</div>' : ''}
-    ${ads ? `<ul>${ads}</ul>` : ''}
-    
-    <h2>Cálculo y Estadísticas</h2>
-    ${d.estadisticas ? `
-      <p>Nivel usado: ${esc(d.estadisticas.nivel)}</p>
-      <p>n: ${d.estadisticas.n}</p>
-      <p>Mediana: ${esc(d.estadisticas.mediana)}</p>
-      <p>Diferencia absoluta: ${esc(d.diferencia.absoluta)}</p>
-      <p>Diferencia porcentual: ${esc(d.diferencia.porcentual)}%</p>
-    ` : '<p>No hay estadísticas calculables.</p>'}
-    
-    ${d.calculo ? `
-      <p>Fórmula: ${esc(d.calculo.formula)}</p>
-      <ul>
-        ${d.calculo.operandos.map(op => `<li>${esc(op.nombre)}: ${op.fuente ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(op.fuente))}' class="enlace-fuente">${esc(op.valor)}</a>` : esc(op.valor)}</li>`).join('')}
-      </ul>
-    ` : ''}
-    
-    <p>Calidad: ${esc(d.calidad ? d.calidad.nivel : 'desconocida')}</p>
-    ${d.calidad && d.calidad.motivos ? `<ul>${d.calidad.motivos.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
+  /* ── Las cifras, arriba y juntas ─────────────────────────────────────────
+     Estaban como párrafos sueltos: «n: 3», «Mediana: ...», «Diferencia porcentual:
+     ...%». Eso es el volcado de una estructura de datos, no una pantalla: obliga a
+     leer seis renglones seguidos para armarse en la cabeza la comparación que la
+     pantalla tendría que mostrar hecha.
 
-    <h2>Referencias</h2>
-    ${nivelesHTML}
-    ${excluidasHTML}
+     Van las cuatro que contestan la pregunta, en el orden en que se piensan: qué
+     precio estamos mirando, contra qué, cuánto se aparta, y cuánto vale esa
+     comparación. Ninguna dice si eso está bien o mal. */
+  const cifra = (rotulo, valor, nota) => `
+    <div class="cifra">
+      <span class="cifra-rotulo">${esc(rotulo)}</span>
+      <span class="cifra-valor">${valor}</span>
+      ${nota ? `<span class="cifra-nota">${nota}</span>` : ''}
+    </div>`;
+
+  const est = d.estadisticas, dif = d.diferencia;
+  const signo = n => (Number(n) > 0 ? '+' : '');
+  const cifras = est ? `
+    <div class="cifras cifras-4">
+      ${cifra('Precio analizado', montoHTML(r.precio_unitario),
+              r.fecha ? esc(fmtFecha(r.fecha.valor) || r.fecha.literal) : '')}
+      ${cifra('Mediana de las referencias',
+              esc('$ ' + fmtPlata.format(Number(est.mediana))),
+              `${fmtNum.format(est.n)} ${est.n === 1 ? 'referencia' : 'referencias'} · nivel ${esc(est.nivel)}`)}
+      ${cifra('Diferencia',
+              dif ? esc(signo(dif.absoluta) + '$ ' + fmtPlata.format(Math.abs(Number(dif.absoluta)))) : '—',
+              dif ? esc(signo(dif.porcentual) + fmtNum.format(Number(dif.porcentual)) + ' %') : '')}
+      ${cifra('Calidad de la comparación',
+              `<span class="calidad ${esc(d.calidad ? d.calidad.nivel : 'desconocida')}"
+                 >${esc(d.calidad ? d.calidad.nivel : 'desconocida')}</span>`,
+              d.calidad && d.calidad.motivos ? esc(d.calidad.motivos[0] || '') : '')}
+    </div>` : '';
+
+  /* Ciento cincuenta y tres renglones descartados, uno debajo del otro, no son
+     información: son una lista que nadie va a leer. Agrupados por motivo sí lo son.
+     Sobre el legajo real da: 71 sin precio utilizable, 37 por la etapa documental, 23
+     del mismo documento, 22 no comparables por descripción. Eso se lee en cinco
+     segundos y dice qué haría falta para poder comparar. */
+  const porMotivo = new Map();
+  (d.excluidas || []).forEach(x => {
+    const k = x.motivo || 'Sin motivo registrado.';
+    if (!porMotivo.has(k)) porMotivo.set(k, []);
+    porMotivo.get(k).push(x);
+  });
+  const motivos = [...porMotivo.entries()].sort((a, b) => b[1].length - a[1].length);
+  const htmlExcluidas = motivos.length ? `
+    <details class="descartes">
+      <summary>Por qué no se usaron los otros ${fmtNum.format((d.excluidas || []).length)} renglones</summary>
+      <ul class="lista-motivos">
+        ${motivos.map(([motivo, xs]) => `
+          <li>
+            <span class="motivo-cuenta">${fmtNum.format(xs.length)}</span>
+            <span class="motivo-texto">${esc(motivo)}</span>
+            <span class="motivo-ejemplos">${
+              xs.slice(0, 3).map(x => esc(x.renglon.descripcion.literal)).join(' · ')
+            }${xs.length > 3 ? ' …' : ''}</span>
+          </li>`).join('')}
+      </ul>
+    </details>` : '';
+
+  const sinReferencias = !est && !(d.referencias || []).length;
+
+  vista.innerHTML = bloque('f. 0000', 'Comparación de precio', `
+    <h1>${esc(r.descripcion.literal)}</h1>
+    <p class="prosa">Este precio, al lado de los otros precios del mismo ítem que hay
+      en el legajo. El sistema no dice si está bien o mal: muestra las referencias que
+      encontró, cuán comparables son y de qué foja salió cada número.</p>
+
+    ${sinReferencias ? `
+      <div class="aviso">
+        <span class="sello atencion">Sin referencias</span>
+        <span>No hay ningún otro precio en el legajo que se pueda comparar con éste,
+          así que no hay diferencia que calcular. Abajo está el detalle de por qué
+          quedó afuera cada candidato.</span>
+      </div>
+      <div class="cifras cifras-4">
+        ${cifra('Precio analizado', montoHTML(r.precio_unitario),
+                r.fecha ? esc(fmtFecha(r.fecha.valor) || r.fecha.literal) : '')}
+        ${cifra('Cantidad', r.cantidad ? esc(r.cantidad.literal) : '—',
+                r.unidad ? esc(r.unidad.literal) : '')}
+        ${cifra('Contratación', r.contratacion
+                  ? `<a href="#/contratacion?id=${r.contratacion.id}">${esc(r.contratacion.nombre)}</a>`
+                  : '—', r.expediente ? 'Expediente ' + esc(r.expediente) : '')}
+        ${cifra('Fuente', r.fuente
+                  ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(r.fuente))}'
+                        class="enlace-fuente">f. ${esc(String(r.fuente.foja ?? r.fuente.pagina_nro ?? '?'))}</a>`
+                  : '—', r.fuente ? esc(r.fuente.etiqueta || '') : '')}
+      </div>
+    ` : cifras}
+
+    ${ads && !sinReferencias ? `<ul class="advertencias">${ads}</ul>` : ''}
+
+    ${d.calculo ? `
+      <h2>De dónde sale el número</h2>
+      <p class="formula mono">${esc(d.calculo.formula)}</p>
+      <ul class="operandos">
+        ${d.calculo.operandos.map(op => `<li><span class="op-nombre">${esc(op.nombre)}</span>
+          ${op.fuente
+            ? `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(op.fuente))}'
+                  class="enlace-fuente">${esc(op.valor)}</a>`
+            : esc(op.valor)}</li>`).join('')}
+      </ul>` : ''}
+
+    ${nivelesHTML ? `<h2>Referencias usadas</h2>${nivelesHTML}` : ''}
+    ${htmlExcluidas}
   `);
 }
 
