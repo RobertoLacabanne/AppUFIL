@@ -385,7 +385,7 @@ MOTIVOS = {
 }
 
 
-def api_archivos(cx, *, procesando=False) -> dict:
+def api_archivos(cx, *, procesando=False, filtros=None) -> dict:
     """
     Qué hay cargado y en qué estado está cada archivo.
 
@@ -416,7 +416,7 @@ def api_archivos(cx, *, procesando=False) -> dict:
                 JOIN resultado_etapa e ON e.alcance_id=CAST(p.id AS TEXT)
                 WHERE e.alcance=? AND e.estado='corriendo'""", (tabla,)))
     filas = []
-    for a in cx.execute("""
+    sql_archivos = """
             WITH fojas AS (
                 SELECT g.sha256,COUNT(*) fojas,
                        SUM(CASE WHEN l.pagina_id IS NOT NULL THEN 1 ELSE 0 END) leidas,
@@ -429,7 +429,16 @@ def api_archivos(cx, *, procesando=False) -> dict:
                    COALESCE(f.clasificadas,0) clasificadas,COALESCE(d.documentos,0) documentos
               FROM archivo a LEFT JOIN procedencia p ON p.sha256=a.sha256
               LEFT JOIN fojas f ON f.sha256=a.sha256 LEFT JOIN docs d ON d.sha256=a.sha256
-             ORDER BY a.ingerido_en DESC,a.nombre"""):
+             ORDER BY a.ingerido_en DESC,a.nombre"""
+    pagina = None
+    if filtros is not None:
+        from . import paginacion as pg
+        pagina = pg.consultar(cx, 'archivos', sql_archivos, filtros=filtros,
+            ordenes={'archivo':'nombre','fecha':'ingerido_en','fojas':'fojas'}, defecto='fecha', sentido='desc')
+        seleccion = pagina['archivos']
+    else:
+        seleccion = cx.execute(sql_archivos)
+    for a in seleccion:
         f = dict(a)
         f['revisiones'] = revisiones.get(f['sha256'], 0)
         f['decisiones_humanas'] = decisiones.get(f['sha256'], 0)
@@ -452,6 +461,8 @@ def api_archivos(cx, *, procesando=False) -> dict:
     resumen = {}
     for f in filas:
         resumen[f["estado"]] = resumen.get(f["estado"], 0) + 1
+    if pagina is not None:
+        return {**pagina, 'archivos': filas}
     return {"archivos": filas, "resumen": resumen,
             "fojas": sum(f["fojas"] or 0 for f in filas),
             "falta_leer": sum(f["falta_leer"] for f in filas),
@@ -733,12 +744,12 @@ def api_persona(cx, persona_id: int) -> dict:
             "contratos": len(contratos),
             "sin_monto": len(contratos) - len(con_monto),
             "sin_fechas": sum(1 for c in contratos if not (c["inicio"] and c["fin"])),
-            "acumulado_centavos": sum(c["monto_centavos"] for c in con_monto),
+            "acumulado_centavos": sum(c["monto_centavos"] for c in con_monto) if con_monto else None,
             # Lo facturado va aparte y NUNCA se suma con el acumulado de arriba: son la
             # misma plata vista de los dos lados —lo que se pactó y lo que se cobró—, y
             # un número que las junte la cuenta dos veces.
             "comprobantes": len(comprobantes),
-            "facturado_centavos": sum(f["monto_centavos"] for f in facturado),
+            "facturado_centavos": sum(f["monto_centavos"] for f in facturado) if facturado else None,
             # Las facturas de talonario traen el importe a mano y no se leen. Si no se
             # dice cuántas son, el facturado parece completo y no lo está.
             "comprobantes_sin_importe": len(comprobantes) - len(facturado),
@@ -1051,6 +1062,9 @@ class Manejador(BaseHTTPRequestHandler):
 
     # -- utilidades --
     def _json(self, obj, codigo=200):
+        from .paginacion import ausencias
+        if self.command in ('GET', 'HEAD') and self.path.startswith('/api/'):
+            obj = ausencias(obj)
         cuerpo = json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8")
         self.send_response(codigo)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -1339,8 +1353,25 @@ class Manejador(BaseHTTPRequestHandler):
             if ruta.startswith("/api/"):
                 cx = _cx()
                 try:
+                    from . import listas_api
+                    listado = listas_api.resolver(cx, ruta, {k:v[0] for k,v in q.items()})
+                    if listado is not None:
+                        return self._json(listado)
                     # Incremento 7a: catálogo, precios y comparación trazable.
                     import re
+                    from . import agregados_api
+                    if ruta == '/api/resumen':
+                        return self._json(agregados_api.resumen(cx))
+                    if ruta == '/api/resumen/operandos':
+                        return self._json(agregados_api.operandos(cx, {k:v[0] for k,v in q.items()}))
+                    if re.fullmatch(r'/api/proveedor/\d+', ruta):
+                        from . import renglones
+                        try:
+                            return self._json(agregados_api.proveedor(cx, int(ruta.rsplit('/',1)[1]), {k:v[0] for k,v in q.items()}))
+                        except renglones.NoEncontrado as e:
+                            return self._json({'error':str(e),'no_encontrado':True},404)
+                    if ruta == '/api/cruce':
+                        return self._json(agregados_api.cruce(cx, {k:v[0] for k,v in q.items()}))
                     # Incremento 7b: contrataciones propuestas y hallazgos revisables.
                     if ruta in ('/api/contrataciones', '/api/hallazgos') or re.fullmatch(r'/api/contratacion/\d+', ruta):
                         from . import contrataciones, hallazgos, renglones
@@ -1536,7 +1567,7 @@ class Manejador(BaseHTTPRequestHandler):
                     if ruta == "/api/fojas":
                         return self._json(api_fojas(cx))
                     if ruta == "/api/archivos":
-                        return self._json(api_archivos(cx, procesando=_procesador().ocupado()))
+                        return self._json(api_archivos(cx, procesando=_procesador().ocupado(), filtros={k:v[0] for k,v in q.items()}))
                     if ruta == "/api/papelera/archivos":
                         try:
                             parametros = parse_qs(u.query, keep_blank_values=True)

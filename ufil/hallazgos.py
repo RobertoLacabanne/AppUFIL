@@ -29,7 +29,12 @@ def obtener(cx, hid):
 
 
 def listar(cx, **filtros):
-    limite, desde = ct.paginar(filtros)
+    from . import paginacion as pg
+    filtros = dict(filtros)
+    for nuevo, viejo in [('estado_revision', 'estado'), ('contratacion_id', 'contratacion')]:
+        if nuevo in filtros:
+            filtros[viejo] = filtros[nuevo]
+    aplicados = {}
     donde, args = ["(ya_no_se_detecta=0 OR revision_estado!='pendiente' OR cuando IS NOT NULL OR quien IS NOT NULL OR nota IS NOT NULL)"], []
     for k, col, validos in [('tipo', 'tipo', CATALOGO), ('estado', 'revision_estado', {r[0] for r in cp.REVISION})]:
         if filtros.get(k):
@@ -37,6 +42,7 @@ def listar(cx, **filtros):
                 raise ValueError(k + ' desconocido.')
             donde.append(col + '=?')
             args.append(filtros[k])
+            aplicados[{'estado':'estado_revision'}.get(k,k)] = filtros[k]
     if filtros.get('contratacion'):
         try:
             cid = int(filtros['contratacion'])
@@ -44,10 +50,21 @@ def listar(cx, **filtros):
             raise ValueError('contratacion debe ser un entero.') from None
         donde.append('contratacion_id=?')
         args.append(cid)
+        aplicados['contratacion_id'] = cid
+    nivel_sql = "CASE json_extract(confianza,'$.nivel') WHEN 'alta' THEN 3 WHEN 'media' THEN 2 WHEN 'baja' THEN 1 ELSE 0 END"
+    if filtros.get('confianza_min'):
+        nivel = filtros['confianza_min']
+        if nivel not in ('baja', 'media', 'alta'):
+            raise ValueError('confianza_min debe ser baja, media o alta.')
+        donde.append(nivel_sql + '>=?'); args.append({'baja':1,'media':2,'alta':3}[nivel])
+        aplicados['confianza_min'] = nivel
+    if filtros.get('q'):
+        donde.append('(titulo LIKE ? OR descripcion LIKE ?)'); args.extend(['%'+filtros['q']+'%']*2)
+        aplicados['q'] = filtros['q']
     sql = ' FROM hallazgo WHERE ' + ' AND '.join(donde)
-    total = cx.execute('SELECT count(*)' + sql, args).fetchone()[0]
-    rows = cx.execute('SELECT *' + sql + ' ORDER BY id LIMIT ? OFFSET ?', args + [limite, desde])
-    return dict(hallazgos=[serializar(r) for r in rows], total=total, limite=limite, desde=desde)
+    return pg.consultar(cx, 'hallazgos', 'SELECT *'+sql, args, filtros=filtros,
+                        ordenes={'id':'id','tipo':'tipo','estado_revision':'revision_estado','confianza':nivel_sql},
+                        transformar=serializar, aplicados=aplicados)
 
 
 def revisar(cx, hid, cuerpo):

@@ -46,9 +46,18 @@ def identificadores(texto):
     return salida
 
 
-def paginas_archivo(cx, sha):
-    from .capa2_extraccion import lecturas_por_ruta
+def paginas_archivo(cx, sha, rangos=None):
+    from .capa2_extraccion import lecturas_por_ruta, palabras_de
     paginas = {}
+    if rangos is not None:
+        for r in cx.execute('''SELECT p.nro,l.id FROM pagina p JOIN lectura l ON l.pagina_id=p.id
+                               WHERE p.sha256=? AND EXISTS(SELECT 1 FROM json_each(?) j
+                               WHERE p.nro BETWEEN json_extract(j.value,'$[0]') AND json_extract(j.value,'$[1]'))
+                               ORDER BY p.nro,l.ruta''', (sha, json.dumps(rangos))):
+            ps = palabras_de(cx, r['id'])
+            if r['nro'] not in paginas or len(ps) > len(paginas[r['nro']]):
+                paginas[r['nro']] = ps
+        return paginas
     for pgs in lecturas_por_ruta(cx, sha).values():
         for nro, _, ps in pgs:
             if nro not in paginas or len(ps) > len(paginas[nro]):
@@ -65,10 +74,12 @@ def fuente_documento(cx, doc, ancla=None):
 def documentos(cx, ids=None):
     salida, ultimo_sha, paginas = [], None, {}
     filtro = (' WHERE id IN (' + ','.join('?' for _ in ids) + ')') if ids is not None else ''
-    for row in cx.execute('SELECT * FROM documento' + filtro + ' ORDER BY sha256,pagina_desde,id', list(ids) if ids is not None else []):
+    seleccion = list(cx.execute('SELECT * FROM documento' + filtro + ' ORDER BY sha256,pagina_desde,id', list(ids) if ids is not None else []))
+    for row in seleccion:
         d = dict(row)
         if d['sha256'] != ultimo_sha:
-            paginas = paginas_archivo(cx, d['sha256'])
+            paginas = paginas_archivo(cx, d['sha256'], [(r['pagina_desde'], r['pagina_hasta']) for r in seleccion
+                                                       if r['sha256'] == d['sha256']] if ids is not None else None)
             ultimo_sha = d['sha256']
         d['etapa'] = ETAPA.get(d['tipo'], d['tipo'] if d['tipo'] in {e[0] for e in cp.ETAPAS} else 'otro')
         d['contexto'] = rg._contexto(cx, d, paginas, crear_entidades=False)
@@ -248,9 +259,30 @@ def _reaplicar_decisiones(cx):
 
 
 def listar(cx, **filtros):
-    limite, desde = paginar(filtros)
-    rows = [dict(r) for r in cx.execute("SELECT * FROM contratacion c WHERE EXISTS(SELECT 1 FROM contratacion_documento cd WHERE cd.contratacion_id=c.id AND cd.estado!='rechazada') ORDER BY c.id")]
-    return {'contrataciones': rows[desde:desde+limite], 'total': len(rows), 'limite': limite, 'desde': desde}
+    from . import paginacion as pg
+    where = ["EXISTS(SELECT 1 FROM contratacion_documento cd WHERE cd.contratacion_id=c.id AND cd.estado!='rechazada')"]
+    args, aplicados = [], {}
+    for k in ('estado', 'procedimiento'):
+        if filtros.get(k):
+            where.append('c.'+k+'=?'); args.append(filtros[k]); aplicados[k] = filtros[k]
+    if filtros.get('q'):
+        where.append("(c.nombre LIKE ? OR c.objeto LIKE ? OR c.expediente LIKE ?)")
+        args.extend(['%'+filtros['q']+'%']*3); aplicados['q'] = filtros['q']
+    if filtros.get('proveedor_id'):
+        where.append("EXISTS(SELECT 1 FROM renglon r JOIN contratacion_documento cd ON cd.documento_id=r.documento_id WHERE cd.contratacion_id=c.id AND cd.estado!='rechazada' AND r.vigente=1 AND r.proveedor_id=?)")
+        args.append(int(filtros['proveedor_id'])); aplicados['proveedor_id'] = args[-1]
+    if 'con_hallazgo' in filtros:
+        v = pg.booleano(filtros['con_hallazgo'])
+        where.append(('' if v else 'NOT ')+"EXISTS(SELECT 1 FROM hallazgo h WHERE h.contratacion_id=c.id AND h.ya_no_se_detecta=0)")
+        aplicados['con_hallazgo'] = v
+    if filtros.get('etapa_faltante'):
+        etapa = filtros['etapa_faltante']
+        if etapa not in {e[0] for e in cp.ETAPAS} | {'ofertas'}:
+            raise ValueError('etapa_faltante desconocida.')
+        where.append("NOT EXISTS(SELECT 1 FROM contratacion_documento cd WHERE cd.contratacion_id=c.id AND cd.estado!='rechazada' AND cd.etapa=?)")
+        args.append('oferta' if etapa == 'ofertas' else etapa); aplicados['etapa_faltante'] = etapa
+    return pg.consultar(cx, 'contrataciones', 'SELECT c.* FROM contratacion c WHERE '+' AND '.join(where), args,
+                        filtros=filtros, ordenes={k:k for k in ('id','nombre','estado','procedimiento','expediente')}, aplicados=aplicados)
 
 
 def totalizar(montos):
@@ -283,7 +315,8 @@ def ficha(cx, cid, *, docs=None, incluir_hallazgos=True):
                                identificadores=d['identificadores']))
             if d['fecha']:
                 cronologia.append(dict(fecha=d['fecha']['valor'], etapa=clave, etiqueta=nombre, fuente=d['fecha']['fuente']))
-        etapas.append(dict(clave=clave, nombre=nombre, presente=bool(piezas), documentos=piezas))
+        etapas.append(dict(clave=clave, nombre=nombre, rotulo=nombre, presente=bool(piezas), cantidad=len(piezas),
+                           ausencia=None if piezas else 'no_cargado', documento_ids=[p['documento_id'] for p in piezas], documentos=piezas))
     oferentes = {}
     for d in docs:
         ctx = d['contexto']

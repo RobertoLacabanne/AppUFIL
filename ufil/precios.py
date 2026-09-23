@@ -59,7 +59,7 @@ def _decision(cx, a, b):
     return None, None
 
 
-def comparar(cx, rid, niveles=None):
+def comparar(cx, rid, niveles=None, *, resumen=False):
     if isinstance(niveles, str):
         niveles = niveles.split(',') if niveles else None
     if niveles is not None and (not niveles or any(n not in cp.ORDEN_NIVELES for n in niveles)):
@@ -79,6 +79,8 @@ def comparar(cx, rid, niveles=None):
             motivo = 'No tiene precio unitario utilizable.'
         elif b['etapa'] not in cp.ETAPAS_PRIMARIAS | cp.ETAPAS_COTIZACION:
             motivo = 'La etapa documental no permite usarlo como referencia de precio.'
+        if motivo and resumen:
+            continue
         decision, quien = _decision(cx, a, b)
         comp = cp.comparabilidad(oa, ob, decision_humana=decision, quien=quien)
         nivel = cp.nivel(oa, ob, comp['estado'])
@@ -94,10 +96,11 @@ def comparar(cx, rid, niveles=None):
         if motivo is None and huella in vistas:
             motivo = 'Precio repetido de la misma fuente comercial: no agrega una referencia independiente.'
         if motivo:
-            excluidas.append({'renglon': rg.serializar(cx, b), 'motivo': motivo})
+            if not resumen:
+                excluidas.append({'renglon': rg.serializar(cx, b), 'motivo': motivo})
             continue
         vistas.add(huella)
-        refs.append((b, {'renglon': rg.serializar(cx, b), 'nivel': nivel,
+        refs.append((b, {'renglon': None if resumen else rg.serializar(cx, b), 'nivel': nivel,
                          'comparabilidad': {'estado': comp['estado'], 'motivos': comp['motivos']},
                          'dias': abs((oa.fecha - ob.fecha).days) if oa.fecha and ob.fecha else None}))
     elegido, advertencias = cp.elegir_nivel([r['nivel'] for _, r in refs])
@@ -144,7 +147,9 @@ def comparar(cx, rid, niveles=None):
     salida = rg.serializar(cx, a)
     if stats:
         salida['comparacion'] = {'nivel': elegido, 'diferencia_pct': diferencia['porcentual'] if diferencia else None,
-                                 'n': stats['n'], 'calidad': calidad['nivel']}
+                                 'n': stats['n'], 'calidad': calidad['nivel'],
+                                 'comparabilidad': min((r['comparabilidad']['estado'] for _, r in usadas),
+                                    key=lambda e: {'no_comparable':0,'dudoso':1,'probable':2,'fuerte':3}[e])}
     hallazgo = cx.execute("SELECT id,revision_estado,quien,cuando,nota FROM hallazgo WHERE tipo='diferencia_precio' AND ya_no_se_detecta=0 AND json_extract(datos,'$.renglon_id')=? ORDER BY id LIMIT 1", (rid,)).fetchone()
     revision = ({'id': hallazgo['id'], 'revision': {'estado': hallazgo['revision_estado'],
                  'quien': hallazgo['quien'], 'cuando': hallazgo['cuando'], 'nota': hallazgo['nota']}} if hallazgo else None)
@@ -153,62 +158,96 @@ def comparar(cx, rid, niveles=None):
             'advertencias': advertencias, 'hallazgo': revision}
 
 
+class _CursorMemoria:
+    def __init__(self, rows):
+        self.rows = rows
+    def fetchone(self):
+        return self.rows[0] if self.rows else None
+    def fetchall(self):
+        return list(self.rows)
+    def __iter__(self):
+        return iter(self.rows)
+
+
+class LecturaMemoria:
+    """Memoización sólo durante una petición; nunca comparte datos entre legajos."""
+    def __init__(self, cx):
+        self.cx, self.cache = cx, {}
+    def execute(self, sql, args=()):
+        key = (sql, tuple(args))
+        if key not in self.cache:
+            self.cache[key] = self.cx.execute(sql, args).fetchall()
+        return _CursorMemoria(self.cache[key])
+
+
 def listar(cx, **filtros):
-    def entero(clave, defecto, minimo, maximo=None):
-        valor = filtros.get(clave, defecto)
-        if isinstance(valor, bool):
-            raise ValueError(clave + ' debe ser un entero.')
-        try:
-            n = int(valor)
-        except (ValueError, TypeError):
-            raise ValueError(clave + ' debe ser un entero.') from None
-        if n < minimo:
-            raise ValueError(clave + ' fuera de rango.')
-        return min(n, maximo) if maximo else n
-    limite, desde = entero('limite', 100, 1, 500), entero('desde', 0, 0)
-    donde, args = ['r.vigente=1', 'r.documento_id IS NOT NULL'], []
-    for k, col in (('etapa', 'etapa'), ('proveedor', 'proveedor_id')):
+    from . import paginacion as pg
+    filtros = dict(filtros)
+    for viejo, nuevo in [('proveedor','proveedor_id'), ('contratacion','contratacion_id'),
+                         ('fecha_desde','desde_fecha'), ('fecha_hasta','hasta_fecha')]:
+        if viejo in filtros and nuevo not in filtros:
+            filtros[nuevo] = filtros[viejo]
+    where, args, aplicados = ['r.vigente=1', 'r.documento_id IS NOT NULL'], [], {}
+    for k in ('etapa', 'proveedor_id'):
         if filtros.get(k):
-            donde.append('r.' + col + '=?')
-            args.append(filtros[k])
+            where.append('r.' + k + '=?'); args.append(filtros[k]); aplicados[k] = filtros[k]
+    if filtros.get('contratacion_id'):
+        # La misma resolución que serializar: vínculo único, luego id persistido.
+        where.append("COALESCE((SELECT min(cd.contratacion_id) FROM contratacion_documento cd WHERE cd.documento_id=r.documento_id AND cd.estado!='rechazada' HAVING count(DISTINCT cd.contratacion_id)=1),r.contratacion_id)=?")
+        args.append(int(filtros['contratacion_id'])); aplicados['contratacion_id'] = args[-1]
     if filtros.get('q'):
-        donde.append('r.desc_norm LIKE ?')
-        args.append('%' + rg.normalizar(filtros['q']) + '%')
+        where.append('r.desc_norm LIKE ?'); args.append('%'+rg.normalizar(filtros['q'])+'%'); aplicados['q'] = filtros['q']
     if filtros.get('item'):
-        donde.append('EXISTS(SELECT 1 FROM renglon_item ri WHERE ri.renglon_clave=r.clave AND ri.item_id=? AND ri.comparabilidad!=\'no_comparable\')')
-        args.append(filtros['item'])
-    for k, signo in (('fecha_desde', '>='), ('fecha_hasta', '<=')):
+        where.append("EXISTS(SELECT 1 FROM renglon_item ri WHERE ri.renglon_clave=r.clave AND ri.item_id=? AND ri.comparabilidad!='no_comparable')")
+        args.append(filtros['item']); aplicados['item'] = filtros['item']
+    for k, signo in [('desde_fecha','>='),('hasta_fecha','<=')]:
         if filtros.get(k):
             try:
                 fecha = date.fromisoformat(filtros[k]).isoformat()
-            except (TypeError, ValueError):
-                raise ValueError(k + ' debe ser una fecha ISO (AAAA-MM-DD).') from None
-            donde.append('r.fecha_precio' + signo + '?')
-            args.append(fecha)
-    minimo = None
-    if filtros.get('dif_min_pct') not in (None, ''):
-        try:
-            minimo = Decimal(str(filtros['dif_min_pct']))
-            if not minimo.is_finite():
-                raise ValueError()
-        except Exception:
-            raise ValueError('dif_min_pct debe ser un decimal finito.') from None
-    rows = [dict(r) for r in cx.execute('SELECT r.* FROM renglon r WHERE ' + ' AND '.join(donde) + ' ORDER BY r.id', args)]
-    if filtros.get('contratacion'):
-        cid = entero('contratacion', None, 1)
-        rows = [r for r in rows if (rg.contratacion_de(cx, r) or {}).get('id') == cid]
-    salida = []
-    for r in rows:
-        if minimo is not None:
-            dato = comparar(cx, r['id'])['renglon']
-            pct = (dato['comparacion'] or {}).get('diferencia_pct')
-            if pct is None or Decimal(pct) < minimo:
+            except (ValueError, TypeError):
+                raise ValueError(k+' debe ser una fecha ISO.') from None
+            where.append('r.fecha_precio'+signo+'?'); args.append(fecha); aplicados[k] = fecha
+    if 'pendiente' in filtros:
+        valor = pg.booleano(filtros['pendiente'])
+        where.append(('' if valor else 'NOT ') + "(r.estado IN ("+cf.SQL_PENDIENTES+"))")
+        aplicados['pendiente'] = valor
+    if 'con_hallazgo' in filtros:
+        valor = pg.booleano(filtros['con_hallazgo'])
+        where.append(('' if valor else 'NOT ')+"EXISTS(SELECT 1 FROM hallazgo h WHERE h.ya_no_se_detecta=0 AND (json_extract(h.datos,'$.renglon_id')=r.id OR EXISTS(SELECT 1 FROM hallazgo_fuente hf WHERE hf.hallazgo_id=h.id AND hf.renglon_clave=r.clave)))")
+        aplicados['con_hallazgo'] = valor
+    ordenes = {'id':'id','fecha':'fecha_precio','precio':'CAST(precio_unitario AS REAL)',
+               'descripcion':'desc_norm','proveedor':'proveedor_literal','etapa':'etapa'}
+    pg.parametros(filtros, ordenes, 'id')
+    sql = 'SELECT r.* FROM renglon r WHERE '+' AND '.join(where)
+    memoria = LecturaMemoria(cx)
+    calculados = {}
+    def dato(r):
+        if r['id'] not in calculados:
+            calculados[r['id']] = comparar(memoria, r['id'], resumen=True)['renglon']
+        return calculados[r['id']]
+    if 'con_comparacion' in filtros or filtros.get('dif_min_pct') not in (None, ''):
+        minimo = None
+        if filtros.get('dif_min_pct') not in (None, ''):
+            try:
+                minimo = Decimal(str(filtros['dif_min_pct']))
+                if not minimo.is_finite():
+                    raise ValueError()
+            except Exception:
+                raise ValueError('dif_min_pct debe ser un decimal finito.') from None
+            aplicados['dif_min_pct'] = str(minimo)
+        con = pg.booleano(filtros['con_comparacion']) if 'con_comparacion' in filtros else None
+        if con is not None:
+            aplicados['con_comparacion'] = con
+        ids = []
+        for r in cx.execute(sql, args):
+            comp = dato(r)['comparacion']
+            pct = (comp or {}).get('diferencia_pct')
+            if con is not None and bool(comp) != con:
                 continue
-            salida.append(dato)
-        else:
-            salida.append(r)
-    total = len(salida)
-    pagina = salida[desde:desde + limite]
-    if minimo is None:
-        pagina = [comparar(cx, r['id'])['renglon'] for r in pagina]
-    return {'renglones': pagina, 'total': total, 'desde': desde, 'limite': limite}
+            if minimo is not None and (pct is None or Decimal(pct) < minimo):
+                continue
+            ids.append(r['id'])
+        sql += ' AND r.id IN (SELECT value FROM json_each(?))'
+        args.append(json.dumps(ids))
+    return pg.consultar(cx, 'renglones', sql, args, filtros=filtros, ordenes=ordenes,
+                        transformar=dato, aplicados=aplicados)

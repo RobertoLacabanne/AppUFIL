@@ -11,7 +11,7 @@ from . import clasificacion as cl
 # Se sube cuando cambia `esquema.sql`. Sirve para no reejecutar el script en cada
 # conexión: con el servidor multihilo y el trabajador de fondo, dos conexiones que
 # corrían el esquema a la vez chocaban al recrear la vista `v_contrato`.
-ESQUEMA_VERSION = 26
+ESQUEMA_VERSION = 27
 
 _candado = threading.Lock()
 
@@ -89,6 +89,8 @@ def inicializar(cx: sqlite3.Connection, *, forzar: bool = False) -> bool:
             _migrar_papelera_25(cx)
             # La v26 sólo agrega tablas: las instantáneas v25 siguen siendo completas.
             cx.execute("UPDATE papelera_archivo SET version=26 WHERE version=25")
+            # v27 agrega índices, sin cambiar el contenido de las instantáneas.
+            cx.execute("UPDATE papelera_archivo SET version=27 WHERE version=26")
             cx.execute(f'PRAGMA user_version={ESQUEMA_VERSION}')
             cx.commit()
         except Exception:
