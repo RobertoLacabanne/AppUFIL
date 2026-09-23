@@ -295,7 +295,7 @@ function barraConf(c) {
 
 function celdaValor(c) {
   if (c.nulo_motivo)
-    return `<span class=\"nulo ${c.nulo_motivo === 'conflicto' ? 'conf' : ''}\" title=\"\">—</span>`;
+    return `<span class="nulo ${c.nulo_motivo === 'conflicto' ? 'conf' : ''}" title="${esc(MOTIVO_NULO[c.nulo_motivo] || c.nulo_motivo)}">—</span>`;
   const dudoso = c.confianza != null && c.confianza < 0.85 ? ' dudoso' : '';
   return `<span class="mono${dudoso}">${esc(c.valor_literal)}</span>`;
 }
@@ -1528,15 +1528,15 @@ async function vContratos() {
       {t:'Archivo', k:'archivo', c:'fol'},
       {t:'Cámara', b:f => camaraTexto(f.camara), r:f => esc(camaraTexto(f.camara))},
       {t:'Contratado/a', c:'nombre', b:f => f.nombre_literal,
-       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo" title="sin dato">—</span>'},
       {t:'Documento', c:'mono', b:f => f.documento_literal,
-       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo" title="sin dato">—</span>'},
       {t:'Inicio', c:'mono', b:f => f.inicio,
-       r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+       r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class="nulo" title="sin dato">—</span>'},
       {t:'Fin', c:'mono', b:f => f.fin,
-       r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+       r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class="nulo" title="sin dato">—</span>'},
       {t:'Monto', c:'num', b:f => f.monto_centavos,
-       r:f => f.monto_centavos == null ? '<span class=\"nulo\" title=\"sin dato\">—</span>' : esc(fmtPesos(f.monto_centavos))},
+       r:f => f.monto_centavos == null ? '<span class="nulo" title="sin dato">—</span>' : esc(fmtPesos(f.monto_centavos))},
       {t:'Conf.', c:'num', b:f => f.confianza_min, r:f => barraConf(f.confianza_min)},
     ], filas, {alClic: f => location.hash = '#/documento/' + f.documento_id,
                placeholder: 'Buscar por nombre, documento, archivo…'});
@@ -1572,15 +1572,15 @@ async function vComprobantes() {
       {t:'Tipo', b:f => TIPO_DOC[f.tipo] || f.tipo, r:f => esc(TIPO_DOC[f.tipo] || f.tipo)},
       {t:'Archivo', k:'archivo', c:'fol'},
       {t:'Emisor', b:f => f.nombre_literal,
-       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo" title="sin dato">—</span>'},
       {t:'CUIT', c:'mono', b:f => f.documento_literal,
-       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo" title="sin dato">—</span>'},
       {t:'Comprobante', c:'mono', b:f => f.comprobante,
-       r:f => f.comprobante ? esc(f.comprobante) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+       r:f => f.comprobante ? esc(f.comprobante) : '<span class="nulo" title="sin dato">—</span>'},
       {t:'Emitida', c:'mono', b:f => f.emitida,
-       r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+       r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class="nulo" title="sin dato">—</span>'},
       {t:'Importe', c:'num', b:f => f.monto_centavos,
-       r:f => f.monto_centavos == null ? '<span class=\"nulo\" title=\"a mano\">—</span>' : esc(fmtPesos(f.monto_centavos))},
+       r:f => f.monto_centavos == null ? '<span class="nulo" title="a mano">—</span>' : esc(fmtPesos(f.monto_centavos))},
       {t:'Conf.', c:'num', b:f => f.confianza_min, r:f => barraConf(f.confianza_min)},
     ], filas, {alClic: f => location.hash = '#/documento/' + f.documento_id,
                placeholder: 'Buscar por emisor, CUIT, número de comprobante…'});
@@ -1631,16 +1631,16 @@ async function vCruce() {
       {t:'Contratos', c:'num', k:'contratos'},
       {t:'Período', c:'mono', b:f => f.contrato_desde, r:f => f.contrato_desde
           ? `${esc(fmtFecha(f.contrato_desde))} → ${esc(fmtFecha(f.contrato_hasta))}`
-          : '<span class=\"nulo\" title=\"sin fechas\">—</span>'},
+          : '<span class="nulo" title="sin fechas">—</span>'},
       // Mensual y total son magnitudes distintas y se muestran en columnas distintas.
       // El total es el único comparable con la facturación acumulada de al lado.
       {t:'Mensual pactado', c:'num', b:f => f.mensual_centavos, r:f => f.mensual_centavos
-          ? esc(fmtPesos(f.mensual_centavos)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+          ? esc(fmtPesos(f.mensual_centavos)) : '<span class="nulo" title="sin dato">—</span>'},
       // Cuando NINGÚN contrato trae el total legible, la celda no muestra $0,00: cero
       // se lee como «no se contrató nada» y lo que pasa es que no se pudo leer.
       {t:'Total contratado', c:'num', b:f => f.contratado_centavos,
        r:f => f.contratos_sin_total_firme >= f.contratos
-          ? '<span class=\"nulo\" title=\"sin leer\">—</span>'
+          ? '<span class="nulo" title="sin leer">—</span>'
           : esc(fmtPesos(f.contratado_centavos)) + (f.contratos_sin_total_firme
               ? ` <span class="sello atencion">faltan ${f.contratos_sin_total_firme}</span>` : '')},
       {t:'Facturas', c:'num', k:'facturas'},
@@ -1727,9 +1727,9 @@ async function vSuperposiciones() {
       {t:'Folios', c:'fol', r:f =>
         `${nombreArchivo(f.archivo_a)}${nombreArchivo(f.archivo_b)}`},
       {t:'Contratado/a', c:'nombre', r:f => f.contratado ? esc(f.contratado)
-          : '<span class=\"nulo\" title=\"sin nombre\">—</span>'},
+          : '<span class="nulo" title="sin nombre">—</span>'},
       {t:'Documento', c:'mono', r:f => f.documento ? esc(f.documento)
-          : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+          : '<span class="nulo" title="sin dato">—</span>'},
       {t:'Cruce', r:f => f.cruce === 'intercámara' ? `<span class="marca">${esc(f.cruce)}</span>` : esc(f.cruce)},
       /* En formato argentino y sin partirse. La consulta los devuelve unidos y en
          ISO —`2020-03-19 → 2021-01-18`—, que es lo correcto para ordenar y lo
@@ -3000,7 +3000,7 @@ document.addEventListener('keydown', e => {
     || document.activeElement?.isContentEditable;
   
   if (!enUnCampo) {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === ' ') {
       const tr = e.target.closest('tr.clic');
       if (tr) { e.preventDefault(); tr.click(); return; }
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -3212,7 +3212,7 @@ async function vPersonas() {
   tablaBuscable($('#tabla-personas'), [
       {t:'Contratado/a', c:'nombre', k:'contratado'},
       {t:'Documento', c:'mono', b:f => f.documento,
-       r:f => f.documento ? esc(f.documento) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+       r:f => f.documento ? esc(f.documento) : '<span class="nulo" title="sin dato">—</span>'},
       {t:'Contratos', k:'contratos', c:'num'},
       {t:'Sin monto', c:'num', b:f => f.contratos_sin_monto,
        r:f => f.contratos_sin_monto
@@ -3352,9 +3352,9 @@ async function vPersona(id) {
       {t:'Archivo', k:'archivo', c:'fol'},
       {t:'Cámara', r:f => esc(camaraTexto(f.camara))},
       {t:'Cargo', r:f => esc(f.cargo || '—')},
-      {t:'Inicio', c:'mono', r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
-      {t:'Fin', c:'mono', r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
-      {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '<span class=\"nulo\" title=\"sin dato\">—</span>' : esc(fmtPesos(f.monto_centavos))},
+      {t:'Inicio', c:'mono', r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class="nulo" title="sin dato">—</span>'},
+      {t:'Fin', c:'mono', r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class="nulo" title="sin dato">—</span>'},
+      {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '<span class="nulo" title="sin dato">—</span>' : esc(fmtPesos(f.monto_centavos))},
       {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
     ], d.contratos, {alClic:true, lista:'contratos'})}
 
@@ -3365,10 +3365,10 @@ async function vPersona(id) {
       ${tabla([
         {t:'Archivo', k:'archivo', c:'fol'},
         {t:'Tipo', r:f => esc(TIPO_DOC[f.tipo] || f.tipo)},
-        {t:'Comprobante', c:'mono', r:f => f.comprobante ? esc(f.comprobante) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
-        {t:'Emitida', c:'mono', r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class=\"nulo\" title=\"sin dato\">—</span>'},
+        {t:'Comprobante', c:'mono', r:f => f.comprobante ? esc(f.comprobante) : '<span class="nulo" title="sin dato">—</span>'},
+        {t:'Emitida', c:'mono', r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class="nulo" title="sin dato">—</span>'},
         {t:'Importe', c:'num', r:f => f.monto_centavos == null
-            ? '<span class=\"nulo\" title=\"a mano\">—</span>' : esc(fmtPesos(f.monto_centavos))},
+            ? '<span class="nulo" title="a mano">—</span>' : esc(fmtPesos(f.monto_centavos))},
         {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
       ], d.comprobantes, {alClic:true, lista:'comprobantes'})}` : ''}
 
@@ -3488,15 +3488,26 @@ async function guardarNucleo(ruta, cuerpo) {
 async function vSinReconocer() {
   const d = await api('/api/piezas/sin-reconocer');
   if (location.hash !== '#/sin-reconocer') return;
-  vista.innerHTML = bloque('', 'Documentos', htmlSinReconocer(d.piezas, d.tipos));
-  vista.querySelectorAll('[data-pieza]').forEach(f => f.onsubmit = async e => {
+  vista.innerHTML = bloque('', 'Documentos', `<h2>Todavía sin reconocer</h2>
+    <p class="prosa">Son documentos cargados que el sistema todavía no sabe leer...</p>
+    <div id="lista-sin-reconocer"></div>`);
+  
+  tablaBuscable($('#lista-sin-reconocer'), [
+    {t: 'Archivo', c: 'mono', r: p => `<a href="#/documento/${p.documento_id}">${esc(p.archivo)}</a>`},
+    {t: 'Fojas', c: 'num', r: p => `${esc(p.pagina_desde)} a ${esc(p.pagina_hasta)} (${esc(p.fojas)})`, b: p => p.fojas},
+    {t: 'Tipo registrado', r: p => `${esc(d.tipos.find(t => t.clave === p.tipo)?.nombre || p.tipo || 'Sin clasificar')} ${p.clasificado_por ? `(por ${esc(p.clasificado_por)})` : ''}`},
+    {t: 'Clasificar', r: p => `<form style="display:flex;gap:8px" data-pieza="${p.documento_id}"><select name="tipo" required><option value="">Elegí un tipo</option>${d.tipos.map(t => `<option value="${esc(t.clave)}">${esc(t.nombre)}</option>`).join('')}</select> <button class="boton" type="submit">Registrar</button></form>`}
+  ], d.piezas);
+
+  $('#lista-sin-reconocer').addEventListener('submit', async e => {
     e.preventDefault();
+    const f = e.target.closest('form'); if (!f) return;
     const b = f.querySelector('button'); b.disabled = true;
     try {
       const quien = await conRevisor(); if (!quien) return;
       await guardarNucleo('/api/pieza/clasificar', {documento_id:+f.dataset.pieza, tipo:f.elements.tipo.value, quien});
       await vSinReconocer();
-    } catch (e) { toast(e.message); } finally { b.disabled = false; }
+    } catch (err) { toast(err.message); } finally { b.disabled = false; }
   });
 }
 
@@ -3635,42 +3646,51 @@ async function mostrarConjunto(id, archivos) {
 async function vReasociaciones() {
   const {revisiones} = await api('/api/reasociaciones/pendientes');
   if (location.hash !== '#/reasociaciones') return;
-  vista.innerHTML = bloque('REV', 'Revisiones desplazadas', htmlReasociaciones(revisiones));
-  vista.querySelectorAll('[data-revision]').forEach(tarjeta => {
-    const r = revisiones[Number(tarjeta.dataset.revision)];
-    const asociar = $('[data-resolver="reasociar"]', tarjeta);
-    tarjeta.querySelectorAll('input[type="radio"]').forEach(b => b.onchange = () => {
-      if (asociar) asociar.disabled = false;
-    });
-    const ancla = $('[data-ancla]', tarjeta);
-    if (ancla) ancla.onclick = () => abrirFojaSuelta(r.sha256, r.ancla_pagina, r.archivo);
-    tarjeta.querySelectorAll('[data-resolver]').forEach(b => b.onclick = async () => {
-      const controles = tarjeta.querySelectorAll('button, input');
-      controles.forEach(c => c.disabled = true);
-      const salida = $('[data-resultado]', tarjeta);
+  
+  vista.innerHTML = bloque('REV', 'Revisiones desplazadas', `
+    <h2>Revisiones desplazadas</h2>
+    <p class="prosa">Decisiones humanas que perdieron su foja de anclaje original.</p>
+    <div id="lista-reasoc"></div>
+  `);
+
+  tablaBuscable($('#lista-reasoc'), [
+    {t: 'Clase', r: r => esc(r.clase)},
+    {t: 'Documento', r: r => `<a href="#/documento/${esc(r.documento_id)}">${esc(r.archivo || 'doc ' + r.documento_id)}</a>`},
+    {t: 'Foja', c: 'num', r: r => `<a href="javascript:abrirFojaSuelta('${esc(r.sha256)}', ${r.ancla_pagina}, '${esc(r.archivo)}')">f. ${esc(r.ancla_pagina)}</a>`},
+    {t: 'Texto original', c: 'mono', r: r => esc(r.texto)},
+    {t: 'Decisión', r: (r, i) => `<div style="display:flex;gap:8px" data-revision="${i}">
+      <label><input type="radio" name="res-${i}" value="reasociar"> Reasociar</label>
+      <label><input type="radio" name="res-${i}" value="descartar"> Descartar</label>
+      <button class="boton" data-resolver="ejecutar" disabled>Ejecutar</button>
+    </div>`}
+  ], revisiones);
+
+  $('#lista-reasoc').addEventListener('change', e => {
+    if (e.target.type === 'radio') {
+      const form = e.target.closest('div');
+      form.querySelector('button').disabled = false;
+    }
+  });
+
+  $('#lista-reasoc').addEventListener('click', async e => {
+    if (e.target.dataset.resolver === 'ejecutar') {
+      const btn = e.target;
+      const tarjeta = btn.closest('div');
+      const r = revisiones[Number(tarjeta.dataset.revision)];
+      const elegida = tarjeta.querySelector('input:checked');
+      if (!elegida) return;
+      
+      btn.disabled = true;
       try {
-        const quien = await conRevisor();
-        if (!quien) return;
-        const elegida = $('input:checked', tarjeta);
-        const resultado = await api('/api/reasociacion/resolver', {method: 'POST',
+        const quien = await conRevisor(); if (!quien) { btn.disabled = false; return; }
+        await api('/api/reasociacion/resolver', {
+          method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({sha256:r.sha256, orden:r.orden, campo:r.campo,
-            accion:b.dataset.resolver, quien,
-            documento_id:elegida ? Number(elegida.value) : null})});
-        if (resultado.estado === 'requiere_reasociacion') {
-          salida.textContent = 'Qued\u00f3 pendiente. Tu decisi\u00f3n est\u00e1 registrada en la auditor\u00eda.';
-        } else {
-          await vReasociaciones();
-        }
-      } catch (e) { salida.textContent = e.message; }
-      finally {
-        controles.forEach(c => c.disabled = false);
-        tarjeta.querySelectorAll('input').forEach(c => {
-          c.disabled = !r.candidatas.find(p => p.documento_id === Number(c.value)).tiene_el_campo;
+          body: JSON.stringify({decision_id: r.decision_id, accion: elegida.value, quien})
         });
-        if (asociar) asociar.disabled = !$('input:checked', tarjeta);
-      }
-    });
+        await vReasociaciones();
+      } catch (err) { toast(err.message); btn.disabled = false; }
+    }
   });
 }
 
@@ -4288,58 +4308,17 @@ async function vFojas() {
 
   vista.innerHTML = bloque('f. 0008', 'Fojas', `
     <h2>Fojas del expediente</h2>
-    <p class="prosa">Qué es cada foja del escaneo. Lo que está apagado se apartó: un
-      dorso en blanco no es trabajo pendiente, y una foja que no se pudo leer no es un
-      dato que falta sino un papel que hay que mirar.</p>
-    ${r.archivos.map(a => {
-      const cols = sha => [
-        {t:'Foja', c:'num', r:f => String(f.nro)},
-        {t:'Qué es', r:f => cuño(f.clase, f.etiqueta)},
-        {t:'', r:f => `<a href="#/foja/${esc(sha)}/${f.nro}"
-            class="ancla" data-sha="${esc(sha)}" data-nro="${f.nro}"
-            >ver la foja</a>`},
-      ];
-      const trabajo = a.fojas.filter(f => !f.apartada);
-      const apartadas = a.fojas.filter(f => f.apartada);
-      /* Las apartadas van PLEGADAS y no mezcladas. En este expediente son 47 de 88:
-         intercaladas, la lista de trabajo queda sepultada entre dorsos en blanco y
-         hay que saltearlos de a uno. Plegadas siguen estando —se cuentan arriba y se
-         abren de un clic—, que es distinto de esconderlas: una foja que el sistema
-         apartó sola tiene que poder mirarse, porque si se equivocó eso es lo único
-         que lo revela. */
-      return `
-      <h3>${esc(a.archivo)}</h3>
-      <p class="prosa"><strong>${fmtNum.format(a.de_trabajo)}</strong> ${
-        a.de_trabajo === 1 ? 'foja de trabajo' : 'fojas de trabajo'} ·
-        ${fmtNum.format(a.apartadas)} apartadas de ${fmtNum.format(a.total)} escaneadas.</p>
-      <div id="f-trabajo-${a.sha256}"></div>
-      ${apartadas.length ? `<details class="apartadas">
-        <summary>Ver las ${fmtNum.format(apartadas.length)} fojas apartadas</summary>
-        <div id="f-apartadas-${a.sha256}"></div>
-      </details>` : ''}`;
-    }).join('')}`);
+    <p class="prosa">Qué es cada foja del escaneo.</p>
+    <div id="lista-fojas"></div>
+  `);
 
-  r.archivos.forEach(a => {
-    const trabajo = a.fojas.filter(f => !f.apartada);
-    const apartadas = a.fojas.filter(f => f.apartada);
-    const cols = sha => [
-      {t:'Foja', c:'num', k:'nro', r:f => String(f.nro)},
-      {t:'Qué es', k:'etiqueta', r:f => cuño(f.clase, f.etiqueta)},
-      {t:'', r:f => `<button type="button" class="ancla falso-enlace">ver la foja</button>`}
-    ];
-    
-    tablaBuscable($(`#f-trabajo-${a.sha256}`), cols(a.sha256), trabajo, {
-        lista:'fojas',
-        alClic: f => abrirFojaSuelta(a.sha256, f.nro)
-    });
-    
-    if (apartadas.length) {
-      tablaBuscable($(`#f-apartadas-${a.sha256}`), cols(a.sha256), apartadas, {
-          lista:'apartadas',
-          alClic: f => abrirFojaSuelta(a.sha256, f.nro)
-      });
-    }
-  });
+  const todasFojas = r.archivos.flatMap(a => a.fojas.map(f => ({...f, sha256: a.sha256, archivo: a.nombre})));
+  tablaBuscable($('#lista-fojas'), [
+    {t: 'Archivo', c: 'mono fol', r: f => esc(f.archivo)},
+    {t: 'Foja', c: 'num fol', r: f => String(f.nro), b: f => f.nro},
+    {t: 'Qué es', r: f => cuño(f.clase, f.etiqueta)},
+    {t: 'Acción', r: f => `<a href="#/foja/${esc(f.sha256)}/${f.nro}" class="boton secundario">Ver contexto</a>`}
+  ], todasFojas);
 }
 
 /* ── Los números que el papel escribe dos veces ─────────────────────────────
@@ -4883,15 +4862,27 @@ async function vFoliatura(sha) {
   if (location.hash.indexOf('#/foliatura') !== 0) return;
   const archivos = d.archivos || [];
   if (!archivos.length) {
-    vista.innerHTML = bloque('', 'Documentos',
-      '<p class="prosa">No hay archivos cargados todav\u00eda.</p>');
+    vista.innerHTML = bloque('', 'Documentos', '<p class="prosa">No hay archivos cargados todavía.</p>');
     return;
   }
   const elegido = sha || archivos[0].sha256;
   const f = await api('/api/foliatura?sha=' + encodeURIComponent(elegido));
   if (location.hash.indexOf('#/foliatura') !== 0) return;
-  vista.innerHTML = bloque('', 'Documentos',
-    selectorArchivo(archivos, elegido) + htmlFoliatura(f));
+  
+  const conAlgo = f.fojas.filter(h => h.foliaturas.length).length;
+  vista.innerHTML = bloque('', 'Documentos', selectorArchivo(archivos, elegido) + `
+    <p class="prosa">${esc(conAlgo)} de ${esc(f.fojas.length)} fojas tienen foliatura anotada.</p>
+    ${f.saltos.length ? `<h3>Saltos de foliatura</h3><ul>${f.saltos.map(x => `<li><span class="sello atencion">${esc(x.clase)}</span> ${esc(x.detalle)}</li>`).join('')}</ul>` : ''}
+    <h3>Foja por foja</h3>
+    <div id="lista-foliatura"></div>
+  `);
+
+  tablaBuscable($('#lista-foliatura'), [
+    {t: 'Página del PDF', c: 'mono', r: h => esc(h.pagina_pdf), b: h => h.pagina_pdf},
+    {t: 'Foliatura del papel', r: h => h.foliaturas.length ? h.foliaturas.map(x => `<span class="mono">${esc(x.nro)}</span>`).join(' o ') : '<span class="nulo">sin lectura</span>'},
+    {t: 'De dónde sale', r: h => h.foliaturas.length ? h.foliaturas.map(x => `<a href="#/foja/${x.sha256}/${h.pagina_pdf}" class="chip">${esc(x.texto)}</a>`).join(' ') : '—'}
+  ], f.fojas);
+
   const sel = $('#sel-archivo');
   if (sel) sel.onchange = () => { location.hash = '#/foliatura/' + sel.value; };
 }
@@ -4929,37 +4920,30 @@ async function vTablas(sha) {
   if (location.hash.indexOf('#/tablas') !== 0) return;
   const archivos = d.archivos || [];
   if (!archivos.length) {
-    vista.innerHTML = bloque('', 'Documentos',
-      '<p class="prosa">No hay archivos cargados todav\u00eda.</p>');
+    vista.innerHTML = bloque('', 'Documentos', '<p class="prosa">No hay archivos cargados todavía.</p>');
     return;
   }
   const elegido = sha || archivos[0].sha256;
   const t = await api('/api/tablas?sha=' + encodeURIComponent(elegido));
   if (location.hash.indexOf('#/tablas') !== 0) return;
+  
   vista.innerHTML = bloque('', 'Documentos', selectorArchivo(archivos, elegido) +
     (t.tablas.length
-      ? `<p class="prosa">Una planilla dice lo que dice <strong>por rengl\u00f3n</strong>.
-           Cada celda guarda d\u00f3nde est\u00e1 en la foja, para poder ir a verla.</p>`
-        + t.tablas.map(htmlTabla).join('')
-      : `<p class="prosa">No se reconoci\u00f3 ninguna tabla en este archivo. El sistema
-           s\u00f3lo propone una tabla cuando las palabras se alinean en columnas a lo
-           largo de varios renglones y queda un blanco entre columna y columna: un texto
-           en prosa con n\u00fameros adentro no es una planilla.</p>`));
+      ? `<p class="prosa">Se detectaron <strong>${t.tablas.length} tablas</strong>. Elegí una para ver sus renglones.</p><div id="lista-tablas"></div>`
+      : `<p class="prosa">No se reconoció ninguna tabla en este archivo.</p>`));
+
+  if (t.tablas.length) {
+    tablaBuscable($('#lista-tablas'), [
+      {t: 'Foja', c: 'num', r: a => esc(a.pagina_nro), b: a => a.pagina_nro},
+      {t: 'Tamaño', r: a => `${esc(a.filas)} filas × ${esc(a.columnas)} cols`},
+      {t: 'Confianza', r: a => barraConf(a.confianza) + ' ' + fmtPct(a.confianza * 100)},
+      {t: 'Continuación', r: a => a.continua_de ? (a.union_quien ? `Sí (por ${esc(a.union_quien)})` : 'Propuesta') : 'No'},
+      {t: 'Acción', r: a => `<a class="boton" href="#/tabla-renglones-${a.id}">Ver renglones</a>`}
+    ], t.tablas);
+  }
+
   const sel = $('#sel-archivo');
   if (sel) sel.onchange = () => { location.hash = '#/tablas/' + sel.value; };
-  vista.querySelectorAll('[data-renglones]').forEach(a => a.onclick = async e => {
-    e.preventDefault();
-    const id = a.dataset.renglones;
-    const caja = vista.querySelector(`[data-destino="${id}"]`);
-    const r = await api('/api/tabla/renglones?id=' + encodeURIComponent(id));
-    const cols = r.renglones.length ? Object.keys(r.renglones[0].valores) : [];
-    caja.innerHTML = r.renglones.length
-      ? `<div class="tabla-env"><table><thead><tr><th>Foja</th>${cols.map(c =>
-            `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${r.renglones.map(f =>
-            `<tr><td class="mono">${esc(f.pagina_nro)}</td>${cols.map(c =>
-              `<td>${esc(f.valores[c] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
-      : '<p class="prosa">Esta tabla no tiene renglones de datos.</p>';
-  });
 }
 
 /* -- La cronologia, que no es el orden de las fojas ------------------------
@@ -5037,9 +5021,41 @@ async function vEntidades() {
   const hash = location.hash, clase = new URLSearchParams(hash.split('?')[1] || '').get('clase') || '';
   const d = await api('/api/entidades' + (clase ? '?clase=' + encodeURIComponent(clase) : ''));
   if (location.hash !== hash) return;
-  vista.innerHTML = bloque('', 'Entidades', htmlEntidades(d, clase));
+  vista.innerHTML = bloque('', 'Entidades', `
+    <h2>Entidades y menciones</h2>
+    <p class="prosa">Una mención es lo que dice un documento; una entidad es a quién se refiere.</p>
+    <label>Clase <select id="clase-entidad"><option value="">Todas las clases</option>${d.clases.map(c => `<option value="${esc(c.clave)}"${c.clave === clase ? ' selected' : ''}>${esc(c.que_es)}</option>`).join('')}</select></label>
+    <h3>Fichas</h3><div id="entidades-es"></div>
+    <h3>Menciones sin resolver</h3><p class="prosa">Son trabajo pendiente, no un error.</p><div id="entidades-ms"></div>
+    <h3>Propuestas de fusión</h3><p class="prosa">Ninguna propuesta está confirmada de antemano.</p><div id="entidades-ps"></div>
+  `);
   $('#clase-entidad').onchange = e => { location.hash = '#/entidades?clase=' + encodeURIComponent(e.target.value); };
-  vista.querySelectorAll('[data-fusion]').forEach(f => {
+
+  const filtrar = xs => xs.filter(x => !clase || x.clase === clase);
+  const es = filtrar(d.entidades), ms = filtrar(d.sin_resolver), ps = filtrar(d.propuestas);
+
+  tablaBuscable($('#entidades-es'), [
+    {t: 'Nombre', r: e => `<a href="#/${e.carril === 'persona' ? 'persona' : 'entidad'}/${esc(e.id)}">${esc(e.nombre || 'Ø sin nombre')}</a>`, k: 'nombre'},
+    {t: 'Clase', r: e => esc(e.clase)},
+    {t: 'Clave fuerte', c: 'mono', r: e => esc(e.clave_fuerte || 'Ø sin clave fuerte')},
+    {t: 'Menciones / doc', r: e => `${esc(e.menciones)} menciones / ${esc(e.documentos)} doc`, b: e => e.menciones},
+    {t: 'Resolución', r: e => e.quien ? `Por ${esc(e.quien)}` : (e.clave_fuerte ? 'Por clave fuerte' : 'Ø sin autor')}
+  ], es);
+
+  tablaBuscable($('#entidades-ms'), [
+    {t: 'Mención', c: 'mono', r: m => esc(m.literal)},
+    {t: 'Clase', r: m => esc(m.clase)},
+    {t: 'Fuente', r: m => fuenteMencion(m)}
+  ], ms);
+
+  tablaBuscable($('#entidades-ps'), [
+    {t: 'Clase', r: p => esc(p.clase)},
+    {t: 'Menciones', c: 'mono', r: p => p.literales.map(esc).join(' / ')},
+    {t: 'Motivo', r: p => `${esc(p.veces)} veces · ${esc(p.motivo)}`},
+    {t: 'Decisión', r: p => `<form class="revision-propuesta" style="display:flex;gap:8px" data-fusion="${esc(p.norm)}" data-clase="${esc(p.clase)}"><input name="nombre" required placeholder="Nombre" autocomplete="off"> <button class="boton" type="submit">Confirmar</button> <button class="boton gris" type="button" data-rechazar-fusion>Rechazar</button></form>`}
+  ], ps);
+
+  vista.querySelectorAll('.revision-propuesta').forEach(f => {
     const enviar = async (b, aceptar) => accionInterfaz(b, async () => {
       const quien = await conRevisor(); if (!quien) return;
       await guardarNucleo('/api/entidad/' + (aceptar ? 'confirmar' : 'rechazar'), {clase:f.dataset.clase, norm:f.dataset.fusion, nombre:f.elements.nombre.value.trim(), quien});
@@ -5051,7 +5067,13 @@ async function vEntidades() {
 }
 async function vEntidad(id) {
   const hash = location.hash, e = await api('/api/entidad?id=' + id);
-  if (hash === location.hash) vista.innerHTML = bloque('', 'Entidad', htmlEntidad(e));
+  if (hash === location.hash) {
+    vista.innerHTML = bloque('', 'Entidad', `<h2>${esc(e.nombre)}</h2><p>${esc(e.clase)} · Clave fuerte: <span class="mono">${esc(e.clave_fuerte || 'Ø sin clave')}</span></p><p>${e.quien ? `Afirmado por ${esc(e.quien)}` : (e.clave_fuerte ? 'Resuelto por el sistema por clave fuerte' : 'Ø autor de resolución no informado')}</p><h3>Todas las formas que dice el papel</h3><div id="entidad-menciones"></div>`);
+    tablaBuscable($('#entidad-menciones'), [
+      {t: 'Mención', c: 'mono', r: m => esc(m.literal)},
+      {t: 'Fuente', r: m => fuenteMencion(m)}
+    ], e.menciones);
+  }
 }
 function enlazarDecisionesRelacion(host, refrescar) {
   host.querySelectorAll('[data-relacion]').forEach(b => b.onclick = () => accionInterfaz(b, async () => {
@@ -5066,7 +5088,7 @@ async function vRelaciones() {
   if (hash !== location.hash) return;
   
   const opciones = docs.map(c => 
-    `<option value="${c.documento_id}">Doc ${c.documento_id} - ${c.nombre_literal}</option>`
+    `<option value="${c.documento_id}">${esc(c.nombre_literal || c.documento_literal || c.archivo || 'Desconocido')} (f. ${c.pagina_desde || '?'})</option>`
   ).join('');
 
   vista.innerHTML = bloque('', 'Relaciones', `<h2>Relaciones pendientes</h2>
