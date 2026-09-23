@@ -1,6 +1,6 @@
 /* Interfaz del análisis documental — UFIL Paraná.
-   JavaScript sin dependencias ni compilación: se lee entero y se entiende.
-   La regla visual que sostiene todo: lo que está en monoespaciada se leyó de un
+   JavaScript sin dependencias ni compilaci&oacute;n: se lee entero y se entiende.
+   La regla visual que sostiene todo: lo que está en monoespaciada se ley&oacute; de un
    papel y tiene anclaje; lo que está en bastardilla serif es una conjetura. */
 'use strict';
 
@@ -11,7 +11,7 @@ const fmtPesos = c => c == null ? null
   : '$' + new Intl.NumberFormat('es-AR', {minimumFractionDigits: 2}).format(c / 100);
 
 /* Fechas en formato argentino. La base guarda ISO —2016-07-01— porque es lo que
-   ordena bien y no depende de dónde corra; la pantalla muestra 01/07/2016, que es lo
+   ordena bien y no depende de d&oacute;nde corra; la pantalla muestra 01/07/2016, que es lo
    que se escribe en un expediente. Se convierte acá, en un solo lugar. */
 const fmtFecha = v => {
   if (!v) return '';
@@ -33,21 +33,21 @@ const plural = (n, uno, muchos) => `${fmtNum.format(n)} ${n === 1 ? uno : muchos
    técnico: quien revisa lee «Fecha de inicio», no `fecha_inicio`. */
 const NOMBRE_CAMPO = {
   nombre: 'Contratado', documento: 'Documento', cargo: 'Cargo',
-  fecha_inicio: 'Fecha de inicio', fecha_fin: 'Fecha de finalización',
+  fecha_inicio: 'Fecha de inicio', fecha_fin: 'Fecha de finalizaci&oacute;n',
   fecha_contrato: 'Fecha del contrato', monto: 'Monto mensual',
   monto_total: 'Monto total', monto_total_letras: 'Monto total en letras',
   plazo_meses: 'Plazo en meses', comprobante: 'Número de comprobante',
 };
 /* En una factura los mismos campos dicen otra cosa: `nombre` no es el contratado sino
-   quien la emitió, y `fecha_inicio` no es el inicio de nada sino la fecha de emisión.
+   quien la emiti&oacute;, y `fecha_inicio` no es el inicio de nada sino la fecha de emisi&oacute;n.
    Rotularlos igual que en un contrato es afirmar algo que el papel no dice. */
 const NOMBRE_CAMPO_POR_FAMILIA = {
   comprobante: {
-    nombre: 'Emisor', documento: 'CUIT del emisor', fecha_inicio: 'Fecha de emisión',
+    nombre: 'Emisor', documento: 'CUIT del emisor', fecha_inicio: 'Fecha de emisi&oacute;n',
     monto: 'Importe', fecha_fin: 'Sin uso en comprobantes',
   },
   // Un decreto no tiene contratado ni fecha de inicio: tiene una referencia y una
-  // fecha. Dejarle el rótulo de contrato afirma algo que el documento no dice.
+  // fecha. Dejarle el r&oacute;tulo de contrato afirma algo que el documento no dice.
   acto: {
     nombre: 'Título o referencia', documento: 'Número o identificador',
     fecha_inicio: 'Fecha', fecha_fin: 'Sin uso en actos', monto: 'Importe',
@@ -57,7 +57,7 @@ const rotularCampo = (c, familia) =>
   ((NOMBRE_CAMPO_POR_FAMILIA[familia] || {})[c])
   || NOMBRE_CAMPO[c] || String(c || '').replace(/_/g, ' ');
 
-/* Estados de confianza: etiqueta y explicación. Es el mismo modelo que está en
+/* Estados de confianza: etiqueta y explicaci&oacute;n. Es el mismo modelo que está en
    ufil/confianza.py; si se agrega uno allá, se agrega acá. */
 const ESTADO = {
   automatico_alta:     ['Automático',          'ok'],
@@ -73,7 +73,7 @@ const ESTADO = {
 /* Los íconos de los estados. Cinco trazos, sin relleno, del tamaño de la letra.
 
    No son adorno: son la segunda manera de decir lo mismo. Una fila que informa su
-   estado sólo con color no le informa nada a quien no distingue el rojo del verde
+   estado s&oacute;lo con color no le informa nada a quien no distingue el rojo del verde
    —entre el 5 y el 8 % de los varones—, ni a nadie cuando esto sale impreso en
    blanco y negro, que es como llega a una audiencia. Cada estado se dice tres
    veces: forma, palabra y color, en ese orden de importancia. */
@@ -105,7 +105,7 @@ const sello = (tono, texto, opts = {}) =>
 
 /* Pinta un sello ADENTRO de un nodo que ya existe, sin reemplazarlo: el nodo del
    techo se pinta en cada refresco y cambiarlo por otro le hace perder el id, los
-   escuchadores y el lugar en el orden de tabulación. */
+   escuchadores y el lugar en el orden de tabulaci&oacute;n. */
 function pintarSello(el, tono, texto, opts = {}) {
   if (!el) return;
   el.className = `estado estado--${tono}${opts.relleno ? ' estado--relleno' : ''}`
@@ -124,14 +124,14 @@ const badgeEstado = e => {
 /* Los tipos de documento, en castellano. La clave es la que usa la base. */
 const TIPO_DOC = {
   contrato_obra:'Contrato de obra', contrato_personal:'Contrato de personal',
-  contrato_locacion:'Contrato de locación', factura:'Factura', recibo:'Recibo',
-  remito:'Remito', decreto:'Decreto', resolucion:'Resolución', rendicion:'Rendición',
-  caratula:'Carátula', nota:'Nota', continuacion:'Continuación',
+  contrato_locacion:'Contrato de locaci&oacute;n', factura:'Factura', recibo:'Recibo',
+  remito:'Remito', decreto:'Decreto', resolucion:'Resoluci&oacute;n', rendicion:'Rendici&oacute;n',
+  caratula:'Carátula', nota:'Nota', continuacion:'Continuaci&oacute;n',
   desconocida:'Sin reconocer', desconocido:'Sin reconocer',
-  // Los de una contratación: sin ellos la pantalla mostraba la clave de la base.
+  // Los de una contrataci&oacute;n: sin ellos la pantalla mostraba la clave de la base.
   orden_compra:'Orden de compra', orden_pago:'Orden de pago', presupuesto:'Presupuesto',
   oferta:'Oferta', acta_apertura:'Acta de apertura', pliego:'Pliego',
-  especificacion:'Especificación técnica', adjudicacion:'Adjudicación',
+  especificacion:'Especificaci&oacute;n técnica', adjudicacion:'Adjudicaci&oacute;n',
   dictamen:'Dictamen', cuadro_comparativo:'Cuadro comparativo', pedido:'Pedido',
 };
 const FAMILIA_DOC = {contrato:'Contrato', comprobante:'Comprobante de pago',
@@ -139,12 +139,12 @@ const FAMILIA_DOC = {contrato:'Contrato', comprobante:'Comprobante de pago',
 /* Por qué está esperando este campo. Es lo que se filtra en la cola. */
 const CLASE_COLA = {conflicto:'Dos lecturas distintas', nulo:'No se pudo leer',
                     'baja confianza':'Leído con poca seguridad'};
-/* Por qué el campo quedó vacío. La base guarda la clave; la pantalla dice la frase. */
-/* Cerrar un campo sin valor es una decisión, y el botón tiene que decir qué decisión
-   es. Decía «Ø ausente, firme»: la Ø es notación interna del sistema y «firme» es
+/* Por qué el campo qued&oacute; vacío. La base guarda la clave; la pantalla dice la frase. */
+/* Cerrar un campo sin valor es una decisi&oacute;n, y el bot&oacute;n tiene que decir qué decisi&oacute;n
+   es. Decía « ausente, firme»: la  es notaci&oacute;n interna del sistema y «firme» es
    vocabulario del modelo de confianza. Nada de eso le dice a alguien qué está por
    afirmar. */
-/* El botón dice la ACCIÓN; el diagnóstico ya está arriba, en el lugar del valor.
+/* El bot&oacute;n dice la ACCIÓN; el diagn&oacute;stico ya está arriba, en el lugar del valor.
    Decía «está escrito a mano y no se lee» abajo de un «está escrito a mano»: el mismo
    motivo dos veces en la misma tarjeta, y en un teléfono uno abajo del otro. */
 const TEXTO_CIERRE = {
@@ -159,7 +159,7 @@ const MOTIVO_NULO = {
   ambiguo:'dice dos cosas distintas', conflicto:'dos lecturas no coinciden',
   manuscrito:'está escrito a mano', fuera_de_rango:'el valor no es posible',
 };
-/* La base guarda «A» y «B» porque así lo escribe el perfil de extracción. En pantalla
+/* La base guarda «A» y «B» porque así lo escribe el perfil de extracci&oacute;n. En pantalla
    eso no dice nada: «Cámara A» obliga a acordarse de cuál es cuál, y el que lee un
    informe no tiene por qué saberlo. */
 const CAMARA = {A:'Diputados', B:'Senadores'};
@@ -172,7 +172,7 @@ async function api(ruta, opciones) {
   let r, j;
   try {
     r = await fetch(ruta, opciones);
-    // Si el servidor se reinició, la sesión murió y esto es la pantalla de la clave.
+    // Si el servidor se reinici&oacute;, la sesi&oacute;n muri&oacute; y esto es la pantalla de la clave.
     // Sin este chequeo, la app mostraría un error de sintaxis en vez de mandarte a
     // escribir la clave, que es lo único que hay que hacer.
     if (r.headers.get('X-UFIL-Acceso') === 'requerido') {
@@ -194,14 +194,14 @@ async function api(ruta, opciones) {
   return j;
 }
 
-/* Quién revisa: queda registrado en cada decisión humana. */
+/* Quién revisa: queda registrado en cada decisi&oacute;n humana. */
 /* ── Quién está trabajando ─────────────────────────────────────────────────
-   Esto lo usan varias personas de la fiscalía sobre la misma causa, y cada decisión
-   queda registrada con quién la tomó: es lo que permite, al firmar un informe, decir
-   quién verificó cada campo contra el folio.
+   Esto lo usan varias personas de la fiscalía sobre la misma causa, y cada decisi&oacute;n
+   queda registrada con quién la tom&oacute;: es lo que permite, al firmar un informe, decir
+   quién verific&oacute; cada campo contra el folio.
 
    Antes se preguntaba con el `prompt()` del navegador, que aparecía de golpe encima
-   de la primera decisión, no explicaba para qué era, y después no había manera de
+   de la primera decisi&oacute;n, no explicaba para qué era, y después no había manera de
    corregirlo si alguien tipeaba mal el apellido. Ahora se pide una vez en un diálogo
    propio, se ve siempre en la barra lateral, y se cambia desde ahí. */
 let REVISOR = null;
@@ -224,12 +224,12 @@ function pintarRevisor() {
   b.querySelector('.quien').textContent = REVISOR || 'Sin identificar';
   b.classList.toggle('sin-nombre', !REVISOR);
   b.title = REVISOR
-    ? `Cada decisión que tomes queda registrada como «${REVISOR}». Tocá para cambiarlo.`
+    ? `Cada decisi&oacute;n que tomes queda registrada como «${REVISOR}». Tocá para cambiarlo.`
     : 'Todavía no dijiste quién sos. Tocá para identificarte.';
 }
 
-/* Pide el nombre y devuelve una promesa con él, o con null si la persona cerró el
-   diálogo. Se resuelve ANTES de tocar nada: una decisión sin nombre no se guarda, y
+/* Pide el nombre y devuelve una promesa con él, o con null si la persona cerr&oacute; el
+   diálogo. Se resuelve ANTES de tocar nada: una decisi&oacute;n sin nombre no se guarda, y
    el servidor la rechaza igual, así que preguntar después sería perder el trabajo. */
 function pedirRevisor(yaEstan = []) {
   return new Promise(resolver => {
@@ -239,7 +239,7 @@ function pedirRevisor(yaEstan = []) {
         <h3>¿Quién está trabajando?</h3>
         <p class="prosa">Cada campo que verifiques, corrijas o cierres queda registrado
           con tu nombre y la fecha. Es lo que permite, al firmar un informe, decir quién
-          revisó cada dato contra el folio.</p>
+          revis&oacute; cada dato contra el folio.</p>
         <p class="prosa">En esta causa trabajan varias personas sobre la misma base: sin
           esto, el trabajo de todos aparece junto y sin autor.</p>
         ${otros.length ? `<p class="rotulo">Ya trabajaron en este legajo</p>
@@ -283,8 +283,8 @@ function pedirRevisor(yaEstan = []) {
   });
 }
 
-/* Se llama antes de cualquier acción que quede registrada. Devuelve el nombre, o null
-   si la persona decidió no identificarse —y en ese caso no se hace nada—. */
+/* Se llama antes de cualquier acci&oacute;n que quede registrada. Devuelve el nombre, o null
+   si la persona decidi&oacute; no identificarse —y en ese caso no se hace nada—. */
 async function conRevisor() {
   return REVISOR || await pedirRevisor();
 }
@@ -307,7 +307,7 @@ function celdaValor(c) {
 
 /* Una vista entera en estado vacío, con la misma retícula que las demás. */
 function vistaVacia(folio, rotulo, titulo, cabeza, texto) {
-  // El paso siguiente depende de dónde está parada la persona: sin legajo, cargar
+  // El paso siguiente depende de d&oacute;nde está parada la persona: sin legajo, cargar
   // escaneos no es el paso siguiente sino el error que se está tratando de evitar; y
   // ofrecer «Cargar escaneos» en cualquier pantalla vacía es mandar a cargar cuando lo
   // que falta, casi siempre, es revisar o procesar.
@@ -315,7 +315,7 @@ function vistaVacia(folio, rotulo, titulo, cabeza, texto) {
     ? {href:'#/legajos', texto:'Elegir o crear un legajo'}
     : (rotulo === 'Datos' ? {href:'#/ingesta', texto:'Cargar escaneos'} : null);
 
-  // Mientras se procesa, una pantalla vacía no está vacía: todavía no llegó. Decir
+  // Mientras se procesa, una pantalla vacía no está vacía: todavía no lleg&oacute;. Decir
   // «no hay» en ese momento es afirmar algo que en dos minutos va a ser falso.
   if (typeof TRABAJO !== 'undefined' && TRABAJO && TRABAJO.estado === 'corriendo') {
     cabeza = 'Procesando documentos';
@@ -356,27 +356,27 @@ function bloque(folio, rotulo, html) {
 /* La clase de una celda, y cuál de las columnas se lleva el ancho que sobra.
 
    Dos cosas que faltaban y se veían las dos en la misma pantalla. Una columna de
-   números iba alineada a la derecha y su rótulo a la izquierda: en «Trabajo del
-   equipo» el rótulo CAMPOS REVISADOS quedaba a un extremo y su `1` al otro, a
+   números iba alineada a la derecha y su r&oacute;tulo a la izquierda: en «Trabajo del
+   equipo» el r&oacute;tulo CAMPOS REVISADOS quedaba a un extremo y su `1` al otro, a
    cuatrocientos píxeles, y el ojo no los conecta —parece que el 1 es de otra cosa—.
-   El rótulo se alinea como su dato, y para eso el `<th>` tiene que llevar la misma
+   El r&oacute;tulo se alinea como su dato, y para eso el `<th>` tiene que llevar la misma
    clase que el `<td>`.
 
    Y la tabla repartía el ancho sobrante entre todas: cuatro valores cortos estirados
    sobre 900 px se leen peor que los mismos cuatro juntos a la izquierda. Ahora el
    sobrante se lo lleva UNA columna —la última que no sea de números, porque estirar
-   una de números aleja el número de su rótulo otra vez— y las demás miden lo que
+   una de números aleja el número de su r&oacute;tulo otra vez— y las demás miden lo que
    mide su contenido. */
 function claseCol(cols, c, i, filas) {
   return ((c.c || '') + (i === cualCrece(cols, filas) ? ' crece' : '')).trim();
 }
 
 /* Cuál de las columnas se lleva el ancho que sobra: la de texto MÁS LARGO.
-   La primera versión le daba el sobrante a la última que no fuera de números, y en la
+   La primera versi&oacute;n le daba el sobrante a la última que no fuera de números, y en la
    tabla de contratos esa era «Fin» —una fecha de nueve caracteres— que se quedaba con
    doscientos píxeles mientras «Contratado/a» se apretaba y los apellidos caían en dos
    renglones. El sobrante tiene que ir donde hace falta.
-   Las de números quedan afuera: estirar una aleja el número de su rótulo, que es
+   Las de números quedan afuera: estirar una aleja el número de su r&oacute;tulo, que es
    justo lo que esto vino a arreglar. */
 const _crece = new WeakMap();
 function cualCrece(cols, filas) {
@@ -385,7 +385,7 @@ function cualCrece(cols, filas) {
   const sinEtiquetas = h => String(h).replace(/<[^>]*>/g, '');
   const muestra = (filas || []).slice(0, 40);
   // Las que nunca se parten no compiten: un CUIL, una fecha, un nombre de archivo, un
-  // importe o el nombre de una persona son UN token y no bajan de renglón, así que el
+  // importe o el nombre de una persona son UN token y no bajan de rengl&oacute;n, así que el
   // ancho de más no les cambia nada y se lo sacan a la que sí se estaría partiendo.
   // Medido en la tabla de contratos: el sobrante se lo llevaba «Archivo» —19
   // caracteres que no se cortan— mientras «Contratado/a» partía los apellidos en dos
@@ -418,14 +418,14 @@ function tabla(cols, filas, opts = {}) {
     esc(c.t)}</th>`).join('');
   // `data-rotulo` en cada celda: cuando la tabla no entra y la fila se despliega, el
   // encabezado de columna deja de estar arriba y cada valor tiene que decir de qué
-  // columna es. Es el mismo texto del `<th>`, así que no hay dos rótulos que
+  // columna es. Es el mismo texto del `<th>`, así que no hay dos r&oacute;tulos que
   // mantener sincronizados.
   const tr = filas.map((f, i) => `<tr class="${opts.alClic ? 'clic' : ''}" data-i="${i}"${opts.alClic ? ' tabindex="0"' : ''}>${
     cols.map((c, i) => `<td class="${claseCol(cols, c, i, filas)}" data-rotulo="${esc(c.t)}">${
       c.r ? c.r(f) : esc(f[c.k] ?? '')}</td>`).join('')
   }</tr>`).join('');
   // `lista` marca QUÉ muestra esta tabla. Hace falta cuando una pantalla tiene más de
-  // una: enganchar el clic por «la última tabla» funcionaba hasta que se agregó otra
+  // una: enganchar el clic por «la última tabla» funcionaba hasta que se agreg&oacute; otra
   // debajo, y entonces cada fila abría el documento equivocado.
   const marca = opts.lista ? ` data-lista="${esc(opts.lista)}"` : '';
   return `<div class="tabla-env"><table${marca}><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></div>`;
@@ -434,12 +434,12 @@ function tabla(cols, filas, opts = {}) {
 /* ── Ninguna tabla muestra un dato cortado ─────────────────────────────────
    `overflow-x:auto` dejaba correr la tabla de costado, y eso alcanzaba mientras lo
    que quedaba afuera fuera una columna que se recupera mirando la fila. No es el
-   caso. Medido en 1366×768, en «Superposición temporal»: la tabla pide 976 px y la
+   caso. Medido en 1366×768, en «Superposici&oacute;n temporal»: la tabla pide 976 px y la
    hoja le da 875, así que «Conf.» desaparece entera y de «Suma» se ve `$164.` y
    `$329.`. UN IMPORTE CORTADO NO SE VE CORTADO: `$164.` es un número perfectamente
-   plausible, y el que lo lee no tiene cómo saber que le falta la mitad. El sistema
+   plausible, y el que lo lee no tiene c&oacute;mo saber que le falta la mitad. El sistema
    entero está construido para no decir un dato que no está en el papel, y acá lo
-   estaba diciendo mal por una cuestión de ancho.
+   estaba diciendo mal por una cuesti&oacute;n de ancho.
 
    Tres cosas, en este orden:
 
@@ -453,10 +453,10 @@ function tabla(cols, filas, opts = {}) {
       1440. Es gratis y la tabla sigue siendo una tabla.
    3. RECIÉN AHÍ, DESPLEGAR. Por debajo de ~1280 no entra ni con la canaleta devuelta
       (a 1024 faltan 249 px), y ahí la fila se abre en renglones: cada valor con el
-      rótulo de su columna, nada cortado. Es lo que ya hacían a mano `table.salud` y
+      r&oacute;tulo de su columna, nada cortado. Es lo que ya hacían a mano `table.salud` y
       `.tabla-legajos` en el teléfono, ahora para cualquier tabla y por medida.
 
-   Una vez que una tabla pidió la hoja entera, se la queda mientras esté en pantalla.
+   Una vez que una tabla pidi&oacute; la hoja entera, se la queda mientras esté en pantalla.
    Devolverle la canaleta al agrandar la ventana obligaría a recordar cuánto medía la
    canaleta para saber si volvería a entrar, y a arriesgar un ida y vuelta entre los
    dos estados con el borde justo. Al cambiar de pantalla se vuelve a medir de cero. */
@@ -472,13 +472,13 @@ const HOLGURA_TABLA = 2;
 function vigilarCortes(raiz) {
   for (const env of (raiz || document).querySelectorAll('.tabla-env')) {
     if (_tablasVigiladas.has(env)) continue;
-    // El índice de legajos ya tiene su propia versión desplegada, escrita a mano y con
+    // El índice de legajos ya tiene su propia versi&oacute;n desplegada, escrita a mano y con
     // otra tipografía: dos mecanismos sobre la misma tabla se pisan.
     if (env.closest('.tabla-legajos')) continue;
     _tablasVigiladas.add(env);
 
     /* Cuánto pedía la tabla la última vez que se la vio cortada. Va ANOTADO EN EL
-       ELEMENTO y no en una variable de esta función: desplegada no se puede volver a
+       ELEMENTO y no en una variable de esta funci&oacute;n: desplegada no se puede volver a
        medir —desplegada siempre entra— así que este número es lo único con lo que se
        puede decidir si ya vuelve a caber. Guardado afuera del elemento se pierde en
        cuanto algo repinta, y en el DOM además se puede mirar cuando algo no cierra. */
@@ -511,9 +511,9 @@ function vigilarCortes(raiz) {
 
     /* Y se vuelve a medir por DOS motivos distintos, que ninguno cubre al otro:
 
-       · cambia el TAMAÑO —se agranda la ventana, se abre la barra lateral—, y de eso
+       &middot; cambia el TAMAÑO —se agranda la ventana, se abre la barra lateral—, y de eso
          avisa el `ResizeObserver`;
-       · cambia el CONTENIDO —se filtra la tabla, se ordena, se piden más filas—, y de
+       &middot; cambia el CONTENIDO —se filtra la tabla, se ordena, se piden más filas—, y de
          eso el `ResizeObserver` no avisa nada, porque el envoltorio mide lo mismo.
          Filtrar puede dejar afuera justo las filas del nombre más largo, y entonces
          una tabla desplegada vuelve a entrar; o al revés, «ver más filas» trae un
@@ -541,42 +541,42 @@ function interpHTML(i) {
   const fuentes = (i.fuentes || []).map(f =>
     `<a class="chip" href="#/documento/${f.documento_id}">${esc(f.archivo || f.nota || ('doc ' + f.documento_id))}</a>`).join('');
   return `<div class="interp">
-    <span class="clase">${esc(i.clase)} · ${esc(i.origen)}</span>
+    <span class="clase">${esc(i.clase)} &middot; ${esc(i.origen)}</span>
     <p class="texto">${esc(i.texto)}</p>
     <div class="fuentes">${fuentes || '<span class="chip">sin fuentes</span>'}</div>
   </div>`;
 }
 
-/* ── La navegación, en dos niveles ─────────────────────────────────────────
+/* ── La navegaci&oacute;n, en dos niveles ─────────────────────────────────────────
    Dieciséis enlaces en una barra plana: en 1024 se partía en dos renglones y en un
    teléfono en cinco, y encontrar algo era leerlos todos. Ahora hay seis secciones
    arriba y, debajo, lo que hay adentro de la que está abierta.
 
-   Dos barras y no un menú desplegable, a propósito. Un desplegable esconde: hay que
+   Dos barras y no un menú desplegable, a prop&oacute;sito. Un desplegable esconde: hay que
    saber qué hay adentro para ir a buscarlo, no anda con el dedo igual que con el
    mouse, y el que no lo encuentra concluye que el sistema no lo tiene. Acá lo de la
-   sección abierta está siempre a la vista.
+   secci&oacute;n abierta está siempre a la vista.
 
-   Las cuentas de trabajo pendiente suben a la sección: si «Revisión» esconde 88 campos
+   Las cuentas de trabajo pendiente suben a la secci&oacute;n: si «Revisi&oacute;n» esconde 88 campos
    esperando, la barra tiene que decir 88 sin que haya que entrar. */
 /* ── La barra lateral, agrupada por lo que la persona vino a hacer ─────────
    Esto era una lista de trece secciones de primer nivel ordenadas por el orden en que
    se fueron implementando. Trece entradas planas no son una jerarquía: son una lista,
-   y el orden no le decía nada a quien trabaja porque respondía a cómo se construyó el
+   y el orden no le decía nada a quien trabaja porque respondía a c&oacute;mo se construy&oacute; el
    sistema y no a lo que se viene a hacer.
 
    Peor que el largo era la mezcla. «Foliatura» y «Tablas» —que son trabajo de
-   revisión del mismo calibre que la cola— estaban enterradas dentro de «Documentos»,
+   revisi&oacute;n del mismo calibre que la cola— estaban enterradas dentro de «Documentos»,
    donde nadie las busca cuando se sienta a revisar; «Relaciones» estaba sola en primer
    nivel haciendo el mismo trabajo; «Consultas» colgaba de «Hallazgos» siendo una
    herramienta de búsqueda; y «Cargar escaneos» vivía en «Documentos» siendo
-   administración del legajo.
+   administraci&oacute;n del legajo.
 
    Ahora son cinco grupos nombrados por la pregunta que contestan. El grupo es un
-   rótulo, no un destino: no se navega a un grupo. El razonamiento completo, y por qué
-   cada cosa se movió a donde se movió, está en docs/NAVEGACION_RONDA_FINAL.md. */
+   r&oacute;tulo, no un destino: no se navega a un grupo. El razonamiento completo, y por qué
+   cada cosa se movi&oacute; a donde se movi&oacute;, está en docs/NAVEGACION_RONDA_FINAL.md. */
 const GRUPOS = [
-  {grupo: 'Investigación', entradas: [
+  {grupo: 'Investigaci&oacute;n', entradas: [
     {id: 'panel', rotulo: 'Resumen', hash: '#/panel'},
     {id: 'contrataciones', rotulo: 'Contrataciones', hash: '#/contrataciones', tambien: ['#/contratacion']},
     {id: 'precios', rotulo: 'Ítems y precios', hash: '#/precios', tambien: ['#/renglon']},
@@ -587,18 +587,18 @@ const GRUPOS = [
     // «Hallazgos» queda con una sola cosa adentro: los hallazgos revisables. Los
     // cruces pasan a «Comparaciones», que es lo que son: análisis transversales que
     // PRODUCEN hallazgos, no hallazgos ellos mismos. Tenerlos adentro hacía que el
-    // contador de la sección mezclara «esto hay que mirarlo» con «esta herramienta
+    // contador de la secci&oacute;n mezclara «esto hay que mirarlo» con «esta herramienta
     // existe».
     {id: 'hallazgos', rotulo: 'Hallazgos', hash: '#/hallazgos'},
     {id: 'comparaciones', rotulo: 'Comparaciones', items: [
       {hash: '#/cruce',           rotulo: 'Facturado contra contratado'},
       {hash: '#/superposiciones', rotulo: 'Superposiciones'},
       {hash: '#/numeros',         rotulo: 'Números escritos dos veces'},
-      {hash: '#/interpretacion',  rotulo: 'Interpretación'},
+      {hash: '#/interpretacion',  rotulo: 'Interpretaci&oacute;n'},
     ]},
     {id: 'cronologia', rotulo: 'Cronología', hash: '#/cronologia'},
   ]},
-  {grupo: 'Documentación', entradas: [
+  {grupo: 'Documentaci&oacute;n', entradas: [
     {id: 'documentos', rotulo: 'Documentos', items: [
       {hash: '#/contratos',    rotulo: 'Contratos'},
       {hash: '#/comprobantes', rotulo: 'Facturas y recibos'},
@@ -614,11 +614,11 @@ const GRUPOS = [
     {id: 'colecciones', rotulo: 'Colecciones', hash: '#/colecciones', tambien: ['#/coleccion']},
   ]},
   /* El cambio de fondo de esta ronda. Todo lo que le pide una DECISIÓN a una persona
-     vive en un solo lugar, y el grupo lleva la suma de lo que quedó pendiente. Antes
+     vive en un solo lugar, y el grupo lleva la suma de lo que qued&oacute; pendiente. Antes
      había que saber que la foliatura se corrige desde «Documentos» y las identidades
-     desde «Revisión», que son la misma tarea con dos domicilios. */
-  {grupo: 'Revisión', entradas: [
-    {id: 'revision', rotulo: 'Cola de revisión', hash: '#/cola', cuenta: 'a_revisar'},
+     desde «Revisi&oacute;n», que son la misma tarea con dos domicilios. */
+  {grupo: 'Revisi&oacute;n', entradas: [
+    {id: 'revision', rotulo: 'Cola de revisi&oacute;n', hash: '#/cola', cuenta: 'a_revisar'},
     {id: 'identidad', rotulo: 'Identidades', hash: '#/identidad', cuenta: 'fusiones'},
     {id: 'relaciones', rotulo: 'Relaciones', hash: '#/relaciones'},
     {id: 'foliatura', rotulo: 'Foliatura del papel', hash: '#/foliatura'},
@@ -636,14 +636,14 @@ const GRUPOS = [
   {grupo: 'Salida', entradas: [
     {id: 'informes', rotulo: 'Informes', hash: '#/informes'},
   ]},
-  {grupo: 'Administración', entradas: [
+  {grupo: 'Administraci&oacute;n', entradas: [
     {id: 'ingesta', rotulo: 'Cargar escaneos', hash: '#/ingesta'},
     {id: 'legajos', rotulo: 'Legajos', hash: '#/legajos'},
     {id: 'actualizacion', rotulo: 'Actualizar análisis', hash: '#/actualizacion'},
     {id: 'papelera', rotulo: 'Papelera de archivos', hash: '#/papelera'},
     {id: 'sistema', rotulo: 'Estado del sistema', items: [
       {hash: '#/salud',         rotulo: 'Estado del sistema'},
-      {hash: '#/como-funciona', rotulo: 'Cómo funciona'},
+      {hash: '#/como-funciona', rotulo: 'C&oacute;mo funciona'},
     ]},
   ]},
 ];
@@ -653,19 +653,19 @@ const GRUPOS = [
    enterarse de que ahora hay grupos. */
 const SECCIONES = GRUPOS.flatMap(g => g.entradas);
 
-/* Las últimas cuentas que devolvió el panel, para pintar los números de la barra. */
+/* Las últimas cuentas que devolvi&oacute; el panel, para pintar los números de la barra. */
 let cuentas = {};
 
 const seccionDe = hash => {
   // Sin la query: `#/papelera?desde=100` es la papelera, página 2, y tiene que
-  // marcar su sección igual que la página 1.
+  // marcar su secci&oacute;n igual que la página 1.
   const base = '#/' + String(hash || '').split('?')[0].split('/')[1];
   return SECCIONES.find(s => s.hash === base
       || (s.items || []).some(i => i.hash === base)
       || (s.tambien || []).includes(base));
 };
 
-/* Un ícono por sección. Trazo simple, sin relleno: al lado de una tipografía nítida,
+/* Un ícono por secci&oacute;n. Trazo simple, sin relleno: al lado de una tipografía nítida,
    un ícono relleno pesa más que la palabra y se lleva la lectura. */
 const ICONO_SECCION = {
   panel:      '<path d="M2.5 9.5 10 3l7.5 6.5M4.5 8.6V17h11V8.6" fill="none"/>',
@@ -676,7 +676,7 @@ const ICONO_SECCION = {
   sistema:    '<circle cx="10" cy="10" r="2.6" fill="none"/><path d="M10 2.6v2.2M10 15.2v2.2M2.6 10h2.2M15.2 10h2.2M4.8 4.8l1.6 1.6M13.6 13.6l1.6 1.6M15.2 4.8l-1.6 1.6M6.4 13.6l-1.6 1.6" fill="none"/>',
   /* El resto del juego. Faltaban y todas esas entradas caían en el engranaje de
      «Sistema», que no es neutro: dibuja una tuerca al lado de «Relaciones» y de
-     «Proveedores» y las hace parecer configuración. Con veintidós entradas, dieciséis
+     «Proveedores» y las hace parecer configuraci&oacute;n. Con veintid&oacute;s entradas, dieciséis
      tuercas iguales no distinguen nada y encima mienten. Mismo trazo simple y sin
      relleno que las que ya estaban. */
   contrataciones: '<path d="M4.5 3.5h11v13h-11zM7 7h6M7 10h6M7 13h3.5" fill="none"/>',
@@ -702,7 +702,7 @@ const iconoSeccion = id =>
         stroke-linejoin="round">${ICONO_SECCION[id] || ICONO_SECCION.sistema}</svg>`;
 
 function pintarNav(hash) {
-  // Sin `|| SECCIONES[0]`: una pantalla que no está en ninguna sección —«Acerca del
+  // Sin `|| SECCIONES[0]`: una pantalla que no está en ninguna secci&oacute;n —«Acerca del
   // sistema»— no puede dejar «Panel» marcado como si estuvieras ahí. Estar en un
   // lugar y que la barra diga otro es peor que no marcar nada.
   const activa = seccionDe(hash);
@@ -712,7 +712,7 @@ function pintarNav(hash) {
         >${fmtNum.format(n)}</span>` : '';
 
   // Lo del pie también se marca: es a donde va a parar quien no está en ninguna
-  // sección, y sin marca esa pantalla no aparece en ningún lado de la barra.
+  // secci&oacute;n, y sin marca esa pantalla no aparece en ningún lado de la barra.
   document.querySelectorAll('.lateral-pie a').forEach(a => {
     const acá = hash.startsWith(a.getAttribute('href'));
     a.classList.toggle('activo', acá);
@@ -729,8 +729,8 @@ function pintarNav(hash) {
     const abierta = s === activa;
     const gris = apagada(s) ? ' apagado' : '';
     const porque = apagada(s) ? ' title="Necesita un legajo abierto"' : '';
-    // La sección lleva la suma de lo que hay pendiente adentro. Cerrada, es la única
-    // manera de enterarse de que adentro quedó trabajo sin hacer.
+    // La secci&oacute;n lleva la suma de lo que hay pendiente adentro. Cerrada, es la única
+    // manera de enterarse de que adentro qued&oacute; trabajo sin hacer.
     const n = (s.items || []).reduce((t, i) => t + (i.cuenta ? num(i.cuenta) : 0), 0);
     const destino = s.hash || s.items[0].hash;
     const cabeza = `<a href="${destino}" class="cabeza ${abierta ? 'activo' : ''}${gris}"
@@ -745,19 +745,19 @@ function pintarNav(hash) {
     return `<div class="grupo">${cabeza}<div class="items">${items}</div></div>`;
   };
 
-  /* El rótulo del grupo es un encabezado, no un enlace: nombra a qué vino la persona
+  /* El r&oacute;tulo del grupo es un encabezado, no un enlace: nombra a qué vino la persona
      y no lleva a ningún lado. Va como `<h2>` para que un lector de pantalla pueda
-     saltar de grupo en grupo, que es justo la navegación que el agrupamiento promete. */
+     saltar de grupo en grupo, que es justo la navegaci&oacute;n que el agrupamiento promete. */
   $('#nav-secciones').innerHTML = GRUPOS.map(g =>
     `<div class="nav-grupo">
        <h2 class="nav-grupo-rotulo">${esc(g.grupo)}</h2>
        ${g.entradas.map(pintarSeccion).join('')}
      </div>`).join('');
 
-  /* Con veintidós entradas y cinco grupos, en una pantalla de 768 px de alto la mitad
+  /* Con veintid&oacute;s entradas y cinco grupos, en una pantalla de 768 px de alto la mitad
      de la barra queda abajo del pliegue. Que se desplace está bien; lo que no está
      bien es entrar a una pantalla del final de la lista y no ver marcada ninguna,
-     porque la marca quedó fuera de cuadro. Al pintar, la activa se trae a la vista.
+     porque la marca qued&oacute; fuera de cuadro. Al pintar, la activa se trae a la vista.
 
      `block:'nearest'` y no `'center'`: si ya se ve, no se mueve nada. Centrar una
      entrada que estaba perfectamente visible hace saltar la barra en cada clic, y eso
@@ -774,13 +774,13 @@ function pintarNav(hash) {
    106.400 px de alto — cien metros de página.
 
    Tres cosas, y ninguna esconde nada:
-     · un campo que filtra sobre TODAS las filas, no sobre las pintadas;
-     · orden por columna, haciendo clic en el encabezado;
-     · se pintan de a 150 y el resto se trae con un botón que dice cuántas faltan.
+     &middot; un campo que filtra sobre TODAS las filas, no sobre las pintadas;
+     &middot; orden por columna, haciendo clic en el encabezado;
+     &middot; se pintan de a 150 y el resto se trae con un bot&oacute;n que dice cuántas faltan.
 
    El filtro busca sobre el texto de la fila sin tildes ni mayúsculas: quien busca
    «peres» tiene que encontrar a Pérez, porque el nombre puede venir de un OCR y no se
-   sabe cómo quedó escrito. */
+   sabe c&oacute;mo qued&oacute; escrito. */
 const POR_TANDA = 150;
 
 const sinTildes = s => String(s ?? '')
@@ -827,7 +827,7 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
     const idxFoco = foco ? foco.dataset.i : null;
     const v = visibles();
     const tanda = v.slice(0, estado.mostradas);
-    /* El encabezado de una tabla grande no es un rótulo: es el control con el que se
+    /* El encabezado de una tabla grande no es un r&oacute;tulo: es el control con el que se
        ordena. `aria-sort` es lo que se lo dice a un lector de pantalla —la flechita
        dibujada no la lee nadie— y es lo único que ahí distingue la columna que manda
        el orden de las otras siete. */
@@ -907,14 +907,14 @@ function tablaBuscable(destino, cols, filas, opts = {}) {
 
 /* ── Una tabla cuyas filas vienen del servidor, de a una página ────────────
    `tablaBuscable` filtra y ordena en el navegador sobre todo lo que le pasaron. Con
-   las listas paginadas del servidor eso ya no sirve: la respuesta trae sólo la
+   las listas paginadas del servidor eso ya no sirve: la respuesta trae s&oacute;lo la
    primera página, y una tabla que pagina en el cliente sobre esa página muestra
    cincuenta filas creyendo que son todas. Ésta pide al servidor cada página, cada
    búsqueda y cada orden, y dice siempre cuántas hay en total.
 
    Mismo marcado y mismas clases que `tablaBuscable`, para que se vean iguales.
      ruta     la lista, con sus filtros fijos ya puestos (`/api/entidades?clase=x`)
-     clave    dónde vienen las filas en la respuesta (`entidades`)
+     clave    d&oacute;nde vienen las filas en la respuesta (`entidades`)
      cols     como en `tabla`; `o` es el campo por el que el servidor ordena esa
               columna (sin `o`, la columna no se ordena)
      opts     limite, placeholder, alClic(fila), lista, vacio (texto sin filas),
@@ -945,7 +945,7 @@ function tablaServidor(destino, ruta, clave, cols, opts = {}) {
         ${esc(e.message || String(e))}</span></div>`;
       return;
     }
-    if (este !== pedido) return;          // llegó tarde: ya se pidió otra cosa
+    if (este !== pedido) return;          // lleg&oacute; tarde: ya se pidi&oacute; otra cosa
     filas = (r && r[clave]) || [];
     total = r && r.total != null ? r.total : filas.length;
     if (opts.alCargar) opts.alCargar(r);
@@ -1022,7 +1022,7 @@ function tablaServidor(destino, ruta, clave, cols, opts = {}) {
 
    Cada legajo es una base separada: mientras uno está abierto, el sistema no tiene
    forma de ver los otros. Por eso esta pantalla no es un filtro ni un selector
-   decorativo — es el único lugar donde los legajos conviven, y es a propósito. */
+   decorativo — es el único lugar donde los legajos conviven, y es a prop&oacute;sito. */
 async function vLegajos() {
   const r = await api('/api/legajos');
   const activos = r.legajos.filter(l => l.estado === 'activo');
@@ -1035,25 +1035,25 @@ async function vLegajos() {
     {t:'Carátula', r:f => esc(f.caratula) + (f.demostracion
         ? ' ' + sello('alerta', 'datos de prueba') : '')},
     // Vacío de verdad cuando no hay fiscal cargado: en la tabla de escritorio el CSS
-    // le pone la raya, y en el teléfono —donde cada renglón cuesta— no aparece nada.
+    // le pone la raya, y en el teléfono —donde cada rengl&oacute;n cuesta— no aparece nada.
     {t:'Fiscal responsable', r:f => esc(f.fiscal || '')},
     {t:'Documentos', c:'num', r:f => f.documentos
         ? fmtNum.format(f.documentos) : '<span class="apagado">sin material</span>'},
     // Un legajo vacío no está «al día»: no hay nada revisado porque no hay nada cargado.
-    // Poner el sello verde ahí sería decir que está terminado un trabajo que no empezó.
+    // Poner el sello verde ahí sería decir que está terminado un trabajo que no empez&oacute;.
     {t:'Revisiones pendientes', c:'num', r:f => !f.documentos ? '—' : (f.pendientes
         ? sello('atencion', plural(f.pendientes, 'campo', 'campos'))
         : sello('ok', 'al día'))},
     {t:'Última actividad', c:'mono', r:filaFecha},
-    // La eliminación vive en su propia columna y no en el renglón que se toca para
-    // abrir. Un botón de borrar adentro de una fila entera clicable es un accidente
+    // La eliminaci&oacute;n vive en su propia columna y no en el rengl&oacute;n que se toca para
+    // abrir. Un bot&oacute;n de borrar adentro de una fila entera clicable es un accidente
     // esperando la mano apurada de un martes.
     {t:'', c:'acciones', r:f =>
       `<button class="mini peligro" data-borrar="${esc(f.slug)}"
                title="Eliminar el legajo ${esc(f.numero)}">Eliminar</button>`},
   ];
 
-  // Una instalación recién puesta no tiene nada, y eso NO es un estado vacío que haya
+  // Una instalaci&oacute;n recién puesta no tiene nada, y eso NO es un estado vacío que haya
   // que explicar con un cartel: es el principio normal del trabajo. Sin legajos, la
   // pantalla directamente es el alta —el formulario primero, sin tabla vacía delante—.
   const primeraVez = !activos.length && !archivados.length;
@@ -1063,11 +1063,11 @@ async function vLegajos() {
   /* El estado de permanencia de los datos NO se muestra acá.
 
      Estuvo un rato: un cartel arriba de esta pantalla avisando que todavía no se podía
-     confirmar que lo guardado sobreviviera a un reinicio. Es información importante y
+     confirmar que lo guardado sobreviviera a un reinicio. Es informaci&oacute;n importante y
      está mal puesta ahí. Esta es la pantalla por la que se pasa todos los días para
      empezar a trabajar, y un cartel de alarma en el camino de todos los días deja de
      leerse a la semana. Vive en Sistema → Estado del sistema, que es donde se va a
-     buscar cómo está la instalación. */
+     buscar c&oacute;mo está la instalaci&oacute;n. */
   vista.innerHTML =
     bloque('f. 0000', 'Índice de legajos', `
       <h2>${primeraVez ? 'Empezá abriendo un legajo'
@@ -1144,7 +1144,7 @@ async function vLegajos() {
 /* ── Eliminar un legajo ─────────────────────────────────────────────────────
    Lo que se elimina no se borra: la carpeta entera —base, imágenes de página y los
    PDF que se subieron— se mueve a la papelera y se puede traer de vuelta completa.
-   Eso hay que DECIRLO en el cartel, porque de un botón rojo que dice «Eliminar»
+   Eso hay que DECIRLO en el cartel, porque de un bot&oacute;n rojo que dice «Eliminar»
    cualquiera supone lo peor y no lo toca ni cuando corresponde.
 
    Y para confirmar hay que escribir el número del legajo. No es una molestia
@@ -1194,8 +1194,8 @@ function pedirEliminar(l) {
     </form>`);
 
   const campo = $('#conf-borrar', d), ok = $('#b-confirmar', d);
-  // El botón se prende sólo cuando lo escrito coincide. Un botón prendido que después
-  // rechaza es un botón que enseña a apretar sin leer.
+  // El bot&oacute;n se prende s&oacute;lo cuando lo escrito coincide. Un bot&oacute;n prendido que después
+  // rechaza es un bot&oacute;n que enseña a apretar sin leer.
   campo.oninput = () => { ok.disabled = campo.value.trim() !== l.numero.trim(); };
   campo.focus();
   ok.onclick = async () => {
@@ -1267,7 +1267,7 @@ function pedirRestaurar(activos) {
 
   // El número que hay que escribir es el del legajo ELEGIDO, así que cambiar de legajo
   // invalida lo escrito: si no, se lee un cartel, se escribe un número, se cambia el
-  // destino de la lista y se termina pisando otra base con la confirmación de la
+  // destino de la lista y se termina pisando otra base con la confirmaci&oacute;n de la
   // anterior todavía puesta.
   const numeroElegido = () => sel.selectedOptions[0].dataset.numero.trim();
   const revisar = () => {
@@ -1297,10 +1297,10 @@ function pedirRestaurar(activos) {
         body: buf});
       // Lo que hay que ver ANTES de pisar nada: cuánto trabajo de personas trae.
       donde.innerHTML = `<div class="aviso bien">${sello('ok', 'La copia se puede leer')}
-        <span><strong>${plural(r.documentos, 'documento', 'documentos')}</strong> ·
+        <span><strong>${plural(r.documentos, 'documento', 'documentos')}</strong> &middot;
           <strong>${plural(r.revisiones, 'campo revisado a mano',
                            'campos revisados a mano')}</strong>${r.ultima_revision
-            ? ` · la última, del ${esc(fmtFecha(r.ultima_revision))}` : ''}.</span></div>`;
+            ? ` &middot; la última, del ${esc(fmtFecha(r.ultima_revision))}` : ''}.</span></div>`;
       crudo = buf;
       $('#r-numero', d).textContent = numeroElegido();
       caja.hidden = false;
@@ -1318,12 +1318,12 @@ function pedirRestaurar(activos) {
         method: 'POST', headers: {'Content-Type': 'application/octet-stream'},
         body: crudo});
       d.close();
-      // Decir dónde quedó lo que se apartó: si la copia no era la que la persona
+      // Decir d&oacute;nde qued&oacute; lo que se apart&oacute;: si la copia no era la que la persona
       // pensaba, este nombre es el camino de vuelta, y no está en ninguna otra parte.
-      toast(`Listo. El legajo ${numero} quedó con ${plural(r.documentos, 'documento',
+      toast(`Listo. El legajo ${numero} qued&oacute; con ${plural(r.documentos, 'documento',
         'documentos')} y ${plural(r.revisiones, 'campo revisado a mano',
         'campos revisados a mano')}.`
-        + (r.apartada ? `\n\nLa base que estaba quedó guardada como:\n`
+        + (r.apartada ? `\n\nLa base que estaba qued&oacute; guardada como:\n`
                         + r.apartada.split('/').pop() : ''));
       abrirLegajo(sel.value);
     } catch (e) {
@@ -1421,11 +1421,11 @@ async function abrirLegajo(slug) {
 }
 
 /* ── Preguntar quién está trabajando, una vez ──────────────────────────────
-   El botón de la barra está bien puesto y es lo correcto que esté siempre a la vista,
+   El bot&oacute;n de la barra está bien puesto y es lo correcto que esté siempre a la vista,
    pero mientras nadie lo toque TODO lo que se revise queda sin firma, y eso no se
-   arregla después: la decisión ya quedó anotada sin autor.
+   arregla después: la decisi&oacute;n ya qued&oacute; anotada sin autor.
 
-   Se pregunta una sola vez por sesión, al abrir un legajo, y con la lista de quienes
+   Se pregunta una sola vez por sesi&oacute;n, al abrir un legajo, y con la lista de quienes
    ya revisaron algo en esta base para no obligar a nadie a escribirse de nuevo. Se
    puede saltear —el sistema tiene que dejar trabajar— pero se pregunta. */
 async function preguntarQuienUnaVez(p) {
@@ -1443,17 +1443,17 @@ async function vPanel() {
   if (!p.documentos) {
     vista.innerHTML = bloque('f. 0001', 'Inicio', `
       <h1>Todavía no hay nada cargado</h1>
-      <p class="prosa">AppUFIL lee la documentación de una contratación —pliegos, ofertas,
-        órdenes de compra, facturas, remitos, pagos—, reconstruye el procedimiento, compara
+      <p class="prosa">AppUFIL lee la documentaci&oacute;n de una contrataci&oacute;n —pliegos, ofertas,
+        &oacute;rdenes de compra, facturas, remitos, pagos—, reconstruye el procedimiento, compara
         los precios y marca las diferencias con la foja de donde sale cada dato.
-        <strong>No modifica los originales y funciona sin conexión.</strong></p>
+        <strong>No modifica los originales y funciona sin conexi&oacute;n.</strong></p>
       ${vacio('Empezá cargando los escaneos del legajo',
         'Arrastrá los PDF a la pantalla de carga. El sistema lee, reconoce los documentos ' +
         'y arma las contrataciones solo; lo que no puede leer con seguridad lo deja marcado ' +
         'para que lo revise una persona.',
         {href:'#/ingesta', texto:'Cargar escaneos'})}
       <p class="prosa nota sep-corta">
-        ¿Primera vez? <a href="#/como-funciona">Cómo funciona</a> lo explica en una pantalla.</p>`);
+        ¿Primera vez? <a href="#/como-funciona">C&oacute;mo funciona</a> lo explica en una pantalla.</p>`);
     return;
   }
 
@@ -1481,9 +1481,9 @@ async function vPanel() {
   const sinReconocer = res && res.incompleto ? res.incompleto.piezas_sin_reconocer : null;
 
   /* ── Qué hacer ahora ──────────────────────────────────────────────────────
-     Quien entra a las nueve de la mañana necesita saber, en un renglón por cosa, si
-     hay trabajo suyo esperando y dónde. Una lista corta, en el orden en que conviene
-     hacerla, y sólo con lo que tiene algo: un «0 identidades por confirmar» es ruido. */
+     Quien entra a las nueve de la mañana necesita saber, en un rengl&oacute;n por cosa, si
+     hay trabajo suyo esperando y d&oacute;nde. Una lista corta, en el orden en que conviene
+     hacerla, y s&oacute;lo con lo que tiene algo: un «0 identidades por confirmar» es ruido. */
   const tareas = [
     nHzPend && {n: nHzPend, que: nHzPend === 1 ? 'hallazgo sin revisar' : 'hallazgos sin revisar',
       por: 'Diferencias de precio, facturas que no coinciden, documentos que faltan. Cada uno con su cuenta y su foja.',
@@ -1496,7 +1496,7 @@ async function vPanel() {
       por: 'Nombres escritos de maneras distintas que podrían ser la misma persona o empresa.',
       href: '#/identidad', accion: 'Confirmar'},
     sinReconocer && {n: sinReconocer, que: sinReconocer === 1 ? 'documento sin reconocer' : 'documentos sin reconocer',
-      por: 'El sistema no supo qué tipo de documento es: hasta que se diga, no entra en ninguna contratación.',
+      por: 'El sistema no supo qué tipo de documento es: hasta que se diga, no entra en ninguna contrataci&oacute;n.',
       href: '#/sin-reconocer', accion: 'Clasificar'},
     p.afuera && {n: p.afuera, que: p.afuera === 1 ? 'archivo no produjo documentos' : 'archivos no produjeron documentos',
       por: 'No entran en ninguno de estos números.', href: '#/afuera', accion: 'Ver por qué'},
@@ -1511,8 +1511,8 @@ async function vPanel() {
       </li>`).join('')}
     </ol>` : `
     <div class="siguiente-paso">
-      <div><b>No queda nada esperando revisión</b>
-        <span>Todo lo que el sistema no pudo sostener solo ya lo miró una persona.</span></div>
+      <div><b>No queda nada esperando revisi&oacute;n</b>
+        <span>Todo lo que el sistema no pudo sostener solo ya lo mir&oacute; una persona.</span></div>
     </div>`;
 
   const cifra = (rotulo, valor, nota, href) => `
@@ -1525,14 +1525,14 @@ async function vPanel() {
 
   /* ── Contrataciones para empezar ─────────────────────────────────────────
      Las que más material tienen: las que tienen hallazgos primero, y entre ellas
-     las que más. Es por dónde se empieza a leer un legajo de cien contrataciones. */
+     las que más. Es por d&oacute;nde se empieza a leer un legajo de cien contrataciones. */
   const etapasDe = c => c.etapas && !Array.isArray(c.etapas)
     ? Object.values(c.etapas).filter(Boolean).length : 0;
   const primeras = [...contrataciones]
     .sort((a, b) => (b.hallazgos || 0) - (a.hallazgos || 0) || etapasDe(b) - etapasDe(a))
     .slice(0, 6);
   const contratacionesHTML = primeras.length ? tabla([
-    {t: 'Contratación', c: 'crece', r: c => `<a href="#/contratacion?id=${c.id}">${esc(c.nombre)}</a>
+    {t: 'Contrataci&oacute;n', c: 'crece', r: c => `<a href="#/contratacion?id=${c.id}">${esc(c.nombre)}</a>
         ${c.objeto ? `<span class="item-normalizado">${esc(c.objeto)}</span>` : ''}`},
     {t: 'Expediente', c: 'fol', r: c => c.expediente ? esc(c.expediente) : ausente('no_consta')},
     {t: 'Hallazgos', c: 'num', r: c => c.hallazgos
@@ -1542,7 +1542,7 @@ async function vPanel() {
   /* ── Hallazgos para mirar primero ────────────────────────────────────────
      Los que tienen una cuenta detrás van antes que los que dicen que algo falta, y
      éstos antes que los renglones ilegibles, que son muchos y dicen más del OCR que de
-     la contratación. Si todos son del mismo tipo, se dice cuántos y se lleva a la lista. */
+     la contrataci&oacute;n. Si todos son del mismo tipo, se dice cuántos y se lleva a la lista. */
   const PESO = {diferencia_precio: 0, facturado_vs_adjudicado: 1, facturado_vs_entregado: 2,
     subtotal_incorrecto: 3, total_inconsistente: 4, ofertas_identicas: 5, duplicado_potencial: 6,
     variacion_compras: 7, secuencia_temporal: 8, oferente_unico: 9, documento_faltante: 10,
@@ -1568,13 +1568,13 @@ async function vPanel() {
               p.paginas_leidas < p.paginas ? `${n(p.paginas - p.paginas_leidas)} sin leer todavía` : 'todas',
               p.paginas_leidas < p.paginas ? '#/actualizacion' : '')}
       ${cifra('Verificados a mano', n(p.verificados),
-              (p.quienes || []).length ? `por ${esc(p.quienes.join(', '))}` : 'nadie revisó todavía')}
+              (p.quienes || []).length ? `por ${esc(p.quienes.join(', '))}` : 'nadie revis&oacute; todavía')}
       ${cifra('Personas y empresas', n(p.personas), 'identificadas por CUIT o documento', '#/entidades')}
     </div>
     ${p.paginas_enderezadas ? `<p class="nota-seccion sep-corta">${p.paginas_enderezadas === 1
-      ? 'Una foja llegó girada' : n(p.paginas_enderezadas) + ' fojas llegaron giradas'} en el
-      escaneo; se enderezó la copia de trabajo para poder leerla.</p>` : ''}
-    <p class="nota-seccion">El detalle del procesamiento —lecturas, versiones, diagnóstico— está en
+      ? 'Una foja lleg&oacute; girada' : n(p.paginas_enderezadas) + ' fojas llegaron giradas'} en el
+      escaneo; se enderez&oacute; la copia de trabajo para poder leerla.</p>` : ''}
+    <p class="nota-seccion">El detalle del procesamiento —lecturas, versiones, diagn&oacute;stico— está en
       <a href="#/salud">Estado del sistema</a>.</p>`;
 
   vista.innerHTML =
@@ -1598,9 +1598,9 @@ async function vPanel() {
       <h2>Qué hacer ahora</h2>
       ${tareasHTML}`) +
 
-    (contratacionesHTML || hallazgosHTML ? bloque('f. 0002', 'Investigación', `
+    (contratacionesHTML || hallazgosHTML ? bloque('f. 0002', 'Investigaci&oacute;n', `
       ${hallazgosHTML ? `<h2>Hallazgos sin revisar, por tipo</h2>
-        <p class="nota-seccion">Ninguno es una conclusión: cada uno dice qué se detectó y de
+        <p class="nota-seccion">Ninguno es una conclusi&oacute;n: cada uno dice qué se detect&oacute; y de
           qué foja sale, para que una persona lo verifique.</p>
         ${hallazgosHTML}` : ''}
       ${contratacionesHTML ? `<h2>Contrataciones para empezar</h2>
@@ -1614,8 +1614,8 @@ async function vPanel() {
 
     bloque('f. 0004', 'Salida', `
       <h2>Llevárselo</h2>
-      <p class="prosa">Cada afirmación del informe cita el archivo y la foja de donde salió
-        el dato, para poder verificarla contra el original. Los informes por contratación,
+      <p class="prosa">Cada afirmaci&oacute;n del informe cita el archivo y la foja de donde sali&oacute;
+        el dato, para poder verificarla contra el original. Los informes por contrataci&oacute;n,
         proveedor o hallazgo están en <a href="#/informes">Informes</a>.</p>
       <div class="fila-suelta">
         <a class="boton" data-descarga="xlsx" href="/descargar?que=xlsx">Descargar la planilla (.xlsx)</a>
@@ -1640,7 +1640,7 @@ async function vPanel() {
   }
 
   // Al final y no al principio: primero se pinta la pantalla y después se pregunta.
-  // Al revés, quien entra ve un diálogo sobre un fondo vacío y no sabe ni dónde está.
+  // Al revés, quien entra ve un diálogo sobre un fondo vacío y no sabe ni d&oacute;nde está.
   preguntarQuienUnaVez(p);
 }
 
@@ -1651,7 +1651,7 @@ async function vContratos() {
     'Cargá un lote de escaneos y procesalo. Los contratos aparecen acá apenas termina.');
   vista.innerHTML = bloque('f. 0004', 'Datos', `
     <h2>Contratos</h2>
-    <p class="prosa">La tabla consolidada. Un campo entra sólo si tiene valor y no tiene
+    <p class="prosa">La tabla consolidada. Un campo entra s&oacute;lo si tiene valor y no tiene
       conflicto abierto: lo que no se pudo leer aparece vacío, nunca completado.</p>
     <div id="tabla-contratos"></div>`);
   tablaBuscable($('#tabla-contratos'), [
@@ -1675,18 +1675,18 @@ async function vContratos() {
 
 /* ── Comprobantes ──────────────────────────────────────────────────────────
    El otro carril. Separado de los contratos porque dice otra cosa: el contrato es lo
-   que se pactó pagar, el comprobante es lo que se cobró. */
+   que se pact&oacute; pagar, el comprobante es lo que se cobr&oacute;. */
 async function vComprobantes() {
   const filas = await api('/api/comprobantes');
   if (!filas.length) return vistaVacia('f. 0004', 'Datos', 'Facturas y recibos',
     'Todavía no hay comprobantes leídos',
     'Acá van las facturas, recibos y remitos que vengan en los escaneos. Se separan de ' +
-    'los contratos porque dicen otra cosa: lo que se cobró, no lo que se pactó.');
+    'los contratos porque dicen otra cosa: lo que se cobr&oacute;, no lo que se pact&oacute;.');
 
   const aMano = filas.filter(f => f.monto_centavos == null).length;
   vista.innerHTML = bloque('f. 0004', 'Datos', `
     <h2>Facturas y recibos</h2>
-    <p class="prosa">Lo que se cobró. <strong>No se suma con los contratos</strong>: son
+    <p class="prosa">Lo que se cobr&oacute;. <strong>No se suma con los contratos</strong>: son
       la misma plata vista de los dos lados, y cuando la factura es el cobro de ese
       contrato, sumarlas la cuenta dos veces. El cruce está en
       <a href="#/cruce">Lo facturado contra lo contratado</a>.</p>
@@ -1695,7 +1695,7 @@ async function vComprobantes() {
       <span>${plural(aMano, 'comprobante tiene', 'comprobantes tienen')} el importe
         escrito a mano. <strong>No se lee con OCR</strong> —leerlo mal y no saberlo es
         peor que no leerlo— así que aparece vacío y espera que una persona lo cargue
-        mirando la foja. Están en <a href="#/cola">la cola de revisión</a>.</span>
+        mirando la foja. Están en <a href="#/cola">la cola de revisi&oacute;n</a>.</span>
     </div>` : ''}
     <div id="tabla-comprobantes"></div>`);
   tablaBuscable($('#tabla-comprobantes'), [
@@ -1718,13 +1718,13 @@ async function vComprobantes() {
 }
 
 /* ── Lo facturado contra lo contratado ─────────────────────────────────────
-   El cruce que el caso necesita: cuánto se comprometió a pagar y cuánto se facturó
+   El cruce que el caso necesita: cuánto se comprometi&oacute; a pagar y cuánto se factur&oacute;
    contra eso. Une por CUIT ↔ DNI, no por nombre, que se escribe de mil maneras. */
 async function vCruce() {
   const r = await api('/api/cruce');
   if (location.hash.split('?')[0] !== '#/cruce') return;
   /* El contrato viejo era de contratos de personal —una fila por persona, CUIL contra
-     DNI—; el nuevo es de contrataciones: renglón facturado contra el precio contratado
+     DNI—; el nuevo es de contrataciones: rengl&oacute;n facturado contra el precio contratado
      u ordenado del mismo ítem. Mientras el servidor sea el viejo, se muestra el viejo. */
   if (!r || !('faltantes' in r)) return vCrucePersonas(r);
 
@@ -1734,9 +1734,9 @@ async function vCruce() {
   if (!filas.length && !faltantes.length) {
     return vistaVacia('f. 0006', 'Cruce', 'Facturado contra contratado',
       'Todavía no hay facturas con renglones legibles',
-      'El cruce pone cada renglón facturado al lado del precio que se contrató u ordenó ' +
-      'para el mismo ítem, en la misma contratación. Aparece cuando hay facturas y ' +
-      'órdenes de compra o adjudicaciones con planillas que el sistema pudo leer.');
+      'El cruce pone cada rengl&oacute;n facturado al lado del precio que se contrat&oacute; u orden&oacute; ' +
+      'para el mismo ítem, en la misma contrataci&oacute;n. Aparece cuando hay facturas y ' +
+      '&oacute;rdenes de compra o adjudicaciones con planillas que el sistema pudo leer.');
   }
 
   const fuente = (f, texto) => f
@@ -1767,7 +1767,7 @@ async function vCruce() {
       esc(fmtNum.format(Math.abs(Number(x.diferencia_porcentual))))} %</span>` : ''}`;
   const contratacion = x => x.contratacion_id
     ? `<a class="celda-corta" href="#/contratacion?id=${x.contratacion_id}">${esc(
-        x.contratacion_nombre || 'Contratación ' + x.contratacion_id)}</a>` : ausente('no_consta');
+        x.contratacion_nombre || 'Contrataci&oacute;n ' + x.contratacion_id)}</a>` : ausente('no_consta');
   const proveedor = x => x.proveedor
     ? esc(x.proveedor.nombre || x.proveedor.cuit || '') : ausente('no_consta');
 
@@ -1779,10 +1779,10 @@ async function vCruce() {
 
   vista.innerHTML = bloque('f. 0006', 'Cruce', `
     <h1>Facturado contra contratado</h1>
-    <p class="prosa">Cada renglón facturado al lado del precio que se contrató u ordenó
-      para el mismo ítem, en la misma contratación. Arriba las diferencias, de mayor a
+    <p class="prosa">Cada rengl&oacute;n facturado al lado del precio que se contrat&oacute; u orden&oacute;
+      para el mismo ítem, en la misma contrataci&oacute;n. Arriba las diferencias, de mayor a
       menor; abajo, lo facturado que todavía no tiene con qué compararse. Los precios son
-      nominales, cada uno con su fecha: no se ajustan por inflación.</p>
+      nominales, cada uno con su fecha: no se ajustan por inflaci&oacute;n.</p>
     <div class="cifras cifras-4">
       ${cifra('Renglones comparados', fmtNum.format(r.total ?? filas.length), 'facturado con su referencia')}
       ${cifra('Con diferencia', fmtNum.format(conDif), conDif ? 'distinto de lo contratado' : '')}
@@ -1793,15 +1793,15 @@ async function vCruce() {
     ${filas.length ? `<h2>Diferencias</h2>
       ${tabla([
         {t: 'Ítem', c: 'crece', r: item},
-        {t: 'Contratación', r: contratacion},
+        {t: 'Contrataci&oacute;n', r: contratacion},
         {t: 'Proveedor', r: proveedor},
         {t: 'Contratado', c: 'num', r: x => conFecha(x.contratado, x.fecha_contratado)},
         {t: 'Facturado', c: 'num', r: x => conFecha(x.facturado, x.fecha_facturado)},
         {t: 'Diferencia', c: 'num', r: diferencia},
-        {t: 'Comparación', r: x => calidad(x.comparabilidad)},
+        {t: 'Comparaci&oacute;n', r: x => calidad(x.comparabilidad)},
         {t: 'Fuentes', r: x => (x.fuentes || []).map(f => fuente(f, esc(foja(f)))).join(' ')},
-      ], filas)}` : `<p class="nota-seccion">Ningún renglón facturado encontró todavía su
-        referencia en la misma contratación, así que no hay diferencias que calcular.</p>`}
+      ], filas)}` : `<p class="nota-seccion">Ningún rengl&oacute;n facturado encontr&oacute; todavía su
+        referencia en la misma contrataci&oacute;n, así que no hay diferencias que calcular.</p>`}
 
     ${faltantes.length ? `<h2>Facturado sin referencia</h2>
       <p class="nota-seccion">Renglones de factura que no tienen un precio contratado u
@@ -1809,7 +1809,7 @@ async function vCruce() {
         hacer, y el motivo dice por qué.</p>
       ${tabla([
         {t: 'Ítem', c: 'crece', r: item},
-        {t: 'Contratación', r: contratacion},
+        {t: 'Contrataci&oacute;n', r: contratacion},
         {t: 'Facturado', c: 'num', r: x => conFecha(x.facturado, x.fecha_facturado)},
         {t: 'Por qué no se compara', r: x => `<span class="celda-motivo">${esc(x.motivo || '')}</span>`},
         {t: 'Fuente', r: x => (x.fuentes || []).slice(0, 1).map(f => fuente(f, esc(foja(f)))).join('')},
@@ -1829,7 +1829,7 @@ async function vCrucePersonas(r) {
 
   vista.innerHTML = bloque('f. 0006', 'Cruce', `
     <h2>Lo facturado contra lo contratado</h2>
-    <p class="prosa">Qué se comprometió a pagar y qué se facturó contra eso, persona por
+    <p class="prosa">Qué se comprometi&oacute; a pagar y qué se factur&oacute; contra eso, persona por
       persona. Se unen por el documento y no por el nombre: <strong>el CUIL de la
       factura lleva adentro el DNI del contrato</strong>, así que se cruzan solos aunque
       el nombre esté escrito distinto en cada foja.</p>
@@ -1849,7 +1849,7 @@ async function vCrucePersonas(r) {
       sumar la columna daba el doble de lo facturado. El detalle contrato por contrato
       está en la ficha de cada persona.</p>
     <p class="prosa nota">
-      <strong>Facturado legible</strong> suma sólo los importes impresos que se pudieron
+      <strong>Facturado legible</strong> suma s&oacute;lo los importes impresos que se pudieron
       leer con seguridad. La columna <strong>a mano</strong> cuenta las facturas de
       talonario, donde el importe está manuscrito y el sistema no lo lee: existen y no
       se sabe por cuánto. Mientras esa columna no sea cero, el facturado está incompleto
@@ -1864,11 +1864,11 @@ async function vCrucePersonas(r) {
           ? `${esc(fmtFecha(f.contrato_desde))} → ${esc(fmtFecha(f.contrato_hasta))}`
           : '<span class="nulo" title="sin fechas">—</span>'},
       // Mensual y total son magnitudes distintas y se muestran en columnas distintas.
-      // El total es el único comparable con la facturación acumulada de al lado.
+      // El total es el único comparable con la facturaci&oacute;n acumulada de al lado.
       {t:'Mensual pactado', c:'num', b:f => f.mensual_centavos, r:f => f.mensual_centavos
           ? esc(fmtPesos(f.mensual_centavos)) : '<span class="nulo" title="sin dato">—</span>'},
       // Cuando NINGÚN contrato trae el total legible, la celda no muestra $0,00: cero
-      // se lee como «no se contrató nada» y lo que pasa es que no se pudo leer.
+      // se lee como «no se contrat&oacute; nada» y lo que pasa es que no se pudo leer.
       {t:'Total contratado', c:'num', b:f => f.contratado_centavos,
        r:f => f.contratos_sin_total_firme >= f.contratos
           ? '<span class="nulo" title="sin leer">—</span>'
@@ -1886,8 +1886,8 @@ async function vCrucePersonas(r) {
    La pantalla de superposiciones era cuatro fechas por fila más una columna con los
    días, y para ver que dos períodos se pisan había que hacer la resta en la cabeza,
    fila por fila. El sistema ya tenía las piezas —`--marca` para el contrato,
-   `--marca-solape` para lo que se pisa, y la regla escrita en §2 de que el punzó acá
-   marca ÚNICAMENTE la superposición— y no se usaban donde más falta.
+   `--marca-solape` para lo que se pisa, y la regla escrita en §2 de que el punz&oacute; acá
+   marca ÚNICAMENTE la superposici&oacute;n— y no se usaban donde más falta.
 
    El eje es de cada PAR, no del legajo entero: la fila compara dos contratos entre
    sí, y un eje global dejaría todas las barras del tamaño de una uña.
@@ -1895,7 +1895,7 @@ async function vCrucePersonas(r) {
    El gráfico no reemplaza las fechas: las anticipa. Se sigue pudiendo leer el dato
    exacto en mono al lado, que es lo que se cita en un escrito.
 
-   La geometría va en `style` porque sale del dato —es la excepción que §4 declara
+   La geometría va en `style` porque sale del dato —es la excepci&oacute;n que §4 declara
    legítima, y la única—. */
 function pistaSolape(f) {
   const dia = t => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t || '');
@@ -1939,14 +1939,14 @@ function pistaSolape(f) {
 
 async function vSuperposiciones() {
   const r = await api('/api/consulta?id=01_superposicion');
-  if (!r.filas.length) return vistaVacia('f. 0005', 'Cruce', 'Superposición temporal',
+  if (!r.filas.length) return vistaVacia('f. 0005', 'Cruce', 'Superposici&oacute;n temporal',
     'No hay superposiciones para mostrar',
-    'O no se detectó ninguna, o todavía no se procesó ningún lote. Sólo entran contratos ' +
+    'O no se detect&oacute; ninguna, o todavía no se proces&oacute; ningún lote. S&oacute;lo entran contratos ' +
     'con las dos fechas leídas con seguridad.');
   vista.innerHTML = bloque('f. 0005', 'Cruce', `
-    <h2>Superposición temporal</h2>
+    <h2>Superposici&oacute;n temporal</h2>
     <p class="prosa">Pares de contratos de una misma persona cuyos períodos se pisan.
-      Sólo entran contratos con las dos fechas firmes.</p>
+      S&oacute;lo entran contratos con las dos fechas firmes.</p>
     ${tabla([
       /* Los dos nombres, elididos por el medio con la misma pieza que la cola.
          El brief pedía sacarle el ancho a «Períodos» y mandar las cuatro fechas al
@@ -1992,19 +1992,19 @@ async function vDocumento(id) {
       }</div></dd></div>`;
     }
     const ancla = c.x0 != null
-      ? `<button class="ancla" data-campo="${c.id}">f.${c.pagina_nro} · ▣</button>` : '';
+      ? `<button class="ancla" data-campo="${c.id}">f.${c.pagina_nro} &middot; ▣</button>` : '';
     const tocado = c.estado === 'verificado' || c.estado === 'corregido';
     const marca = tocado
       ? ` <span class="sello ok mini-cuno">✓ ${
            c.estado === 'corregido' ? 'cargado a mano' : 'verificado'}</span>` +
         ` <button class="deshacer" data-campo="${c.id}"
             title="volver a lo que había leído el sistema">deshacer</button>` : '';
-    // Cada campo puede contar su historia. Va atrás de un botón y no siempre abierto:
+    // Cada campo puede contar su historia. Va atrás de un bot&oacute;n y no siempre abierto:
     // lo normal es que un campo tenga una línea, y catorce fichas desplegadas serían
     // ruido; pero cuando alguien pregunta «¿quién puso esto?», la respuesta está a un
     // clic y no depende de que nadie se acuerde.
     const historial = `<button class="historial" data-campo="${c.id}"
-        title="quién decidió esto, y cuándo">rastro</button>`;
+        title="quién decidi&oacute; esto, y cuándo">rastro</button>`;
     return `<div class="campo"><dt>${esc(rotularCampo(c.nombre, doc.familia))}</dt>
       <dd>${celdaValor(c)}${ancla}${marca}${historial}
         <div class="rastro" id="rastro-${c.id}" hidden></div></dd></div>`;
@@ -2012,7 +2012,7 @@ async function vDocumento(id) {
 
   const tiras = paginas.map(p =>
     `<button class="foja" data-nro="${p.nro}"${p.rotacion ? ' data-girada="1"' : ''}
-       title="${p.rotacion ? `esta foja llegó girada ${p.rotacion}° y se enderezó para leerla`
+       title="${p.rotacion ? `esta foja lleg&oacute; girada ${p.rotacion}° y se enderez&oacute; para leerla`
                            : `foja ${p.nro}`}">f. ${p.nro}${p.rotacion ? ' ↻' : ''}</button>`).join('');
   const enderezadas = paginas.filter(p => p.rotacion);
 
@@ -2021,14 +2021,14 @@ async function vDocumento(id) {
         ? ` <span class="rotulo">documento ${doc.orden} de ${d.hermanos.length}</span>` : ''}</h2>
     <p class="tipo-doc"><span class="sello">${esc(TIPO_DOC[doc.tipo] || doc.tipo)}</span></p>
     <p class="prosa nota">
-      ${doc.camara ? 'Cámara de ' + esc(camaraTexto(doc.camara)) + ' · ' : ''}perfil <span class="mono">${esc(doc.perfil)}</span> ·
-      lote ${esc(doc.lote || '—')} ·
+      ${doc.camara ? 'Cámara de ' + esc(camaraTexto(doc.camara)) + ' &middot; ' : ''}perfil <span class="mono">${esc(doc.perfil)}</span> &middot;
+      lote ${esc(doc.lote || '—')} &middot;
       fojas <span class="mono">${doc.pagina_desde}–${doc.pagina_hasta}</span><br>
       <span class="mono menor">huella digital ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
     ${enderezadas.length ? `<div class="aviso info"><span class="sello">Enderezado</span>
       <span>${enderezadas.length === 1 ? 'La foja' : 'Las fojas'}
-      ${enderezadas.map(p => `${p.nro} (${p.rotacion}°)`).join(', ')} llegó girada en el
-      escaneo. <strong>El original no se tocó</strong>: se giró la copia de trabajo para
+      ${enderezadas.map(p => `${p.nro} (${p.rotacion}°)`).join(', ')} lleg&oacute; girada en el
+      escaneo. <strong>El original no se toc&oacute;</strong>: se gir&oacute; la copia de trabajo para
       poder leerla, y es esa la que ves acá.</span></div>` : ''}
     ${varios ? `<div class="aviso"><span class="sello alerta">Ojo</span>
       <span>Este PDF trae <strong>${plural(d.hermanos.length, 'documento', 'documentos')}</strong>
@@ -2037,7 +2037,7 @@ async function vDocumento(id) {
       ${d.hermanos.filter(h => h.id !== doc.id).map(h =>
         `<a href="#/documento/${h.id}">#${h.orden} ${esc(TIPO_DOC[h.tipo] || h.tipo || '')}
           (f. ${h.pagina_desde}–${h.pagina_hasta})</a>`
-      ).join(' · ')}</span></div>` : ''}
+      ).join(' &middot; ')}</span></div>` : ''}
     <section id="relaciones-documento" aria-live="polite">Cargando relaciones...</section>
     <section id="continuidad-pieza" class="nucleo-continuidad" aria-live="polite">Cargando tramos...</section>
     <div class="visor">
@@ -2064,9 +2064,9 @@ async function vDocumento(id) {
     </div>
     ${d.interpretaciones.length ? `
       <div class="sep">
-        <span class="rotulo">Carril de interpretación — conjeturas del sistema</span>
-        <p class="prosa nota">Esto no se leyó de ningún
-          papel: son hipótesis armadas cruzando datos. Pueden estar mal. Cada una linkea a
+        <span class="rotulo">Carril de interpretaci&oacute;n — conjeturas del sistema</span>
+        <p class="prosa nota">Esto no se ley&oacute; de ningún
+          papel: son hip&oacute;tesis armadas cruzando datos. Pueden estar mal. Cada una linkea a
           los documentos que la sostienen.</p>
         ${d.interpretaciones.map(interpHTML).join('')}
       </div>` : ''}`);
@@ -2075,7 +2075,7 @@ async function vDocumento(id) {
   cargarRelacionesDocumento(id);
   vista.querySelectorAll('.deshacer').forEach(b => b.onclick = async () => {
     const quien = await conRevisor(); if (!quien) return;
-    if (!await dialogoConfirm('¿Deshacer esta revisión? El campo vuelve a lo que había leído el sistema.')) return;
+    if (!await dialogoConfirm('¿Deshacer esta revisi&oacute;n? El campo vuelve a lo que había leído el sistema.')) return;
     try {
       await api('/api/campo', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({campo_id:+b.dataset.campo, accion:'revertir', quien})});
@@ -2114,9 +2114,9 @@ async function vDocumento(id) {
   vista.querySelectorAll('.historial').forEach(b =>
     b.onclick = () => verRastro(+b.dataset.campo));
 
-  /* La misma foja, a pantalla completa. Se abre desde el botón y tocando la lámina:
-     quien quiere leerla va a tocarla antes de buscar un botón. `ultimoAnclado` es el
-     campo que se marcó por última vez, para que el visor abra con ese recuadro
+  /* La misma foja, a pantalla completa. Se abre desde el bot&oacute;n y tocando la lámina:
+     quien quiere leerla va a tocarla antes de buscar un bot&oacute;n. `ultimoAnclado` es el
+     campo que se marc&oacute; por última vez, para que el visor abra con ese recuadro
      dibujado y no vacío. */
   let ultimoAnclado = null;
   const abrirLaFoja = () => {
@@ -2146,31 +2146,31 @@ async function vDocumento(id) {
     recuadro.style.width  = (100 * (c.x1 - c.x0) / pag.ancho_pt) + '%';
     recuadro.style.height = (100 * (c.y1 - c.y0) / pag.alto_pt) + '%';
     recuadro.className = 'recuadro' + (c.nulo_motivo ? ' conf' : '');
-    $('#pie-campo').textContent = 'campo: ' + c.nombre + (c.ruta ? ' · ruta ' + c.ruta : '');
-    $('#pie-xy').textContent = `f.${nro} · [${[c.x0,c.y0,c.x1,c.y1].map(v=>Math.round(v)).join(',')}]`;
+    $('#pie-campo').textContent = 'campo: ' + c.nombre + (c.ruta ? ' &middot; ruta ' + c.ruta : '');
+    $('#pie-xy').textContent = `f.${nro} &middot; [${[c.x0,c.y0,c.x1,c.y1].map(v=>Math.round(v)).join(',')}]`;
     vista.querySelectorAll('.ancla').forEach(o => o.setAttribute('aria-pressed', o === b));
   });
 }
 
-/* ── cola de revisión: el folio al lado, sin salir de la pantalla ──────── */
+/* ── cola de revisi&oacute;n: el folio al lado, sin salir de la pantalla ──────── */
 /* Antes cada campo costaba dos navegaciones (ir al folio y volver) y se perdía el
    lugar en la lista. Con 42 campos eso son 84 saltos de pantalla. Acá la foja
    acompaña a la fila que tiene el foco, con una lupa sobre el campo. */
 /* ── Cuánto se lleva hecho ─────────────────────────────────────────────────
-   «1 de 6» dice dónde está el cursor; no dice nada de la tarea. En una cola de tres
+   «1 de 6» dice d&oacute;nde está el cursor; no dice nada de la tarea. En una cola de tres
    mil campos —el caso real— alguien revisa cuarenta minutos, ve «1 de 2.847» y no
-   tiene forma de saber si avanzó. Eso es lo que agota y lo que hace que se deje por
+   tiene forma de saber si avanz&oacute;. Eso es lo que agota y lo que hace que se deje por
    la mitad.
 
-   El universo es lo que ALGUNA VEZ necesitó a una persona: lo que espera más lo que
-   ya se decidió. Los dos números se mueven juntos —deshacer una decisión devuelve el
+   El universo es lo que ALGUNA VEZ necesit&oacute; a una persona: lo que espera más lo que
+   ya se decidi&oacute;. Los dos números se mueven juntos —deshacer una decisi&oacute;n devuelve el
    campo a la cola— así que el total no salta solo y la barra no miente.
 
    Y abajo, quiénes. Son varios los que trabajan la misma causa: que el avance sea del
    equipo y no de cada uno por su lado es la mitad de por qué esto se comparte. */
-/* La prosa que explica cómo funciona una pantalla se lee UNA vez. Después es un
-   renglón fijo que cuesta lo mismo todos los días: en 768 px de alto, los dos
-   renglones de la cola son la mitad de una fila de trabajo. Se recuerda por sesión y
+/* La prosa que explica c&oacute;mo funciona una pantalla se lee UNA vez. Después es un
+   rengl&oacute;n fijo que cuesta lo mismo todos los días: en 768 px de alto, los dos
+   renglones de la cola son la mitad de una fila de trabajo. Se recuerda por sesi&oacute;n y
    no para siempre: al día siguiente, o en otra máquina, vuelve a explicarse. */
 function explicarUnaVez(pantalla) {
   try {
@@ -2189,9 +2189,9 @@ function avanceCola(r) {
     tripasAvance(hechos, universo, r.revisores, 0, r.total)}</div>`;
 }
 
-/* Se separa del envoltorio porque hay que volver a pintarla en cada decisión SIN
+/* Se separa del envoltorio porque hay que volver a pintarla en cada decisi&oacute;n SIN
    volver a pedir la cola: la pantalla saca la fila decidida y sigue, y una barra de
-   avance que sólo se mueve al recargar es peor que no tenerla —quien revisa cuarenta
+   avance que s&oacute;lo se mueve al recargar es peor que no tenerla —quien revisa cuarenta
    minutos la ve clavada y concluye que no anda—. */
 function tripasAvance(hechos, universo, revisores, donde, cuantos) {
   const pct = Math.round(hechos * 100 / universo);
@@ -2201,7 +2201,7 @@ function tripasAvance(hechos, universo, revisores, donde, cuantos) {
   const suma = otros.reduce((t, x) => t + x.n, 0);
   const mios = yo ? equipo.filter(x => x.quien === yo).reduce((t, x) => t + x.n, 0) : 0;
 
-  // Nombrar a los demás sólo cuando hay demás: trabajando solo, «y 0 del equipo» es
+  // Nombrar a los demás s&oacute;lo cuando hay demás: trabajando solo, «y 0 del equipo» es
   // ruido y encima suena a que falta alguien. Y sin identificarse no hay «tuyos» que
   // valga: se cuenta todo junto.
   const deLosOtros = otros.length === 1 ? 'de otra persona'
@@ -2217,17 +2217,17 @@ function tripasAvance(hechos, universo, revisores, donde, cuantos) {
   } else if (hechos && otros.length > 1 && !yo) {
     detalle = `, entre ${fmtNum.format(otros.length)} personas`;
   }
-  /* Dónde estás y cuánto llevás, en el MISMO renglón.
+  /* D&oacute;nde estás y cuánto llevás, en el MISMO rengl&oacute;n.
      Eran dos: «0 de 62 campos revisados» arriba a la izquierda y «1 de 62» arriba a
      la derecha, separados por todo el ancho de la pantalla. Uno es avance y el otro
-     es posición, pero se leen igual, y en el teléfono quedaban pegados uno al otro,
+     es posici&oacute;n, pero se leen igual, y en el teléfono quedaban pegados uno al otro,
      donde además se veía que el 0 y el 1 no coinciden. Dos cuentas del mismo total en
      la misma pantalla es una de más. */
   const posicion = cuantos
     ? `<span class="donde">Campo <strong>${fmtNum.format(donde + 1)}</strong> de
-        ${fmtNum.format(cuantos)}</span> · ` : '';
-  /* Y el total, una sola vez. «Campo 1 de 78 · 0 de 78 campos revisados» pone el 78
-     dos veces en el mismo renglón, que en un teléfono es el renglón entero. Cuando
+        ${fmtNum.format(cuantos)}</span> &middot; ` : '';
+  /* Y el total, una sola vez. «Campo 1 de 78 &middot; 0 de 78 campos revisados» pone el 78
+     dos veces en el mismo rengl&oacute;n, que en un teléfono es el rengl&oacute;n entero. Cuando
      los dos totales son el mismo número —o sea, sin filtro puesto— alcanza con
      «0 revisados». Con un filtro puesto NO son el mismo número y los dos hacen falta:
      uno es lo que estás recorriendo y el otro es el legajo. */
@@ -2257,7 +2257,7 @@ const esTelefono = () => window.matchMedia('(max-width:720px)').matches;
 let colaEstado = {filas: [], foco: 0};
 
 /* Qué filtros hay puestos. Vive afuera de la vista para sobrevivir al repintado que
-   hace cada decisión: filtrar por «montos de contratos», decidir uno y que se te
+   hace cada decisi&oacute;n: filtrar por «montos de contratos», decidir uno y que se te
    borre el filtro es peor que no tener filtros. */
 let filtroCola = {familia: '', campo: '', clase: ''};
 /* Cuántas filas se traen por vez. Es el mismo número que usa el servidor; acá se
@@ -2275,20 +2275,20 @@ async function vCola(campoId) {
   const filas = r.filas;
   const todas = {length: r.total_sin_filtro};
   // Se puede enlazar un campo puntual: #/cola/123 abre la cola parada en ese campo.
-  // Sirve para decirle a un compañero "mirá este" sin explicarle dónde está.
+  // Sirve para decirle a un compañero "mirá este" sin explicarle d&oacute;nde está.
   const pedido = campoId ? filas.findIndex(f => String(f.campo_id) === String(campoId)) : -1;
   colaEstado = {filas, foco: pedido >= 0 ? pedido : 0,
                 total: r.total, total_sin_filtro: r.total_sin_filtro,
                 revisados: r.revisados || 0, revisores: r.revisores || [],
-                // Cuántas filas nos entregó el servidor, que NO es lo mismo que
+                // Cuántas filas nos entreg&oacute; el servidor, que NO es lo mismo que
                 // cuántas estamos mostrando: si una llega repetida se descarta, y la
-                // próxima página igual tiene que pedirse más adelante. Contando por
+                // pr&oacute;xima página igual tiene que pedirse más adelante. Contando por
                 // las mostradas, una página entera de repetidas volvía a pedir la
                 // misma página para siempre.
                 traidas: filas.length,
                 opciones: r.opciones, cargando: false};
   if (!r.total_sin_filtro) {
-    vista.innerHTML = bloque('f. 0006', 'Cola', `<h2>Cola de revisión</h2>
+    vista.innerHTML = bloque('f. 0006', 'Cola', `<h2>Cola de revisi&oacute;n</h2>
       ${vacio('No queda nada por revisar',
         'Todos los campos están resueltos o verificados. Cuando entre un lote nuevo, ' +
         'lo que el sistema no pueda sostener va a aparecer acá.',
@@ -2297,7 +2297,7 @@ async function vCola(campoId) {
   }
   const porDoc = new Set(filas.map(f => f.documento_id)).size;
   // Las opciones las cuenta el servidor sobre la cola ENTERA. Contadas acá salían de la
-  // página que llegó: ofrecer «facturas» porque justo hay una en las doscientas que
+  // página que lleg&oacute;: ofrecer «facturas» porque justo hay una en las doscientas que
   // vinieron —o no ofrecerlas porque no las hay— es un filtro que miente.
   const opciones = (clave, rotular) => (colaEstado.opciones[clave] || [])
     .map(o => `<option value="${esc(o.valor ?? '')}">${esc(rotular(o.valor))} (${
@@ -2310,7 +2310,7 @@ async function vCola(campoId) {
 
      Lo que se arregla con eso: antes la página tenía su propio desplazamiento Y la
      lista tenía el suyo adentro, uno al lado del otro, y cuál de los dos se movía
-     dependía de dónde había quedado el puntero. La rueda del mouse hacía dos cosas
+     dependía de d&oacute;nde había quedado el puntero. La rueda del mouse hacía dos cosas
      distintas a un centímetro de diferencia. Y el «1 de 42» y los filtros se iban para
      arriba en cuanto bajabas tres filas, justo cuando más falta hacen: revisando el
      campo treinta, saber que vas por el treinta es la mitad del sentido de la tarea.
@@ -2323,18 +2323,18 @@ async function vCola(campoId) {
     <div class="taller">
       <header class="taller-cabeza">
         <div>
-          <!-- El título y «ver la lista» en el mismo renglón. La lista es OTRA manera
+          <!-- El título y «ver la lista» en el mismo rengl&oacute;n. La lista es OTRA manera
                de mirar lo mismo, así que va donde dice qué se está mirando; abajo, al
-               lado de los botones de avanzar, le comía a la decisión los píxeles que
+               lado de los botones de avanzar, le comía a la decisi&oacute;n los píxeles que
                necesita para entrar en la misma pantalla que el recorte. -->
           <div class="cabeza-fila">
-            <h2>Cola de revisión</h2>
+            <h2>Cola de revisi&oacute;n</h2>
             <button class="boton gris ficha-lista" id="ficha-lista" type="button"
                     >Ver la lista</button>
           </div>
           <!-- Sin el número acá. Este subtítulo se pinta una sola vez, cuando se
-               abre la cola, y la cola baja con cada decisión: a los cinco campos
-               revisados decía «6 campos esperan revisión» arriba de un «1 de 4», dos
+               abre la cola, y la cola baja con cada decisi&oacute;n: a los cinco campos
+               revisados decía «6 campos esperan revisi&oacute;n» arriba de un «1 de 4», dos
                cuentas de lo mismo contradiciéndose en la misma pantalla. El número
                vive en la barra de avance de abajo y en el «1 de N» de la derecha, que
                son los dos que sí se actualizan. -->
@@ -2351,7 +2351,7 @@ async function vCola(campoId) {
            renglones de 44 px que hay que pasar CADA VEZ que se entra, y en el caso
            normal —sin filtro— no dicen nada. Abiertos si hay alguno puesto: un filtro
            activo escondido es peor que tres selectores de más. -->
-      <!-- Plegados salvo que haya alguno puesto, en TODAS las pantallas y no sólo en
+      <!-- Plegados salvo que haya alguno puesto, en TODAS las pantallas y no s&oacute;lo en
            el teléfono. Medido en 1366×768, que es la pantalla de la oficina: abiertos
            se llevaban 179 px, la quinta parte del alto útil, para decir tres veces
            «todos». Un filtro activo escondido sí sería peor, y por eso se abren solos
@@ -2359,12 +2359,12 @@ async function vCola(campoId) {
 
            Y los controles van adentro de un DIV, no sueltos en el DETAILS. Un
            DETAILS con display:flex NO acomoda su contenido en fila: el navegador mete
-           todo lo que sigue al SUMMARY adentro de una caja de bloque anónima, y ahí
-           los tres selectores se apilan. Es lo que pasó cuando esto se volvió
+           todo lo que sigue al SUMMARY adentro de una caja de bloque an&oacute;nima, y ahí
+           los tres selectores se apilan. Es lo que pas&oacute; cuando esto se volvi&oacute;
            plegable por el teléfono, y en la oficina se veía como una columna de
            179 px de alto. -->
       <details class="taller-filtros" id="filtros-cola"${hayFiltro ? ' open' : ''}>
-        <summary>Filtros${hayFiltro ? ' · activos' : ''}
+        <summary>Filtros${hayFiltro ? ' &middot; activos' : ''}
           <span class="rotulo">${plural(r.total_sin_filtro, 'campo', 'campos')}</span></summary>
         <div class="filtros-fila">
           <label>Documento
@@ -2385,20 +2385,20 @@ async function vCola(campoId) {
         <div class="cola" id="cola"><p class="lista-ayuda">Tocá un campo para ver la
           foja y decidir.</p>${
           !filas.length ? vacio('Ningún campo entra en ese filtro',
-            'Hay ' + plural(todas.length, 'campo esperando revisión',
-                            'campos esperando revisión') +
+            'Hay ' + plural(todas.length, 'campo esperando revisi&oacute;n',
+                            'campos esperando revisi&oacute;n') +
             ', pero ninguno cumple lo que pediste.') : ''}${filas.map(filaCola).join('')}
           ${filas.length < r.total ? `<button class="mas-cola" id="mas-cola">Traer
             ${plural(Math.min(POR_PAGINA, r.total - filas.length), 'campo más', 'campos más')}
             <span>quedan ${fmtNum.format(r.total - filas.length)}</span></button>` : ''}</div>
         <aside class="folio-lado" id="folio-lado">
-          <!-- De dónde sale lo que estás por decidir. Primero y chiquito, y sólo en
+          <!-- De d&oacute;nde sale lo que estás por decidir. Primero y chiquito, y s&oacute;lo en
                el teléfono: en el escritorio eso ya lo dice la marginalia de la fila,
                a la izquierda del campo. -->
           <p class="ficha-procedencia mono" id="ficha-procedencia"></p>
           <!-- El recuadro del campo va dibujado sobre el recorte. La lupa muestra el
-               renglón Y lo que lo rodea —hace falta para saber que se está mirando el
-               renglón correcto—, pero sin nada que lo marque hay que adivinar cuál de
+               rengl&oacute;n Y lo que lo rodea —hace falta para saber que se está mirando el
+               rengl&oacute;n correcto—, pero sin nada que lo marque hay que adivinar cuál de
                los renglones a la vista es el campo. -->
           <div class="lupa" id="lupa"><img id="lupa-img" alt="">
             <div id="lupa-marco" hidden></div></div>
@@ -2408,24 +2408,24 @@ async function vCola(campoId) {
                mitad del panel: el recorte del campo es lo que se necesita para decidir,
                y el anclaje —foja y coordenadas— ya está escrito arriba, en el pie.
                Se enciende en el único caso donde es lo que hace falta: cuando el
-               sistema NO encontró el campo en la foja y hay que buscarlo a mano. -->
+               sistema NO encontr&oacute; el campo en la foja y hay que buscarlo a mano. -->
           <div class="lienzo" id="lienzo-cola" hidden>
             <img id="folio-cola" alt="">
             <div class="recuadro" id="recuadro-cola" hidden></div>
           </div>
           <!-- Los dos botones decían casi lo mismo: «Abrir la foja entera» y «Ver el
-               documento completo». Por el nombre eran el mismo botón dos veces. Y no
+               documento completo». Por el nombre eran el mismo bot&oacute;n dos veces. Y no
                lo son: uno abre EL PAPEL de esta foja a pantalla completa y se vuelve
                con Escape; el otro se va de la cola a la pantalla del documento, donde
                están todos sus campos leídos. Ahora cada uno dice cuál de las dos cosas
-               hace, y con eso también dice dónde queda uno después de apretarlo. -->
+               hace, y con eso también dice d&oacute;nde queda uno después de apretarlo. -->
           <button class="boton" id="abrir-foja" type="button">Abrir la foja entera</button>
           <a class="boton gris" id="ir-doc" href="#/panel">Ver todos los campos del documento</a>
         </aside>
       </div>
 
       <footer class="taller-pie">
-        <!-- Avanzar, en la zona del pulgar y sólo en el teléfono. En el escritorio se
+        <!-- Avanzar, en la zona del pulgar y s&oacute;lo en el teléfono. En el escritorio se
              baja por la lista con J y K y esto no hace falta. -->
         <div class="ficha-avanzar">
           <button class="tecla ficha-mover" id="ficha-antes" type="button"
@@ -2435,7 +2435,7 @@ async function vCola(campoId) {
                   aria-label="Campo siguiente">›</button>
         </div>
         <span class="solo-teclado"><kbd>J</kbd>/<kbd>K</kbd> para moverse; las teclas de
-          cada fila para decidir. <strong>Ninguna acción es «aceptar todo».</strong></span>
+          cada fila para decidir. <strong>Ninguna acci&oacute;n es «aceptar todo».</strong></span>
         <div class="deshacer-barra" id="deshacer-barra" hidden></div>
       </footer>
     </div>`;
@@ -2470,8 +2470,8 @@ async function traerMasCola() {
                                    limite: String(POR_PAGINA)});
     for (const k of ['familia', 'campo', 'clase']) if (filtroCola[k]) p.set(k, filtroCola[k]);
     const r = await api('/api/cola?' + p);
-    // Sin repetir lo que ya está. La página siguiente se pide por posición
-    // (`desde`), y la posición se corre cuando alguien decide un campo —el propio o
+    // Sin repetir lo que ya está. La página siguiente se pide por posici&oacute;n
+    // (`desde`), y la posici&oacute;n se corre cuando alguien decide un campo —el propio o
     // el de otra persona trabajando la misma causa—: ahí una fila puede volver a
     // caer adentro de la página que llega. Que la cuenta dé bien no alcanza; el
     // mismo campo dos veces en la pantalla obliga a decidirlo dos veces.
@@ -2515,18 +2515,18 @@ function engancharFilasCola() {
 }
 
 /* ── El nombre del documento, sin partirlo ─────────────────────────────────
-   La celda que dice de qué papel salió el campo tenía `overflow-wrap:anywhere`, que
-   se puso a propósito para que un nombre largo no se cortara por la izquierda y se
+   La celda que dice de qué papel sali&oacute; el campo tenía `overflow-wrap:anywhere`, que
+   se puso a prop&oacute;sito para que un nombre largo no se cortara por la izquierda y se
    perdiera. El efecto real era peor: `contrato_A_0013` se leía «contrato_A_001» y
    abajo, solo, un «3». Con quince renglones así en pantalla, decidir sobre el
-   documento equivocado es cuestión de tiempo, y es lo más caro que puede pasar acá.
+   documento equivocado es cuesti&oacute;n de tiempo, y es lo más caro que puede pasar acá.
 
    Se elide por el MEDIO y se conserva el final. Los nombres de un lote comparten
    prefijo —`contrato_A_…`, `contrato_B_…`— así que lo que distingue un documento de
    otro son los últimos caracteres, no los primeros. Cortando por la izquierda se
    pierde justamente lo que identifica.
 
-   No se puede hacer sólo con CSS: `text-overflow:ellipsis` corta por el final. Van
+   No se puede hacer s&oacute;lo con CSS: `text-overflow:ellipsis` corta por el final. Van
    dos piezas, la cabeza que se encoge y la cola que no, y el navegador pone los
    puntos suspensivos donde corresponde. */
 const COLA_NOMBRE = 8;      // caracteres del final que nunca se recortan
@@ -2544,12 +2544,12 @@ function filaCola(f, i) {
 
      Decía «tomar ocr_a», «tomar ocr_b»: el nombre del mecanismo, no el dato. Para
      decidir había que mirar la lista de la izquierda, encontrar cuál de los valores
-     era el de la ruta A, y recién entonces volver al botón correcto. Dos lecturas y
+     era el de la ruta A, y recién entonces volver al bot&oacute;n correcto. Dos lecturas y
      un salto de ida y vuelta, cuarenta veces por hora. Y el error que provoca es el
-     peor: elegir el botón de al lado.
+     peor: elegir el bot&oacute;n de al lado.
 
-     Ahora el botón muestra el valor y la ruta va abajo, chica: la ruta es
-     procedencia —de dónde salió el dato, que es obligatorio— pero no es lo que se
+     Ahora el bot&oacute;n muestra el valor y la ruta va abajo, chica: la ruta es
+     procedencia —de d&oacute;nde sali&oacute; el dato, que es obligatorio— pero no es lo que se
      decide. Se decide cuál dice el papel. */
   const acciones = [];
   if (f.clase === 'conflicto' && f.variantes) {
@@ -2557,17 +2557,17 @@ function filaCola(f, i) {
       tecla: String(n + 1), valor: v.valor, de: v.ruta,
       accion: 'corregir', dato: v.valor}));
     // «Ninguna de las dos» con tres variantes en pantalla es falso, y lo que está
-    // mal escrito en un botón lo lee alguien que está decidiendo sobre un legajo.
+    // mal escrito en un bot&oacute;n lo lee alguien que está decidiendo sobre un legajo.
     acciones.push({tecla: 'N', accion: 'ambiguo', dato: '', clase: 'secundaria',
                    texto: f.variantes.length === 2 ? 'ninguna de las dos'
                                                    : 'ninguna de esas'});
   } else if (f.motivo === 'manuscrito') {
-    // Confirmar la propuesta es UNA tecla, y queda registrado como corrección humana:
-    // el dato entra porque una persona lo miró contra el recorte, no porque lo dijo
+    // Confirmar la propuesta es UNA tecla, y queda registrado como correcci&oacute;n humana:
+    // el dato entra porque una persona lo mir&oacute; contra el recorte, no porque lo dijo
     // un modelo.
     if (f.propuesta && !f.propuesta.ilegible && f.propuesta.valor) {
       acciones.push({tecla: '1', valor: f.propuesta.valor,
-                     de: 'propuesta · ' + (f.propuesta.modelo || ''),
+                     de: 'propuesta &middot; ' + (f.propuesta.modelo || ''),
                      accion: 'corregir', dato: f.propuesta.valor});
     }
     acciones.push({tecla: 'C', texto: 'escribirlo a mano', accion: 'pedir', dato: ''});
@@ -2612,7 +2612,7 @@ function filaCola(f, i) {
 
   const propuesta = (f.propuesta && f.propuesta.ilegible)
     ? `<div class="propuesta ilegible">
-         <span class="de-donde">propuesta · ${esc(f.propuesta.modelo)}</span>
+         <span class="de-donde">propuesta &middot; ${esc(f.propuesta.modelo)}</span>
          <b>no se lee</b>
          ${f.propuesta.nota ? `<span class="nota">${esc(f.propuesta.nota)}</span>` : ''}
        </div>` : '';
@@ -2622,7 +2622,7 @@ function filaCola(f, i) {
      repetía en general: «No se pudo leer» arriba y «no se puede leer» abajo, la misma
      cosa dos veces por fila y sesenta y dos veces en la pantalla. Se va la frase
      general y queda la precisa, que además es la que tiene el color del estado.
-     En un conflicto y en una lectura floja no hay repetición: ahí arriba está lo
+     En un conflicto y en una lectura floja no hay repetici&oacute;n: ahí arriba está lo
      único que se dice, porque los valores viven en los botones. */
   const porque = (f.clase === 'nulo' && (MOTIVO_NULO[f.motivo] || f.motivo)) ? ''
     : `<span class="porque">${esc(CLASE_COLA[f.clase] || f.clase)}</span>`;
@@ -2659,11 +2659,11 @@ function filaCola(f, i) {
    En el escritorio la cola es lista + panel del papel al costado, y funciona. En un
    teléfono ese modelo no existe, porque no hay costado: el panel es uno solo y la
    lista tiene setenta y ocho filas, así que el recorte del campo que hay que decidir
-   nunca puede estar al lado de su decisión. Acomodar el panel no alcanza —arriba de
+   nunca puede estar al lado de su decisi&oacute;n. Acomodar el panel no alcanza —arriba de
    la lista tapa la lista, abajo de la lista queda a setenta y ocho tarjetas de
    distancia—: lo que cambia es la unidad de trabajo.
 
-   Modo «ficha»: un campo por pantalla, con el recorte grande arriba y la decisión en
+   Modo «ficha»: un campo por pantalla, con el recorte grande arriba y la decisi&oacute;n en
    la zona del pulgar. La lista completa sigue existiendo detrás de «Ver la lista»,
    para saltar a un campo puntual y para filtrar. En el teléfono no se recorre: se
    decide.
@@ -2673,7 +2673,7 @@ function filaCola(f, i) {
 let modoCola = 'ficha';
 
 /* La ficha existe SÓLO en el teléfono. En el escritorio hay lista y panel al costado,
-   y ahí `modoCola` no significa nada: preguntar sólo por el modo dejaba al escritorio
+   y ahí `modoCola` no significa nada: preguntar s&oacute;lo por el modo dejaba al escritorio
    sin `scrollIntoView`, o sea que bajar con J y K dejaba de mover la lista y el foco
    se iba abajo del borde sin que nada se moviera. */
 const enFicha = () => modoCola === 'ficha' && esTelefono();
@@ -2698,14 +2698,14 @@ function moverFicha(paso) {
 }
 
 /* ── No se decide sin ver ──────────────────────────────────────────────────
-   La regla del README, cumplida acá: un control de decisión no existe si el recorte
+   La regla del README, cumplida acá: un control de decisi&oacute;n no existe si el recorte
    del campo no está a la vista al mismo tiempo. No es una preferencia de diseño; es
-   la restricción 4 —todo dato anclado a su origen— del lado de quien decide. Un
-   «es correcto» apretado sin mirar el papel es una afirmación sin fundamento con la
+   la restricci&oacute;n 4 —todo dato anclado a su origen— del lado de quien decide. Un
+   «es correcto» apretado sin mirar el papel es una afirmaci&oacute;n sin fundamento con la
    firma de una persona encima, y eso es lo único que este sistema no puede permitir.
 
-   Se aplica sobre lo que el navegador REALMENTE cargó, no sobre lo que la base dice
-   que hay: una imagen que no llegó deja la pantalla igual de ciega que un campo sin
+   Se aplica sobre lo que el navegador REALMENTE carg&oacute;, no sobre lo que la base dice
+   que hay: una imagen que no lleg&oacute; deja la pantalla igual de ciega que un campo sin
    anclaje. */
 let hayQueMirar = false;
 
@@ -2725,10 +2725,10 @@ function pintarSinVer(motivo) {
   aviso.textContent = motivo;
 }
 
-/* Campos cuya foja el operador ya abrió entera. Sin recorte que sirva, una página
+/* Campos cuya foja el operador ya abri&oacute; entera. Sin recorte que sirva, una página
    completa metida en un panel de 340 px no es «ver»: no se lee un importe ahí, y dar
    por cumplida la regla con esa estampilla era el agujero más grande que le quedaba.
-   Abrirla en el visor sí es ver, y eso se recuerda por campo mientras dure la sesión
+   Abrirla en el visor sí es ver, y eso se recuerda por campo mientras dure la sesi&oacute;n
    de la pantalla. */
 const fojasMiradas = new Set();
 
@@ -2760,15 +2760,15 @@ function vigilarVista(f) {
 /* ── La foja entera, para leerla de verdad ─────────────────────────────────
    Se abre a pantalla completa, al tamaño del escaneo y con desplazamiento. Es el
    destino que faltaba: la miniatura del costado sirve para ver que la hoja existe, no
-   para leer un importe. Y es la única manera honesta de habilitar la decisión cuando
-   el recorte no sirve —el operador miró el papel—.
+   para leer un importe. Y es la única manera honesta de habilitar la decisi&oacute;n cuando
+   el recorte no sirve —el operador mir&oacute; el papel—.
 
    Si el campo tiene coordenadas, aunque sean malas, se dibuja el recuadro igual: ver
-   dónde CREE el sistema que está el campo es la mitad de entender por qué falló. */
+   d&oacute;nde CREE el sistema que está el campo es la mitad de entender por qué fall&oacute;. */
 function fojaDe(f) {
-  // La foja del campo; si el sistema no lo encontró en ninguna, la primera del
+  // La foja del campo; si el sistema no lo encontr&oacute; en ninguna, la primera del
   // documento. Sin este respaldo, justo los campos sin anclaje —que son los que
-  // NECESITAN que se abra la hoja— dejaban el visor sin abrir y la decisión trabada
+  // NECESITAN que se abra la hoja— dejaban el visor sin abrir y la decisi&oacute;n trabada
   // para siempre.
   return f && (f.pagina_nro || (f.pagina_respaldo && f.pagina_respaldo.nro)) || null;
 }
@@ -2781,7 +2781,7 @@ function abrirFoja(f) {
   img.src = `/pagina?doc=${f.documento_id}&nro=${nro}`;
   $('#visor-rotulo').textContent =
     [f.archivo || 'documento', 'f. ' + nro,
-     f.campo ? rotularCampo(f.campo, f.familia) : ''].filter(Boolean).join(' · ');
+     f.campo ? rotularCampo(f.campo, f.familia) : ''].filter(Boolean).join(' &middot; ');
   const pag = f.pagina || f.pagina_respaldo;
   const hayCaja = pag && pag.ancho_pt && f.x0 != null && f.x1 != null;
   marco.hidden = !hayCaja;
@@ -2795,10 +2795,10 @@ function abrirFoja(f) {
   document.body.classList.add('con-visor');
   fojasMiradas.add(String(f.campo_id));
   /* Lo de abajo queda apagado mientras la foja está abierta: no se toca, no se tabula
-     y un lector de pantalla no lo lee. Sin esto, tabulando desde el botón de cerrar
+     y un lector de pantalla no lo lee. Sin esto, tabulando desde el bot&oacute;n de cerrar
      se llega a los botones de decidir que están tapados —se decide un campo sin ver
      lo que se está decidiendo, con la foja de otro encima—. Y al cerrar, el foco
-     vuelve a donde estaba: quien navega con teclado no tiene que buscar dónde quedó. */
+     vuelve a donde estaba: quien navega con teclado no tiene que buscar d&oacute;nde qued&oacute;. */
   volverElFoco = document.activeElement;
   const cuerpo = document.getElementById('cuerpo');
   if (cuerpo) cuerpo.inert = true;
@@ -2809,7 +2809,7 @@ function abrirFoja(f) {
      que oscurece todo lo que no es el recuadro: sin desplazar, la pantalla entera se
      veía gris y el recuadro no estaba a la vista.
 
-     Se espera a que la imagen cargue: antes de eso no tiene tamaño y no hay a dónde
+     Se espera a que la imagen cargue: antes de eso no tiene tamaño y no hay a d&oacute;nde
      desplazarse. */
   const alCampo = () => {
     if (marco.hidden) return;
@@ -2832,7 +2832,7 @@ function abrirFojaSuelta(sha, nro, rotulo) {
   aplicarZoomVisor(); const visor = $('#visor'), img = $('#visor-img'), marco = $('#visor-marco');
   if (!visor || !sha || !nro) return;
   img.src = `/pagina?sha=${encodeURIComponent(sha)}&nro=${nro}`;
-  $('#visor-rotulo').textContent = [rotulo || 'expediente', 'f. ' + nro].join(' · ');
+  $('#visor-rotulo').textContent = [rotulo || 'expediente', 'f. ' + nro].join(' &middot; ');
   // Sin campo no hay recuadro que dibujar: acá se abre la foja entera, no un dato.
   marco.hidden = true;
   visor.hidden = false;
@@ -2861,8 +2861,8 @@ function cerrarVisor() {
 }
 
 /* El visor se engancha una sola vez, al cargar, y no adentro de una vista: lo abren
-   la cola Y la pantalla del documento, y enganchado adentro de `vCola` el botón de
-   cerrar no hacía nada en la otra —quedaba sólo `Esc`, que es un atajo y no una
+   la cola Y la pantalla del documento, y enganchado adentro de `vCola` el bot&oacute;n de
+   cerrar no hacía nada en la otra —quedaba s&oacute;lo `Esc`, que es un atajo y no una
    salida—. */
 (function engancharVisor() {
   const visor = document.getElementById('visor');
@@ -2872,19 +2872,19 @@ function cerrarVisor() {
 })();
 
 /* Encuadra el campo en la lupa: la foja entera a la derecha se ve chica, y lo que hace
-   falta para decidir es leer ESE renglón. */
+   falta para decidir es leer ESE rengl&oacute;n. */
 /* ── ¿Este recuadro sirve para mirar? ──────────────────────────────────────
    Que el campo tenga coordenadas no quiere decir que se pueda ver. Con material real
    —no con el corpus sintético, donde todas las cajas salen bien— aparecen tres cosas
    que pasan el control de «tiene anclaje» y dejan al operador decidiendo sobre nada:
 
-     · la caja DEGENERADA, con x1 y x0 casi iguales. Es lo que devuelve el
-       reconocimiento cuando no logró delimitar un manuscrito. El código de antes la
-       estiraba a 8 puntos con un `Math.max`, la ampliación se iba al tope, y en la
+     &middot; la caja DEGENERADA, con x1 y x0 casi iguales. Es lo que devuelve el
+       reconocimiento cuando no logr&oacute; delimitar un manuscrito. El c&oacute;digo de antes la
+       estiraba a 8 puntos con un `Math.max`, la ampliaci&oacute;n se iba al tope, y en la
        lupa entraban dos letras sueltas contra el borde;
-     · la caja ENORME, del tamaño de media hoja. La ampliación se desploma y entra la
+     &middot; la caja ENORME, del tamaño de media hoja. La ampliaci&oacute;n se desploma y entra la
        página entera, ilegible, del tamaño de una estampilla;
-     · la caja FUERA DE LA HOJA. Si las coordenadas no están en la misma unidad que
+     &middot; la caja FUERA DE LA HOJA. Si las coordenadas no están en la misma unidad que
        `ancho_pt` para ese escaneo, el encuadre se corre entero aunque la caja esté
        perfectamente bien medida. Se nota porque la caja cae afuera del papel.
 
@@ -2893,21 +2893,21 @@ function cerrarVisor() {
    para poder cargarlo a mano—. El guardián «no se decide sin ver» verificaba que el
    recorte EXISTIERA; esto verifica que SIRVA, que es lo que hacía falta.
 
-   Los números salen en el motivo a propósito: si alguna vez esto rechaza una caja que
+   Los números salen en el motivo a prop&oacute;sito: si alguna vez esto rechaza una caja que
    estaba bien, quien lo vea puede decir exactamente cuál era. */
-const CAJA_MINIMA = {ancho: 8, alto: 5};   // puntos; menos que esto no es un renglón
+const CAJA_MINIMA = {ancho: 8, alto: 5};   // puntos; menos que esto no es un rengl&oacute;n
 const CAJA_MAXIMA_HOJA = 0.5;              // más de media hoja no es un campo
-const CAJA_MAS_ALTA_QUE_ANCHA = 4;         // un renglón de texto no es una torre
+const CAJA_MAS_ALTA_QUE_ANCHA = 4;         // un rengl&oacute;n de texto no es una torre
 
 function cajaUtil(f, pag) {
   const w = f.x1 - f.x0, h = f.y1 - f.y0;
   const medidas = `${Math.round(w)}×${Math.round(h)} pt en una hoja de ` +
                   `${Math.round(pag.ancho_pt)}×${Math.round(pag.alto_pt)}`;
   if (!(w > 0) || !(h > 0) || w < CAJA_MINIMA.ancho || h < CAJA_MINIMA.alto) {
-    return `el recuadro del campo quedó demasiado chico para mostrarlo (${medidas})`;
+    return `el recuadro del campo qued&oacute; demasiado chico para mostrarlo (${medidas})`;
   }
   if (h > w * CAJA_MAS_ALTA_QUE_ANCHA) {
-    return `el recuadro del campo tiene una forma imposible para un renglón (${medidas})`;
+    return `el recuadro del campo tiene una forma imposible para un rengl&oacute;n (${medidas})`;
   }
   if (pag.ancho_pt && pag.alto_pt &&
       w * h > CAJA_MAXIMA_HOJA * pag.ancho_pt * pag.alto_pt) {
@@ -2925,8 +2925,8 @@ function cajaUtil(f, pag) {
 }
 
 /* Cuando no hay recorte que sirva: la hoja entera, los botones apagados y el motivo.
-   Es el mismo camino para «el sistema no encontró el campo» y para «lo encontró pero
-   lo que marcó no se puede mirar»: desde donde está el operador son la misma cosa. */
+   Es el mismo camino para «el sistema no encontr&oacute; el campo» y para «lo encontr&oacute; pero
+   lo que marc&oacute; no se puede mirar»: desde donde está el operador son la misma cosa. */
 function sinRecorte(f, motivo, comoSeguir) {
   const lupa = $('#lupa'), img = $('#lupa-img');
   lupa.classList.add('sin-anclaje');
@@ -2940,7 +2940,7 @@ function sinRecorte(f, motivo, comoSeguir) {
   const resp = f.pagina_respaldo;
   const hoja = $('#lienzo-cola'), folio0 = $('#folio-cola'), rec0 = $('#recuadro-cola');
   rec0.style.display = 'none';
-  // Si el campo dice de qué foja salió, se muestra ESA. El respaldo —la primera del
+  // Si el campo dice de qué foja sali&oacute;, se muestra ESA. El respaldo —la primera del
   // documento— es para cuando no hay ni eso.
   const nro = f.pagina_nro || (resp && resp.nro);
   if (nro) {
@@ -2955,13 +2955,13 @@ function sinRecorte(f, motivo, comoSeguir) {
 }
 
 /* Encuadra el campo en la lupa: la foja entera a la derecha se ve chica, y lo que hace
-   falta para decidir es leer ESE renglón. */
+   falta para decidir es leer ESE rengl&oacute;n. */
 function encuadrar(f) {
   const lupa = $('#lupa'), img = $('#lupa-img');
   if (!lupa || !img) return;
   const pag = f.pagina;
   if (!pag || f.x0 == null || f.x1 == null) {
-    return sinRecorte(f, 'el sistema no encontró este campo en la foja',
+    return sinRecorte(f, 'el sistema no encontr&oacute; este campo en la foja',
                       'mirá el folio y cargalo a mano');
   }
   const roto = cajaUtil(f, pag);
@@ -2975,26 +2975,26 @@ function encuadrar(f) {
 
   /* La hoja entera se apaga ACÁ, ANTES de medir la lupa, y no al final. Con recorte no
      hace falta —el anclaje lo dice el pie, foja y aumento, y una página de 250 px en la
-     que no se lee una palabra sólo ocupa lugar—, pero el orden importa: la lupa es
+     que no se lee una palabra s&oacute;lo ocupa lugar—, pero el orden importa: la lupa es
      `flex:1 1 0` y crece cuando la hoja se va. Apagándola después, `r` quedaba medido
      sobre la lupa chica y todo lo que sale de `r` quedaba mal.
      Medido en 1366 con un campo de verdad: la lupa medía 176 px cuando se hizo la
-     cuenta y 383 cuando terminó de acomodarse, así que el importe quedaba a 73 px del
+     cuenta y 383 cuando termin&oacute; de acomodarse, así que el importe quedaba a 73 px del
      borde de arriba y a 280 del de abajo. Centrado en el ancho —que no cambia— y
      pegado arriba en el alto. Con el orden dado vuelta, la cuenta se hace sobre el
      tamaño final. */
   $('#lienzo-cola').hidden = true;
-  /* Y el pie también se escribe antes de medir, por lo mismo: «Monto mensual · ruta
-     …» ocupa dos renglones donde «Monto mensual» ocupa uno, y ese renglón sale del
+  /* Y el pie también se escribe antes de medir, por lo mismo: «Monto mensual &middot; ruta
+     …» ocupa dos renglones donde «Monto mensual» ocupa uno, y ese rengl&oacute;n sale del
      alto de la lupa. Eran los 25 px que faltaban para que el centrado cerrara. */
   $('#lupa-campo').textContent = `${rotularCampo(f.campo, f.familia)}${
-    f.ruta ? ' · ruta ' + f.ruta : ''}`;
+    f.ruta ? ' &middot; ruta ' + f.ruta : ''}`;
 
   const caja = {w: f.x1 - f.x0, h: f.y1 - f.y0};
   const r = lupa.getBoundingClientRect();
   const aire = 1.5;
   // px mostrados por punto. Con techo, para no ampliar más allá de lo que el escaneo
-  // tiene adentro, y con PISO: mostrar el renglón más chico que el propio escaneo es
+  // tiene adentro, y con PISO: mostrar el rengl&oacute;n más chico que el propio escaneo es
   // dar por bueno que no se lea. Si con el piso no entra, se desborda y se ve el
   // principio —la lupa recorta— en vez de encogerse hasta la ilegibilidad.
   const natural = 200 / 72;                    // px por punto del escaneo (DPI_RENDER)
@@ -3003,8 +3003,8 @@ function encuadrar(f) {
   img.style.width = (pag.ancho_pt * escala) + 'px';
   img.style.left = -(f.x0 * escala - (r.width - caja.w * escala) / 2) + 'px';
   img.style.top = -(f.y0 * escala - (r.height - caja.h * escala) / 2) + 'px';
-  // Y el recuadro encima, en el lugar donde quedó el campo. Como el encuadre lo
-  // CENTRA, el recuadro sale de la misma cuenta que centró la imagen: siempre coincide,
+  // Y el recuadro encima, en el lugar donde qued&oacute; el campo. Como el encuadre lo
+  // CENTRA, el recuadro sale de la misma cuenta que centr&oacute; la imagen: siempre coincide,
   // sin volver a medir nada.
   const marco = $('#lupa-marco');
   if (marco) {
@@ -3014,7 +3014,7 @@ function encuadrar(f) {
     marco.style.width = (caja.w * escala) + 'px';
     marco.style.height = (caja.h * escala) + 'px';
   }
-  $('#lupa-xy').textContent = `f.${f.pagina_nro} · ${(escala / natural).toFixed(1)}×`;
+  $('#lupa-xy').textContent = `f.${f.pagina_nro} &middot; ${(escala / natural).toFixed(1)}×`;
 
   vigilarVista(f);
 }
@@ -3042,44 +3042,44 @@ function pintarFoco() {
       abrir.disabled = !fojaDe(f);
       abrir.title = fojaDe(f) ? '' : 'este campo no tiene foja escaneada';
     }
-    // De dónde sale: documento, foja y campo, en una línea y en mono.
+    // De d&oacute;nde sale: documento, foja y campo, en una línea y en mono.
     const proc = $('#ficha-procedencia');
     // El NOMBRE DEL ARCHIVO va primero, y no la familia. La familia es «Contrato» en
     // las cuarenta y dos filas de la cola: no distingue nada. Lo que distingue es de
-    // qué papel salió esto, y sin eso dos campos del mismo tipo se ven idénticos —tres
+    // qué papel sali&oacute; esto, y sin eso dos campos del mismo tipo se ven idénticos —tres
     // contratos de la misma persona con el mismo importe son tres pantallas iguales— y
     // parece que el sistema muestra el mismo campo una y otra vez.
     if (proc) proc.textContent = [f.archivo || 'Documento',
                                   f.pagina_nro != null ? 'f. ' + f.pagina_nro : '',
                                   rotularCampo(f.campo, f.familia)]
-                                 .filter(Boolean).join(' · ');
+                                 .filter(Boolean).join(' &middot; ');
     const donde = $('#ficha-donde');
     if (donde) donde.textContent = `Campo ${fmtNum.format(colaEstado.foco + 1)} de ${
       fmtNum.format(colaEstado.total || colaEstado.filas.length)}`;
   }
-  // Dónde estás. «Cola de revisión» sin número no dice si faltan tres o trescientos, y
+  // D&oacute;nde estás. «Cola de revisi&oacute;n» sin número no dice si faltan tres o trescientos, y
   // sin saber eso nadie puede decidir si lo termina hoy.
-  // Dónde estás sobre el TOTAL, no sobre lo que llegó. «1 de 400» con 3.892 campos
-  // esperando no es una imprecisión: es esconder tres mil cuatrocientos noventa y dos
+  // D&oacute;nde estás sobre el TOTAL, no sobre lo que lleg&oacute;. «1 de 400» con 3.892 campos
+  // esperando no es una imprecisi&oacute;n: es esconder tres mil cuatrocientos noventa y dos
   // campos de trabajo, y quien termine los 400 va a creer que el legajo está listo.
-  // La posición vive en el renglón de avance, que es uno solo y dice las dos cosas.
+  // La posici&oacute;n vive en el rengl&oacute;n de avance, que es uno solo y dice las dos cosas.
   pintarAvance();
   // Al acercarse al final de lo cargado, se trae la página siguiente. Que bajar con J
   // se termine en la fila 200 de 3.892 sería el mismo tope de antes con otra cara.
   if (colaEstado.foco >= colaEstado.filas.length - 5) traerMasCola();
 }
 
-/* La última decisión, para poder deshacerla. Una sola: deshacer en cadena obligaría a
-   recordar un orden que la cola ya cambió abajo, y lo que hace falta es corregir el
+/* La última decisi&oacute;n, para poder deshacerla. Una sola: deshacer en cadena obligaría a
+   recordar un orden que la cola ya cambi&oacute; abajo, y lo que hace falta es corregir el
    error que acabás de cometer, no rebobinar la jornada. Lo anterior se deshace desde
    la ficha del documento, que muestra el historial completo. */
 let ultimaDecision = null;
 
-/* El rastro de un campo: todo lo que le pasó, en orden y sin editar. */
+/* El rastro de un campo: todo lo que le pas&oacute;, en orden y sin editar. */
 const ACCION_RASTRO = {
-  verificar: 'confirmó que estaba bien', corregir: 'cargó el valor a mano',
-  ilegible: 'marcó que no se puede leer', ausente: 'marcó que no está en el documento',
-  ambiguo: 'marcó que dice dos cosas distintas', revertir: 'deshizo su decisión',
+  verificar: 'confirm&oacute; que estaba bien', corregir: 'carg&oacute; el valor a mano',
+  ilegible: 'marc&oacute; que no se puede leer', ausente: 'marc&oacute; que no está en el documento',
+  ambiguo: 'marc&oacute; que dice dos cosas distintas', revertir: 'deshizo su decisi&oacute;n',
 };
 
 async function verRastro(campoId) {
@@ -3102,19 +3102,19 @@ async function verRastro(campoId) {
             ? ` <span class="antes">antes decía <span class="mono">${esc(r.valor_anterior)}</span></span>` : ''}
           ${r.observacion ? `<span class="nota">${esc(r.observacion)}</span>` : ''}</span>
       </div>`).join('')
-      : `<div class="paso vacio">Nadie lo tocó todavía: es como lo leyó el sistema.</div>`;
+      : `<div class="paso vacio">Nadie lo toc&oacute; todavía: es como lo ley&oacute; el sistema.</div>`;
   } catch (e) {
     caja.innerHTML = `<div class="paso vacio">No se pudo leer el rastro: ${esc(e.message)}</div>`;
   }
 }
 
 async function decidir(campoId, accion, valor) {
-  // No se decide sin ver. El botón ya sale `disabled`, pero una tecla, un lector de
-  // pantalla o un `click()` disparado por otro lado no pasan por el botón: la regla
+  // No se decide sin ver. El bot&oacute;n ya sale `disabled`, pero una tecla, un lector de
+  // pantalla o un `click()` disparado por otro lado no pasan por el bot&oacute;n: la regla
   // se cumple también acá, que es por donde pasan todos los caminos.
   if (!hayQueMirar) return;
   // Se pide el nombre ANTES de tocar nada. Preguntarlo después sería perder la
-  // decisión que la persona acaba de tomar, y el servidor la rechaza igual sin él.
+  // decisi&oacute;n que la persona acaba de tomar, y el servidor la rechaza igual sin él.
   const quien = await conRevisor();
   if (!quien) return;
   if (accion === 'pedir') {
@@ -3123,7 +3123,7 @@ async function decidir(campoId, accion, valor) {
     accion = 'corregir';
   }
   const posicion = colaEstado.foco;
-  // El estado en que ESTA pantalla vio el campo. Si otra persona lo decidió mientras
+  // El estado en que ESTA pantalla vio el campo. Si otra persona lo decidi&oacute; mientras
   // tanto, el servidor rechaza y avisa en vez de dejar que gane el último en apretar.
   const fila = colaEstado.filas.find(f => String(f.campo_id) === String(campoId));
   try {
@@ -3132,12 +3132,12 @@ async function decidir(campoId, accion, valor) {
                             estado_esperado: fila ? fila.estado : null})});
     ultimaDecision = fila ? {campo_id: campoId, quien, antes: fila} : null;
     // Se saca ESA fila y nada más. Antes se volvía a pedir la cola entera en cada
-    // decisión: con doscientas filas eso ya costaba un parpadeo, y ahora que la cola
+    // decisi&oacute;n: con doscientas filas eso ya costaba un parpadeo, y ahora que la cola
     // pagina significaría perder todas las páginas que habías traído y volver arriba.
-    // El campo salió de la cola porque alguien lo decidió; eso lo sabemos acá sin
+    // El campo sali&oacute; de la cola porque alguien lo decidi&oacute;; eso lo sabemos acá sin
     // preguntarle de nuevo al servidor.
     sacarDeLaCola(campoId);
-    // El campo que salió de la cola entró en el trabajo hecho, y lo hizo esta persona.
+    // El campo que sali&oacute; de la cola entr&oacute; en el trabajo hecho, y lo hizo esta persona.
     // Se anota acá, con lo que la pantalla ya sabe: pedirle la cola de nuevo al
     // servidor para mover una barra tiraría las páginas ya traídas y volvería arriba.
     colaEstado.revisados = (colaEstado.revisados || 0) + 1;
@@ -3151,8 +3151,8 @@ async function decidir(campoId, accion, valor) {
     refrescarCuentas();
   } catch (e) {
     if (e.estado === 409) {
-      // No es un error de quien apretó: el mundo cambió abajo. Se recarga la cola para
-      // que vea cómo quedó, y recién ahí decide de nuevo.
+      // No es un error de quien apret&oacute;: el mundo cambi&oacute; abajo. Se recarga la cola para
+      // que vea c&oacute;mo qued&oacute;, y recién ahí decide de nuevo.
       toast(e.message);
       await vCola(); pintarFoco(); refrescarCuentas();
       return;
@@ -3162,27 +3162,27 @@ async function decidir(campoId, accion, valor) {
 }
 
 /* Saca una fila de la cola, en la pantalla y en la cuenta. Renumera las que quedan:
-   `data-i` es la posición, y si no se renumeran, la fila de abajo responde por el
+   `data-i` es la posici&oacute;n, y si no se renumeran, la fila de abajo responde por el
    índice de la que se fue y se decide sobre el campo equivocado. */
 function sacarDeLaCola(campoId) {
   const i = colaEstado.filas.findIndex(f => String(f.campo_id) === String(campoId));
   if (i < 0) return;
   colaEstado.filas.splice(i, 1);
-  // También sale de la lista del servidor, así que la posición desde la que hay que
+  // También sale de la lista del servidor, así que la posici&oacute;n desde la que hay que
   // pedir la página siguiente retrocede una. Sin esto se saltearía un campo por cada
-  // decisión tomada, y son campos que nadie volvería a ver.
+  // decisi&oacute;n tomada, y son campos que nadie volvería a ver.
   colaEstado.traidas = Math.max(0, (colaEstado.traidas || 0) - 1);
   colaEstado.total = Math.max(0, colaEstado.total - 1);
   colaEstado.total_sin_filtro = Math.max(0, colaEstado.total_sin_filtro - 1);
   const filas = [...vista.querySelectorAll('.fila')];
   if (filas[i]) filas[i].remove();
   vista.querySelectorAll('.fila').forEach((f, n) => f.dataset.i = n);
-  if (!colaEstado.filas.length) vCola();      // se vació: mostrar el estado vacío
+  if (!colaEstado.filas.length) vCola();      // se vaci&oacute;: mostrar el estado vacío
 }
 
 /* Deshacer lo último. Vuelve el campo a como estaba y QUEDA REGISTRADO: la auditoría
-   es append-only, así que deshacer no borra la decisión anterior — agrega una línea
-   más que dice que se revirtió, quién y cuándo. */
+   es append-only, así que deshacer no borra la decisi&oacute;n anterior — agrega una línea
+   más que dice que se revirti&oacute;, quién y cuándo. */
 function mostrarDeshacer() {
   const barra = $('#deshacer-barra');
   if (!barra || !ultimaDecision) return;
@@ -3206,10 +3206,10 @@ function mostrarDeshacer() {
 }
 
 /* ── Buscar con «/» ────────────────────────────────────────────────────────
-   La cola de revisión tiene teclas para decidir y la búsqueda —que es la acción
+   La cola de revisi&oacute;n tiene teclas para decidir y la búsqueda —que es la acci&oacute;n
    principal de todo el sistema— no tenía ninguna. `/` la enfoca desde cualquier
    pantalla y `Esc` sale; la tecla está dicha en el propio campo, porque un atajo que
-   no está escrito en ningún lado lo usa quien lo escribió y nadie más.
+   no está escrito en ningún lado lo usa quien lo escribi&oacute; y nadie más.
 
    No se dispara si ya se está escribiendo en algún lado: dentro de un campo, «/» es
    una barra y tiene que seguir siéndolo. */
@@ -3284,7 +3284,7 @@ async function vIdentidad() {
     <h2>¿Son la misma persona?</h2>
     <p class="prosa">CUIT, CUIL y DNI son clave fuerte: dos contratos con el mismo documento
       ya están unidos, solos. <strong>El nombre nunca alcanza.</strong> Lo de acá abajo son
-      propuestas; ninguna se aplica sin que alguien la confirme, porque una fusión errónea
+      propuestas; ninguna se aplica sin que alguien la confirme, porque una fusi&oacute;n err&oacute;nea
       inventa un contratado con el doble de contratos.</p>
     <div class="cola">${fus.length ? fus.map((f, i) => `
       <div class="fila" data-i="${i}">
@@ -3313,18 +3313,18 @@ async function vIdentidad() {
 
 async function vInterpretacion() {
   const items = await api('/api/interpretaciones');
-  if (!items.length) return vistaVacia('f. 0008', 'Conjetura', 'Interpretación',
-    'Todavía no hay hipótesis',
+  if (!items.length) return vistaVacia('f. 0008', 'Conjetura', 'Interpretaci&oacute;n',
+    'Todavía no hay hip&oacute;tesis',
     'Se generan al procesar un lote, cruzando los datos ya extraídos. Cada una viene con ' +
     'los documentos que la sostienen.');
   const porClase = {};
   items.forEach(i => (porClase[i.clase] ||= []).push(i));
   vista.innerHTML = bloque('f. 0008', 'Conjetura', `
-    <h2>Interpretación</h2>
+    <h2>Interpretaci&oacute;n</h2>
     <div class="aviso"><span class="sello alerta">Otro carril</span>
-      <span>Nada de esta pantalla se leyó de un documento. Son hipótesis y patrones que el
+      <span>Nada de esta pantalla se ley&oacute; de un documento. Son hip&oacute;tesis y patrones que el
       sistema arma cruzando los datos. <strong>Pueden estar equivocados.</strong> Cada
-      afirmación linkea a los documentos que la sostienen: chequealos antes de usarla.</span></div>
+      afirmaci&oacute;n linkea a los documentos que la sostienen: chequealos antes de usarla.</span></div>
     ${Object.entries(porClase).map(([clase, its]) => `
       <h3>${esc(clase)} <span class="rotulo">(${its.length})</span></h3>
       ${its.map(interpHTML).join('')}`).join('') || '<div class="vacio">Sin interpretaciones.</div>'}
@@ -3341,14 +3341,14 @@ async function vConsultas(id) {
   vista.innerHTML = bloque('f. 0009', 'SQL', `
     <h2>Consultas</h2>
     <p class="prosa">Cada consulta es un archivo <span class="mono">.sql</span> versionado en
-      el repositorio, no una cadena escondida en el código. Cuando pidan una variante se
+      el repositorio, no una cadena escondida en el c&oacute;digo. Cuando pidan una variante se
       copia el archivo, se edita, y quedan las dos.</p>
     <div class="fila-suelta abajo">
       ${cat.map(c => `<a class="chip${c.id === activa ? ' activa' : ''}"
         href="#/consultas/${c.id}">${esc(c.id)}</a>`).join('')}
     </div>
     ${r ? `<pre class="sql">${esc(r.sql.trim())}</pre>
-      <p class="prosa nota sep-corta">${esc(r.ruta)} · ${r.n} filas</p>
+      <p class="prosa nota sep-corta">${esc(r.ruta)} &middot; ${r.n} filas</p>
       ${tabla(r.columnas.map(c => ({t:c, k:c, c: /centavos|dias|total|_id|^n$/.test(c) ? 'num' : ''})), r.filas)}`
     : ''}`);
 }
@@ -3380,7 +3380,7 @@ async function vBuscar(q) {
 
   vista.innerHTML = bloque('f. 0010', 'Buscar', `<h2>Buscar en el corpus</h2>
     <form id="f-buscar" class="fila-suelta"><label>Buscar <input id="q" value="${esc(q)}" autocomplete="off" autofocus></label><button class="boton">Ir</button></form>
-    ${r ? (r.filas.length ? `<div class="resultados">${r.filas.map(dibujarFila).join('')}</div>` : vacio('Sin resultados', 'No se encontró nada que coincida.')) : ''}`);
+    ${r ? (r.filas.length ? `<div class="resultados">${r.filas.map(dibujarFila).join('')}</div>` : vacio('Sin resultados', 'No se encontr&oacute; nada que coincida.')) : ''}`);
   
   document.getElementById('f-buscar').onsubmit = e => {
       e.preventDefault();
@@ -3389,7 +3389,7 @@ async function vBuscar(q) {
   };
 }
 function resultadosHTML(r) {
-  if (r.aviso) return `<div class="aviso"><span class="sello alerta">Atención</span>
+  if (r.aviso) return `<div class="aviso"><span class="sello alerta">Atenci&oacute;n</span>
     <span>${esc(r.aviso)}</span></div>`;
   const total = (r.campos_total ?? r.campos.length) + (r.paginas_total ?? r.paginas.length);
   const mostrados = r.campos.length + r.paginas.length;
@@ -3398,7 +3398,7 @@ function resultadosHTML(r) {
     : `<strong>No aparece</strong>`;
   const cob = htmlResumenBusqueda(r) + coberturaHTML(r.cobertura, hallazgos);
   const nada = !r.campos.length && !r.paginas.length;
-  // Nunca «Sin coincidencias» a secas. Lo que se puede afirmar es dónde se buscó.
+  // Nunca «Sin coincidencias» a secas. Lo que se puede afirmar es d&oacute;nde se busc&oacute;.
   if (nada) return cob || `<div class="vacio">Sin coincidencias para
     «${esc(r.consulta)}».</div>`;
   return `${cob}
@@ -3419,10 +3419,10 @@ function resultadosHTML(r) {
     ${r.paginas.length ? `
       <h3>En el texto de los folios <span class="rotulo">(${r.paginas.length})</span></h3>
       <p class="prosa nota">Esto son <strong>lugares donde mirar</strong>:
-        apareció en la página, sin que sea un campo extraído.</p>
+        apareci&oacute; en la página, sin que sea un campo extraído.</p>
       <div class="hallazgos">${r.paginas.map(p => `
         <div class="hallazgo">${p.documento_id ? `<a href="#/documento/${esc(p.documento_id)}">Ver documento</a>` : '<span>Sin documento asignado</span>'}
-          <span class="fol">${esc(p.archivo)} · f. ${p.nro}</span>
+          <span class="fol">${esc(p.archivo)} &middot; f. ${p.nro}</span>
           <span class="frag">${resaltar(p.fragmento)}</span>
         <button class="mini" data-apartar="foja" data-referencia="${esc(p.sha256)}:${esc(p.nro)}">Apartar en colecci\u00f3n</button></div>`).join('')}</div>` : ''}`;
 }
@@ -3438,7 +3438,7 @@ async function vPersonas() {
     <h2>Contratados</h2>
     <p class="prosa">Agrupados por documento cuando lo hay. <strong>Los que no tienen
       documento legible aparecen sueltos</strong>, uno por contrato: sin clave fuerte el
-      sistema no los junta solo, y eso es a propósito.</p>
+      sistema no los junta solo, y eso es a prop&oacute;sito.</p>
     <div id="tabla-personas"></div>`);
   tablaBuscable($('#tabla-personas'), [
       {t:'Contratado/a', c:'nombre', k:'contratado'},
@@ -3464,8 +3464,8 @@ async function vPersonas() {
                placeholder: 'Buscar por nombre o documento…'});
 }
 
-/* Cronología de tramos: un renglón por contrato sobre un eje temporal común.
-   Un solo tono para los contratos; el rojo de estado marca SÓLO la superposición,
+/* Cronología de tramos: un rengl&oacute;n por contrato sobre un eje temporal común.
+   Un solo tono para los contratos; el rojo de estado marca SÓLO la superposici&oacute;n,
    que es lo que el gráfico existe para mostrar. La cámara va como texto, no como
    color: la identidad nunca depende del color solo. */
 function cronologia(contratos, solapes) {
@@ -3497,8 +3497,8 @@ function cronologia(contratos, solapes) {
         ${anios.map(n => `<i class="guia" style="left:${n.izq}%"></i>`).join('')}
         <a class="tramo${solapa ? ' solapa' : ''}" href="#/documento/${c.documento_id}"
            style="left:${x(i)}%; width:${Math.max(x(f) - x(i), 0.7)}%"
-           title="${esc(c.inicio)} → ${esc(c.fin)} · ${dias} días · ${esc(c.cargo || 'sin cargo')}${
-             c.monto_centavos != null ? ' · ' + fmtPesos(c.monto_centavos) : ''}"></a>
+           title="${esc(c.inicio)} → ${esc(c.fin)} &middot; ${dias} días &middot; ${esc(c.cargo || 'sin cargo')}${
+             c.monto_centavos != null ? ' &middot; ' + fmtPesos(c.monto_centavos) : ''}"></a>
       </div>
       <div class="tramo-dato mono">${esc(fmtFecha(c.inicio))} → ${esc(fmtFecha(c.fin))}</div>
     </div>`;
@@ -3533,9 +3533,9 @@ async function vPersona(id) {
     <h2>${esc(nombre)}</h2>
     <p class="prosa nota">
       ${d.persona.clave_fuerte
-        ? `Documento <span class="mono">${esc(d.persona.doc_tipo)} ${esc(d.persona.doc_numero)}</span> ·
+        ? `Documento <span class="mono">${esc(d.persona.doc_tipo)} ${esc(d.persona.doc_numero)}</span> &middot;
            los contratos se agruparon por clave fuerte.`
-        : `<strong>Sin documento legible.</strong> Este contratado no se agrupó con ningún otro:
+        : `<strong>Sin documento legible.</strong> Este contratado no se agrup&oacute; con ningún otro:
            el nombre solo nunca alcanza para decir que dos contratos son de la misma persona.`}
       ${otros.length ? `<br>También aparece escrito como ${otros.map(o =>
         `<span class="mono">${esc(o.nombre_literal)}</span>`).join(', ')}.` : ''}</p>
@@ -3548,7 +3548,7 @@ async function vPersona(id) {
       <div class="cifra ${t.sin_monto ? 'alerta' : ''}"><b>${t.sin_monto}</b><span>sin monto legible</span></div>
     </div>
     ${t.sin_monto || t.sin_fechas ? `<p class="prosa nota">
-      El acumulado suma sólo los contratos con monto firme: hay ${t.sin_monto} sin monto y
+      El acumulado suma s&oacute;lo los contratos con monto firme: hay ${t.sin_monto} sin monto y
       ${t.sin_fechas} sin fechas completas. <strong>Es un piso, no un total.</strong></p>` : ''}
     ${t.comprobantes ? `
     <div class="cifras sep-corta">
@@ -3559,7 +3559,7 @@ async function vPersona(id) {
     </div>
     <p class="prosa nota">
       <strong>Lo facturado no se suma con lo contratado.</strong> El mensual acumulado es
-      lo que dicen los contratos por mes; lo facturado es lo que esta persona cobró. Son
+      lo que dicen los contratos por mes; lo facturado es lo que esta persona cobr&oacute;. Son
       la misma plata vista de los dos lados${t.comprobantes_sin_importe
         ? `, y el facturado además está incompleto: ${plural(t.comprobantes_sin_importe,
             'comprobante trae el importe a mano', 'comprobantes traen el importe a mano')}
@@ -3605,9 +3605,9 @@ async function vPersona(id) {
 
     ${d.interpretaciones.length ? `
       <div class="sep">
-        <span class="rotulo">Carril de interpretación</span>
-        <p class="prosa nota">Nada de esto se leyó de un
-          papel. Son hipótesis armadas cruzando los datos de arriba, y pueden estar mal.</p>
+        <span class="rotulo">Carril de interpretaci&oacute;n</span>
+        <p class="prosa nota">Nada de esto se ley&oacute; de un
+          papel. Son hip&oacute;tesis armadas cruzando los datos de arriba, y pueden estar mal.</p>
         ${d.interpretaciones.map(interpHTML).join('')}
       </div>` : ''}`);
 
@@ -3628,8 +3628,8 @@ let subiendo = false;
    leídas, clasificadas— y están dichos por lo que FALTA, no por lo que hay: un archivo
    con ochenta fojas leídas y ocho sin leer está a medio leer, no leído. */
 const ESTADO_CARGA = {
-  // Sin leer es trabajo pendiente —ámbar, atención—; a medio leer es una falla —algo
-  // cortó el procesamiento— y por eso va en punzó. §2: el rojo se gasta si se usa
+  // Sin leer es trabajo pendiente —ámbar, atenci&oacute;n—; a medio leer es una falla —algo
+  // cort&oacute; el procesamiento— y por eso va en punz&oacute;. §2: el rojo se gasta si se usa
   // para lo que simplemente falta hacer.
   sin_leer: sello('atencion', 'sin leer'),
   a_medio_leer: sello('alerta', 'a medio leer'),
@@ -3642,14 +3642,14 @@ function resumenCarga(ar) {
   const r = ar.resumen || {};
   const listos = r.listo || 0;
   if (listos === n) return `<strong>${fmtNum.format(n)}</strong> ${
-    n === 1 ? 'archivo' : 'archivos'} · ${fmtNum.format(ar.fojas)} fojas · todo procesado.`;
+    n === 1 ? 'archivo' : 'archivos'} &middot; ${fmtNum.format(ar.fojas)} fojas &middot; todo procesado.`;
   const falta = [
     r.sin_leer ? `${fmtNum.format(r.sin_leer)} sin leer` : '',
     r.a_medio_leer ? `<strong>${fmtNum.format(r.a_medio_leer)} a medio leer</strong>` : '',
     r.sin_extraer ? `${fmtNum.format(r.sin_extraer)} leídos sin extraer` : '',
   ].filter(Boolean).join(', ');
-  return `<strong>${fmtNum.format(n)}</strong> ${n === 1 ? 'archivo' : 'archivos'} · ${
-    fmtNum.format(ar.fojas)} fojas · ${fmtNum.format(listos)} ${
+  return `<strong>${fmtNum.format(n)}</strong> ${n === 1 ? 'archivo' : 'archivos'} &middot; ${
+    fmtNum.format(ar.fojas)} fojas &middot; ${fmtNum.format(listos)} ${
     listos === 1 ? 'listo' : 'listos'}${falta ? ', ' + falta : ''}.`;
 }
 
@@ -3889,7 +3889,7 @@ async function vReasociaciones() {
     {t: 'Documento', r: r => `<a href="#/documento/${esc(r.documento_id)}">${esc(r.archivo || 'doc ' + r.documento_id)}</a>`},
     {t: 'Foja', c: 'num', r: r => `<a href="javascript:abrirFojaSuelta('${esc(r.sha256)}', ${r.ancla_pagina}, '${esc(r.archivo)}')">f. ${esc(r.ancla_pagina)}</a>`},
     {t: 'Texto original', c: 'mono', r: r => esc(r.texto)},
-    {t: 'Decisión', r: (r, i) => `<div style="display:flex;gap:8px" data-revision="${i}">
+    {t: 'Decisi&oacute;n', r: (r, i) => `<div style="display:flex;gap:8px" data-revision="${i}">
       <label><input type="radio" name="res-${i}" value="reasociar"> Reasociar</label>
       <label><input type="radio" name="res-${i}" value="descartar"> Descartar</label>
       <button class="boton" data-resolver="ejecutar" disabled>Ejecutar</button>
@@ -4012,14 +4012,14 @@ async function vIngesta() {
     <p class="prosa">Arrastrá acá los PDF escaneados, o elegilos. Se guardan tal cual
       llegaron, bajo su propio hash y en solo lectura: <strong>el archivo que subís no se
       vuelve a tocar nunca más</strong>. Si un PDF ya estaba, no se duplica — se anota que
-      apareció de nuevo y se sigue.</p>
+      apareci&oacute; de nuevo y se sigue.</p>
 
     <div class="campos-lote">
       <label>Lote <input type="text" id="i-lote" value="${esc(lote)}"
         placeholder="contratos-camara-A-2024"></label>
       <label>Referencia <input type="text" id="i-legajo"
-        placeholder="opcional — expediente, actuación"
-        title="Sólo queda anotado en la procedencia del archivo. No cambia de legajo."></label>
+        placeholder="opcional — expediente, actuaci&oacute;n"
+        title="S&oacute;lo queda anotado en la procedencia del archivo. No cambia de legajo."></label>
       <label>Quién carga <input type="text" id="i-operador"
         value="${esc(localStorage.getItem('ufil.revisor') || '')}" placeholder="apellido.nombre"></label>
     </div>
@@ -4027,7 +4027,7 @@ async function vIngesta() {
     <div class="soltar" id="soltar" tabindex="0" role="button"
          aria-label="Soltar archivos PDF acá o presionar para elegirlos">
       <b>Soltá los PDF acá</b>
-      <span>o hacé clic para elegirlos · sólo PDF · hasta 200 MB cada uno</span>
+      <span>o hacé clic para elegirlos &middot; s&oacute;lo PDF &middot; hasta 200 MB cada uno</span>
       <input type="file" id="i-archivos" accept="application/pdf,.pdf" multiple hidden>
     </div>
     <div id="subidas"></div>
@@ -4056,8 +4056,8 @@ async function vIngesta() {
     <details class="consejo" id="c-escaneo">
       <summary>Qué pedirle a quien escanea</summary>
       <p><strong>300 DPI y escala de grises.</strong> Nunca el «modo texto» en blanco y
-        negro que muchos escáneres traen puesto: es la única configuración probada que
-        llegó a <strong>guardar un dato falso dándolo por bueno</strong>. Más de 300 no
+        negro que muchos escáneres traen puesto: es la única configuraci&oacute;n probada que
+        lleg&oacute; a <strong>guardar un dato falso dándolo por bueno</strong>. Más de 300 no
         hace falta; el archivo pesa el doble y no se gana nada medible.</p>
       <p><strong>Un PDF por contrato, si se puede.</strong> Así el sistema reconoce por
         huella los que ya tenía y no los cuenta dos veces. Si conviene escanear de
@@ -4065,7 +4065,7 @@ async function vIngesta() {
       <p>Conviene pedirlo <strong>por escrito y antes de que empiecen</strong>.
         Reescanear dos mil fojas porque salieron a 100 DPI es una semana perdida.</p>
       <p class="medido">El detalle de las mediciones está en
-        <a href="#/como-funciona">Cómo funciona</a>.</p>
+        <a href="#/como-funciona">C&oacute;mo funciona</a>.</p>
     </details>
 
     ${t.lotes && t.lotes.length ? `
@@ -4101,7 +4101,7 @@ async function vIngesta() {
       if (!r.ok) return toast(r.motivo || 'No se pudo arrancar');
       seguirTrabajo();
     } catch (e) {
-      // 409 sin legajo: el servidor tiene razón y la pantalla está vieja. Se la manda
+      // 409 sin legajo: el servidor tiene raz&oacute;n y la pantalla está vieja. Se la manda
       // a elegir uno en vez de mostrarle el texto del error.
       if (e.estado === 409) return vistaSinLegajo('Cargar escaneos');
       toast(e.message);
@@ -4129,7 +4129,7 @@ async function subir(archivos) {
   let nuevos = 0, dups = 0, fallos = 0, papel = 0, parciales = 0;
 
   /* ── Preguntar ANTES de subir ──────────────────────────────────────────────
-     Un PDF de un expediente pesa veintidós megabytes. Subirlo entero para que el
+     Un PDF de un expediente pesa veintid&oacute;s megabytes. Subirlo entero para que el
      servidor conteste «ya estaba» es tiempo de quien está cargando, y una carpeta de
      trescientos escaneos vuelta a arrastrar es la tarde entera. El SHA-256 se puede
      calcular acá, sin mandar nada, y preguntarlo todo junto.
@@ -4161,7 +4161,7 @@ async function subir(archivos) {
     if (f.__sha && yaEstan.has(f.__sha)) {
       dups++;
       fila.querySelector('.res').innerHTML =
-        `<span class="nulo">ya estaba — no se subió</span>`;
+        `<span class="nulo">ya estaba — no se subi&oacute;</span>`;
       continue;
     }
     try {
@@ -4185,7 +4185,7 @@ async function subir(archivos) {
       else if (j.duplicado) { dups++; fila.querySelector('.res').innerHTML =
         `<span class="nulo">ya estaba</span>`; }
       else if (j.motivo === 'parcial' && j.cotejo) {
-        /* Se guardó. Dos partes de un expediente comparten la foja del empalme y eso
+        /* Se guard&oacute;. Dos partes de un expediente comparten la foja del empalme y eso
            es correcto en el papel, así que acá el sistema NO decide: avisa y sigue. */
         parciales++; nuevos++;
         fila.querySelector('.res').innerHTML =
@@ -4223,7 +4223,7 @@ function pintarTrabajo(t) {
   if (t.estado === 'inactivo') { p.innerHTML = ''; return; }
   const pct = t.total ? Math.round(100 * t.hecho / t.total) : 0;
   const falta = t.faltan_segundos != null
-    ? ` · faltan ~${t.faltan_segundos > 90 ? Math.round(t.faltan_segundos/60)+' min' : t.faltan_segundos+' s'}`
+    ? ` &middot; faltan ~${t.faltan_segundos > 90 ? Math.round(t.faltan_segundos/60)+' min' : t.faltan_segundos+' s'}`
     : '';
   p.innerHTML = `
     <div class="progreso">
@@ -4235,8 +4235,8 @@ function pintarTrabajo(t) {
          <span>Se termina la página que está en curso y ahí frena. Lo leído queda
            guardado: al procesar de nuevo retoma donde iba.</span></div>` : ''}
       ${t.estado === 'terminado' ? `<p class="prosa nota sep-corta">
-         <strong>Listo.</strong> ${esc(t.mensaje)} · ${t.segundos} s.
-         <a href="#/panel">Ver el panel</a> · <a href="#/cola">Ir a la cola</a></p>` : ''}
+         <strong>Listo.</strong> ${esc(t.mensaje)} &middot; ${t.segundos} s.
+         <a href="#/panel">Ver el panel</a> &middot; <a href="#/cola">Ir a la cola</a></p>` : ''}
       ${t.estado === 'detenido' ? `<div class="aviso sep-corta">
          <span class="sello atencion">Parado</span>
          <span>${esc(t.mensaje)}</span></div>` : ''}
@@ -4279,19 +4279,19 @@ async function seguirTrabajo() {
 
 /* ── Trabajo del equipo ────────────────────────────────────────────────────
    Sobre una misma causa trabajan varias personas. Sin esta pantalla, cada una ve un
-   contador que baja y no sabe si bajó porque alguien más está revisando o porque algo
-   se rompió. Y a la hora de firmar, «lo revisó una persona» no alcanza: hay que poder
-   decir quién revisó qué, y cuándo.
+   contador que baja y no sabe si baj&oacute; porque alguien más está revisando o porque algo
+   se rompi&oacute;. Y a la hora de firmar, «lo revis&oacute; una persona» no alcanza: hay que poder
+   decir quién revis&oacute; qué, y cuándo.
 
-   Sale de `revision_humana`, que ya se escribe con cada decisión. No hay tabla nueva
+   Sale de `revision_humana`, que ya se escribe con cada decisi&oacute;n. No hay tabla nueva
    ni nada duplicado: es la misma verdad, mirada por autor. */
 const ACCION_EQUIPO = {
   verificar: ['ok', 'lo dio por correcto'],
-  corregir: ['ok', 'lo corrigió a mano'],
-  ilegible: ['neutro', 'lo cerró como ilegible'],
-  ausente: ['neutro', 'lo cerró como ausente'],
-  ambiguo: ['neutro', 'lo cerró como ambiguo'],
-  revertir: ['atencion', 'deshizo una revisión'],
+  corregir: ['ok', 'lo corrigi&oacute; a mano'],
+  ilegible: ['neutro', 'lo cerr&oacute; como ilegible'],
+  ausente: ['neutro', 'lo cerr&oacute; como ausente'],
+  ambiguo: ['neutro', 'lo cerr&oacute; como ambiguo'],
+  revertir: ['atencion', 'deshizo una revisi&oacute;n'],
 };
 
 async function vEquipo() {
@@ -4300,10 +4300,10 @@ async function vEquipo() {
   if (!a.total) {
     return vista.innerHTML = bloque('f. 0105', 'Equipo', `
       <h2>Trabajo del equipo</h2>
-      ${vacio('Todavía nadie revisó nada',
-        'Acá va a aparecer quién revisó cada campo y cuándo. Cada decisión que alguien ' +
+      ${vacio('Todavía nadie revis&oacute; nada',
+        'Acá va a aparecer quién revis&oacute; cada campo y cuándo. Cada decisi&oacute;n que alguien ' +
         'toma en la cola queda registrada con su nombre, y esto lo muestra junto.',
-        {href: '#/cola', texto: 'Ir a la cola de revisión'})}`);
+        {href: '#/cola', texto: 'Ir a la cola de revisi&oacute;n'})}`);
   }
 
   const cuando = v => v ? `${fmtFecha(v)} ${String(v).slice(11, 16)}` : '—';
@@ -4313,19 +4313,19 @@ async function vEquipo() {
     bloque('f. 0105', 'Equipo', `
       <h2>Trabajo del equipo</h2>
       <p class="prosa">Todos trabajan sobre la misma base: lo que revisa una persona lo
-        ve el resto enseguida. <strong>${plural(a.total, 'decisión tomada a mano',
+        ve el resto enseguida. <strong>${plural(a.total, 'decisi&oacute;n tomada a mano',
         'decisiones tomadas a mano')}</strong> en este legajo.</p>
       ${tabla([
         {t:'Quién', c:'nombre', r:f => `<b>${esc(f.quien)}</b>` +
           (f.quien === yo ? ' <span class="apagado">— sos vos</span>' : '')},
         {t:'Campos revisados', c:'num', r:f => fmtNum.format(f.decisiones)},
-        {t:'Empezó', c:'mono', r:f => esc(cuando(f.primera))},
+        {t:'Empez&oacute;', c:'mono', r:f => esc(cuando(f.primera))},
         {t:'Última vez', c:'mono', r:f => esc(cuando(f.ultima))},
       ], a.quienes)}`) +
 
     bloque('f. 0106', 'Últimas', `
-      <h2>Lo último que se decidió</h2>
-      <p class="prosa">De lo más reciente a lo más viejo. Cada renglón lleva al
+      <h2>Lo último que se decidi&oacute;</h2>
+      <p class="prosa">De lo más reciente a lo más viejo. Cada rengl&oacute;n lleva al
         documento, para poder mirar el folio.</p>
       ${tabla([
         {t:'Cuándo', c:'mono', r:f => esc(cuando(f.cuando))},
@@ -4335,7 +4335,7 @@ async function vEquipo() {
           const [tono, texto] = ACCION_EQUIPO[f.accion] || ['neutro', f.accion];
           return sello(tono, texto);
         }},
-        {t:'Valor que quedó', c:'mono', r:f => f.valor
+        {t:'Valor que qued&oacute;', c:'mono', r:f => f.valor
           ? esc(f.valor) : '<span class="apagado">—</span>'},
         {t:'Documento', r:f => f.documento_id
           ? `<a href="#/documento/${f.documento_id}">${esc(f.archivo)}</a>`
@@ -4344,8 +4344,8 @@ async function vEquipo() {
 }
 
 /* ── Acerca del sistema ────────────────────────────────────────────────────
-   Quién firma esto y qué versión se está usando. Es la pantalla que se abre cuando
-   alguien pregunta «¿esto de dónde salió?» —en una audiencia, en una reunión— y hay
+   Quién firma esto y qué versi&oacute;n se está usando. Es la pantalla que se abre cuando
+   alguien pregunta «¿esto de d&oacute;nde sali&oacute;?» —en una audiencia, en una reuni&oacute;n— y hay
    que contestar sin buscar en ningún lado. Los nombres salen de ufil/identidad.py:
    acá no hay ninguno escrito. */
 async function vAcerca() {
@@ -4373,12 +4373,12 @@ async function vAcerca() {
         —<span class="mono">ufil/identidad.py</span>, o un archivo
         <span class="mono">identidad.json</span> en la carpeta de datos— y cambian en
         todas partes a la vez.</p>`) +
-    bloque('f. 0000', 'Versión', `
-      <h2>Qué versión estás usando</h2>
+    bloque('f. 0000', 'Versi&oacute;n', `
+      <h2>Qué versi&oacute;n estás usando</h2>
       <table class="salud"><tbody>
         <tr><td>${sello('neutro', 'Interfaz')}</td>
             <td class="mono">${esc(VERSION_CARGADA || c.version || '—')}</td>
-            <td>La huella del archivo de la interfaz que cargó esta pestaña. Si el
+            <td>La huella del archivo de la interfaz que carg&oacute; esta pestaña. Si el
               servidor pasa a servir otra, aparece un aviso arriba.</td></tr>
         <tr><td>${sello('neutro', 'Legajo abierto')}</td>
             <td class="mono">${esc(c.legajo ? c.legajo.numero : 'ninguno')}</td>
@@ -4386,30 +4386,30 @@ async function vAcerca() {
               : 'Cada legajo es una base separada. <a href="#/legajos">Elegir uno</a>.'}</td></tr>
       </tbody></table>
       <p class="prosa">Lo que hace y lo que <strong>no</strong> hace el sistema está
-        contado en <a href="#/como-funciona">Cómo funciona</a>. Si algo no anda,
-        <a href="#/salud">Estado del sistema</a> dice qué falta y cómo se arregla.</p>`);
+        contado en <a href="#/como-funciona">C&oacute;mo funciona</a>. Si algo no anda,
+        <a href="#/salud">Estado del sistema</a> dice qué falta y c&oacute;mo se arregla.</p>`);
 }
 
-/* ── Cómo funciona ─────────────────────────────────────────────────────── */
+/* ── C&oacute;mo funciona ─────────────────────────────────────────────────────── */
 /* La pantalla que contesta lo que pregunta cualquiera que ve esto por primera vez:
-   de dónde salen los datos, qué pasa si el sistema se equivoca, y qué NO hace. */
+   de d&oacute;nde salen los datos, qué pasa si el sistema se equivoca, y qué NO hace. */
 /* Estado del sistema: lo que en la terminal serían `diagnostico` y `verificar`, pero
    para alguien que nunca va a abrir una terminal. Sirve el primer día —¿está todo
-   instalado?— y después como control periódico de que nada se movió. */
+   instalado?— y después como control peri&oacute;dico de que nada se movi&oacute;. */
 async function vSalud() {
   const s = await api('/api/salud');
   const simbolos = {ok: 'ok', aviso: 'Aviso', falla: 'Falta'};
   const clase = {ok: 'ok', aviso: 'atencion', falla: 'alerta'};
 
-  // Qué versión se está viendo. Existe porque hubo que averiguarlo a mano: se
-  // desplegó una versión nueva, el servidor la estaba sirviendo, y desde afuera no
+  // Qué versi&oacute;n se está viendo. Existe porque hubo que averiguarlo a mano: se
+  // despleg&oacute; una versi&oacute;n nueva, el servidor la estaba sirviendo, y desde afuera no
   // había forma de saber si lo que aparecía en pantalla era esa o una guardada en el
   // navegador. Con este número la pregunta se contesta mirando.
   const version = `<p class="version-app">
-    Versión de la interfaz <span class="mono">${esc(s.version)}</span> ·
+    Versi&oacute;n de la interfaz <span class="mono">${esc(s.version)}</span> &middot;
     esquema de la base <span class="mono">v${esc(s.esquema)}</span>${
       VERSION_CARGADA && VERSION_CARGADA !== s.version
-        ? ` · <strong>hay una versión más nueva en el servidor</strong>:
+        ? ` &middot; <strong>hay una versi&oacute;n más nueva en el servidor</strong>:
             <a href="#" onclick="location.reload();return false">recargar</a>` : ''}</p>`;
 
   const veredicto = s.puede_trabajar
@@ -4429,7 +4429,7 @@ async function vSalud() {
      reinicio— es el número doce.
 
      El orden dentro de cada grupo NO se toca: `sort` de JavaScript es estable, así que
-     lo que está en verde queda como venía y sólo suben las fallas y los avisos. Un
+     lo que está en verde queda como venía y s&oacute;lo suben las fallas y los avisos. Un
      orden que se reacomoda entero cada vez que algo cambia de estado obliga a
      releerlo entero. */
   const PESO = {falla: 0, aviso: 1, ok: 2};
@@ -4447,19 +4447,19 @@ async function vSalud() {
     ? `<ul class="fallas">${s.invariantes.map(f => `<li>${esc(f)}</li>`).join('')}</ul>`
     : `<div class="aviso bien"><span class="sello ok">Cumple</span>
          <span>Las reglas del pliego se siguen cumpliendo sobre los datos cargados:
-         ningún campo con valor sin ubicación en la imagen, ninguna interpretación sin
-         documento que la sostenga, ninguna fusión de identidad aplicada sola.</span></div>`;
+         ningún campo con valor sin ubicaci&oacute;n en la imagen, ninguna interpretaci&oacute;n sin
+         documento que la sostenga, ninguna fusi&oacute;n de identidad aplicada sola.</span></div>`;
 
   const i = s.integridad;
   const cobertura = i.total
     ? `<p class="prosa">De los <b>${i.total}</b> originales cargados,
         <b>${i.verificados}</b> fueron rehasheados alguna vez y siguen idénticos a como
         entraron.${i.total > i.verificados
-          ? ` Faltan ${i.total - i.verificados}: cada comprobación toma un lote empezando
+          ? ` Faltan ${i.total - i.verificados}: cada comprobaci&oacute;n toma un lote empezando
               por los que hace más tiempo que no se miran, así que corriéndola seguido el
               acervo entero queda cubierto.`
           : ' El acervo entero está cubierto.'}
-        ${i.mas_viejo ? ` La verificación más antigua es del
+        ${i.mas_viejo ? ` La verificaci&oacute;n más antigua es del
           <span class="mono">${esc(String(i.mas_viejo).slice(0, 16).replace('T', ' '))}</span>.` : ''}</p>
        <p class="prosa nota">Rehashear originales lee del disco archivo
          por archivo, así que no se hace al abrir esta pantalla: se pide.</p>
@@ -4472,7 +4472,7 @@ async function vSalud() {
       <h2>Estado del sistema</h2>
       <p class="prosa">Esta pantalla contesta dos preguntas distintas. Arriba: si esta
         computadora tiene instalado todo lo que hace falta. Abajo: si lo que ya está cargado
-        sigue cumpliendo las reglas con las que se cargó.</p>
+        sigue cumpliendo las reglas con las que se carg&oacute;.</p>
       ${veredicto}
     ${version}
       <div class="tabla-env"><table class="salud"><tbody>${filas}</tbody></table></div>`) +
@@ -4485,7 +4485,7 @@ async function vSalud() {
 
     bloque('f. 0902', 'Originales', `
       <h2>Los originales no cambiaron</h2>
-      <p class="prosa">El sistema guarda el hash de cada archivo tal como entró y lo vuelve a
+      <p class="prosa">El sistema guarda el hash de cada archivo tal como entr&oacute; y lo vuelve a
         calcular cada tanto. Si alguien —con permisos de administrador, que es el único que
         puede— tocara un original, esto lo detecta.</p>
       ${cobertura}`);
@@ -4512,13 +4512,13 @@ async function vSalud() {
   };
 }
 
-/* Qué entró y no salió. Sin esta pantalla, subir trescientos PDF y que doce no den
+/* Qué entr&oacute; y no sali&oacute;. Sin esta pantalla, subir trescientos PDF y que doce no den
    ningún contrato es invisible: el panel muestra 288 y nadie sabe que faltan doce.
    Un documento que se pierde en silencio es lo peor que puede hacer un sistema que
    existe justamente para no perder documentos. */
 /* ── El expediente, foja por foja ───────────────────────────────────────────
    Un expediente administrativo no se puede mirar como una pila de documentos. Medido
-   sobre el expediente 201.602 —parte 4, 88 páginas escaneadas de una actuación de más
+   sobre el expediente 201.602 —parte 4, 88 páginas escaneadas de una actuaci&oacute;n de más
    de 850 fojas—: no produce UN documento, porque no hay adentro un solo formulario.
    Antes de esta pantalla todo ese material entraba y desaparecía: 88 páginas leídas,
    0 documentos, ningún lugar donde mirarlo.
@@ -4548,7 +4548,7 @@ async function vFojas() {
     {t: 'Archivo', c: 'mono fol', r: f => esc(f.archivo)},
     {t: 'Foja', c: 'num fol', r: f => String(f.nro), b: f => f.nro},
     {t: 'Qué es', r: f => cuño(f.clase, f.etiqueta)},
-    {t: 'Acción', r: f => `<a href="#/foja/${esc(f.sha256)}/${f.nro}" class="boton secundario">Ver contexto</a>`}
+    {t: 'Acci&oacute;n', r: f => `<a href="#/foja/${esc(f.sha256)}/${f.nro}" class="boton secundario">Ver contexto</a>`}
   ], todasFojas);
 }
 
@@ -4557,9 +4557,9 @@ async function vFojas() {
    Un acto administrativo escribe cada cantidad dos veces, y eso es una salvaguarda de
    trescientos años: que un cero de más no pase desapercibido.
 
-   Acá van TODOS los cotejos y no sólo los que fallan. Los que coinciden son la prueba
-   de que el importe se leyó bien; una pantalla con sólo las diferencias no deja saber
-   si el sistema miró algo o no miró nada. */
+   Acá van TODOS los cotejos y no s&oacute;lo los que fallan. Los que coinciden son la prueba
+   de que el importe se ley&oacute; bien; una pantalla con s&oacute;lo las diferencias no deja saber
+   si el sistema mir&oacute; algo o no mir&oacute; nada. */
 async function vNumeros() {
   const filas = await api('/api/numeros');
   if (!filas.length) return vistaVacia('f. 0009', 'Cotejo', 'Números escritos dos veces',
@@ -4583,7 +4583,7 @@ async function vNumeros() {
             es lo mismo que un desacuerdo.` : ''}</p>
     ${tabla([
       {t:'Foja', c:'num', r:f => String(f.pagina_nro)},
-      // Las letras parten renglón: sin eso, una cifra en letras de ochenta caracteres
+      // Las letras parten rengl&oacute;n: sin eso, una cifra en letras de ochenta caracteres
       // no entraba y la hoja entera se iba a ancho completo, sin su margen.
       {t:'Qué dice en letras', c:'crece', r:f => esc(f.letras)},
       {t:'Y en números', c:'mono', r:f => esc(f.digitos)},
@@ -4601,7 +4601,7 @@ async function vAfuera() {
 
   if (!d.afuera) {
     return vista.innerHTML = bloque('f. 0800', 'Control', `
-      <h2>Ningún archivo quedó afuera</h2>
+      <h2>Ningún archivo qued&oacute; afuera</h2>
       <div class="aviso bien"><span class="sello ok">Completo</span>
         <span>Los <b>${d.total_archivos}</b> archivos cargados produjeron al menos un
         contrato. No hay nada perdido en el camino.</span></div>
@@ -4623,14 +4623,14 @@ async function vAfuera() {
         Formularios que el sistema conoce hoy:
         ${d.perfiles_conocidos.map(p => `<span class="mono">${esc(p)}</span>`).join(', ')}.
         Agregar uno nuevo no requiere programar: se copia un archivo de
-        <span class="mono">ufil/perfiles/</span> y se le cambian los rótulos.</p>` : ''}
+        <span class="mono">ufil/perfiles/</span> y se le cambian los r&oacute;tulos.</p>` : ''}
       ${tabla([
         {t: 'Archivo', k: 'archivo', c: 'mono'},
         {t: 'Fojas', c: 'num', r: f => f.paginas ?? '—'},
         {t: 'Lote', r: f => esc(f.lote || '—')},
-        // Un archivo que nunca se pudo abrir no llegó a la etapa de lectura: decir
-        // "no se leyó" ahí es ruido, no información.
-        {t: 'Se leyó', r: f => f.paginas === null ? '—'
+        // Un archivo que nunca se pudo abrir no lleg&oacute; a la etapa de lectura: decir
+        // "no se ley&oacute;" ahí es ruido, no informaci&oacute;n.
+        {t: 'Se ley&oacute;', r: f => f.paginas === null ? '—'
           : f.leido ? '<span class="sello">sí</span>'
           : '<span class="sello alerta">no</span>'},
       ], fs)}`);
@@ -4643,7 +4643,7 @@ async function vAfuera() {
         produjeron ningún contrato. No se perdieron —están registrados con su hash—
         pero <b>no entran en ningún cruce ni en ningún acumulado</b>.</span></div>
       <p class="prosa">Que un archivo quede afuera no siempre es un error: una nota de
-        elevación o una constancia no son contratos y no tienen por qué producir uno. Lo
+        elevaci&oacute;n o una constancia no son contratos y no tienen por qué producir uno. Lo
         que hay que descartar es lo otro: que sea un contrato que el sistema no supo
         reconocer. Por eso están agrupados por motivo, con qué hacer en cada caso.</p>`)
     + secciones;
@@ -4652,14 +4652,14 @@ async function vAfuera() {
 function vComoFunciona() {
   vista.innerHTML =
     bloque('f. 0100', 'Qué es', `
-      <h2>Cómo funciona</h2>
+      <h2>C&oacute;mo funciona</h2>
       <p class="prosa">Este sistema lee contratos escaneados y arma con ellos una tabla que
         se puede cruzar. Sirve para <strong>entender rápido un volumen de papel que hoy no se
-        puede abarcar</strong> y para decidir dónde mirar.</p>
+        puede abarcar</strong> y para decidir d&oacute;nde mirar.</p>
       <div class="aviso"><span class="sello alerta">Importante</span>
-        <span>No es un sistema de gestión del legajo y no produce piezas procesales.
+        <span>No es un sistema de gesti&oacute;n del legajo y no produce piezas procesales.
         <strong>Lo que se incorpora formalmente al legajo se hace después, a mano, sobre la
-        documentación original.</strong></span></div>`) +
+        documentaci&oacute;n original.</strong></span></div>`) +
 
     bloque('f. 0101', 'La regla', `
       <h2>Dos carriles que nunca se mezclan</h2>
@@ -4670,27 +4670,27 @@ function vComoFunciona() {
           <h3><span class="rotulo">Carril de datos</span> <span class="sello">Leído</span></h3>
           <p class="prosa nota pegada">Lo que dice el papel. Se muestra en
             <span class="mono">monoespaciada</span> y cada valor sabe de qué archivo, qué
-            página y qué parte de la imagen salió.</p>
+            página y qué parte de la imagen sali&oacute;.</p>
           <ul class="lista-nota">
             <li>No interviene ningún modelo que pueda inventar.</li>
             <li>Lo que no se puede leer se guarda vacío <b>con el motivo</b>, nunca completado.</li>
-            <li>Un valor sin ubicación en la imagen no entra en la base.</li>
+            <li>Un valor sin ubicaci&oacute;n en la imagen no entra en la base.</li>
           </ul>
         </div>
         <div class="carril carril--interp">
-          <h3><span class="rotulo">Carril de interpretación</span> <span class="sello">Conjetura</span></h3>
+          <h3><span class="rotulo">Carril de interpretaci&oacute;n</span> <span class="sello">Conjetura</span></h3>
           <p class="interp-texto pegada">Lo que el sistema
             deduce cruzando esos datos: patrones, anomalías, cosas para mirar. Va en serif
             bastardilla y sobre otro fondo.</p>
           <ul class="lista-nota">
             <li>Puede equivocarse, y se presenta como lo que es.</li>
-            <li>Cada afirmación linkea a los documentos que la sostienen.</li>
-            <li>El sistema no guarda una hipótesis sin fuente: la rechaza.</li>
+            <li>Cada afirmaci&oacute;n linkea a los documentos que la sostienen.</li>
+            <li>El sistema no guarda una hip&oacute;tesis sin fuente: la rechaza.</li>
           </ul>
         </div>
       </div>
       <p class="prosa sep-corta">Un fiscal tiene que poder mirar una pantalla y
-        saber, sin pensarlo, si lo que está viendo salió de una fecha impresa en un contrato o
+        saber, sin pensarlo, si lo que está viendo sali&oacute; de una fecha impresa en un contrato o
         de una conjetura del sistema. <strong>Por eso la tipografía cambia.</strong></p>`) +
 
     bloque('f. 0102', 'Garantías', `
@@ -4700,23 +4700,23 @@ function vComoFunciona() {
       <div class="tabla-env"><table>
         <thead><tr><th>Nunca</th><th>Por qué no puede</th></tr></thead><tbody>
         <tr><td><b>Salir a internet</b></td><td>No hay una sola llamada de red en el programa.
-          Ni las tipografías: se sirven desde el disco. El servidor escucha sólo en esta
+          Ni las tipografías: se sirven desde el disco. El servidor escucha s&oacute;lo en esta
           máquina.</td></tr>
         <tr><td><b>Tocar un original</b></td><td>Se guardan en modo solo lectura y el programa
           los abre sin permiso de escritura. Además se re-verifican solos con su huella
-          digital y avisan si alguno cambió.</td></tr>
+          digital y avisan si alguno cambi&oacute;.</td></tr>
         <tr><td><b>Inventar un dato</b></td><td>La base rechaza un campo que tenga valor y
           motivo de ausencia a la vez, o ninguno de los dos. Ante la duda se guarda vacío con
           el motivo.</td></tr>
         <tr><td><b>Dar un dato sin respaldo</b></td><td>La base rechaza un valor que no diga
-          de qué página y de qué parte de la imagen salió.</td></tr>
+          de qué página y de qué parte de la imagen sali&oacute;.</td></tr>
       </tbody></table></div>`) +
 
     bloque('f. 0103', 'El límite', `
-      <h2>Dónde interviene una persona</h2>
+      <h2>D&oacute;nde interviene una persona</h2>
       <p class="prosa">El sistema lee bien la mayoría de los campos, pero no todos, y eso
         <strong>es el diseño, no una falla</strong>. Preferimos que dude mucho antes que
-        equivocarse en silencio: una omisión se corrige en treinta segundos, un monto mal
+        equivocarse en silencio: una omisi&oacute;n se corrige en treinta segundos, un monto mal
         leído sin marcar entra en todos los cruces y no lo ve nadie.</p>
       <ul class="prosa">
         <li>Cuando dos lecturas del mismo campo no coinciden, el sistema <strong>no
@@ -4724,42 +4724,42 @@ function vComoFunciona() {
         <li>Cuando la lectura es dudosa, el dato se muestra rayado y va a la cola.</li>
         <li>Dos contratos con el mismo CUIL son la misma persona, y eso se resuelve solo. El
           nombre parecido, <strong>nunca</strong>: se propone y lo confirma alguien.</li>
-        <li>Cada decisión humana queda registrada con quién y cuándo, y no se pierde si
+        <li>Cada decisi&oacute;n humana queda registrada con quién y cuándo, y no se pierde si
           después se vuelve a procesar el lote.</li>
       </ul>
 `) +
 
-    /* Esta sección existe porque la pantalla de carga ahora remite acá. Antes el
+    /* Esta secci&oacute;n existe porque la pantalla de carga ahora remite acá. Antes el
        detalle estaba delante del cuadro para soltar los archivos —sesenta líneas de
-       prosa antes de lo que la persona vino a hacer— y se sacó de ahí con razón. Pero
+       prosa antes de lo que la persona vino a hacer— y se sac&oacute; de ahí con raz&oacute;n. Pero
        sacarlo y dejar el enlace apuntando a una pantalla que no lo tiene es peor que
        la prosa: es prometer algo y no darlo. */
     bloque('f. 0104', 'El escaneo', `
       <h2>Con qué calidad hay que escanear</h2>
       <p class="prosa">Es el techo de todo lo demás. El sistema no puede leer mejor de lo
-        que el escáner dejó en el papel, y una decisión de dos minutos en la oficina que
+        que el escáner dej&oacute; en el papel, y una decisi&oacute;n de dos minutos en la oficina que
         escanea vale más que cualquier ajuste posterior.</p>
 
       <h3>300 DPI, en escala de grises</h3>
       <p class="prosa">Sobre papel de mala calidad —fotocopia de fotocopia, hoja torcida,
-        contraste caído, que es como llega un expediente viejo— la resolución mueve la
+        contraste caído, que es como llega un expediente viejo— la resoluci&oacute;n mueve la
         exactitud de manera decisiva: <strong>a 100 DPI el sistema deja de servir</strong>.
         De 300 para arriba no se gana nada medible y el archivo pesa el doble.</p>
 
       <h3>Nunca el «modo texto»</h3>
       <div class="aviso"><span class="sello alerta">Importante</span>
         <span>El blanco y negro puro que muchos escáneres traen puesto es la única
-          configuración de todo lo que se probó que llegó a <strong>guardar un dato falso
+          configuraci&oacute;n de todo lo que se prob&oacute; que lleg&oacute; a <strong>guardar un dato falso
           dándolo por bueno</strong>. Y eso pasa aunque el número de exactitud
           <em>mejore</em>.</span></div>
       <p class="prosa">El mismo contrato, el mismo campo. En grises, las dos rutas de
         lectura discreparon: conflicto, campo vacío, a la cola —el sistema hizo lo que
         tiene que hacer—. En blanco y negro las dos leyeron
         <span class="mono">ALMADA, Rosa 1</span> —la inicial <span class="mono">I.</span>
-        convertida en un <span class="mono">1</span>— y lo aceptó solo, con
-        <span class="mono">0,92</span> de confianza. El umbral limpió la mancha del punto,
+        convertida en un <span class="mono">1</span>— y lo acept&oacute; solo, con
+        <span class="mono">0,92</span> de confianza. El umbral limpi&oacute; la mancha del punto,
         las dos rutas coincidieron <span class="marca">en el error</span>, y el sistema se
-        quedó sin la señal que usa para saber que no sabe.</p>
+        qued&oacute; sin la señal que usa para saber que no sabe.</p>
 
       <h3>Un PDF por contrato, si se puede</h3>
       <p class="prosa">Separar los contratos que vienen juntos en un mismo PDF no le cuesta
@@ -4772,29 +4772,29 @@ function vComoFunciona() {
         tres: sueltos → 12 contratos, 0 repetidos; todo junto → 15 contratos,
         <span class="marca">3 repetidos</span>. Si conviene escanear de corrido —y muchas
         veces conviene, porque es más rápido en el escáner— hacelo igual: el sistema los
-        separa y avisa cuáles quedaron repetidos, sólo que después hay que resolverlos a
+        separa y avisa cuáles quedaron repetidos, s&oacute;lo que después hay que resolverlos a
         mano.</p>
 
       <p class="prosa">Todo esto conviene pedirlo <strong>por escrito y antes de que
         empiecen</strong>. Reescanear dos mil fojas porque salieron a 100 DPI es una
         semana perdida.</p>
-      <p class="prosa"><a href="#/cola">Ver la cola de revisión</a> ·
+      <p class="prosa"><a href="#/cola">Ver la cola de revisi&oacute;n</a> &middot;
          <a href="#/panel">volver al panel</a></p>`);
 }
 
 /* ── ruteo ─────────────────────────────────────────────────────────────── */
 const TITULOS = {
   '#/contrataciones': 'Contrataciones',
-  '#/contratacion': 'Contratación',
+  '#/contratacion': 'Contrataci&oacute;n',
   '#/precios': 'Ítems y precios',
-  /* Decía «Posible sobreprecio». Un título es una afirmación: es lo primero que se
+  /* Decía «Posible sobreprecio». Un título es una afirmaci&oacute;n: es lo primero que se
      lee, es lo que queda en la pestaña del navegador y es lo que alguien recuerda
      cuando cuenta lo que vio. «Posible sobreprecio», aun con el adverbio, nombra una
-     conclusión, y las conclusiones las escribe Fiscalía, no el sistema. Esta pantalla
+     conclusi&oacute;n, y las conclusiones las escribe Fiscalía, no el sistema. Esta pantalla
      no concluye nada: pone al lado el precio analizado y sus referencias, dice de
-     dónde salió cada número y cuán comparables son entre sí. Eso es una comparación.
-     Si de ahí se sigue una conclusión, la firma una persona. */
-  '#/renglon': 'Comparación de precio',
+     d&oacute;nde sali&oacute; cada número y cuán comparables son entre sí. Eso es una comparaci&oacute;n.
+     Si de ahí se sigue una conclusi&oacute;n, la firma una persona. */
+  '#/renglon': 'Comparaci&oacute;n de precio',
   '#/hallazgos': 'Hallazgos',
   '#/acerca': 'Acerca del sistema',
   '#/equipo': 'Trabajo del equipo',
@@ -4808,17 +4808,17 @@ const TITULOS = {
   '#/actualizacion':'Actualizar análisis',
   '#/panel':'Panel', '#/ingesta':'Cargar escaneos', '#/buscar':'Buscar',
   '#/contratos':'Contratos', '#/personas':'Personas',
-  '#/superposiciones':'Superposiciones', '#/cola':'Cola de revisión',
-  '#/identidad':'Identidad', '#/interpretacion':'Interpretación',
+  '#/superposiciones':'Superposiciones', '#/cola':'Cola de revisi&oacute;n',
+  '#/identidad':'Identidad', '#/interpretacion':'Interpretaci&oacute;n',
   '#/consultas':'Consultas', '#/documento':'Documento', '#/persona':'Ficha',
-  '#/como-funciona':'Cómo funciona', '#/salud':'Estado del sistema',
+  '#/como-funciona':'C&oacute;mo funciona', '#/salud':'Estado del sistema',
   '#/afuera':'Quedaron afuera', '#/legajos':'Legajos',
   '#/comprobantes':'Facturas y recibos', '#/cruce':'Facturado contra contratado',
   '#/fojas':'Fojas del expediente', '#/numeros':'Números escritos dos veces',
 };
 
 /* ── Cuánto ocupa la barra de arriba ───────────────────────────────────────
-   Lo que se pega más abajo —la lupa de la cola de revisión— tiene que empezar donde
+   Lo que se pega más abajo —la lupa de la cola de revisi&oacute;n— tiene que empezar donde
    termina el techo.
 
    Eso estuvo escrito a mano en el CSS y estaba mal: el encabezado medía 71 px y el
@@ -4826,9 +4826,9 @@ const TITULOS = {
    fijo podía acertar, porque las pestañas entraban en uno o dos renglones según el
    ancho de la ventana.
 
-   Con la navegación al costado quedó una sola tira arriba y su alto ya no depende del
-   ancho, pero se sigue midiendo: es una línea de código contra un defecto que ya
-   apareció una vez. */
+   Con la navegaci&oacute;n al costado qued&oacute; una sola tira arriba y su alto ya no depende del
+   ancho, pero se sigue midiendo: es una línea de c&oacute;digo contra un defecto que ya
+   apareci&oacute; una vez. */
 function medirTecho() {
   const e = document.querySelector('#techo');
   const alto = e && !e.hidden ? Math.round(e.getBoundingClientRect().height) : 0;
@@ -4836,16 +4836,16 @@ function medirTecho() {
 }
 addEventListener('resize', medirTecho);
 
-/* Si el servidor pasó a servir otra versión, se avisa y se ofrece recargar. No se
+/* Si el servidor pas&oacute; a servir otra versi&oacute;n, se avisa y se ofrece recargar. No se
    recarga solo: alguien puede estar a mitad de un valor tipeado en la cola, y perderlo
-   por una actualización sería peor que seguir con la versión de antes un rato más. */
+   por una actualizaci&oacute;n sería peor que seguir con la versi&oacute;n de antes un rato más. */
 function avisarSiHayVersionNueva(version) {
   if (!VERSION_CARGADA || !version || version === VERSION_CARGADA) return;
   if ($('#aviso-version')) return;
   const barra = document.createElement('div');
   barra.id = 'aviso-version';
   barra.innerHTML = `<span class="sello atencion">Actualizado</span>
-    <span>Se instaló una versión nueva del sistema mientras tenías esto abierto.
+    <span>Se instal&oacute; una versi&oacute;n nueva del sistema mientras tenías esto abierto.
       <button class="boton gris" id="b-recargar">Recargar</button></span>`;
   document.body.insertBefore(barra, document.body.firstChild);
   $('#b-recargar').onclick = () => location.reload();
@@ -4854,11 +4854,11 @@ function avisarSiHayVersionNueva(version) {
 
 /* Pinta el legajo abierto en la barra de arriba.
 
-   Antes también redirigía a `#/legajos` cuando no había ninguno. Se sacó: el salto
+   Antes también redirigía a `#/legajos` cuando no había ninguno. Se sac&oacute;: el salto
    era silencioso —pedías Contratos y te aparecía otra pantalla, sin una palabra— y
-   encima sólo pasaba en la primera carga, así que la mitad de las pantallas saltaba
+   encima s&oacute;lo pasaba en la primera carga, así que la mitad de las pantallas saltaba
    y la otra mitad no. Ahora todas hacen lo mismo y lo dicen: `vistaSinLegajo` explica
-   cuál es el paso que falta y ofrece el botón para darlo. Devuelve siempre false; se
+   cuál es el paso que falta y ofrece el bot&oacute;n para darlo. Devuelve siempre false; se
    conserva la firma porque quien la llama todavía mira el valor. */
 /* Las comillas de la carátula, en castellano.
 
@@ -4869,7 +4869,7 @@ function avisarSiHayVersionNueva(version) {
    y además separan la carátula del número sin agregar ningún adorno.
 
    Es SÓLO para mostrar: en la base la carátula queda como la escribieron. Cambiarla
-   ahí sería tocar un dato que alguien cargó, y esto es tipografía. */
+   ahí sería tocar un dato que alguien carg&oacute;, y esto es tipografía. */
 function comillasLatinas(s) {
   let n = 0;
   return String(s || '').replace(/"/g, () => (n++ % 2 ? '»' : '«'));
@@ -4884,24 +4884,24 @@ function pintarLegajo(p) {
   $('#l-numero').textContent = l ? l.numero : '—';
   $('#l-caratula').textContent = l ? comillasLatinas(l.caratula) : 'Ninguno abierto';
   $('#t-legajo').title = l
-    ? `Legajo ${l.numero} — ${l.caratula}` + (l.fiscal ? ` · Fiscal: ${l.fiscal}` : '')
+    ? `Legajo ${l.numero} — ${l.caratula}` + (l.fiscal ? ` &middot; Fiscal: ${l.fiscal}` : '')
       + '\nTocá para cambiar de legajo'
     : 'Elegir un legajo';
   medirTecho();          // aparecer o irse el aviso corre todo lo de abajo
   return false;
 }
 
-/* La versión de interfaz que cargó ESTA pestaña. Se fija en el primer refresco y no
-   cambia más: si el servidor pasa a informar otra, es que se actualizó abajo mientras
+/* La versi&oacute;n de interfaz que carg&oacute; ESTA pestaña. Se fija en el primer refresco y no
+   cambia más: si el servidor pasa a informar otra, es que se actualiz&oacute; abajo mientras
    la pestaña estaba abierta. Quien deja el sistema abierto todo el día seguiría usando
    la anterior sin enterarse. */
 let VERSION_CARGADA = null;
 
 /* ¿Hay legajo abierto? Lo sabe `refrescarCuentas()` y lo consultan las vistas antes
-   de ofrecer cargar nada. `null` significa «todavía no se preguntó»: la diferencia
+   de ofrecer cargar nada. `null` significa «todavía no se pregunt&oacute;»: la diferencia
    importa, porque «no sé» y «no hay» llevan a pantallas distintas. */
 let HAY_LEGAJO = null;
-/* La instalación anterior a los legajos: tiene material en la base suelta y sigue
+/* La instalaci&oacute;n anterior a los legajos: tiene material en la base suelta y sigue
    trabajando ahí. A esa no se le corta la carga. */
 let BASE_SUELTA_CON_MATERIAL = false;
 
@@ -4915,7 +4915,7 @@ function vistaSinLegajo(titulo) {
     ${vacio('Primero hay que abrir un legajo',
       'Cada legajo es una causa y tiene su propia base de datos: sus documentos, sus ' +
       'personas y sus totales viven en un archivo aparte. Hasta que no haya uno abierto ' +
-      'no hay dónde leer ni dónde guardar.',
+      'no hay d&oacute;nde leer ni d&oacute;nde guardar.',
       {href:'#/legajos', texto:'Elegir o crear un legajo'})}`);
 }
 
@@ -4923,7 +4923,7 @@ async function refrescarCuentas() {
   try {
     // `/api/cuentas` y no `/api/panel`: el panel entero corre nueve consultas de
     // análisis y en un legajo de 1.500 contratos tarda casi un segundo. Esto se llama
-    // al abrir cualquier pantalla y después de CADA decisión de la cola; revisar cien
+    // al abrir cualquier pantalla y después de CADA decisi&oacute;n de la cola; revisar cien
     // campos costaba cien segundos repartidos en pedacitos.
     const p = await api('/api/cuentas');
     if (VERSION_CARGADA === null) VERSION_CARGADA = p.version;
@@ -4934,7 +4934,7 @@ async function refrescarCuentas() {
     document.body.classList.toggle('con-demo', !!p.demostracion);
     cuentas = {a_revisar: p.a_revisar, fusiones: p.fusiones, afuera: p.afuera};
     pintarNav(location.hash || '#/panel');
-    // El lote sólo cuando hay uno. «lote —» es una etiqueta sin dato: ocupa el mismo
+    // El lote s&oacute;lo cuando hay uno. «lote —» es una etiqueta sin dato: ocupa el mismo
     // lugar que algo útil y no dice nada.
     $('#f-lote').textContent = p.lote || '';
     $('#t-lote').hidden = !p.lote;
@@ -4946,7 +4946,7 @@ async function refrescarCuentas() {
 
 /* ── Qué está pasando, arriba a la derecha ─────────────────────────────────
    Un solo sello dice lo único que importa saber sin ir a buscarlo: si el sistema
-   está leyendo escaneos en este momento y por dónde va, o —si no está haciendo
+   está leyendo escaneos en este momento y por d&oacute;nde va, o —si no está haciendo
    nada— cuánto queda por revisar.
 
    Que el avance se vea desde cualquier pantalla no es un lujo: procesar un lote de
@@ -4962,10 +4962,10 @@ function pintarEstadoTecho() {
   if (TRABAJO && TRABAJO.estado === 'corriendo') {
     const pct = TRABAJO.total ? Math.round(100 * TRABAJO.hecho / TRABAJO.total) : 0;
     return pintarSello(el, 'trabajando', `Leyendo ${pct}%`, {gira: true,
-      titulo: `${TRABAJO.etapa || 'procesando'} · ${TRABAJO.hecho} de ${TRABAJO.total}`});
+      titulo: `${TRABAJO.etapa || 'procesando'} &middot; ${TRABAJO.hecho} de ${TRABAJO.total}`});
   }
   if (!p) { el.hidden = true; return; }
-  // «Al día» sobre una base vacía es afirmar terminado un trabajo que no empezó.
+  // «Al día» sobre una base vacía es afirmar terminado un trabajo que no empez&oacute;.
   // Sin documentos no hay estado que informar, y decirlo así es lo honesto.
   if (!p.documentos) return pintarSello(el, 'neutro', 'Sin documentos');
   if (p.a_revisar) return pintarSello(el, 'atencion',
@@ -4974,7 +4974,7 @@ function pintarEstadoTecho() {
 }
 
 /* Mientras hay algo corriendo se pregunta cada dos segundos; cuando no hay nada, no
-   se pregunta más y se espera al próximo refresco. Un temporizador que sigue latiendo
+   se pregunta más y se espera al pr&oacute;ximo refresco. Un temporizador que sigue latiendo
    sobre una pestaña abierta toda la tarde es tráfico que no sirve a nadie. */
 let vigilando = null;
 async function vigilarTrabajo() {
@@ -4985,13 +4985,13 @@ async function vigilarTrabajo() {
     TRABAJO = t;
     pintarEstadoTecho();
     if (t.estado === 'corriendo') vigilando = setTimeout(vigilarTrabajo, 2000);
-    else if (terminaba) refrescarCuentas();   // terminó: los números cambiaron
+    else if (terminaba) refrescarCuentas();   // termin&oacute;: los números cambiaron
   } catch (e) { TRABAJO = null; }
 }
 
 /* Las que tienen sentido sin legajo abierto: elegir uno, y todo lo que explica o
    diagnostica el sistema. El resto necesita una base detrás. */
-/* ¿Es la primera pantalla que se pinta desde que se abrió la aplicación? Sirve para
+/* ¿Es la primera pantalla que se pinta desde que se abri&oacute; la aplicaci&oacute;n? Sirve para
    distinguir «entré y todavía no elegí legajo» —que es lo normal— de «estoy adentro y
    fui a una pantalla que necesita uno», que sí hay que explicar. */
 let PRIMERA_PANTALLA = true;
@@ -5001,16 +5001,16 @@ const SIN_LEGAJO_IGUAL_ANDAN = new Set(
 
 /* ── El trabajo de los demás ───────────────────────────────────────────────
    Sobre una misma causa trabajan varias personas al mismo tiempo, todas contra la
-   misma base. El que tiene la cola abierta no se entera de lo que revisó el de al
+   misma base. El que tiene la cola abierta no se entera de lo que revis&oacute; el de al
    lado hasta que recarga, y mientras tanto ve filas que ya no existen.
 
    Lo que NO se hace: refrescar la lista sola. Arrancarle las filas de abajo del
-   cursor a alguien que está a mitad de una decisión es peor que la desactualización
-   —el campo que iba a marcar se corre un renglón y marca otro—. Se avisa, y actualiza
+   cursor a alguien que está a mitad de una decisi&oacute;n es peor que la desactualizaci&oacute;n
+   —el campo que iba a marcar se corre un rengl&oacute;n y marca otro—. Se avisa, y actualiza
    cuando quiere.
 
    La cuenta es exacta y no hace falta llevar registro de nada: la cola sabe cuántos
-   campos le quedan (`total_sin_filtro`, que baja con cada decisión propia) y el
+   campos le quedan (`total_sin_filtro`, que baja con cada decisi&oacute;n propia) y el
    servidor dice cuántos quedan de verdad. La diferencia es trabajo ajeno. */
 function mirarSiTrabajoElOtro(p) {
   const caja = $('#otros-revisaron');
@@ -5023,7 +5023,7 @@ function mirarSiTrabajoElOtro(p) {
     caja.hidden = false;
     $('#b-actualizar-cola').onclick = () => vCola();
   } else if (ajenos < 0) {
-    // Entró material nuevo: alguien cargó y procesó un lote mientras esto estaba abierto.
+    // Entr&oacute; material nuevo: alguien carg&oacute; y proces&oacute; un lote mientras esto estaba abierto.
     caja.innerHTML = `${sello('atencion',
       plural(-ajenos, 'campo nuevo para revisar', 'campos nuevos para revisar'))}
       <button class="boton gris" id="b-actualizar-cola">Actualizar la lista</button>`;
@@ -5120,7 +5120,7 @@ async function vFoliatura(sha) {
   tablaBuscable($('#lista-foliatura'), [
     {t: 'Página del PDF', c: 'mono', r: h => esc(h.pagina_pdf), b: h => h.pagina_pdf},
     {t: 'Foliatura del papel', r: h => h.foliaturas.length ? h.foliaturas.map(x => `<span class="mono">${esc(x.nro)}</span>`).join(' o ') : '<span class="nulo">sin lectura</span>'},
-    {t: 'De dónde sale', r: h => h.foliaturas.length ? h.foliaturas.map(x => `<a href="#/foja/${x.sha256}/${h.pagina_pdf}" class="chip">${esc(x.texto)}</a>`).join(' ') : '—'}
+    {t: 'De d&oacute;nde sale', r: h => h.foliaturas.length ? h.foliaturas.map(x => `<a href="#/foja/${x.sha256}/${h.pagina_pdf}" class="chip">${esc(x.texto)}</a>`).join(' ') : '—'}
   ], f.fojas);
 
   const sel = $('#sel-archivo');
@@ -5170,15 +5170,15 @@ async function vTablas(sha) {
   vista.innerHTML = bloque('', 'Documentos', selectorArchivo(archivos, elegido) +
     (t.tablas.length
       ? `<p class="prosa">Se detectaron <strong>${t.tablas.length} tablas</strong>. Elegí una para ver sus renglones.</p><div id="lista-tablas"></div>`
-      : `<p class="prosa">No se reconoció ninguna tabla en este archivo.</p>`));
+      : `<p class="prosa">No se reconoci&oacute; ninguna tabla en este archivo.</p>`));
 
   if (t.tablas.length) {
     tablaBuscable($('#lista-tablas'), [
       {t: 'Foja', c: 'num', r: a => esc(a.pagina_nro), b: a => a.pagina_nro},
       {t: 'Tamaño', r: a => `${esc(a.filas)} filas × ${esc(a.columnas)} cols`},
       {t: 'Confianza', r: a => barraConf(a.confianza) + ' ' + fmtPct(a.confianza * 100)},
-      {t: 'Continuación', r: a => a.continua_de ? (a.union_quien ? `Sí (por ${esc(a.union_quien)})` : 'Propuesta') : 'No'},
-      {t: 'Acción', r: a => `<a class="boton" href="#/tabla-renglones-${a.id}">Ver renglones</a>`}
+      {t: 'Continuaci&oacute;n', r: a => a.continua_de ? (a.union_quien ? `Sí (por ${esc(a.union_quien)})` : 'Propuesta') : 'No'},
+      {t: 'Acci&oacute;n', r: a => `<a class="boton" href="#/tabla-renglones-${a.id}">Ver renglones</a>`}
     ], t.tablas);
   }
 
@@ -5259,58 +5259,62 @@ async function accionInterfaz(b, tarea) {
 }
 async function vEntidades() {
   const hash = location.hash, clase = new URLSearchParams(hash.split('?')[1] || '').get('clase') || '';
-  const d = await api('/api/entidades' + (clase ? '?clase=' + encodeURIComponent(clase) : ''));
+  const urlParams = clase ? '?clase=' + encodeURIComponent(clase) : '';
+  const d = await api('/api/entidades' + urlParams);
   if (location.hash !== hash) return;
   vista.innerHTML = bloque('', 'Entidades', `
     <h2>Entidades y menciones</h2>
-    <p class="prosa">Una mención es lo que dice un documento; una entidad es a quién se refiere.</p>
+    <p class="prosa">Una menci&oacute;n es lo que dice un documento; una entidad es a qui&eacute;n se refiere.</p>
     <label>Clase <select id="clase-entidad"><option value="">Todas las clases</option>${d.clases.map(c => `<option value="${esc(c.clave)}"${c.clave === clase ? ' selected' : ''}>${esc(c.que_es)}</option>`).join('')}</select></label>
     <h3>Fichas</h3><div id="entidades-es"></div>
     <h3>Menciones sin resolver</h3><p class="prosa">Son trabajo pendiente, no un error.</p><div id="entidades-ms"></div>
-    <h3>Propuestas de fusión</h3><p class="prosa">Ninguna propuesta está confirmada de antemano.</p><div id="entidades-ps"></div>
+    <h3>Propuestas de fusi&oacute;n</h3><p class="prosa">Ninguna propuesta est&aacute; confirmada de antemano.</p><div id="entidades-ps"></div>
   `);
   $('#clase-entidad').onchange = e => { location.hash = '#/entidades?clase=' + encodeURIComponent(e.target.value); };
 
-  const filtrar = xs => xs.filter(x => !clase || x.clase === clase);
-  const es = filtrar(d.entidades), ms = filtrar(d.sin_resolver), ps = filtrar(d.propuestas);
+  tablaServidor($('#entidades-es'), '/api/entidades' + urlParams, 'entidades', [
+    {t: 'Nombre', o: 'nombre', r: e => `<a href="#/${e.carril === 'persona' ? 'persona' : 'entidad'}/${esc(e.id)}">${esc(e.nombre || '') || ausente('sin nombre')}</a>`, k: 'nombre'},
+    {t: 'Clase', o: 'clase', r: e => esc(e.clase)},
+    {t: 'Clave fuerte', o: 'documentos', c: 'mono', r: e => esc(e.clave_fuerte || '') || ausente('sin clave fuerte')},
+    {t: 'Menciones / doc', o: 'menciones', r: e => `${esc(e.menciones)} menciones / ${esc(e.documentos)} doc`, b: e => e.menciones},
+    {t: 'Resoluci&oacute;n', r: e => e.quien ? `Por ${esc(e.quien)}` : (e.clave_fuerte ? 'Por clave fuerte' : ausente('sin autor'))}
+  ], {placeholder: 'Buscar entidad...', vacio: 'No hay entidades.'});
 
-  tablaBuscable($('#entidades-es'), [
-    {t: 'Nombre', r: e => `<a href="#/${e.carril === 'persona' ? 'persona' : 'entidad'}/${esc(e.id)}">${esc(e.nombre || 'Ø sin nombre')}</a>`, k: 'nombre'},
-    {t: 'Clase', r: e => esc(e.clase)},
-    {t: 'Clave fuerte', c: 'mono', r: e => esc(e.clave_fuerte || 'Ø sin clave fuerte')},
-    {t: 'Menciones / doc', r: e => `${esc(e.menciones)} menciones / ${esc(e.documentos)} doc`, b: e => e.menciones},
-    {t: 'Resolución', r: e => e.quien ? `Por ${esc(e.quien)}` : (e.clave_fuerte ? 'Por clave fuerte' : 'Ø sin autor')}
-  ], es);
-
-  tablaBuscable($('#entidades-ms'), [
-    {t: 'Mención', c: 'mono', r: m => esc(m.literal)},
-    {t: 'Clase', r: m => esc(m.clase)},
+  tablaServidor($('#entidades-ms'), '/api/entidades/sin-resolver' + urlParams, 'sin_resolver', [
+    {t: 'Menci&oacute;n', o: 'nombre', c: 'mono', r: m => esc(m.literal)},
+    {t: 'Clase', o: 'clase', r: m => esc(m.clase)},
     {t: 'Fuente', r: m => fuenteMencion(m)}
-  ], ms);
+  ], {placeholder: 'Buscar menci&oacute;n...', vacio: 'No hay menciones sin resolver.'});
 
-  tablaBuscable($('#entidades-ps'), [
-    {t: 'Clase', r: p => esc(p.clase)},
-    {t: 'Menciones', c: 'mono', r: p => p.literales.map(esc).join(' / ')},
-    {t: 'Motivo', r: p => `${esc(p.veces)} veces · ${esc(p.motivo)}`},
-    {t: 'Decisión', r: p => `<form class="revision-propuesta" style="display:flex;gap:8px" data-fusion="${esc(p.norm)}" data-clase="${esc(p.clase)}"><input name="nombre" required placeholder="Nombre" autocomplete="off"> <button class="boton" type="submit">Confirmar</button> <button class="boton gris" type="button" data-rechazar-fusion>Rechazar</button></form>`}
-  ], ps);
-
-  vista.querySelectorAll('.revision-propuesta').forEach(f => {
-    const enviar = async (b, aceptar) => accionInterfaz(b, async () => {
-      const quien = await conRevisor(); if (!quien) return;
-      await guardarNucleo('/api/entidad/' + (aceptar ? 'confirmar' : 'rechazar'), {clase:f.dataset.clase, norm:f.dataset.fusion, nombre:f.elements.nombre.value.trim(), quien});
-      await vEntidades();
-    });
-    f.onsubmit = e => { e.preventDefault(); enviar(f.querySelector('[type="submit"]'), true); };
-    f.querySelector('[data-rechazar-fusion]').onclick = e => enviar(e.currentTarget, false);
+  tablaServidor($('#entidades-ps'), '/api/entidades/propuestas' + urlParams, 'propuestas', [
+    {t: 'Clase', o: 'clase', r: p => esc(p.clase)},
+    {t: 'Menciones', o: 'nombre', c: 'mono', r: p => p.literales.map(esc).join(' / ')},
+    {t: 'Motivo', o: 'veces', r: p => `${esc(p.veces)} veces &rarr; ${esc(p.motivo)}`},
+    {t: 'Decisi&oacute;n', r: p => `<form class="revision-propuesta fila-acciones" data-fusion="${esc(p.norm)}" data-clase="${esc(p.clase)}"><input name="nombre" required placeholder="Nombre" autocomplete="off"> <button class="boton" type="submit">Confirmar</button> <button class="boton gris" type="button" data-rechazar-fusion>Rechazar</button></form>`}
+  ], {
+    vacio: 'No hay propuestas de fusi&oacute;n.', 
+    alCargar: r => {
+      vista.querySelectorAll('.revision-propuesta').forEach(f => {
+        if (f.dataset.binded) return;
+        f.dataset.binded = '1';
+        const enviar = async (b, aceptar) => accionInterfaz(b, async () => {
+          const quien = await conRevisor(); if (!quien) return;
+          await guardarNucleo('/api/entidad/' + (aceptar ? 'confirmar' : 'rechazar'), {clase:f.dataset.clase, norm:f.dataset.fusion, nombre:f.elements.nombre.value.trim(), quien});
+          await vEntidades();
+        });
+        f.onsubmit = e => { e.preventDefault(); enviar(f.querySelector('[type="submit"]'), true); };
+        f.querySelector('[data-rechazar-fusion]').onclick = e => enviar(e.currentTarget, false);
+      });
+    }
   });
 }
+
 async function vEntidad(id) {
   const hash = location.hash, e = await api('/api/entidad?id=' + id);
   if (hash === location.hash) {
-    vista.innerHTML = bloque('', 'Entidad', `<h2>${esc(e.nombre)}</h2><p>${esc(e.clase)} · Clave fuerte: <span class="mono">${esc(e.clave_fuerte || 'Ø sin clave')}</span></p><p>${e.quien ? `Afirmado por ${esc(e.quien)}` : (e.clave_fuerte ? 'Resuelto por el sistema por clave fuerte' : 'Ø autor de resolución no informado')}</p><h3>Todas las formas que dice el papel</h3><div id="entidad-menciones"></div>`);
+    vista.innerHTML = bloque('', 'Entidad', `<h2>${esc(e.nombre)}</h2><p>${esc(e.clase)} &middot; Clave fuerte: <span class="mono">${esc(e.clave_fuerte || ' sin clave')}</span></p><p>${e.quien ? `Afirmado por ${esc(e.quien)}` : (e.clave_fuerte ? 'Resuelto por el sistema por clave fuerte' : ' autor de resoluci&oacute;n no informado')}</p><h3>Todas las formas que dice el papel</h3><div id="entidad-menciones"></div>`);
     tablaBuscable($('#entidad-menciones'), [
-      {t: 'Mención', c: 'mono', r: m => esc(m.literal)},
+      {t: 'Menci&oacute;n', c: 'mono', r: m => esc(m.literal)},
       {t: 'Fuente', r: m => fuenteMencion(m)}
     ], e.menciones);
   }
@@ -5332,14 +5336,14 @@ async function vRelaciones() {
   ).join('');
 
   vista.innerHTML = bloque('', 'Relaciones', `<h2>Relaciones pendientes</h2>
-  <p>Son propuestas del sistema. Rechazar no borra: conserva la decisión para que no se vuelva a proponer lo descartado.</p>
-  <h3>Anotar una relación entre documentos</h3>
+  <p>Son propuestas del sistema. Rechazar no borra: conserva la decisi&oacute;n para que no se vuelva a proponer lo descartado.</p>
+  <h3>Anotar una relaci&oacute;n entre documentos</h3>
   <form id="anotar-relacion">
     <datalist id="lista-docs">${opciones}</datalist>
     <label>Documento del que sale (identificador) <input name="desde" list="lista-docs" autocomplete="off" required></label>
     <label>Documento al que llega (identificador) <input name="hasta" list="lista-docs" autocomplete="off" required></label>
     <label>Nota de respaldo <textarea name="nota"></textarea></label>
-    <button class="boton">Registrar mi afirmación</button>
+    <button class="boton">Registrar mi afirmaci&oacute;n</button>
   </form>`);
   enlazarDecisionesRelacion(vista, vRelaciones);
   $('#anotar-relacion').onsubmit = e => { e.preventDefault(); const f = e.currentTarget; accionInterfaz(f.querySelector('button'), async () => {
@@ -5521,25 +5525,25 @@ async function rutear() {
   pintarNav(h);
   const base = '#/' + h.split('/')[1];
   document.title = (TITULOS[base] || 'Análisis documental')
-    + ' · ' + (IDENTIDAD ? IDENTIDAD.unidad : 'UFIL Paraná');
+    + ' &middot; ' + (IDENTIDAD ? IDENTIDAD.unidad : 'UFIL Paraná');
   // La cola ocupa el alto entero de la ventana y apaga el desplazamiento de la
   // página. Al salir de ahí hay que devolverlo, o el resto del sistema queda con el
   // pie cortado y sin manera de bajar.
   document.body.classList.remove('taller-abierto');
   /* Sin legajo abierto hay dos situaciones distintas y no se contestan igual.
 
-     ABRIR LA APLICACIÓN sin legajo es lo NORMAL, no un error: la sesión anterior se
-     cerró y la cookie que recuerda el legajo muere con el navegador, a propósito —en
+     ABRIR LA APLICACIÓN sin legajo es lo NORMAL, no un error: la sesi&oacute;n anterior se
+     cerr&oacute; y la cookie que recuerda el legajo muere con el navegador, a prop&oacute;sito —en
      una máquina compartida una causa no puede quedar abierta hasta mañana—. Ahí lo
      que corresponde es empezar donde se elige con qué trabajar. Contestar con un
      cartel de «primero hay que abrir un legajo» en el medio de una pantalla vacía se
      lee como una falla del sistema, y hace pensar que los legajos se perdieron cuando
      están todos ahí, a un clic.
 
-     IR A UNA PANTALLA que necesita un legajo, con la aplicación ya abierta, sí merece
-     la explicación: pediste algo puntual y hace falta un paso previo.
+     IR A UNA PANTALLA que necesita un legajo, con la aplicaci&oacute;n ya abierta, sí merece
+     la explicaci&oacute;n: pediste algo puntual y hace falta un paso previo.
 
-     La diferencia es si esta es la primera pantalla de la sesión. */
+     La diferencia es si esta es la primera pantalla de la sesi&oacute;n. */
   if (sinLegajo() && !SIN_LEGAJO_IGUAL_ANDAN.has(base)) {
     if (PRIMERA_PANTALLA) {
       PRIMERA_PANTALLA = false;
@@ -5555,15 +5559,15 @@ async function rutear() {
     if (m) {
       /* La red de abajo, para las vistas que no traen la guarda puesta.
 
-         Sólo seis de las cuarenta y pico comprueban, después de esperar al servidor,
-         que la persona siga en la pantalla que pidió. Las otras pintan lo que trajeron
-         sin mirar dónde están, y con una consulta lenta eso significa tapar la pantalla
+         S&oacute;lo seis de las cuarenta y pico comprueban, después de esperar al servidor,
+         que la persona siga en la pantalla que pidi&oacute;. Las otras pintan lo que trajeron
+         sin mirar d&oacute;nde están, y con una consulta lenta eso significa tapar la pantalla
          que se está leyendo con el contenido de otra. Poner la guarda en cada vista
          una por una arregla las de hoy y no las que se escriban mañana.
 
-         Acá no se puede evitar que la vista tardía pinte —ya pintó—, pero sí que quede
-         puesta: si mientras esperábamos cambió el hash, se vuelve a rutear y gana lo
-         que la persona pidió último, que es lo que tiene que estar en pantalla.
+         Acá no se puede evitar que la vista tardía pinte —ya pint&oacute;—, pero sí que quede
+         puesta: si mientras esperábamos cambi&oacute; el hash, se vuelve a rutear y gana lo
+         que la persona pidi&oacute; último, que es lo que tiene que estar en pantalla.
          Converge porque cada vuelta arranca del hash actual. */
       try {
         const pedido = h;
@@ -5573,11 +5577,11 @@ async function rutear() {
         return hecho;
       }
       catch (e) {
-        // Lo que no existe y lo que se rompió no son lo mismo, y no se muestran igual.
+        // Lo que no existe y lo que se rompi&oacute; no son lo mismo, y no se muestran igual.
         const cuerpo = e.noEncontrado
-          ? `<h2>No se encontró</h2>` + vacio('Eso ya no está', esc(e.message),
+          ? `<h2>No se encontr&oacute;</h2>` + vacio('Eso ya no está', esc(e.message),
               {href:'#/panel', texto:'Volver al panel'})
-          : `<h2>Algo falló</h2>
+          : `<h2>Algo fall&oacute;</h2>
              <div class="aviso"><span class="sello alerta">Error</span>
                <span>${esc(e.message)}</span></div>
              <p class="prosa">Si se repite, mirá la consola donde corre el servidor: el
@@ -5594,8 +5598,8 @@ async function rutear() {
    Decía «Tema», que no es ni una pregunta ni una respuesta: no se sabe si dice en
    qué tema estás o qué tema vas a poner. Ahora dice qué va a pasar si lo tocás.
 
-   Sin elección guardada manda la preferencia del sistema, que es lo que la persona
-   ya configuró una vez y no tiene por qué repetir acá. */
+   Sin elecci&oacute;n guardada manda la preferencia del sistema, que es lo que la persona
+   ya configur&oacute; una vez y no tiene por qué repetir acá. */
 const temaDelSistema = () =>
   matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro';
 const temaPuesto = () => document.documentElement.dataset.tema || temaDelSistema();
@@ -5622,13 +5626,13 @@ $('#b-tema').onclick = () => {
   pintarBotonTema();
 };
 try { const t = localStorage.getItem('ufil.tema'); if (t) document.documentElement.dataset.tema = t; } catch (e) {}
-// Quien no eligió sigue al sistema, y lo sigue también cuando el sistema cambia solo
+// Quien no eligi&oacute; sigue al sistema, y lo sigue también cuando el sistema cambia solo
 // —muchos escritorios pasan a oscuro al anochecer—.
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', pintarBotonTema);
 pintarBotonTema();
 
-/* ── El cajón de la barra lateral, en pantallas chicas ─────────────────────
-   Se cierra con Escape, tocando el velo, y sola cuando se elige a dónde ir: dejarla
+/* ── El caj&oacute;n de la barra lateral, en pantallas chicas ─────────────────────
+   Se cierra con Escape, tocando el velo, y sola cuando se elige a d&oacute;nde ir: dejarla
    abierta tapando lo que la persona acaba de pedir es hacerle tocar dos veces. */
 const lateral = $('#lateral'), velo = $('#velo'), bMenu = $('#b-menu');
 function cajon(abrir) {
@@ -5665,7 +5669,7 @@ addEventListener('keydown', e => {
   $('#q-rapida').select();
 });
 
-/* Antes de imprimir, sellar la hoja: qué legajo y cuándo se emitió. Se hace en
+/* Antes de imprimir, sellar la hoja: qué legajo y cuándo se emiti&oacute;. Se hace en
    `beforeprint` y no al cargar, porque una pestaña abierta desde la mañana imprimiría
    la hora de la mañana, y esa hoja se agrega a un legajo. */
 addEventListener('beforeprint', () => {
@@ -5673,7 +5677,7 @@ addEventListener('beforeprint', () => {
   if (l) {
     const n = $('#l-numero')?.textContent?.trim();
     const c = $('#l-caratula')?.textContent?.trim();
-    l.textContent = n && n !== '—' ? `Legajo ${n}${c ? ' · ' + c : ''}` : '';
+    l.textContent = n && n !== '—' ? `Legajo ${n}${c ? ' &middot; ' + c : ''}` : '';
   }
   if (f) f.textContent = 'Emitido el ' + fmtFechaHora(new Date().toISOString());
 });
@@ -5686,15 +5690,15 @@ async function pintarIdentidad() {
     const d = await api('/api/identidad');
     IDENTIDAD = d;
     $('#m-unidad').textContent = d.unidad;
-    // El área va en un renglón y no se parte; si el nombre configurado no entra, se
+    // El área va en un rengl&oacute;n y no se parte; si el nombre configurado no entra, se
     // elide, y entonces el nombre entero tiene que quedar en algún lado.
     $('#m-area').textContent = d.area;
     $('#m-area').title = d.area;
     $('#m-organismo').textContent = d.linea_organismo;
-    // El membrete de impresión sale de la misma fuente: cambiar de unidad no puede
+    // El membrete de impresi&oacute;n sale de la misma fuente: cambiar de unidad no puede
     // dejar una hoja impresa con el nombre viejo.
     const mo = $('#membrete-organismo'), mu = $('#membrete-unidad');
-    if (mo) mo.textContent = `${d.organismo} · ${d.jurisdiccion}`;
+    if (mo) mo.textContent = `${d.organismo} &middot; ${d.jurisdiccion}`;
     if (mu) mu.textContent = `${d.unidad} — ${d.area}`;
     const oficial = $('#identidad-oficial');
     if (oficial) oficial.alt = d.linea_organismo;
@@ -5709,7 +5713,7 @@ async function pintarIdentidad() {
           + nombres.map(n => `<span class="nombre-fiscal">${esc(n)}</span>`).join('')
         : '';
     }
-    document.title = document.title.replace(/· .*$/, '· ' + d.unidad);
+    document.title = document.title.replace(/&middot; .*$/, '&middot; ' + d.unidad);
   } catch (e) { /* la barra ya trae los valores de la casa escritos en el HTML */ }
 }
 let IDENTIDAD = null;
@@ -5717,13 +5721,13 @@ let IDENTIDAD = null;
 /* ── El isotipo oficial, y el ícono de la pestaña ──────────────────────────
    Quién decide si están: el navegador, cargándolos. No el servidor contestando «hay
    marca» en cada consulta del panel —eran cuatro `stat()` por sondeo para responder
-   algo que no cambia— ni una comprobación al abrir un legajo, porque entonces el
+   algo que no cambia— ni una comprobaci&oacute;n al abrir un legajo, porque entonces el
    índice de legajos, que no tiene panel, se quedaba con el monograma mientras el
-   resto de la aplicación mostraba el isotipo.
+   resto de la aplicaci&oacute;n mostraba el isotipo.
 
    Si el archivo está, el isotipo entra y el monograma se va: son dos maneras de
    decir lo mismo y una sola tiene que quedar. Si no está, no pasa nada y la barra
-   funciona igual, que es la condición de todo esto. */
+   funciona igual, que es la condici&oacute;n de todo esto. */
 (function marcaInstitucional() {
   const iso = document.getElementById('identidad-oficial');
   const mono = document.getElementById('monograma');
@@ -5733,9 +5737,9 @@ let IDENTIDAD = null;
       iso.hidden = !hay;
       if (mono) mono.hidden = hay;
     };
-    // Los dos eventos Y una decisión ahora mismo: app.js se carga al final del cuerpo,
+    // Los dos eventos Y una decisi&oacute;n ahora mismo: app.js se carga al final del cuerpo,
     // así que cuando llega acá la imagen puede estar cargada hace rato y el `load` ya
-    // pasó. Escuchando solamente, el isotipo no aparecía nunca —y lo peor es que
+    // pas&oacute;. Escuchando solamente, el isotipo no aparecía nunca —y lo peor es que
     // aparecía en la máquina lenta, que es donde uno prueba—.
     iso.addEventListener('load', decidir);
     iso.addEventListener('error', decidir);
@@ -5753,7 +5757,7 @@ let IDENTIDAD = null;
 })();
 
 /* El orden importa. Antes se pintaba la pantalla y DESPUÉS se preguntaba qué legajo
-   había: sobre una instalación recién puesta eso mostraba el panel entero en cero y
+   había: sobre una instalaci&oacute;n recién puesta eso mostraba el panel entero en cero y
    recién ahí saltaba a elegir legajo. El parpadeo se ve como si algo hubiera fallado.
    Ahora se pregunta primero y se pinta una sola vez, la pantalla que corresponde. */
 medirTecho();
@@ -5776,7 +5780,7 @@ async function vPapelera() {
   const desde = parseInt(new URLSearchParams(q).get('desde') || '0', 10);
   const d = await api(`/api/papelera/archivos?limite=${limite}&desde=${desde}`);
   if (!d.archivos) {
-    return vistaVacia('f. 0000', 'Error', 'Papelera de archivos', 'No se pudo cargar la papelera', 'El servidor devolvió una respuesta incompleta.');
+    return vistaVacia('f. 0000', 'Error', 'Papelera de archivos', 'No se pudo cargar la papelera', 'El servidor devolvi&oacute; una respuesta incompleta.');
   }
   const archivos = d.archivos;
 
@@ -5806,7 +5810,7 @@ async function vPapelera() {
       {t:'Páginas', c:'num', r:f => f.paginas != null ? fmtNum.format(f.paginas) : '—'},
       {t:'Documentos', c:'num', k:'documentos'},
       {t:'Lote', r:f => esc(f.lote || '—')},
-      {t:'Revisiones', c:'num', r:f => f.tiene_revisiones_humanas ? (f.decisiones_humanas !== undefined ? esc(fmtNum.format(f.decisiones_humanas)) + ' ' + plural(f.decisiones_humanas, 'revisión', 'revisiones') : (f.revisiones !== undefined ? esc(fmtNum.format(f.revisiones)) + ' ' + plural(f.revisiones, 'revisión', 'revisiones') : 'decisiones humanas')) : '—'},
+      {t:'Revisiones', c:'num', r:f => f.tiene_revisiones_humanas ? (f.decisiones_humanas !== undefined ? esc(fmtNum.format(f.decisiones_humanas)) + ' ' + plural(f.decisiones_humanas, 'revisi&oacute;n', 'revisiones') : (f.revisiones !== undefined ? esc(fmtNum.format(f.revisiones)) + ' ' + plural(f.revisiones, 'revisi&oacute;n', 'revisiones') : 'decisiones humanas')) : '—'},
       {t:'Tamaño', c:'num', r:f => tamano(f.bytes)},
       {t:'Acciones', r:f => `
         <div class="acciones-fila">
@@ -5828,9 +5832,9 @@ async function vPapelera() {
   });
 }
 
-/* La acción ya se hizo; lo que puede fallar después es volver a pedir la pantalla. Eso
-   se dice, y se dice sin dar a entender que la acción falló. Va en un diálogo nuevo: el
-   de la acción ya se cerró, y un error escrito ahí no lo ve nadie. */
+/* La acci&oacute;n ya se hizo; lo que puede fallar después es volver a pedir la pantalla. Eso
+   se dice, y se dice sin dar a entender que la acci&oacute;n fall&oacute;. Va en un diálogo nuevo: el
+   de la acci&oacute;n ya se cerr&oacute;, y un error escrito ahí no lo ve nadie. */
 async function redibujarTrasAccion(hecho, redibujar) {
   try {
     await redibujar();
@@ -5838,7 +5842,7 @@ async function redibujarTrasAccion(hecho, redibujar) {
     dialogo(`
       <form method="dialog">
         <h3>${esc(hecho)}</h3>
-        <div class="aviso">${sello('atencion', 'Atención')}<span>Pero no se pudo actualizar la pantalla: ${esc(e.message)}</span></div>
+        <div class="aviso">${sello('atencion', 'Atenci&oacute;n')}<span>Pero no se pudo actualizar la pantalla: ${esc(e.message)}</span></div>
         <div class="botonera separador-arriba">
           <button class="boton" type="submit">Cerrar</button>
         </div>
@@ -5850,9 +5854,9 @@ async function redibujarTrasAccion(hecho, redibujar) {
 function mostrarErrorDialogo(d, error) {
   d.innerHTML = `
     <form method="dialog">
-      <h3>No se pudo completar la acción</h3>
+      <h3>No se pudo completar la acci&oacute;n</h3>
       <div class="aviso">${sello('alerta', 'Error')}<span>${esc(error.message)}</span></div>
-      <p class="prosa separador-arriba">Si es un conflicto de estado (409), el sistema evitó el cambio porque podría pisar información actual o reutilizar referencias.</p>
+      <p class="prosa separador-arriba">Si es un conflicto de estado (409), el sistema evit&oacute; el cambio porque podría pisar informaci&oacute;n actual o reutilizar referencias.</p>
       <div class="botonera separador-arriba">
         <button class="boton" type="submit">Cerrar</button>
       </div>
@@ -5878,7 +5882,7 @@ async function pedirQuitarArchivo(sha, nombre, confirmacion_quitar, procesando, 
 
   let msjRev = '';
   if (revisiones_humanas !== 0) {
-     const strRev = revisiones_humanas > 0 ? `${esc(fmtNum.format(revisiones_humanas))} ${plural(revisiones_humanas, 'revisión', 'revisiones')}` : 'decisiones humanas';
+     const strRev = revisiones_humanas > 0 ? `${esc(fmtNum.format(revisiones_humanas))} ${plural(revisiones_humanas, 'revisi&oacute;n', 'revisiones')}` : 'decisiones humanas';
      msjRev = `<div class="aviso separador-arriba">${sello('atencion', 'Hay decisiones humanas')}<span>Este archivo tiene ${strRev}. Se conservarán en la papelera y volverán si restaurás el archivo.</span></div>`;
   }
 
@@ -5886,7 +5890,7 @@ async function pedirQuitarArchivo(sha, nombre, confirmacion_quitar, procesando, 
     <form method="dialog" id="f-quitar-arch">
       <h3>Quitar archivo</h3>
       <p class="prosa">Vas a quitar el archivo <strong class="mono">${esc(nombre)}</strong>.</p>
-      <div class="aviso">${sello('atencion', 'Atención')}
+      <div class="aviso">${sello('atencion', 'Atenci&oacute;n')}
         <span>Este archivo dejará de participar en el legajo y sus resultados derivados dejarán de mostrarse. El original se conservará en la papelera y podrá restaurarse.</span>
       </div>
       ${msjRev}
@@ -5910,7 +5914,7 @@ async function pedirQuitarArchivo(sha, nombre, confirmacion_quitar, procesando, 
       });
       d.close();
       if (location.hash === currentHash)
-        await redibujarTrasAccion('El archivo se quitó del legajo',
+        await redibujarTrasAccion('El archivo se quit&oacute; del legajo',
                                   location.hash === '#/ingesta' ? vIngesta : rutear);
     } catch (e) {
       mostrarErrorDialogo(d, e);
@@ -5939,7 +5943,7 @@ async function pedirRestaurarArchivo(sha) {
     });
     d.close();
     if (location.hash.split('?')[0] === '#/papelera')
-      await redibujarTrasAccion('El archivo se restauró', vPapelera);
+      await redibujarTrasAccion('El archivo se restaur&oacute;', vPapelera);
   } catch (e) {
     mostrarErrorDialogo(d, e);
   } finally {
@@ -5952,8 +5956,8 @@ async function pedirDestruirArchivo(sha, nombre, confirmacion_destruir) {
     <form method="dialog" id="f-destruir-arch">
       <h3>Destruir archivo definitivamente</h3>
       <p class="prosa">Vas a destruir el archivo <strong class="mono">${esc(nombre)}</strong> para siempre.</p>
-      <div class="aviso">${sello('alerta', 'Destrucción física')}
-        <span>Esta acción no se puede deshacer. El archivo se borrará del disco y todo su trabajo asociado se perderá.</span>
+      <div class="aviso">${sello('alerta', 'Destrucci&oacute;n física')}
+        <span>Esta acci&oacute;n no se puede deshacer. El archivo se borrará del disco y todo su trabajo asociado se perderá.</span>
       </div>
       <p class="prosa separador-arriba"><label for="conf-destruir">Para confirmar, escribí DESTRUIR:</label></p>
       <input type="text" id="conf-destruir" autocomplete="off" class="campo-buscar" >
@@ -5984,7 +5988,7 @@ async function pedirDestruirArchivo(sha, nombre, confirmacion_destruir) {
       });
       d.close();
       if (location.hash.split('?')[0] === '#/papelera')
-        await redibujarTrasAccion('El archivo se destruyó', vPapelera);
+        await redibujarTrasAccion('El archivo se destruy&oacute;', vPapelera);
     } catch (e) {
       mostrarErrorDialogo(d, e);
     } finally {
@@ -6048,7 +6052,7 @@ function abrirDosFojas(f1, f2) {
   img1.src = '/pagina?doc=' + f1.documento_id + '&nro=' + nro1;
   document.getElementById('visor-rotulo').textContent =
     [f1.archivo || 'documento', 'f. ' + nro1,
-     f1.etiqueta || ''].filter(Boolean).join(' · ');
+     f1.etiqueta || ''].filter(Boolean).join(' &middot; ');
   
   const pag1 = f1.pagina || f1.pagina_respaldo;
   const hayCaja1 = pag1 && pag1.ancho_pt && f1.region && f1.region.x0 != null && f1.region.x1 != null;
@@ -6063,7 +6067,7 @@ function abrirDosFojas(f1, f2) {
   if (f2 && nro2) {
     lienzo2.hidden = false;
     img2.src = '/pagina?doc=' + f2.documento_id + '&nro=' + nro2;
-    document.getElementById('visor-rotulo-2').textContent = [f2.archivo || 'documento', 'f. ' + nro2, f2.etiqueta || ''].filter(Boolean).join(' · ');
+    document.getElementById('visor-rotulo-2').textContent = [f2.archivo || 'documento', 'f. ' + nro2, f2.etiqueta || ''].filter(Boolean).join(' &middot; ');
     const pag2 = f2.pagina || f2.pagina_respaldo;
     const hayCaja2 = pag2 && pag2.ancho_pt && f2.region && f2.region.x0 != null && f2.region.x1 != null;
     marco2.hidden = !hayCaja2;
@@ -6090,13 +6094,13 @@ async function cargarCatalogoContrataciones() {
 
 /* ── Plata ─────────────────────────────────────────────────────────────────
    Decía `ARS 5.087,3`, y eso está mal de dos maneras a la vez. La moneda va con su
-   signo —`$ 5.087,30`, como se escribe en un expediente— y no con el código ISO, que
+   signo —`$ 5.087,30`, como se escribe en un expediente— y no con el c&oacute;digo ISO, que
    es para un sistema contable, no para leer. Y los centavos van siempre los dos: sin
    la segunda decimal, `5.087,3` obliga a preguntarse si son treinta centavos o tres,
    y una columna donde unas filas traen dos decimales y otras una es una columna que
    no se puede recorrer con la vista.
 
-   Sólo se nombra la moneda cuando NO es peso: un legajo con importes en dólares y en
+   S&oacute;lo se nombra la moneda cuando NO es peso: un legajo con importes en d&oacute;lares y en
    pesos mezclados sin marca es exactamente la manera de sumar cosas que no se suman. */
 const fmtPlata = new Intl.NumberFormat('es-AR',
   {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -6110,15 +6114,15 @@ function formatearMonto(monto) {
 
 /* ── Un importe, y sus tres estados ────────────────────────────────────────
    Esto decía «no consta» cada vez que el backend no traía un `valor` numérico, sin
-   mirar si traía el literal. Y lo traía: sobre el legajo real, el renglón 1 viene con
+   mirar si traía el literal. Y lo traía: sobre el legajo real, el rengl&oacute;n 1 viene con
 
        precio_unitario: {literal: "5,087.30", valor: null, moneda: "ARS"}
 
-   o sea, el papel dice 5.087,30, el sistema lo leyó bien, y la columna mostraba «NO
+   o sea, el papel dice 5.087,30, el sistema lo ley&oacute; bien, y la columna mostraba «NO
    CONSTA». Medido en una sola página de cien renglones: 448 veces. Eso no es una
    celda fea: es el sistema afirmando que un dato no está cuando está, y afirmándolo
    sobre la prueba de una causa. Es el error más grave que puede cometer esta
-   aplicación, porque convierte una omisión en una negación.
+   aplicaci&oacute;n, porque convierte una omisi&oacute;n en una negaci&oacute;n.
 
    (Por qué `valor` viene en null habiendo literal es un defecto aparte, del lado del
    normalizador, y lo está mirando quien corresponde. Pero la pantalla no puede
@@ -6157,17 +6161,17 @@ function montoHTML(monto) {
    Antes cada ausencia era un cartel en mayúsculas, y en pantallas con muchas
    columnas vacías el resultado era un muro que tapaba los datos que sí estaban. */
 const MOTIVO_AUSENCIA = {
-  no_consta:  'No consta en la documentación cargada.',
+  no_consta:  'No consta en la documentaci&oacute;n cargada.',
   ilegible:   'Está en el papel pero no se pudo leer.',
-  no_cargado: 'El documento que lo traería todavía no se cargó.',
+  no_cargado: 'El documento que lo traería todavía no se carg&oacute;.',
   pendiente:  'Falta que una persona lo revise.',
   conflicto:  'Las dos lecturas no coincidieron.',
 };
 const ausente = (motivo) =>
   `<span class="ausente" title="${esc(MOTIVO_AUSENCIA[motivo] ||
-     'No consta en la documentación cargada.')}">—</span>`;
+     'No consta en la documentaci&oacute;n cargada.')}">—</span>`;
 
-/* Una pantalla cuyo backend todavía no llegó a esta instalación: se dice, en vez de
+/* Una pantalla cuyo backend todavía no lleg&oacute; a esta instalaci&oacute;n: se dice, en vez de
    mostrar un error. El servidor contesta 404 «ruta desconocida» cuando la ruta no existe
    —sin `no_encontrado`, que es lo que contesta cuando lo que no existe es la cosa—. */
 async function apiOPendiente(ruta, rotulo, titulo) {
@@ -6175,7 +6179,7 @@ async function apiOPendiente(ruta, rotulo, titulo) {
     return await api(ruta);
   } catch (e) {
     if (e.estado === 404 && !e.noEncontrado) {
-      vistaVacia('f. 0000', rotulo, titulo, 'Todavía no disponible en esta versión',
+      vistaVacia('f. 0000', rotulo, titulo, 'Todavía no disponible en esta versi&oacute;n',
         'Esta parte del análisis se está terminando. Las piezas, las tablas y los precios ' +
         'ya se pueden consultar.');
       return null;
@@ -6193,8 +6197,8 @@ async function vContrataciones() {
   
   if (!d.contrataciones || !d.contrataciones.length) {
     return vistaVacia('f. 0000', 'Contrataciones', 'Contrataciones',
-      'Todavía no se reconstruyó ninguna contratación',
-      'Una contratación se arma sola cuando el sistema encuentra documentos que se ' +
+      'Todavía no se reconstruy&oacute; ninguna contrataci&oacute;n',
+      'Una contrataci&oacute;n se arma sola cuando el sistema encuentra documentos que se ' +
       'refieren al mismo expediente o al mismo procedimiento. Si ya cargaste el ' +
       'material, puede que falte procesarlo o que los documentos todavía no tengan ' +
       'número de expediente legible.');
@@ -6207,16 +6211,16 @@ async function vContrataciones() {
     : d.contrataciones.length === limite;
 
   /* ── El riel de etapas ───────────────────────────────────────────────────
-     Esto era una fila de sellos: un ✓ por cada etapa que consta y un Ø por cada una
+     Esto era una fila de sellos: un ✓ por cada etapa que consta y un  por cada una
      que no. Con siete etapas y cien contrataciones en pantalla eso da setecientos
      cuños, y medido sobre el legajo real la pantalla pintaba 1.776 marcas de ausencia
-     —el número más alto de toda la aplicación—. Dejaba de ser una tabla de
-     contrataciones para ser un muro de Ø con algunos datos escondidos adentro.
+     —el número más alto de toda la aplicaci&oacute;n—. Dejaba de ser una tabla de
+     contrataciones para ser un muro de  con algunos datos escondidos adentro.
 
-     Y el Ø además dice mal lo que pasa. Un procedimiento sin factura cargada no es un
+     Y el  además dice mal lo que pasa. Un procedimiento sin factura cargada no es un
      procedimiento con un agujero: es un procedimiento del que todavía no tenemos la
-     factura. La diferencia importa, porque una es una observación sobre el expediente
-     y la otra es una observación sobre lo que alcanzamos a cargar, y sólo la segunda
+     factura. La diferencia importa, porque una es una observaci&oacute;n sobre el expediente
+     y la otra es una observaci&oacute;n sobre lo que alcanzamos a cargar, y s&oacute;lo la segunda
      es cierta.
 
      Queda un riel: una marca por etapa, en el orden en que ocurren. Llena la que
@@ -6226,20 +6230,20 @@ async function vContrataciones() {
      una oferta no son lo mismo. */
   const riel = c => {
     /* Que el backend no haya mandado las etapas NO es que las etapas no consten.
-       Ésa era justamente la vieja trampa en otra forma: sin `c.etapas`, el código
+       Ésa era justamente la vieja trampa en otra forma: sin `c.etapas`, el c&oacute;digo
        anterior armaba un diccionario vacío y pintaba los siete casilleros huecos, o
        sea afirmaba que ninguna etapa constaba, en las ciento veinticuatro filas. Lo
-       que pasaba en realidad es que la lista no trae ese dato —sólo lo trae la ficha
-       de cada contratación—.
+       que pasaba en realidad es que la lista no trae ese dato —s&oacute;lo lo trae la ficha
+       de cada contrataci&oacute;n—.
 
-       Una pantalla no puede decir «no consta» sobre algo que no preguntó. Mientras el
+       Una pantalla no puede decir «no consta» sobre algo que no pregunt&oacute;. Mientras el
        listado no traiga las etapas, se dice que hay que entrar a la ficha para verlas,
        que es lo que de verdad ocurre. */
     /* El listado trae un resumen compacto, {pliego: 1, ofertas: 0, …}: cantidad de
        documentos por etapa, cero si no consta en lo cargado. Se dibuja en ese orden,
        que es el del procedimiento. */
     if (c.etapas && !Array.isArray(c.etapas) && typeof c.etapas === 'object') {
-      const NOMBRE = {pliego: 'Pliego', ofertas: 'Ofertas', adjudicacion: 'Adjudicación',
+      const NOMBRE = {pliego: 'Pliego', ofertas: 'Ofertas', adjudicacion: 'Adjudicaci&oacute;n',
         orden_compra: 'Orden de compra', factura: 'Factura', remito: 'Remito', pago: 'Pago'};
       const claves = Object.keys(NOMBRE).filter(k => k in c.etapas)
         .concat(Object.keys(c.etapas).filter(k => !(k in NOMBRE)));
@@ -6253,11 +6257,11 @@ async function vContrataciones() {
       }).join('');
       const hay = claves.filter(k => Number(c.etapas[k])).length;
       return `<span class="riel-etapas" role="img"
-        aria-label="${hay} de ${claves.length} etapas con documentación">${marcas}</span>`;
+        aria-label="${hay} de ${claves.length} etapas con documentaci&oacute;n">${marcas}</span>`;
     }
     if (!Array.isArray(c.etapas))
       return `<a class="etapas-pendiente" href="#/contratacion?id=${c.id}"
-                 title="Las etapas de esta contratación se ven en su ficha."
+                 title="Las etapas de esta contrataci&oacute;n se ven en su ficha."
               >ver etapas</a>`;
     const suyas = Object.fromEntries(c.etapas.map(e => [e.clave, e]));
     const marcas = etapasCat.map(ec => {
@@ -6271,15 +6275,15 @@ async function vContrataciones() {
     }).join('');
     const hay = etapasCat.filter(ec => (suyas[ec.clave] || {}).presente).length;
     return `<span class="riel-etapas" role="img"
-      aria-label="${hay} de ${etapasCat.length} etapas con documentación">${marcas}</span>`;
+      aria-label="${hay} de ${etapasCat.length} etapas con documentaci&oacute;n">${marcas}</span>`;
   };
 
   vista.innerHTML = bloque('f. 0000', 'Contrataciones', `
     <h1>Contrataciones</h1>
     <p class="prosa">Cada procedimiento que el sistema pudo reconstruir a partir de los
-      documentos cargados. El riel muestra de qué etapas hay documentación: lleno
-      cuando consta, hueco cuando todavía no apareció en lo que se cargó — que no es
-      lo mismo que decir que no existió.</p>
+      documentos cargados. El riel muestra de qué etapas hay documentaci&oacute;n: lleno
+      cuando consta, hueco cuando todavía no apareci&oacute; en lo que se carg&oacute; — que no es
+      lo mismo que decir que no existi&oacute;.</p>
 
     <div class="tabla-cabecera">
       <span class="tabla-cuenta">${
@@ -6296,20 +6300,20 @@ async function vContrataciones() {
 
     ${tabla([
       // El identificador interno no era una columna: era ruido con aspecto de dato.
-      // Lo que identifica una contratación en un expediente es el expediente. El
+      // Lo que identifica una contrataci&oacute;n en un expediente es el expediente. El
       // nombre lleva el enlace, que es donde la mano va a ir igual.
-      {t:'Contratación', c:'crece', r: c => `<div class="item-desc">
+      {t:'Contrataci&oacute;n', c:'crece', r: c => `<div class="item-desc">
           <a class="item-literal" href="#/contratacion?id=${c.id}">${esc(c.nombre)}</a>
           ${c.objeto ? `<span class="item-normalizado">${esc(c.objeto)}</span>` : ''}
         </div>`},
       // `ausencias` viene del backend y dice POR QUÉ falta cada campo: no_consta,
       // ilegible, no_cargado, pendiente. Se usa para el título de la raya, así que la
-      // explicación es la del sistema y no una que invente la pantalla.
+      // explicaci&oacute;n es la del sistema y no una que invente la pantalla.
       {t:'Expediente', c:'fol', r: c => c.expediente
           ? esc(c.expediente) : ausente((c.ausencias || {}).expediente)},
       {t:'Proveedor', r: c => {
          // Lo mismo que con las etapas: el listado todavía no trae los proveedores.
-         // Decir «—» acá sería afirmar que la contratación no tiene ninguno.
+         // Decir «—» acá sería afirmar que la contrataci&oacute;n no tiene ninguno.
          if (!Array.isArray(c.proveedores)) return '';
          const p = c.proveedores;
          if (!p.length) return ausente('no_consta');
@@ -6323,7 +6327,7 @@ async function vContrataciones() {
       {t:'Etapas', r: riel},
       {t:'Adjudicado', c:'num', r: c => !c.totales ? ''
           : c.totales.adjudicado ? montoHTML(c.totales.adjudicado) : ausente('no_consta')},
-      // «0 hallazgos» no es información: lo normal es que no haya. Sólo se dice
+      // «0 hallazgos» no es informaci&oacute;n: lo normal es que no haya. S&oacute;lo se dice
       // cuando hay algo que mirar, y entonces se dice cuánto.
       {t:'Hallazgos', c:'num', r: c => c.hallazgos
           ? `<a class="chip-hallazgos" href="#/hallazgos?contratacion_id=${c.id}"
@@ -6335,7 +6339,7 @@ async function vContrataciones() {
 async function vContratacion() {
   const id = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
   if (!id) return;
-  const d = await apiOPendiente(`/api/contratacion/${id}`, 'Contratación', 'Contratación');
+  const d = await apiOPendiente(`/api/contratacion/${id}`, 'Contrataci&oacute;n', 'Contrataci&oacute;n');
   if (!d) return;
   const c = d.contratacion;
   const etapas = d.etapas || [];
@@ -6363,10 +6367,10 @@ async function vContratacion() {
 
   /* ── Quién es cada columna de la matriz ──────────────────────────────────
      El backend titula la columna con la clave de la etapa y el proveedor pegados
-     («orden_compra: sin atribuir»). Eso es el nombre de una variable, no un rótulo.
+     («orden_compra: sin atribuir»). Eso es el nombre de una variable, no un r&oacute;tulo.
      Se arma con lo que la persona reconoce: el tipo de documento y a nombre de quién
      está; y si todavía no se sabe de quién es, se dice así, sin guiones bajos. */
-  // Cómo se escribe cada identificador en un expediente.
+  // C&oacute;mo se escribe cada identificador en un expediente.
   const ROTULO_ID = {cuit: 'CUIT', expediente: 'Expte.', resolucion: 'Res.', decreto: 'Dec.',
     orden_compra: 'O. C.', orden_pago: 'O. P.', factura: 'Fact.', remito: 'Rem.',
     licitacion: 'Lic.', concurso: 'Conc.'};
@@ -6378,11 +6382,11 @@ async function vContratacion() {
     const quien = o ? (o.nombre && o.nombre !== o.cuit ? o.nombre : `CUIT ${o.cuit}`)
                     : (resto && resto !== 'sin atribuir' ? resto : 'proveedor sin identificar');
     const que = nombreEtapa[clave] || TIPO_DOC[clave] || (clave || '').replace(/_/g, ' ');
-    return `${que} · ${quien}`;
+    return `${que} &middot; ${quien}`;
   };
 
   /* ── La cabecera ─────────────────────────────────────────────────────────
-     Decía «Expediente: no consta · Procedimiento: desconocido»: dos negaciones
+     Decía «Expediente: no consta &middot; Procedimiento: desconocido»: dos negaciones
      seguidas antes de cualquier dato. Lo que consta va en la línea; lo que no, no
      ocupa lugar. En esta ficha la falta de un dato no es noticia: es lo normal de un
      procedimiento que se está reconstruyendo de a pedazos. */
@@ -6396,12 +6400,12 @@ async function vContratacion() {
     ? sello('ok', 'Confirmada por una persona')
     : c.estado === 'rechazada' ? sello('alerta', 'Descartada')
     : sello('neutro', 'Propuesta por el sistema', {titulo:
-        'El sistema agrupó estos documentos porque comparten expediente o ' +
-        'identificadores. Nadie lo confirmó todavía.'});
+        'El sistema agrup&oacute; estos documentos porque comparten expediente o ' +
+        'identificadores. Nadie lo confirm&oacute; todavía.'});
 
   /* ── Las cifras ──────────────────────────────────────────────────────────
-     Cuatro conteos que el sistema sabe con certeza. Los importes de adjudicación,
-     facturación y pago van aparte y sólo si hay alguno: tres rayas seguidas en la
+     Cuatro conteos que el sistema sabe con certeza. Los importes de adjudicaci&oacute;n,
+     facturaci&oacute;n y pago van aparte y s&oacute;lo si hay alguno: tres rayas seguidas en la
      tira más visible de la pantalla eran tres «no consta» gritados. */
   const cifra = (rotulo, valor, nota) => `
     <div class="cifra">
@@ -6431,9 +6435,9 @@ async function vContratacion() {
     ${importes.length ? `<div class="cifras cifras-4">
       ${importes.map(([r, m]) => cifra(r, montoHTML(m))).join('')}</div>` : ''}`;
 
-  /* ── Qué se compró ───────────────────────────────────────────────────────
-     Un renglón por ítem, una columna por documento con precios. El literal del papel
-     arriba y lo que entendió el sistema abajo, siempre los dos; cada importe lleva a
+  /* ── Qué se compr&oacute; ───────────────────────────────────────────────────────
+     Un rengl&oacute;n por ítem, una columna por documento con precios. El literal del papel
+     arriba y lo que entendi&oacute; el sistema abajo, siempre los dos; cada importe lleva a
      su foja. */
   const matrizHTML = matriz.filas.length ? tabla([
     {t: 'Ítem', c: 'crece', r: f => {
@@ -6455,13 +6459,13 @@ async function vContratacion() {
           ? `<span class="precio-menor" title="El menor precio de la fila">${h}</span>` : h;
       }
     }))
-  ], matriz.filas) : `<p class="nota-seccion">No se leyó ningún renglón con precios en
-      los documentos de esta contratación. Si hay una orden de compra o una oferta, puede
+  ], matriz.filas) : `<p class="nota-seccion">No se ley&oacute; ningún rengl&oacute;n con precios en
+      los documentos de esta contrataci&oacute;n. Si hay una orden de compra o una oferta, puede
       que su planilla todavía no se haya reconocido como tabla.</p>`;
 
   /* ── El procedimiento ────────────────────────────────────────────────────
      Eran trece sellos apilados, la mayoría «FALTA …» con doble filete: una pantalla
-     que empezaba por lo que no hay. Ahora van las etapas con documentación, en orden,
+     que empezaba por lo que no hay. Ahora van las etapas con documentaci&oacute;n, en orden,
      cada una con sus documentos y su foja; las demás se nombran juntas, en una línea
      y en tinta apagada. Que no consten en lo cargado no quiere decir que no hayan
      existido, y la línea lo dice. */
@@ -6482,12 +6486,12 @@ async function vContratacion() {
           </ul>
         </li>`).join('')}
     </ol>
-    ${sinDocs.length ? `<p class="proc-faltan">Sin documentación en lo cargado:
+    ${sinDocs.length ? `<p class="proc-faltan">Sin documentaci&oacute;n en lo cargado:
       ${sinDocs.map(e => esc(e.nombre.toLowerCase())).join(', ')}. Puede estar en fojas
       que todavía no se cargaron o que no se reconocieron.</p>` : ''}`;
 
   /* ── Hallazgos, agrupados ────────────────────────────────────────────────
-     Veinticuatro «Renglón sin precio», uno debajo del otro, son un solo hallazgo
+     Veinticuatro «Rengl&oacute;n sin precio», uno debajo del otro, son un solo hallazgo
      repetido. Se cuentan por tipo, con el enlace a la lista filtrada. */
   const porTipo = new Map();
   hallazgos.forEach(h => {
@@ -6506,7 +6510,7 @@ async function vContratacion() {
   const oferentesHTML = oferentes.length ? tabla([
     {t: 'Oferente', c: 'crece', r: o => o.nombre && o.nombre !== o.cuit
         ? `<a href="#/entidad/${o.entidad_id}">${esc(o.nombre)}</a>`
-        : `<a href="#/entidad/${o.entidad_id}">Razón social no leída</a>`},
+        : `<a href="#/entidad/${o.entidad_id}">Raz&oacute;n social no leída</a>`},
     {t: 'CUIT', c: 'fol', r: o => o.cuit ? esc(o.cuit) : ausente('no_consta')},
     {t: 'Resultado', r: o => o.adjudicado ? sello('ok', 'Adjudicado') : ''},
   ], oferentes) : '';
@@ -6519,10 +6523,10 @@ async function vContratacion() {
         <span class="crono-fuente">${fuente(ev.fuente, esc(foja(ev.fuente)))}</span>
       </li>`).join('')}</ol>` : '';
 
-  vista.innerHTML = bloque('f. 0000', 'Contratación', `
+  vista.innerHTML = bloque('f. 0000', 'Contrataci&oacute;n', `
     <nav class="migas" aria-label="Estás en"><a href="#/contrataciones">Contrataciones</a></nav>
     <header class="ficha-cabeza">
-      <h1>${esc(c.nombre || 'Contratación sin nombre')}</h1>
+      <h1>${esc(c.nombre || 'Contrataci&oacute;n sin nombre')}</h1>
       ${c.objeto ? `<p class="ficha-objeto">${esc(c.objeto)}</p>` : ''}
       <div class="ficha-meta">
         ${meta.map(([k, v]) => `<span class="meta-par"><span class="meta-k">${k}</span> ${v}</span>`).join('')}
@@ -6531,14 +6535,14 @@ async function vContratacion() {
     </header>
     ${cifrasHTML}
 
-    <h2>Qué se compró</h2>
+    <h2>Qué se compr&oacute;</h2>
     ${matrizHTML}
 
     <h2>Procedimiento</h2>
     ${etapasHTML}
 
     ${hallazgosHTML ? `<h2>Diferencias detectadas</h2>
-      <p class="nota-seccion">Lo que el sistema marcó para revisar. No son conclusiones:
+      <p class="nota-seccion">Lo que el sistema marc&oacute; para revisar. No son conclusiones:
         cada una lleva su cálculo y su fuente en la lista de hallazgos.</p>
       ${hallazgosHTML}` : ''}
     ${oferentesHTML ? `<h2>Oferentes</h2>${oferentesHTML}` : ''}
@@ -6548,11 +6552,11 @@ async function vContratacion() {
 
 async function vPrecios() {
   const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
-  // Cincuenta: con cien la tabla medía seis mil píxeles y la paginación, arriba, ya
+  // Cincuenta: con cien la tabla medía seis mil píxeles y la paginaci&oacute;n, arriba, ya
   // no se veía cuando hacía falta.
   const limite = 50;
   /* De qué pantalla es esta respuesta. Esta consulta es la más lenta del sistema por
-     dos órdenes de magnitud —medida sobre el legajo real: 13,4 s con cien renglones
+     dos &oacute;rdenes de magnitud —medida sobre el legajo real: 13,4 s con cien renglones
      contra 0,02 s de casi todo lo demás—, así que es la que más tiempo pasa en el
      aire, y en ese rato da tiempo de sobra a irse a otra pantalla.
 
@@ -6578,10 +6582,10 @@ async function vPrecios() {
     ? desde + limite < d.total
     : d.renglones.length === limite;
 
-  /* La descripción del ítem, con sus dos caras. El literal es lo que dice el papel y
-     manda; el normalizado es lo que el sistema entendió, y está abajo en chico porque
+  /* La descripci&oacute;n del ítem, con sus dos caras. El literal es lo que dice el papel y
+     manda; el normalizado es lo que el sistema entendi&oacute;, y está abajo en chico porque
      es lo que permite comparar. Nunca uno en lugar del otro: reemplazar el literal por
-     el normalizado sería perder la prueba y quedarse con la interpretación. */
+     el normalizado sería perder la prueba y quedarse con la interpretaci&oacute;n. */
   const descripcion = r => {
     const lit = `<span class="item-literal">${esc(r.descripcion.literal)}</span>`;
     // Si lo normalizado es lo mismo en minúsculas, repetirlo abajo es ruido: una fila
@@ -6589,14 +6593,14 @@ async function vPrecios() {
     const plano = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
     const norm = r.descripcion.normalizada &&
                  plano(r.descripcion.normalizada) !== plano(r.descripcion.literal)
-      ? `<span class="item-normalizado" title="Así lo entendió el sistema para poder
+      ? `<span class="item-normalizado" title="Así lo entendi&oacute; el sistema para poder
            compararlo. El texto de arriba es el que dice el papel."
            >${esc(r.descripcion.normalizada)}</span>` : '';
     return `<div class="item-desc">${lit}${norm}</div>`;
   };
 
-  /* La comparación no se presenta como un veredicto sino como una invitación a mirar
-     la evidencia. Y su calidad viaja con ella: una comparación dudosa mostrada igual
+  /* La comparaci&oacute;n no se presenta como un veredicto sino como una invitaci&oacute;n a mirar
+     la evidencia. Y su calidad viaja con ella: una comparaci&oacute;n dudosa mostrada igual
      que una firme es exactamente la manera de que alguien la cite como si fuera
      firme. */
   const CALIDAD = {fuerte: 'Comparable', probable: 'Probable',
@@ -6604,15 +6608,15 @@ async function vPrecios() {
   const comparacion = r => {
     if (!r.comparacion) return ausente('no_consta');
     const estado = r.comparacion.estado || r.comparacion.nivel || '';
-    const rotulo = CALIDAD[estado] || 'Ver comparación';
+    const rotulo = CALIDAD[estado] || 'Ver comparaci&oacute;n';
     return `<a class="enlace-comparar" href="#/renglon?id=${r.id}"
        >${esc(rotulo)}</a>`;
   };
 
   vista.innerHTML = bloque('f. 0000', 'Ítems y precios', `
     <h1>Ítems y precios</h1>
-    <p class="prosa">Cada renglón que el sistema pudo leer de un presupuesto, una orden
-      de compra o una factura, con lo que dice el papel y de qué foja salió. Los
+    <p class="prosa">Cada rengl&oacute;n que el sistema pudo leer de un presupuesto, una orden
+      de compra o una factura, con lo que dice el papel y de qué foja sali&oacute;. Los
       importes en bastardilla con <span class="marca-provisional">≈</span> están en el
       papel pero todavía no se pudieron convertir a número, así que no se suman.</p>
 
@@ -6638,11 +6642,11 @@ async function vPrecios() {
       {t:'Unidad', r: r => r.unidad ? esc(r.unidad.literal) : ausente('no_consta')},
       {t:'Precio unitario', c:'num', r: r => montoHTML(r.precio_unitario)},
       {t:'Total', c:'num', r: r => montoHTML(r.subtotal)},
-      {t:'Contratación', r: r => r.contratacion
+      {t:'Contrataci&oacute;n', r: r => r.contratacion
           ? `<a class="celda-corta" href="#/contratacion?id=${r.contratacion.id}"
                title="${esc(r.contratacion.nombre)}">${esc(r.contratacion.nombre)}</a>`
           : ausente('no_consta')},
-      {t:'Comparación', r: comparacion},
+      {t:'Comparaci&oacute;n', r: comparacion},
       // La fuente es la columna que sostiene todo lo demás: sin ella ninguno de los
       // números de la fila es afirmable. Por eso está siempre, y siempre al final,
       // donde la vista termina de recorrer la fila.
@@ -6663,7 +6667,7 @@ async function vRenglon() {
   const id = new URLSearchParams(location.hash.split('?')[1] || '').get('id');
   if (!id) return;
   // Las referencias y los descartes vienen paginados: se piden doscientos, que es el
-  // máximo, y los totales se toman del servidor, no del largo de lo que llegó.
+  // máximo, y los totales se toman del servidor, no del largo de lo que lleg&oacute;.
   const d = await api(`/api/renglon/${id}/comparacion?niveles=A,B,C,D,E&limite=200`);
   const r = d.renglon;
   
@@ -6709,12 +6713,12 @@ async function vRenglon() {
   /* ── Las cifras, arriba y juntas ─────────────────────────────────────────
      Estaban como párrafos sueltos: «n: 3», «Mediana: ...», «Diferencia porcentual:
      ...%». Eso es el volcado de una estructura de datos, no una pantalla: obliga a
-     leer seis renglones seguidos para armarse en la cabeza la comparación que la
+     leer seis renglones seguidos para armarse en la cabeza la comparaci&oacute;n que la
      pantalla tendría que mostrar hecha.
 
      Van las cuatro que contestan la pregunta, en el orden en que se piensan: qué
      precio estamos mirando, contra qué, cuánto se aparta, y cuánto vale esa
-     comparación. Ninguna dice si eso está bien o mal. */
+     comparaci&oacute;n. Ninguna dice si eso está bien o mal. */
   const cifra = (rotulo, valor, nota) => `
     <div class="cifra">
       <span class="cifra-rotulo">${esc(rotulo)}</span>
@@ -6726,20 +6730,20 @@ async function vRenglon() {
   // El signo va siempre: una diferencia de −7 millones escrita sin el menos se lee como
   // un precio siete millones más caro, que es exactamente lo contrario.
   const signo = n => (Number(n) > 0 ? '+' : Number(n) < 0 ? '−' : '');
-  /* Una comparación de calidad baja —referencias aproximadas, una sola referencia— no
+  /* Una comparaci&oacute;n de calidad baja —referencias aproximadas, una sola referencia— no
      se presenta como una cifra firme. Se muestra, porque esconderla sería decidir por
      la persona, pero apagada y con el motivo arriba: sirve para saber que hay que
      buscar mejores referencias, no para afirmar una diferencia. */
   const floja = (d.calidad && d.calidad.nivel === 'baja') || (est && (est.nivel === 'E' || est.n < 2));
   const nombreOperando = n => {
     const m = /^referencia_(\d+)$/.exec(n || '');
-    if (m) return `referencia (renglón ${m[1]})`;
+    if (m) return `referencia (rengl&oacute;n ${m[1]})`;
     return ({analizado: 'precio analizado', mediana: 'mediana', segunda_oferta: 'segunda oferta'})[n]
       || String(n || '').replace(/_/g, ' ');
   };
   const cifras = est ? `
     ${floja ? `<div class="aviso aviso-floja">
-      ${sello('atencion', 'Comparación de calidad baja')}
+      ${sello('atencion', 'Comparaci&oacute;n de calidad baja')}
       <span>${est.n < 2 ? 'Hay una sola referencia' : `Hay ${fmtNum.format(est.n)} referencias`}${
         est.nivel === 'E' ? ', y es aproximada (nivel E)' : ''}. La diferencia de abajo no alcanza
         para afirmar nada sobre este precio: dice que hacen falta referencias mejores —el
@@ -6749,20 +6753,20 @@ async function vRenglon() {
               r.fecha ? esc(fmtFecha(r.fecha.valor) || r.fecha.literal) : '')}
       ${cifra('Mediana de las referencias',
               esc('$ ' + fmtPlata.format(Number(est.mediana))),
-              `${fmtNum.format(est.n)} ${est.n === 1 ? 'referencia' : 'referencias'} · nivel ${esc(est.nivel)}`)}
+              `${fmtNum.format(est.n)} ${est.n === 1 ? 'referencia' : 'referencias'} &middot; nivel ${esc(est.nivel)}`)}
       ${cifra('Diferencia',
               dif ? esc(signo(dif.absoluta) + '$ ' + fmtPlata.format(Math.abs(Number(dif.absoluta)))) : '—',
               dif ? esc(signo(dif.porcentual) + fmtNum.format(Math.abs(Number(dif.porcentual))) + ' %') : '')}
-      ${cifra('Calidad de la comparación',
+      ${cifra('Calidad de la comparaci&oacute;n',
               `<span class="calidad ${esc(d.calidad ? d.calidad.nivel : 'desconocida')}"
                  >${esc(d.calidad ? d.calidad.nivel : 'desconocida')}</span>`,
               d.calidad && d.calidad.motivos ? esc(d.calidad.motivos[0] || '') : '')}
     </div>` : '';
 
   /* Ciento cincuenta y tres renglones descartados, uno debajo del otro, no son
-     información: son una lista que nadie va a leer. Agrupados por motivo sí lo son.
+     informaci&oacute;n: son una lista que nadie va a leer. Agrupados por motivo sí lo son.
      Sobre el legajo real da: 71 sin precio utilizable, 37 por la etapa documental, 23
-     del mismo documento, 22 no comparables por descripción. Eso se lee en cinco
+     del mismo documento, 22 no comparables por descripci&oacute;n. Eso se lee en cinco
      segundos y dice qué haría falta para poder comparar. */
   const porMotivo = new Map();
   (d.excluidas || []).forEach(x => {
@@ -6783,7 +6787,7 @@ async function vRenglon() {
             <span class="motivo-cuenta">${fmtNum.format(xs.length)}</span>
             <span class="motivo-texto">${esc(motivo)}</span>
             <span class="motivo-ejemplos">${
-              xs.slice(0, 3).map(x => esc(x.renglon.descripcion.literal)).join(' · ')
+              xs.slice(0, 3).map(x => esc(x.renglon.descripcion.literal)).join(' &middot; ')
             }${xs.length > 3 ? ' …' : ''}</span>
           </li>`).join('')}
       </ul>
@@ -6791,25 +6795,25 @@ async function vRenglon() {
 
   const sinReferencias = !est && !(d.referencias || []).length;
 
-  vista.innerHTML = bloque('f. 0000', 'Comparación de precio', `
+  vista.innerHTML = bloque('f. 0000', 'Comparaci&oacute;n de precio', `
     <h1>${esc(r.descripcion.literal)}</h1>
     <p class="prosa">Este precio, al lado de los otros precios del mismo ítem que hay
       en el legajo. El sistema no dice si está bien o mal: muestra las referencias que
-      encontró, cuán comparables son y de qué foja salió cada número.</p>
+      encontr&oacute;, cuán comparables son y de qué foja sali&oacute; cada número.</p>
 
     ${sinReferencias ? `
       <div class="aviso">
         <span class="sello atencion">Sin referencias</span>
         <span>No hay ningún otro precio en el legajo que se pueda comparar con éste,
           así que no hay diferencia que calcular. Abajo está el detalle de por qué
-          quedó afuera cada candidato.</span>
+          qued&oacute; afuera cada candidato.</span>
       </div>
       <div class="cifras cifras-4">
         ${cifra('Precio analizado', montoHTML(r.precio_unitario),
                 r.fecha ? esc(fmtFecha(r.fecha.valor) || r.fecha.literal) : '')}
         ${cifra('Cantidad', r.cantidad ? esc(r.cantidad.literal) : '—',
                 r.unidad ? esc(r.unidad.literal) : '')}
-        ${cifra('Contratación', r.contratacion
+        ${cifra('Contrataci&oacute;n', r.contratacion
                   ? `<a href="#/contratacion?id=${r.contratacion.id}">${esc(r.contratacion.nombre)}</a>`
                   : '—', r.expediente ? 'Expediente ' + esc(r.expediente) : '')}
         ${cifra('Fuente', r.fuente
@@ -6822,8 +6826,8 @@ async function vRenglon() {
     ${ads && !sinReferencias ? `<ul class="advertencias">${ads}</ul>` : ''}
 
     ${d.calculo ? `
-      <h2>De dónde sale el número</h2>
-      <details class="formula-completa"><summary>Ver la fórmula completa</summary>
+      <h2>De d&oacute;nde sale el número</h2>
+      <details class="formula-completa"><summary>Ver la f&oacute;rmula completa</summary>
         <p class="formula mono">${esc(d.calculo.formula)}</p></details>
       <ul class="operandos">
         ${d.calculo.operandos.map(op => `<li><span class="op-nombre">${esc(nombreOperando(op.nombre))}</span>
@@ -6849,7 +6853,7 @@ async function vHallazgosContrataciones() {
 
   /* Los filtros viajan al servidor —cuando el servidor los entiende, el total que
      devuelve ya es el filtrado— y además se aplican acá, que es idempotente: una
-     versión del servidor que todavía no los entiende no hace que la pantalla muestre
+     versi&oacute;n del servidor que todavía no los entiende no hace que la pantalla muestre
      de más. */
   const params = new URLSearchParams({desde: '0', limite: '200'});
   if (tipo) params.set('tipo', tipo);
@@ -6880,7 +6884,7 @@ async function vHallazgosContrataciones() {
   /* El orden es el de lo que más importa mirar: primero las diferencias con una
      cuenta detrás (precio, facturado contra adjudicado o entregado, sumas que no
      dan), después los faltantes, y al final los renglones que no se pudieron leer,
-     que son muchos y dicen más del OCR que de la contratación. */
+     que son muchos y dicen más del OCR que de la contrataci&oacute;n. */
   const PESO = {diferencia_precio: 0, facturado_vs_adjudicado: 1, facturado_vs_entregado: 2,
     subtotal_incorrecto: 3, total_inconsistente: 4, ofertas_identicas: 5,
     duplicado_potencial: 6, variacion_compras: 7, secuencia_temporal: 8,
@@ -6903,12 +6907,12 @@ async function vHallazgosContrataciones() {
   const foja = f => (f.foja ?? f.pagina_nro) != null ? 'f. ' + fmtNum.format(f.foja ?? f.pagina_nro) : 'fuente';
   const tonoEstado = e => e === 'relevante' ? 'atencion' : e === 'descartado' ? 'neutro' : 'trabajando';
   const nombreEstado = e => e === 'pendiente' ? 'Sin revisar'
-    : (revisionDe[e] ? revisionDe[e].nombre.replace(' para la investigación', '') : e);
+    : (revisionDe[e] ? revisionDe[e].nombre.replace(' para la investigaci&oacute;n', '') : e);
 
   if (!todos.length) {
     return vistaVacia('f. 0000', 'Hallazgos', 'Hallazgos',
-      contratacion ? 'Esta contratación no tiene hallazgos' : 'Todavía no hay hallazgos',
-      'Un hallazgo es una diferencia que el sistema encontró al comparar documentos: un ' +
+      contratacion ? 'Esta contrataci&oacute;n no tiene hallazgos' : 'Todavía no hay hallazgos',
+      'Un hallazgo es una diferencia que el sistema encontr&oacute; al comparar documentos: un ' +
       'precio lejos de sus referencias, una factura que no coincide con la orden de ' +
       'compra, una suma que no da. Aparecen cuando hay contrataciones reconstruidas con ' +
       'renglones y precios legibles. Si ya cargaste el material, revisá «Contrataciones» ' +
@@ -6928,10 +6932,10 @@ async function vHallazgosContrataciones() {
     ...['pendiente', 'relevante', 'descartado'].filter(e => cuentaEstado.get(e))
       .map(e => chip(enlace({estado: e}), nombreEstado(e), cuentaEstado.get(e), estado === e))].join('');
 
-  /* Qué dice ESTE hallazgo. La descripción del backend es la del tipo, igual para
+  /* Qué dice ESTE hallazgo. La descripci&oacute;n del backend es la del tipo, igual para
      todos: siete filas seguidas decían «Cantidad o producto de la factura no
      coinciden con el remito asociado» y no había forma de saber cuál era cuál. Con los
-     datos de cada uno se dice cuál: qué producto, qué etapa falta, qué renglón. */
+     datos de cada uno se dice cuál: qué producto, qué etapa falta, qué rengl&oacute;n. */
   const etapaDe = Object.fromEntries((cat.etapas || []).map(e => [e.clave, e.nombre]));
   const etapa = k => (etapaDe[k] || TIPO_DOC[k] || String(k).replace(/_/g, ' ')).toLowerCase();
   const plata = v => v == null || isNaN(Number(v)) ? String(v ?? '') : '$ ' + fmtPlata.format(Number(v));
@@ -6945,14 +6949,14 @@ async function vHallazgosContrataciones() {
           x.descripcion ? `: «${esc(x.descripcion)}»` : ''}`;
       case 'documento_faltante':
         return x.etapas_no_encontradas && x.etapas_no_encontradas.length
-          ? `Hay ${esc(etapa(x.etapa_presente || 'documentación'))}, pero no ${
+          ? `Hay ${esc(etapa(x.etapa_presente || 'documentaci&oacute;n'))}, pero no ${
               x.etapas_no_encontradas.map(k => esc(etapa(k))).join(' ni ')}`
           : esc(h.descripcion || '');
       case 'precio_ausente':
-        return `${x.renglon_id ? `<a href="#/renglon?id=${esc(x.renglon_id)}">Renglón</a>` : 'Renglón'}
+        return `${x.renglon_id ? `<a href="#/renglon?id=${esc(x.renglon_id)}">Rengl&oacute;n</a>` : 'Rengl&oacute;n'}
           con el precio ${x.motivo === 'ilegible' ? 'ilegible en el papel' : 'sin leer'}`;
       case 'oferente_unico':
-        return `Se encontró ${fmtNum.format(x.ofertas || 1)} oferta en lo cargado`;
+        return `Se encontr&oacute; ${fmtNum.format(x.ofertas || 1)} oferta en lo cargado`;
       case 'diferencia_precio':
         return x.diferencia_pct != null
           ? `${fmtNum.format(Number(x.diferencia_pct))} % sobre la mediana de las referencias
@@ -6981,7 +6985,7 @@ async function vHallazgosContrataciones() {
         <span class="hz-tipo">${esc(t.nombre || h.titulo || h.tipo)}</span>
         <span class="hz-desc">${especifico(h)}</span>
         <span class="hz-donde">${h.contratacion_id
-          ? `<a href="#/contratacion?id=${h.contratacion_id}">Contratación ${esc(
+          ? `<a href="#/contratacion?id=${h.contratacion_id}">Contrataci&oacute;n ${esc(
               String(h.contratacion_nombre || h.contratacion_id))}</a>` : ''}</span>
         <span class="hz-fuente">${fuentes.length ? fuente(fuentes[0], esc(foja(fuentes[0])))
           + (fuentes.length > 1 ? ` <span class="mas">+${fuentes.length - 1}</span>` : '') : ''}</span>
@@ -6990,7 +6994,7 @@ async function vHallazgosContrataciones() {
       </summary>
       <div class="hz-detalle">
         <div class="hz-col">
-          ${t.explicacion ? `<div class="hz-bloque"><span class="hz-rotulo">Qué se detectó</span>
+          ${t.explicacion ? `<div class="hz-bloque"><span class="hz-rotulo">Qué se detect&oacute;</span>
             <p>${esc(t.explicacion)}</p></div>` : ''}
           ${calculo}
           <div class="hz-bloque"><span class="hz-rotulo">Confianza</span>
@@ -7000,15 +7004,15 @@ async function vHallazgosContrataciones() {
           </div>
           ${fuentes.length ? `<div class="hz-bloque"><span class="hz-rotulo">Fuentes</span>
             <ul class="hz-fuentes">${fuentes.map(f => `<li>${fuente(f, esc(
-              (TIPO_DOC[f.tipo_documento] || f.etiqueta || 'Documento') + ' · ' + foja(f)))}
+              (TIPO_DOC[f.tipo_documento] || f.etiqueta || 'Documento') + ' &middot; ' + foja(f)))}
               <span class="proc-dato">${esc(f.archivo || '')}</span></li>`).join('')}</ul></div>` : ''}
         </div>
         <form class="hz-revision" onsubmit="return false">
-          <span class="hz-rotulo">Revisión</span>
+          <span class="hz-rotulo">Revisi&oacute;n</span>
           <label>Estado <select id="rev-estado-${h.id}">${revOpciones}</select></label>
           <label>Nota <textarea id="rev-nota-${h.id}" rows="3"
-            placeholder="Qué se verificó contra la fuente, o por qué se descarta">${esc(rev.nota || '')}</textarea></label>
-          <button type="button" class="boton" data-guardar-hallazgo="${esc(h.id)}">Guardar revisión</button>
+            placeholder="Qué se verific&oacute; contra la fuente, o por qué se descarta">${esc(rev.nota || '')}</textarea></label>
+          <button type="button" class="boton" data-guardar-hallazgo="${esc(h.id)}">Guardar revisi&oacute;n</button>
         </form>
       </div>
     </details>`;
@@ -7024,18 +7028,18 @@ async function vHallazgosContrataciones() {
 
   vista.innerHTML = bloque('f. 0000', 'Hallazgos', `
     ${contratacion ? `<nav class="migas" aria-label="Estás en"><a href="#/contrataciones">Contrataciones</a><a
-        href="#/contratacion?id=${esc(contratacion)}">Contratación</a></nav>` : ''}
+        href="#/contratacion?id=${esc(contratacion)}">Contrataci&oacute;n</a></nav>` : ''}
     <h1>Hallazgos</h1>
-    <p class="prosa">Diferencias que el sistema encontró al comparar documentos. Ninguna es
-      una conclusión: cada una dice qué se detectó, con qué cuenta y de qué foja sale, para
+    <p class="prosa">Diferencias que el sistema encontr&oacute; al comparar documentos. Ninguna es
+      una conclusi&oacute;n: cada una dice qué se detect&oacute;, con qué cuenta y de qué foja sale, para
       que una persona la verifique y decida si es relevante.</p>
     <div class="filtros-chips" role="group" aria-label="Tipo">${chipsTipo}</div>
-    <div class="filtros-chips" role="group" aria-label="Estado de revisión">${chipsEstado}
+    <div class="filtros-chips" role="group" aria-label="Estado de revisi&oacute;n">${chipsEstado}
       ${contratacion ? `<a class="chip-filtro activo" href="${enlace({contratacion_id: ''})}"
-         title="Quitar el filtro">Sólo esta contratación ✕</a>` : ''}</div>
+         title="Quitar el filtro">S&oacute;lo esta contrataci&oacute;n ✕</a>` : ''}</div>
     ${pag.length ? `<div class="hz-lista">
       <div class="hz-cabeza" aria-hidden="true"><span>Tipo</span><span>Qué</span>
-        <span>Dónde</span><span>Fuente</span><span>Revisión</span></div>
+        <span>D&oacute;nde</span><span>Fuente</span><span>Revisi&oacute;n</span></div>
       ${pag.map(fila).join('')}</div>`
       : `<p class="nota-seccion">Ningún hallazgo con estos filtros.</p>`}
     ${paginador}
@@ -7052,7 +7056,7 @@ document.addEventListener('click', async e => {
   }
 });
 
-// Un clic, como cualquier botón. Estaba en `dblclick`: con un clic no se guardaba nada.
+// Un clic, como cualquier bot&oacute;n. Estaba en `dblclick`: con un clic no se guardaba nada.
 document.addEventListener('click', async e => {
   const boton = e.target.closest ? e.target.closest('[data-guardar-hallazgo]') : null;
   if (boton) {
@@ -7067,9 +7071,9 @@ document.addEventListener('click', async e => {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({estado: select.value, nota: nota.value})
       });
-      await redibujarTrasAccion('Revisión guardada', vHallazgosContrataciones);
+      await redibujarTrasAccion('Revisi&oacute;n guardada', vHallazgosContrataciones);
     } catch (err) {
-      toast('Falló: ' + err.message);
+      toast('Fall&oacute;: ' + err.message);
     } finally {
       boton.disabled = false;
     }
