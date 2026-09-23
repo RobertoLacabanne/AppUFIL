@@ -533,7 +533,8 @@ def extraer_archivo(cx, sha, *, por_ruta=None):
                 if cant is None and precio is None and sub is None and incierto is None:
                     continue
                 derivado, formula = False, None
-                motivo = None if precio is not None else ('ilegible' if literal('precio') else 'ausente')
+                # Fallar al normalizar un literal no demuestra que el papel sea ilegible.
+                motivo = None if precio is not None else ('pendiente' if literal('precio') else 'ausente')
                 if precio is None and literal('precio') is None and sub is not None and cant is not None and cant > 0:
                     precio, derivado, formula, motivo = sub / cant, True, 'subtotal / cantidad', None
                     anclas['precio'] = _ancla([valores['subtotal'], valores['cantidad']], t['pagina_nro'])
@@ -601,6 +602,8 @@ def fuente(cx, r, rol='fila'):
     p = cx.execute('SELECT ancho_pt,alto_pt FROM pagina WHERE sha256=? AND nro=?',
                    (r['sha256'], ancla['pagina_nro'])).fetchone()
     a = cx.execute('SELECT nombre FROM archivo WHERE sha256=?', (r['sha256'],)).fetchone()
+    if p is None or a is None:
+        return None
     return {'documento_id': r['documento_id'], 'sha256': r['sha256'], 'archivo': a[0],
             'pagina_nro': ancla['pagina_nro'], 'pagina': dict(p), 'region': ancla['region'],
             'tipo_documento': r['etapa'], 'etiqueta': cl.ETIQUETAS.get(r['etapa'], r['etapa']),
@@ -608,8 +611,11 @@ def fuente(cx, r, rol='fila'):
 
 
 def monto(cx, r, subtotal=False):
+    valor = r['subtotal'] if subtotal else r['precio_unitario']
+    literal = r['subtotal_literal'] if subtotal else r['precio_literal']
+    motivo = None if valor is not None else ('pendiente' if literal else 'no_consta')
     return {'literal': r['subtotal_literal'] if subtotal else r['precio_literal'],
-            'valor': r['subtotal'] if subtotal else r['precio_unitario'], 'moneda': r['moneda'],
+            'valor': valor, 'ausencia': motivo, 'moneda': r['moneda'],
             'derivado': False if subtotal else bool(r['precio_derivado']),
             'formula': None if subtotal else r['precio_formula'],
             'fuente': fuente(cx, r, 'subtotal' if subtotal else 'precio'), 'estado': r['estado']}

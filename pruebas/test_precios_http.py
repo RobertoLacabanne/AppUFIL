@@ -50,8 +50,11 @@ class PreciosHTTP(unittest.TestCase):
         if isinstance(ejemplo, dict):
             self.assertIsInstance(real, dict, ruta)
             extras = (set(real) - set(ejemplo))
-            permitidas = ({'literal', 'derivado', 'formula'} if ruta.endswith('precio_unitario') else
-                          {'tipo_documento', 'celdas', 'campo_id'} if ruta.endswith('fuente') else set())
+            permitidas = ({'literal', 'derivado', 'formula', 'ausencia'} if ruta.endswith('precio_unitario') else
+                          {'ausencia'} if ruta.endswith('subtotal') else
+                          {'comparabilidad'} if ruta.endswith('comparacion') else
+                          {'tipo_documento', 'celdas', 'campo_id'} if ruta.endswith('fuente') else
+                          {'orden', 'sentido', 'filtros_aplicados', 'referencias_paginacion', 'excluidas_paginacion'} if ruta == '' else set())
             self.assertTrue(extras <= permitidas, (ruta, extras))
             self.assertTrue(set(ejemplo) <= set(real), ruta)
             for k, v in ejemplo.items():

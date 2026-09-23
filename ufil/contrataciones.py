@@ -281,8 +281,21 @@ def listar(cx, **filtros):
             raise ValueError('etapa_faltante desconocida.')
         where.append("NOT EXISTS(SELECT 1 FROM contratacion_documento cd WHERE cd.contratacion_id=c.id AND cd.estado!='rechazada' AND cd.etapa=?)")
         args.append('oferta' if etapa == 'ofertas' else etapa); aplicados['etapa_faltante'] = etapa
-    return pg.consultar(cx, 'contrataciones', 'SELECT c.* FROM contratacion c WHERE '+' AND '.join(where), args,
+    resultado = pg.consultar(cx, 'contrataciones', 'SELECT c.* FROM contratacion c WHERE '+' AND '.join(where), args,
                         filtros=filtros, ordenes={k:k for k in ('id','nombre','estado','procedimiento','expediente')}, aplicados=aplicados)
+    claves = ('pliego','ofertas','adjudicacion','orden_compra','factura','remito','pago')
+    filas = {c['id']: c for c in resultado['contrataciones']}
+    for c in filas.values():
+        c['etapas'] = dict.fromkeys(claves, 0)
+    if filas:
+        for r in cx.execute('''SELECT contratacion_id,etapa,count(DISTINCT documento_id) cantidad
+                FROM contratacion_documento WHERE estado!='rechazada'
+                AND contratacion_id IN (SELECT value FROM json_each(?))
+                GROUP BY contratacion_id,etapa''', (json.dumps(list(filas)),)):
+            clave = 'ofertas' if r['etapa'] == 'oferta' else r['etapa']
+            if clave in claves:
+                filas[r['contratacion_id']]['etapas'][clave] = r['cantidad']
+    return resultado
 
 
 def totalizar(montos):
@@ -316,7 +329,7 @@ def ficha(cx, cid, *, docs=None, incluir_hallazgos=True):
             if d['fecha']:
                 cronologia.append(dict(fecha=d['fecha']['valor'], etapa=clave, etiqueta=nombre, fuente=d['fecha']['fuente']))
         etapas.append(dict(clave=clave, nombre=nombre, rotulo=nombre, presente=bool(piezas), cantidad=len(piezas),
-                           ausencia=None if piezas else 'no_cargado', documento_ids=[p['documento_id'] for p in piezas], documentos=piezas))
+                           ausencia=None if piezas else 'no_consta', documento_ids=[p['documento_id'] for p in piezas], documentos=piezas))
     oferentes = {}
     for d in docs:
         ctx = d['contexto']
@@ -349,7 +362,10 @@ def ficha(cx, cid, *, docs=None, incluir_hallazgos=True):
         if conocidos and len({m['moneda'] for _, m in conocidos}) == 1 and conocidos[0][1]['moneda']:
             f['menor'] = min(conocidos, key=lambda par: Decimal(par[1]['valor']))[0]
     from . import hallazgos
-    return dict(contratacion=dict(c), etapas=etapas, oferentes=list(oferentes.values()),
+    estado_etapas = [dict(clave='ofertas' if e['clave']=='oferta' else e['clave'], rotulo=e['rotulo'],
+                         presente=e['presente'], cantidad=e['cantidad'], documentos=e['documento_ids'], ausencia=e['ausencia'])
+                     for e in etapas if e['clave'] in ('pliego','oferta','adjudicacion','orden_compra','factura','remito','pago')]
+    return dict(contratacion=dict(c), etapas=etapas, estado_etapas=estado_etapas, oferentes=list(oferentes.values()),
                 matriz=dict(columnas=list(columnas.values()), filas=list(filas.values())), totales=totales,
                 cronologia=sorted(cronologia, key=lambda e: e['fecha']),
                 decisiones_sin_pieza=[d for d in _decisiones(cx).values() if d['contratacion_id'] == cid and

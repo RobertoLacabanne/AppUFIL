@@ -16,8 +16,9 @@ def entidades(cx, f):
     sql = """SELECT e.id,e.clase,e.nombre,e.clave_fuerte,e.quien,'entidad' carril,
              (SELECT count(*) FROM mencion m WHERE m.entidad_id=e.id) menciones,
              (SELECT count(DISTINCT documento_id) FROM mencion m WHERE m.entidad_id=e.id) documentos,
-             EXISTS(SELECT 1 FROM renglon r JOIN contratacion_documento cd ON cd.documento_id=r.documento_id
-                    WHERE r.proveedor_id=e.id AND r.vigente=1 AND cd.estado!='rechazada') con_contrataciones
+             EXISTS(SELECT 1 FROM contratacion_documento cd WHERE cd.estado!='rechazada' AND
+                    (cd.documento_id IN (SELECT documento_id FROM renglon r WHERE r.proveedor_id=e.id AND r.vigente=1)
+                     OR cd.documento_id IN (SELECT documento_id FROM mencion m WHERE m.entidad_id=e.id))) con_contrataciones
              FROM entidad e WHERE e.clase!='persona' OR NOT EXISTS(
                SELECT 1 FROM persona p WHERE p.clave_fuerte=e.clave_fuerte
                OR (digitos(p.clave_fuerte)!='' AND digitos(p.clave_fuerte)=dni_entidad(e.clave_fuerte)))
@@ -36,9 +37,14 @@ def entidades(cx, f):
     if 'con_contrataciones' in f:
         v = pg.booleano(f['con_contrataciones']); where.append('con_contrataciones=?'); args.append(v); applied['con_contrataciones'] = v
     r = pg.consultar(cx, 'entidades', 'SELECT * FROM ('+sql+') WHERE '+' AND '.join(where), args,
-                     filtros=f, ordenes={k:k for k in ('id','nombre','clase','documentos','menciones')}, defecto='nombre', aplicados=applied)
+                     filtros=f, ordenes={k:k for k in ('id','nombre','clase','documentos','menciones')}, defecto='nombre', aplicados=applied,
+                     desempate='carril, id')
     r['clases'] = [{'clave':c,'que_es':en.ETIQUETAS[c]} for c in en.CLASES]
     r['listas_auxiliares'] = {'sin_resolver':'/api/entidades/sin-resolver', 'propuestas':'/api/entidades/propuestas'}
+    for clave in ('sin_resolver', 'propuestas'):
+        pagina = resolver(cx, r['listas_auxiliares'][clave], {})
+        r[clave] = pagina[clave]
+        r[clave+'_paginacion'] = {k:v for k,v in pagina.items() if k != clave}
     return r
 
 
@@ -62,23 +68,50 @@ def resolver(cx, ruta, f):
         r = pg.consultar(cx, 'piezas', '''SELECT d.id documento_id,d.sha256,a.nombre archivo,d.orden,d.clave,
             d.pagina_desde,d.pagina_hasta,d.pagina_hasta-d.pagina_desde+1 fojas,d.tipo,d.clasificado_por
             FROM documento d JOIN archivo a ON a.sha256=d.sha256 WHERE d.estado='sin_perfil' ''', filtros=f,
-            ordenes={'id':'documento_id','archivo':'archivo','foja':'pagina_desde'}, defecto='archivo')
+            ordenes={'id':'documento_id','archivo':'archivo','foja':'pagina_desde'}, defecto='archivo', buscar=('archivo','tipo','clave'))
         r['tipos'] = piezas.tipos_posibles()
         return r
     if ruta == '/api/fojas':
         where, args = (' WHERE p.sha256=?', [f['sha']]) if f.get('sha') else ('', [])
-        return pg.consultar(cx, 'fojas', '''SELECT p.id,p.sha256,a.nombre archivo,p.nro,p.clasificacion clase
+        r = pg.consultar(cx, 'fojas', '''SELECT p.id,p.sha256,a.nombre archivo,p.nro,p.clasificacion clase
             FROM pagina p JOIN archivo a ON a.sha256=p.sha256'''+where, args, filtros=f,
             ordenes={'id':'id','archivo':'archivo','foja':'nro','clase':'clase'}, defecto='id',
             transformar=lambda r:dict(r, etiqueta=cl.ETIQUETAS.get(r['clase'],'Sin clasificar'), apartada=r['clase'] in cl.APARTADAS),
-            aplicados={'sha':f['sha']} if f.get('sha') else {})
+            aplicados={'sha':f['sha']} if f.get('sha') else {}, buscar=('archivo','clase'))
+        archivos = {}
+        for p in r['fojas']:
+            a = archivos.setdefault(p['sha256'], dict(sha256=p['sha256'],archivo=p['archivo'],fojas=[]))
+            a['fojas'].append({k:p[k] for k in ('nro','clase','etiqueta','apartada')})
+        for p in cx.execute('''SELECT sha256,count(*) total,
+                  sum(CASE WHEN clasificacion IN (SELECT value FROM json_each(?)) THEN 1 ELSE 0 END) apartadas
+                  FROM pagina WHERE sha256 IN (SELECT value FROM json_each(?)) GROUP BY sha256''',
+                  (json.dumps(list(cl.APARTADAS)),json.dumps(list(archivos)))):
+            archivos[p['sha256']].update(total=p['total'],apartadas=p['apartadas'],de_trabajo=p['total']-p['apartadas'])
+        r['archivos'] = list(archivos.values())
+        r['resumen'] = {p[0] or 'sin_clasificar':p[1] for p in cx.execute('SELECT clasificacion,count(*) FROM pagina GROUP BY clasificacion')}
+        r['etiquetas'] = dict(cl.ETIQUETAS)
+        return r
     if ruta == '/api/foliatura':
         sha = f['sha']
-        def foja(r):
-            r['foliaturas'] = [dict(x) for x in cx.execute('SELECT * FROM foliatura WHERE pagina_id=? ORDER BY serie,id',(r['pagina_id'],))]
-            return r
-        return pg.consultar(cx, 'fojas', 'SELECT id pagina_id,nro pagina_pdf FROM pagina WHERE sha256=?', [sha],
-            filtros=f, ordenes={'foja':'pagina_pdf','id':'pagina_id'}, defecto='foja', transformar=foja, aplicados={'sha':sha})
+        sql = 'SELECT id pagina_id,nro pagina_pdf FROM pagina WHERE sha256=?'
+        args = [sha]
+        applied = {'sha':sha}
+        if f.get('q'):
+            sql += ' AND EXISTS(SELECT 1 FROM foliatura f WHERE f.pagina_id=pagina.id AND f.literal LIKE ?)'
+            args.append('%'+f['q']+'%'); applied['q'] = f['q']
+        r = pg.consultar(cx, 'fojas', sql, args,
+            filtros=f, ordenes={'foja':'pagina_pdf','id':'pagina_id'}, defecto='foja', aplicados=applied)
+        paginas = {p['pagina_id']:p for p in r['fojas']}
+        for p in paginas.values():
+            p['foliaturas'] = []
+        for x in cx.execute('SELECT * FROM foliatura WHERE pagina_id IN (SELECT value FROM json_each(?)) ORDER BY serie,id', (json.dumps(list(paginas)),)):
+            dato = {k:x[k] for k in ('serie','literal','numero','sufijo','cara','estado','origen','confianza','quien')}
+            dato['caja'] = None if x['x0'] is None else [x[k] for k in ('x0','y0','x1','y1')]
+            paginas[x['pagina_id']]['foliaturas'].append(dato)
+        saltos = resolver(cx, '/api/foliatura/saltos', {'sha':sha})
+        r['saltos'] = saltos.pop('saltos')
+        r['saltos_paginacion'] = saltos
+        return r
     if ruta == '/api/foliatura/saltos':
         return pg.consultar(cx,'saltos', '''WITH secuencia AS (
             SELECT p.id,p.nro pagina_pdf,f.literal,f.numero,lag(f.numero) OVER(ORDER BY p.nro) anterior,
@@ -97,21 +130,55 @@ def resolver(cx, ruta, f):
         sql = '''SELECT t.* FROM tabla t WHERE t.sha256=? AND (t.origen='humano' OR tabla_estructurada(
             (SELECT json_group_array(json_object('fila',c.fila,'texto',c.texto,'x0',c.x0,'y0',c.y0,'x1',c.x1,'y1',c.y1))
              FROM tabla_celda c WHERE c.tabla_id=t.id)))'''
-        return pg.consultar(cx, 'tablas', sql, [f['sha']], filtros=f,
+        args, applied = [f['sha']], {'sha':f['sha']}
+        if f.get('q'):
+            sql += ' AND EXISTS(SELECT 1 FROM tabla_celda c WHERE c.tabla_id=t.id AND c.texto LIKE ?)'
+            args.append('%'+f['q']+'%'); applied['q'] = f['q']
+        r = pg.consultar(cx, 'tablas', sql, args, filtros=f,
             ordenes={'id':'id','foja':'pagina_nro','filas':'filas'}, defecto='foja',
-            transformar=lambda r:tb._arma(cx,r), aplicados={'sha':f['sha']})
+            aplicados=applied)
+        celdas = {}
+        for c in cx.execute('SELECT * FROM tabla_celda WHERE tabla_id IN (SELECT value FROM json_each(?)) ORDER BY fila,columna',
+                            (json.dumps([t['id'] for t in r['tablas']]),)):
+            celdas.setdefault(c['tabla_id'], []).append(c)
+        r['tablas'] = [tb._arma(cx,t,celdas=celdas.get(t['id'],[])) for t in r['tablas']]
+        return r
     if ruta in ('/api/reasociaciones', '/api/reasociaciones/pendientes'):
         # Las candidatas se consultan aparte, también paginadas.
-        return pg.consultar(cx, 'revisiones', '''SELECT r.sha256,r.orden,r.campo,r.valor,r.accion,r.quien,r.cuando,
-            r.motivo,r.ancla_pagina,r.ancla_tipo,a.nombre archivo,r.orden orden_viejo
+        resultado = pg.consultar(cx, 'revisiones', '''SELECT r.*,COALESCE(a.nombre,substr(r.sha256,1,12)) archivo,r.orden orden_viejo
             FROM revision_humana r LEFT JOIN archivo a ON a.sha256=r.sha256 WHERE r.estado='requiere_reasociacion' ''',
-            filtros=f, ordenes={'cuando':'cuando','archivo':'archivo','foja':'ancla_pagina','campo':'campo'}, defecto='cuando')
+            filtros=f, ordenes={'cuando':'cuando','archivo':'archivo','foja':'ancla_pagina','campo':'campo'}, defecto='cuando',
+            buscar=('archivo','campo','valor','motivo'), desempate='sha256, orden, campo')
+        for r in resultado['revisiones']:
+            if ruta.endswith('/pendientes'):
+                candidatas = resolver(cx, '/api/reasociaciones/candidatas', {'sha':r['sha256'],'campo':r['campo'],'orden_viejo':r['orden']})
+                r['candidatas'] = candidatas.pop('candidatas')
+                r['candidatas_paginacion'] = candidatas
+            else:
+                claves = ('sha256','archivo','campo','valor','accion','quien','cuando','motivo','ancla_pagina','orden_viejo')
+                for k in list(r):
+                    if k not in claves:
+                        del r[k]
+                r['motivo'] = r['motivo'] or 'la pieza a la que correspondía cambió'
+        return resultado
     if ruta == '/api/reasociaciones/candidatas':
+        revision = cx.execute('SELECT ancla_pagina,ancla_tipo FROM revision_humana WHERE sha256=? AND orden=? AND campo=?',
+                              (f['sha'],int(f.get('orden_viejo',0)),f['campo'])).fetchone()
+        def candidata(r):
+            razones = []
+            if revision:
+                if revision['ancla_pagina'] is not None and r['pagina_desde'] is not None and r['pagina_hasta'] is not None and r['pagina_desde'] <= revision['ancla_pagina'] <= r['pagina_hasta']:
+                    razones.append('Contiene la foja anclada')
+                if revision['ancla_tipo'] is not None and r['tipo'] == revision['ancla_tipo']:
+                    razones.append('Mismo tipo de pieza que al revisar')
+            r['tiene_el_campo'] = r.pop('campo_id') is not None
+            r['por_que'] = '; '.join(razones) or 'Otra pieza del mismo archivo'
+            return r
         return pg.consultar(cx, 'candidatas', '''SELECT d.id documento_id,d.orden,d.tipo,d.pagina_desde,d.pagina_hasta,
             c.id campo_id,c.valor_literal valor_actual,c.estado estado_actual FROM documento d
             LEFT JOIN campo c ON c.documento_id=d.id AND c.nombre=? WHERE d.sha256=?''', [f['campo'],f['sha']],
             filtros=f, ordenes={'id':'documento_id','orden':'orden','foja':'pagina_desde'}, defecto='orden',
-            aplicados={'sha':f['sha'],'campo':f['campo']})
+            aplicados={'sha':f['sha'],'campo':f['campo']}, transformar=candidata)
     if ruta in ('/api/contratos', '/api/comprobantes'):
         clave, vista = ('contratos','v_contrato') if ruta.endswith('contratos') else ('comprobantes','v_comprobante')
         return pg.consultar(cx, clave, 'SELECT * FROM '+vista, filtros=f,
@@ -133,6 +200,7 @@ def resolver(cx, ruta, f):
             WHERE '''+' AND '.join(where),args,filtros=f,ordenes={'id':'id','fecha':'fecha','clase':'clase'},defecto='fecha',
             transformar=lambda r:dict(r,que_es=cr.ETIQUETAS.get(r['clase'],r['clase'])),aplicados=aplicados)
         r['clases']=[{'clave':c,'que_es':cr.ETIQUETAS[c]} for c in cr.CLASES]
+        r['desordenes'] = cr.desordenes(cx)
         return r
     if ruta in ('/api/relaciones','/api/relaciones/documento'):
         from . import relaciones as rl
@@ -143,12 +211,19 @@ def resolver(cx, ruta, f):
             args,filtros=f,ordenes={'id':'id','tipo':'tipo','confianza':'confianza'},
             transformar=lambda r:dict(r,que_dice=rl.TIPOS.get(r['tipo'],r['tipo'])))
         r['tipos']=rl.tipos_posibles()
+        if ruta.endswith('/documento'):
+            for row in r['relaciones']:
+                row['hacia'] = 'sale' if row['desde_doc'] == int(f['id']) else 'llega'
         return r
     if ruta == '/api/actividad':
-        return pg.consultar(cx,'ultimas', '''SELECT u.id,u.quien,u.accion,u.campo_nombre campo,u.valor_nuevo valor,
+        r = pg.consultar(cx,'ultimas', '''SELECT u.id,u.quien,u.accion,u.campo_nombre campo,u.valor_nuevo valor,
             u.cuando,u.sha256,u.orden,a.nombre archivo,d.id documento_id FROM auditoria u
             JOIN archivo a ON a.sha256=u.sha256 LEFT JOIN documento d ON d.sha256=u.sha256 AND d.orden=u.orden''',
             filtros=f,ordenes={'id':'id','cuando':'cuando','quien':'quien'},sentido='desc')
+        personas = resolver(cx,'/api/actividad/personas',{})
+        r['quienes'] = personas.pop('quienes')
+        r['quienes_paginacion'] = personas
+        return r
     if ruta == '/api/actividad/personas':
         return pg.consultar(cx,'quienes', '''SELECT quien,count(*) decisiones,min(cuando) primera,max(cuando) ultima
             FROM revision_humana GROUP BY quien''',filtros=f,ordenes={'quien':'quien','decisiones':'decisiones'},defecto='decisiones',sentido='desc')
@@ -165,7 +240,10 @@ def resolver(cx, ruta, f):
     simples = {
         '/api/excepciones': ('excepciones', "SELECT * FROM excepcion WHERE estado='abierta'", 'id'),
         '/api/consultas-guardadas': ('consultas','SELECT * FROM consulta_guardada','id'),
-        '/api/conjuntos': ('conjuntos','SELECT * FROM conjunto','id'),
+        '/api/conjuntos': ('conjuntos', '''SELECT c.*,
+            (SELECT count(*) FROM conjunto_archivo x WHERE x.conjunto_id=c.id) archivos,
+            coalesce((SELECT sum(a.paginas) FROM conjunto_archivo x JOIN archivo a ON a.sha256=x.sha256 WHERE x.conjunto_id=c.id),0) paginas
+            FROM conjunto c''','id'),
         '/api/colecciones': ('colecciones','SELECT c.*,(SELECT count(*) FROM coleccion_item i WHERE i.coleccion_id=c.id) items FROM coleccion c','id'),
         '/api/interpretaciones': ('interpretaciones','SELECT * FROM interpretacion','id'),
         '/api/numeros': ('numeros', '''SELECT c.*,a.nombre archivo FROM cotejo_numero c JOIN archivo a ON a.sha256=c.sha256''','id'),
@@ -185,5 +263,9 @@ def resolver(cx, ruta, f):
                 r['fuentes']=[dict(x) for x in cx.execute('''SELECT f.documento_id,f.nota,a.nombre archivo FROM interpretacion_fuente f
                     LEFT JOIN documento d ON d.id=f.documento_id LEFT JOIN archivo a ON a.sha256=d.sha256 WHERE f.interpretacion_id=?''',(r['id'],))]
             return r
-        return pg.consultar(cx, clave, sql, filtros=f, ordenes={orden:orden}, defecto=orden,transformar=transformar)
+        r = pg.consultar(cx, clave, sql, filtros=f, ordenes={orden:orden}, defecto=orden,transformar=transformar)
+        if ruta == '/api/colecciones':
+            from . import colecciones
+            r['clases'] = list(colecciones.CLASES)
+        return r
     return None

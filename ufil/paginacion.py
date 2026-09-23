@@ -15,7 +15,7 @@ def parametros(filtros, ordenes, defecto, sentido='asc'):
     direccion = filtros.get('sentido', sentido)
     if orden not in ordenes or direccion not in ('asc', 'desc'):
         raise ValueError('Orden inválido. Campos: ' + ', '.join(ordenes) + '; sentido: asc o desc.')
-    return dict(desde=desde, limite=min(limite, 200), orden=orden, sentido=direccion)
+    return dict(desde=desde, limite=min(limite, 500), orden=orden, sentido=direccion)
 
 
 def booleano(valor):
@@ -27,40 +27,19 @@ def booleano(valor):
 
 
 def consultar(cx, clave, sql, args=(), *, filtros=None, ordenes=None, defecto='id',
-              sentido='asc', transformar=None, aplicados=None):
+              sentido='asc', transformar=None, aplicados=None, buscar=(), desempate='1'):
     filtros = filtros or {}
+    aplicados = dict(aplicados or {})
+    if filtros.get('q') and buscar:
+        sql = 'SELECT * FROM ('+sql+') WHERE ('+' OR '.join(c+' LIKE ?' for c in buscar)+')'
+        args = list(args) + ['%'+filtros['q']+'%']*len(buscar)
+        aplicados['q'] = filtros['q']
     ordenes = ordenes or {'id': 'id'}
     p = parametros(filtros, ordenes, defecto, sentido)
     total = cx.execute('SELECT count(*) FROM (' + sql + ')', args).fetchone()[0]
     # El segundo criterio desempata de forma estable incluso entre nombres iguales.
     orden = ordenes[p['orden']]
     filas = cx.execute('SELECT * FROM (' + sql + ') ORDER BY ' + orden + ' ' + p['sentido'] +
-                       ', 1 ASC LIMIT ? OFFSET ?', list(args) + [p['limite'], p['desde']])
+                       ', '+desempate+' ASC LIMIT ? OFFSET ?', list(args) + [p['limite'], p['desde']])
     return {clave: [transformar(dict(r)) if transformar else dict(r) for r in filas],
             'total': total, **p, 'filtros_aplicados': aplicados or {}}
-
-
-_AUSENTES = {'', 'sin nombre', '(sin nombre)', 'sin dato', 'no consta', 'ø', '—'}
-_LITERALES = {'literal', 'texto', 'descripcion', 'desc_literal', 'valor_literal', 'nombre_literal'}
-
-
-def ausencias(dato):
-    """Conserva literales y ceros; acompaña nulos con motivos sin inventar evidencia."""
-    if isinstance(dato, list):
-        return [ausencias(v) for v in dato]
-    if not isinstance(dato, dict):
-        return dato
-    salida, motivos = {}, dict(dato.get('ausencias') or {})
-    for k, v in dato.items():
-        if k == 'ausencias':
-            continue
-        if k not in _LITERALES and isinstance(v, str) and v.strip().casefold() in _AUSENTES:
-            v = None
-        salida[k] = ausencias(v)
-        if v is None and k not in ('ausencia',):
-            motivos.setdefault(k, 'no_consta')
-    if 'valor' in salida:
-        salida['ausencia'] = (dato.get('ausencia') or 'no_consta') if salida['valor'] is None else None
-    if motivos:
-        salida['ausencias'] = motivos
-    return salida
