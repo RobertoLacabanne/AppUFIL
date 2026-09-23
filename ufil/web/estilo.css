@@ -2961,3 +2961,54 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
 /* Una sección de ficha arranca con aire: pegada a la tira de cifras se leía como
    su pie. */
 .ficha-cabeza ~ h2{margin-top:30px}
+
+/* ── Hallazgos ────────────────────────────────────────────────────────────
+   Una lista que se revisa, no una tabla que se lee: cada hallazgo es un renglón que
+   se abre en el lugar y muestra qué se detectó, la cuenta, la confianza, las fuentes
+   y la decisión. Los filtros son chips con su cuenta. */
+.filtros-chips{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px}
+.chip-filtro{display:inline-flex; align-items:center; gap:7px; padding:3px 10px;
+  border:1px solid var(--filete); border-radius:var(--radio-pildora);
+  font-size:var(--t-12); color:var(--tinta-2); text-decoration:none; background:transparent}
+.chip-filtro:hover{border-color:var(--borde-control); color:var(--tinta)}
+.chip-filtro.activo{border-color:var(--tribunal-txt); color:var(--tribunal-txt);
+  background:var(--sello-suave); font-weight:600}
+.chip-n{font-variant-numeric:tabular-nums; color:var(--tinta-3); font-weight:400}
+.chip-filtro.activo .chip-n{color:inherit}
+.hz-lista{margin-top:14px; border-top:1.5px solid var(--tinta)}
+.hz-cabeza, .hz-fila{display:grid;
+  grid-template-columns:minmax(11em,15em) minmax(0,1fr) minmax(9em,13em) 6em 10em;
+  gap:0 16px; align-items:baseline; padding:8px 10px}
+.hz-cabeza{font-size:var(--t-11); font-weight:600; letter-spacing:.045em;
+  font-variant-caps:all-small-caps; color:var(--tinta-2); padding-top:6px; padding-bottom:6px;
+  border-bottom:1px solid var(--filete)}
+.hz{border-bottom:1px solid var(--filete-2)}
+.hz-fila{cursor:pointer; list-style:none; font-size:var(--t-13)}
+.hz-fila::-webkit-details-marker{display:none}
+.hz-fila:hover{background:var(--realce)}
+.hz[open] > .hz-fila{background:var(--realce)}
+.hz-tipo{font-weight:600; color:var(--tinta)}
+.hz-desc{color:var(--tinta-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.hz-donde, .hz-fuente{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.hz-estado{justify-self:start}
+.hz-detalle{display:grid; grid-template-columns:minmax(0,1fr) minmax(16em,22em); gap:22px;
+  padding:6px 10px 18px; background:var(--realce)}
+.hz-bloque{margin:0 0 12px}
+.hz-bloque p{margin:2px 0 0; font-size:var(--t-13); color:var(--tinta); max-width:80ch}
+.hz-rotulo{display:block; font-size:var(--t-11); letter-spacing:.045em;
+  font-variant-caps:all-small-caps; color:var(--tinta-3)}
+.hz-motivo{display:block; font-size:var(--t-12); color:var(--tinta-2)}
+.hz-fuentes{list-style:none; padding:0; margin:4px 0 0; font-size:var(--t-13)}
+.hz-fuentes li{display:flex; gap:10px; align-items:baseline}
+.hz-revision{display:flex; flex-direction:column; gap:8px; font-size:var(--t-13)}
+.hz-revision label{display:flex; flex-direction:column; gap:3px; color:var(--tinta-2)}
+.hz-revision textarea{resize:vertical; min-height:4.5em}
+.hz-revision .boton{align-self:flex-start}
+.paginador{display:flex; align-items:center; gap:14px; margin-top:14px;
+  font-size:var(--t-13); color:var(--tinta-2)}
+@media (max-width:1400px){
+  .hz-cabeza, .hz-fila{grid-template-columns:minmax(10em,13em) minmax(0,1fr) 5em 9em}
+  .hz-cabeza > :nth-child(3), .hz-donde{display:none}
+}
+@media (max-width:900px){ .hz-detalle{grid-template-columns:1fr} }
+.hz-col{min-width:0}

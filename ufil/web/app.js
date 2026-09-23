@@ -6633,49 +6633,205 @@ async function vRenglon() {
 
 async function vHallazgosContrataciones() {
   const cat = await cargarCatalogoContrataciones();
-  const desde = parseInt(new URLSearchParams(location.hash.split('?')[1] || '').get('desde') || '0', 10);
-  const limite = 100;
-  const d = await apiOPendiente(`/api/hallazgos?desde=${desde}&limite=${limite}`, 'Hallazgos', 'Hallazgos');
+  const q = new URLSearchParams(location.hash.split('?')[1] || '');
+  const tipo = q.get('tipo') || '';
+  const estado = q.get('estado') || '';
+  const contratacion = q.get('contratacion_id') || '';
+  const pagina = Math.max(0, parseInt(q.get('pagina') || '0', 10) || 0);
+  const POR_PAGINA = 25;
+
+  /* Los filtros viajan al servidor —cuando el servidor los entiende, el total que
+     devuelve ya es el filtrado— y además se aplican acá, que es idempotente: una
+     versión del servidor que todavía no los entiende no hace que la pantalla muestre
+     de más. */
+  const params = new URLSearchParams({desde: '0', limite: '200'});
+  if (tipo) params.set('tipo', tipo);
+  if (estado) params.set('estado_revision', estado);
+  if (contratacion) params.set('contratacion_id', contratacion);
+  const d = await apiOPendiente(`/api/hallazgos?${params}`, 'Hallazgos', 'Hallazgos');
   if (!d) return;
-  
-  if (!d.hallazgos || !d.hallazgos.length) {
-    return vistaVacia('f. 0000', 'Hallazgos', 'Hallazgos', 'No hay hallazgos para mostrar', '');
+  if (location.hash.split('?')[0] !== '#/hallazgos') return;
+
+  const tipos = cat.hallazgos || [];
+  const tipoDe = Object.fromEntries(tipos.map(t => [t.clave, t]));
+  const revisiones = cat.revision || [];
+  const revisionDe = Object.fromEntries(revisiones.map(r => [r.clave, r]));
+
+  const todos = (d.hallazgos || []).filter(h => !h.ya_no_se_detecta)
+    .filter(h => !contratacion || String(h.contratacion_id) === contratacion);
+  const cuentaTipo = new Map();
+  todos.forEach(h => cuentaTipo.set(h.tipo, (cuentaTipo.get(h.tipo) || 0) + 1));
+  const cuentaEstado = new Map();
+  todos.forEach(h => {
+    const e = (h.revision || {}).estado || 'pendiente';
+    cuentaEstado.set(e, (cuentaEstado.get(e) || 0) + 1);
+  });
+  const filtrados = todos
+    .filter(h => !tipo || h.tipo === tipo)
+    .filter(h => !estado || ((h.revision || {}).estado || 'pendiente') === estado);
+
+  /* El orden es el de lo que más importa mirar: primero las diferencias con una
+     cuenta detrás (precio, facturado contra adjudicado o entregado, sumas que no
+     dan), después los faltantes, y al final los renglones que no se pudieron leer,
+     que son muchos y dicen más del OCR que de la contratación. */
+  const PESO = {diferencia_precio: 0, facturado_vs_adjudicado: 1, facturado_vs_entregado: 2,
+    subtotal_incorrecto: 3, total_inconsistente: 4, ofertas_identicas: 5,
+    duplicado_potencial: 6, variacion_compras: 7, secuencia_temporal: 8,
+    oferente_unico: 9, documento_faltante: 10, coincidencia_temporal: 11,
+    precio_sin_rol: 12, precio_ausente: 13};
+  filtrados.sort((a, b) => (PESO[a.tipo] ?? 20) - (PESO[b.tipo] ?? 20) || a.id - b.id);
+
+  const total = filtrados.length;
+  const pag = filtrados.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
+  const enlace = cambios => {
+    const n = new URLSearchParams({tipo, estado, contratacion_id: contratacion,
+                                   pagina: '0', ...cambios});
+    for (const [k, v] of [...n.entries()]) if (!v || (k === 'pagina' && v === '0')) n.delete(k);
+    const s = n.toString();
+    return '#/hallazgos' + (s ? '?' + s : '');
+  };
+
+  const fuente = (f, texto) => `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(f))}'
+      class="enlace-fuente" title="${esc(f.archivo || '')}">${texto}</a>`;
+  const foja = f => (f.foja ?? f.pagina_nro) != null ? 'f. ' + fmtNum.format(f.foja ?? f.pagina_nro) : 'fuente';
+  const tonoEstado = e => e === 'relevante' ? 'atencion' : e === 'descartado' ? 'neutro' : 'trabajando';
+  const nombreEstado = e => e === 'pendiente' ? 'Sin revisar'
+    : (revisionDe[e] ? revisionDe[e].nombre.replace(' para la investigación', '') : e);
+
+  if (!todos.length) {
+    return vistaVacia('f. 0000', 'Hallazgos', 'Hallazgos',
+      contratacion ? 'Esta contratación no tiene hallazgos' : 'Todavía no hay hallazgos',
+      'Un hallazgo es una diferencia que el sistema encontró al comparar documentos: un ' +
+      'precio lejos de sus referencias, una factura que no coincide con la orden de ' +
+      'compra, una suma que no da. Aparecen cuando hay contrataciones reconstruidas con ' +
+      'renglones y precios legibles. Si ya cargaste el material, revisá «Contrataciones» ' +
+      'e «Ítems y precios».');
   }
 
-  const tiposCat = cat.hallazgos || [];
-  const tiposDict = Object.fromEntries(tiposCat.map(t => [t.clave, t.nombre]));
-  const revisionCat = cat.revision || [];
+  /* Los filtros son chips con su cuenta, no un formulario: se ve de un vistazo qué
+     hay y se entra con un clic. La cuenta es sobre lo que hay, no sobre lo filtrado,
+     para que cambiar de filtro no esconda las otras opciones. */
+  const chip = (href, texto, n, activo) =>
+    `<a class="chip-filtro${activo ? ' activo' : ''}" href="${href}"
+        ${activo ? 'aria-current="true"' : ''}>${esc(texto)}<span class="chip-n">${fmtNum.format(n)}</span></a>`;
+  const chipsTipo = [chip(enlace({tipo: ''}), 'Todos', todos.length, !tipo),
+    ...[...cuentaTipo.entries()].sort((a, b) => (PESO[a[0]] ?? 20) - (PESO[b[0]] ?? 20))
+      .map(([k, n]) => chip(enlace({tipo: k}), (tipoDe[k] || {}).nombre || k, n, tipo === k))].join('');
+  const chipsEstado = [chip(enlace({estado: ''}), 'Cualquier estado', todos.length, !estado),
+    ...['pendiente', 'relevante', 'descartado'].filter(e => cuentaEstado.get(e))
+      .map(e => chip(enlace({estado: e}), nombreEstado(e), cuentaEstado.get(e), estado === e))].join('');
+
+  /* Qué dice ESTE hallazgo. La descripción del backend es la del tipo, igual para
+     todos: siete filas seguidas decían «Cantidad o producto de la factura no
+     coinciden con el remito asociado» y no había forma de saber cuál era cuál. Con los
+     datos de cada uno se dice cuál: qué producto, qué etapa falta, qué renglón. */
+  const etapaDe = Object.fromEntries((cat.etapas || []).map(e => [e.clave, e.nombre]));
+  const etapa = k => (etapaDe[k] || TIPO_DOC[k] || String(k).replace(/_/g, ' ')).toLowerCase();
+  const plata = v => v == null || isNaN(Number(v)) ? String(v ?? '') : '$ ' + fmtPlata.format(Number(v));
+  const especifico = h => {
+    const x = h.datos || {};
+    switch (h.tipo) {
+      case 'facturado_vs_entregado':
+      case 'facturado_vs_adjudicado':
+        return `${x.atributo === 'cantidad' ? 'Cantidad' : x.atributo === 'precio' ? 'Precio'
+          : x.atributo === 'proveedor' ? 'Proveedor' : 'Producto'} que no coincide${
+          x.descripcion ? `: «${esc(x.descripcion)}»` : ''}`;
+      case 'documento_faltante':
+        return x.etapas_no_encontradas && x.etapas_no_encontradas.length
+          ? `Hay ${esc(etapa(x.etapa_presente || 'documentación'))}, pero no ${
+              x.etapas_no_encontradas.map(k => esc(etapa(k))).join(' ni ')}`
+          : esc(h.descripcion || '');
+      case 'precio_ausente':
+        return `${x.renglon_id ? `<a href="#/renglon?id=${esc(x.renglon_id)}">Renglón</a>` : 'Renglón'}
+          con el precio ${x.motivo === 'ilegible' ? 'ilegible en el papel' : 'sin leer'}`;
+      case 'oferente_unico':
+        return `Se encontró ${fmtNum.format(x.ofertas || 1)} oferta en lo cargado`;
+      case 'diferencia_precio':
+        return x.diferencia_pct != null
+          ? `${fmtNum.format(Number(x.diferencia_pct))} % sobre la mediana de las referencias
+             (${esc(plata(x.analizado))} contra ${esc(plata(x.referencia))})`
+          : esc(h.descripcion || '');
+      default:
+        return esc(h.descripcion || '');
+    }
+  };
+
+  const fila = h => {
+    const t = tipoDe[h.tipo] || {};
+    const rev = h.revision || {};
+    const est = rev.estado || 'pendiente';
+    const fuentes = h.fuentes || [];
+    const revOpciones = revisiones.map(rc =>
+      `<option value="${esc(rc.clave)}" ${est === rc.clave ? 'selected' : ''}>${esc(rc.nombre)}</option>`).join('');
+    const calculo = h.calculo ? `
+      <div class="hz-bloque">
+        <span class="hz-rotulo">Cálculo</span>
+        <p class="formula mono">${esc(h.calculo.formula || '')}${h.calculo.resultado != null
+          ? ` = ${esc(String(h.calculo.resultado))}` : ''}</p>
+      </div>` : '';
+    return `<details class="hz" data-hallazgo="${esc(h.id)}">
+      <summary class="hz-fila">
+        <span class="hz-tipo">${esc(t.nombre || h.titulo || h.tipo)}</span>
+        <span class="hz-desc">${especifico(h)}</span>
+        <span class="hz-donde">${h.contratacion_id
+          ? `<a href="#/contratacion?id=${h.contratacion_id}">Contratación ${esc(
+              String(h.contratacion_nombre || h.contratacion_id))}</a>` : ''}</span>
+        <span class="hz-fuente">${fuentes.length ? fuente(fuentes[0], esc(foja(fuentes[0])))
+          + (fuentes.length > 1 ? ` <span class="mas">+${fuentes.length - 1}</span>` : '') : ''}</span>
+        <span class="hz-estado">${sello(tonoEstado(est), nombreEstado(est),
+          {titulo: rev.quien ? `${rev.quien}${rev.cuando ? ', ' + fmtFechaHora(rev.cuando) : ''}` : ''})}</span>
+      </summary>
+      <div class="hz-detalle">
+        <div class="hz-col">
+          ${t.explicacion ? `<div class="hz-bloque"><span class="hz-rotulo">Qué se detectó</span>
+            <p>${esc(t.explicacion)}</p></div>` : ''}
+          ${calculo}
+          <div class="hz-bloque"><span class="hz-rotulo">Confianza</span>
+            <p><span class="calidad ${esc((h.confianza || {}).nivel || '')}">${esc(
+              (h.confianza || {}).nivel || 'sin calificar')}</span>
+            ${((h.confianza || {}).motivos || []).map(m => `<span class="hz-motivo">${esc(m)}</span>`).join('')}</p>
+          </div>
+          ${fuentes.length ? `<div class="hz-bloque"><span class="hz-rotulo">Fuentes</span>
+            <ul class="hz-fuentes">${fuentes.map(f => `<li>${fuente(f, esc(
+              (TIPO_DOC[f.tipo_documento] || f.etiqueta || 'Documento') + ' · ' + foja(f)))}
+              <span class="proc-dato">${esc(f.archivo || '')}</span></li>`).join('')}</ul></div>` : ''}
+        </div>
+        <form class="hz-revision" onsubmit="return false">
+          <span class="hz-rotulo">Revisión</span>
+          <label>Estado <select id="rev-estado-${h.id}">${revOpciones}</select></label>
+          <label>Nota <textarea id="rev-nota-${h.id}" rows="3"
+            placeholder="Qué se verificó contra la fuente, o por qué se descarta">${esc(rev.nota || '')}</textarea></label>
+          <button type="button" class="boton" data-guardar-hallazgo="${esc(h.id)}">Guardar revisión</button>
+        </form>
+      </div>
+    </details>`;
+  };
+
+  const paginas = Math.ceil(total / POR_PAGINA);
+  const paginador = paginas > 1 ? `<nav class="paginador" aria-label="Páginas">
+      ${pagina > 0 ? `<a class="boton gris" href="${enlace({pagina: String(pagina - 1)})}">Anteriores</a>` : ''}
+      <span>${fmtNum.format(pagina * POR_PAGINA + 1)}–${fmtNum.format(Math.min(total, (pagina + 1) * POR_PAGINA))}
+        de ${fmtNum.format(total)}</span>
+      ${pagina + 1 < paginas ? `<a class="boton gris" href="${enlace({pagina: String(pagina + 1)})}">Siguientes</a>` : ''}
+    </nav>` : '';
 
   vista.innerHTML = bloque('f. 0000', 'Hallazgos', `
-    <h1>Hallazgos de contrataciones</h1>
-    <div class="paginacion-env">
-      ${d.total !== undefined ? `Mostrando ${desde + 1}–${Math.min(desde + limite, d.total)} de ${fmtNum.format(d.total)}` : ''}
-      ${desde > 0 ? `<a href="#/hallazgos?desde=${Math.max(0, desde - limite)}" class="paginacion-link">Anterior</a>` : ''}
-      ${(d.total !== undefined && desde + limite < d.total) || (d.total === undefined && d.hallazgos.length === limite) ? `<a href="#/hallazgos?desde=${desde + limite}" class="paginacion-link">Siguiente</a>` : ''}
-    </div>
-    ${tabla([
-      {t:'ID', c:'num', r: h => h.id},
-      {t:'Tipo', r: h => esc(tiposDict[h.tipo] || h.tipo)},
-      {t:'Descripción', r: h => esc(h.descripcion)},
-      {t:'Fuentes', r: h => h.fuentes ? h.fuentes.map((f, i) => `<a href="javascript:void(0)" data-fuente='${esc(JSON.stringify(f))}' class="enlace-fuente">Fuente ${i+1}</a>`).join(', ') : '<span class="nulo">no consta</span>'},
-      {t:'Confianza', r: h => {
-         let txt = esc(h.confianza ? h.confianza.nivel : 'no consta');
-         if (h.confianza && h.confianza.motivos && h.confianza.motivos.length) {
-            txt += ` <ul>${h.confianza.motivos.map(m => `<li>${esc(m)}</li>`).join('')}</ul>`;
-         }
-         return txt;
-      }},
-      {t:'Revisión', r: h => {
-         const estadoActual = h.revision ? h.revision.estado : 'pendiente';
-         const nota = h.revision ? h.revision.nota || '' : '';
-         const revOpciones = revisionCat.map(rc => `<option value="${esc(rc.clave)}" ${estadoActual === rc.clave ? 'selected' : ''}>${esc(rc.nombre)}</option>`).join('');
-         return `
-           <select id="rev-estado-${h.id}">${revOpciones}</select>
-           <input type="text" id="rev-nota-${h.id}" value="${esc(nota)}" placeholder="Nota">
-           <button type="button" class="boton" data-guardar-hallazgo="${esc(h.id)}">Guardar</button>
-         `;
-      }}
-    ], d.hallazgos)}
+    ${contratacion ? `<nav class="migas" aria-label="Estás en"><a href="#/contrataciones">Contrataciones</a><a
+        href="#/contratacion?id=${esc(contratacion)}">Contratación</a></nav>` : ''}
+    <h1>Hallazgos</h1>
+    <p class="prosa">Diferencias que el sistema encontró al comparar documentos. Ninguna es
+      una conclusión: cada una dice qué se detectó, con qué cuenta y de qué foja sale, para
+      que una persona la verifique y decida si es relevante.</p>
+    <div class="filtros-chips" role="group" aria-label="Tipo">${chipsTipo}</div>
+    <div class="filtros-chips" role="group" aria-label="Estado de revisión">${chipsEstado}
+      ${contratacion ? `<a class="chip-filtro activo" href="${enlace({contratacion_id: ''})}"
+         title="Quitar el filtro">Sólo esta contratación ✕</a>` : ''}</div>
+    ${pag.length ? `<div class="hz-lista">
+      <div class="hz-cabeza" aria-hidden="true"><span>Tipo</span><span>Qué</span>
+        <span>Dónde</span><span>Fuente</span><span>Revisión</span></div>
+      ${pag.map(fila).join('')}</div>`
+      : `<p class="nota-seccion">Ningún hallazgo con estos filtros.</p>`}
+    ${paginador}
   `);
 }
 

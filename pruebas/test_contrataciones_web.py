@@ -31,13 +31,7 @@ def render(script):
     const URL = class { 
       constructor(u) { this.searchParams = new URLSearchParams(u.split('?')[1]||''); }
     };
-    const URLSearchParams = class {
-      constructor(q) { this.q = q; }
-      get(k) { 
-         const m = new RegExp('(?:^|&)'+k+'=([^&]*)').exec(this.q);
-         return m ? decodeURIComponent(m[1]) : null;
-      }
-    };
+    // URLSearchParams es el de Node: las pantallas arman consultas, no sólo las leen.
     
     const console = { log: function(s) { process.stdout.write(s + '\\n'); } };
     
@@ -55,7 +49,12 @@ def render(script):
         peticiones_post.push({ruta, body: opts.body});
         return {ok: true};
       }
-      return api_respuestas[ruta];
+      // Una ruta con filtros de más contesta lo mismo que la ruta sin ellos: el mock
+      // no filtra, la pantalla sí.
+      if (api_respuestas[ruta]) return api_respuestas[ruta];
+      const base = ruta.split('?')[0];
+      const k = Object.keys(api_respuestas).find(k => k.split('?')[0] === base);
+      return k ? api_respuestas[k] : undefined;
     }
     
     let redibujos = 0;
