@@ -477,11 +477,28 @@ def segmentar(inicios: list[int], todas: list[int]) -> list[tuple[int, int]]:
     return tramos
 
 
+# El patrón que no coincide con nada. Un perfil lo usa para declarar un campo que ese
+# tipo de documento no tiene —la «fecha de fin» de una factura: una factura no tiene
+# período— sólo para que el registro tenga la misma forma que el de un contrato.
+NUNCA = "(?!x)x"
+
+
+def sin_uso(spec: dict) -> bool:
+    """Un campo declarado sólo por la forma: no se busca, no se guarda, no va a la cola."""
+    patrones = spec.get("patrones")
+    return bool(patrones) and all(p == NUNCA for p in patrones)
+
+
 def _guardar_contrato(cx, sha, doc_id, perfil, resultados, por_pagina) -> dict:
     """Cotejo entre rutas y guardado de los campos de UN contrato."""
     n_campos = n_conf = n_rev = 0
     for spec in list(perfil.get("campos_patron", [])) + list(perfil.get("campos", [])):
         campo = spec["nombre"]
+        # Guardarlo como nulo lo mandaba a la cola: sobre el legajo real eran trece
+        # «fecha de fin» de facturas pidiendo que una persona confirme que una factura
+        # no tiene período. No es una duda del sistema; es la forma del registro.
+        if sin_uso(spec):
+            continue
         critico = campo in config.CAMPOS_CRITICOS
         por = {ruta: res[campo] for ruta, res in resultados.items()}
         con_valor = {r: h for r, h in por.items() if h.norm is not None}
