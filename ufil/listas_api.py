@@ -97,6 +97,11 @@ def resolver(cx, ruta, f):
         return r
     if ruta == '/api/fojas':
         where, args = (' WHERE p.sha256=?', [f['sha']]) if f.get('sha') else ('', [])
+        # Las apartadas (dorsos en blanco, sin texto útil…) van aparte de las de trabajo:
+        # intercaladas, la lista de trabajo queda sepultada entre dorsos.
+        if f.get('apartadas') in ('si', 'no'):
+            where += (' AND ' if where else ' WHERE ') + ('' if f['apartadas'] == 'si' else 'NOT ') +                 "(coalesce(p.clasificacion,'') IN (SELECT value FROM json_each(?)))"
+            args.append(json.dumps(list(cl.APARTADAS)))
         r = pg.consultar(cx, 'fojas', '''SELECT p.id,p.sha256,a.nombre archivo,p.nro,p.clasificacion clase
             FROM pagina p JOIN archivo a ON a.sha256=p.sha256'''+where, args, filtros=f,
             ordenes={'id':'id','archivo':'archivo','foja':'nro','clase':'clase'}, defecto='id',
@@ -114,6 +119,9 @@ def resolver(cx, ruta, f):
         r['archivos'] = list(archivos.values())
         r['resumen'] = {p[0] or 'sin_clasificar':p[1] for p in cx.execute('SELECT clasificacion,count(*) FROM pagina GROUP BY clasificacion')}
         r['etiquetas'] = dict(cl.ETIQUETAS)
+        r['apartadas_clases'] = sorted(cl.APARTADAS)
+        if f.get('apartadas') in ('si', 'no'):
+            r['filtros_aplicados']['apartadas'] = f['apartadas']
         return r
     if ruta == '/api/foliatura':
         sha = f['sha']

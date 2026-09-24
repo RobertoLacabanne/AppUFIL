@@ -3533,3 +3533,14 @@ a.item-literal:hover{text-decoration:underline}
 /* La paginación al pie de una lista va centrada con aire arriba; la que vive en la
    cabecera de una tabla, al lado de la cuenta, no. */
 .buscador-tabla .paginacion, .tabla-cabecera .paginacion{margin-top:0; justify-content:flex-end}
+.enlace-foja{white-space:nowrap}
+.buscar-form{display:flex; gap:8px; align-items:center; max-width:640px} .buscar-form .campo-buscar{max-width:none}
+/* Resultados en el texto de las fojas: dónde, el contexto con la palabra marcada, y
+   una acción chica. El contexto es lo que se lee: se lleva el ancho. */
+.res-fojas{list-style:none; padding:0; margin:8px 0 0; border-top:1px solid var(--filete)}
+.res-foja{display:grid; grid-template-columns:minmax(12em,16em) minmax(0,1fr) auto; gap:4px 16px;
+  align-items:baseline; padding:9px 0; border-bottom:1px solid var(--filete-2); font-size:var(--t-13)}
+.res-donde{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.res-frag{color:var(--tinta-2); line-height:1.5}
+.res-apartar{padding:3px 10px; font-size:var(--t-12)}
+@media (max-width:900px){ .res-foja{grid-template-columns:1fr} }

@@ -3432,63 +3432,91 @@ async function vBuscar(q) {
   const hash = location.hash;
   let r = q ? await api('/api/buscar?q=' + encodeURIComponent(q) + '&limite=60&desde=0') : null;
   if (hash !== location.hash) return;
-  
-  if (r && r.filas && r.filas.length === 1 && r.total === 1 && r.filas[0].clase === 'documento') {
-      location.hash = '#/documento/' + r.filas[0].id;
-      return;
-  }
-  
-  const dibujarFila = f => {
-      let url = f.clase === 'documento' ? `#/${esc(f.clase)}/${f.id}` : `#/documento/${f.documento_id || f.id}`;
-      let t = `<div class="resultado-buscar">`;
-      t += `<h3><a class="ancla" href="${url}">${esc(f.titulo)}</a></h3>`;
-      if (f.kwic) t += `<p class="kwic">${f.kwic}</p>`;
-      if (f.archivo) t += `<p class="mono apagado">${esc(f.archivo)} · f. ${f.nro || '?'}</p>`;
-      t += `</div>`;
-      return t;
-  };
-
+  /* Sin nada escrito, la pantalla dice qué busca y cómo buscar mejor, en vez de un
+     renglón que pide escribir algo. */
   const estadoVacio = `
     <div class="vacio-ilustrado">
-        <h3>Búsqueda global</h3>
-        <p>Busca en el texto reconocido de todos los documentos y en los datos extraídos (nombres, CUITs, montos).</p>
-        <p>Si no encontrás lo que buscás:</p>
-        <ul>
-            <li>Probá con una sola palabra clave en lugar de frases largas.</li>
-            <li>Revisá que no haya errores de tipeo.</li>
-            <li>El documento podría estar cargado pero aún sin extraer (buscalo por archivo).</li>
-        </ul>
-    </div>
-  `;
-
-  const sinResultados = `
-    <div class="vacio">
-        <h3>Sin coincidencias para «${esc(q)}»</h3>
-        <p>No se encontró ninguna mención exacta en los textos ni en los datos extraídos.</p>
-        <p>Consejos: buscá el apellido solo o el CUIT sin guiones.</p>
-    </div>
-  `;
-
-  vista.innerHTML = bloque('f. 0010', 'Buscar', `
-    <div class="cabecera-seccion">
-      <h2>Buscar en el corpus</h2>
-    </div>
-    <form id="f-buscar" class="fila-suelta sep-abajo">
-      <label class="oculto" for="q">Término de búsqueda</label>
-      <input id="q" class="input-grande" placeholder="Nombre, CUIT, expediente o palabra clave..." value="${esc(q)}" autocomplete="off" autofocus>
-      <button class="boton primario">Buscar</button>
-    </form>
-    ${!q ? estadoVacio : (r && r.filas && r.filas.length ? `<div class="resultados-lista">${r.filas.map(dibujarFila).join('')}</div>` : sinResultados)}
-  `);
-  
-  document.getElementById('f-buscar').onsubmit = e => {
-      e.preventDefault();
-      const nq = document.getElementById('q').value.trim();
-      if (nq) location.hash = '#/buscar/' + encodeURIComponent(nq);
+      <h3>Qué busca</h3>
+      <p>El texto leído de todas las fojas y los datos extraídos: nombres, CUIT, montos,
+        números de expediente, de orden de compra o de factura.</p>
+      <ul>
+        <li>Una palabra dice más que una frase: el OCR corta renglones.</li>
+        <li>Los acentos no importan: «benitez» encuentra «BENÍTEZ».</li>
+        <li>Un CUIT se encuentra con o sin guiones.</li>
+        <li>Lo que no se leyó todavía no se puede encontrar: abajo de cada búsqueda se
+          dice sobre cuántas fojas se buscó.</li>
+      </ul>
+    </div>`;
+  vista.innerHTML = bloque('f. 0010', 'Buscar', `<h2>Buscar en el corpus</h2>
+    <form id="f-buscar" class="fila-suelta buscar-form"><label class="campo-buscar"><input id="q" type="search" value="${esc(q)}" autocomplete="off" placeholder="Nombre, CUIT, monto, expediente…" aria-label="Buscar"></label><button class="boton">Buscar</button></form>
+    ${r ? '<button class="boton gris" id="guardar-busqueda">Guardar como consulta</button>' : ''}
+    <div id="resultados-busqueda" aria-live="polite"></div>`);
+  $('#f-buscar').onsubmit = e => { e.preventDefault(); location.hash = '#/buscar/' + encodeURIComponent($('#q').value.trim()); };
+  const pintar = () => {
+    const host = $('#resultados-busqueda');
+    host.innerHTML = r ? resultadosHTML(r) + (r.hay_mas ? '<button class="boton" id="mas-busqueda">Traer la p\u00e1gina siguiente</button>' : '') : estadoVacio;
+    host.querySelectorAll('tr[data-i]').forEach(tr => tr.onclick = () => { location.hash = '#/documento/' + r.campos[Number(tr.dataset.i)].documento_id; });
+    host.querySelectorAll('[data-apartar]').forEach(b => b.onclick = e => { e.stopPropagation(); accionInterfaz(b, () => apartarResultado(b.dataset.apartar, b.dataset.referencia)); });
+    const mas = $('#mas-busqueda'); if (mas) mas.onclick = () => accionInterfaz(mas, async () => {
+      const siguiente = await api('/api/buscar?q=' + encodeURIComponent(q) + '&limite=' + r.limite + '&desde=' + (r.desde + r.limite));
+      if (hash !== location.hash) return;
+      r = acumularBusqueda(r, siguiente); pintar();
+    });
   };
+  pintar();
+  const guardar = $('#guardar-busqueda'); if (guardar) guardar.onclick = () => {
+    const d = dialogo(`<h3>Guardar consulta</h3><p>Se volver\u00e1 a buscar: los resultados cambian con los datos.</p><form><label>Nombre <input name="nombre" required></label><button class="boton">Guardar</button></form><button class="boton gris" data-cerrar>Cancelar</button>`);
+    d.querySelector('[data-cerrar]').onclick = () => d.close();
+    const f = d.querySelector('form'); f.onsubmit = e => { e.preventDefault(); accionInterfaz(f.querySelector('button'), async () => {
+      const quien = await conRevisor(); if (!quien) return;
+      await guardarNucleo('/api/consulta/guardar', {nombre:f.elements.nombre.value.trim(), consulta:q, filtros:{}, quien}); d.close();
+    }); };
+  };
+  if (!q) $('#q').focus();
+}
+
+/* ── Sobre cuánto se buscó ─────────────────────────────────────────────────
+   Ésta era la única pantalla del sistema que afirmaba una ausencia sin haberla
+   verificado. «Sin coincidencias» se leía como «esta palabra no está en el legajo»,
+   cuando lo único cierto era «no está en las fojas que el sistema pudo leer».
+
+   Va SIEMPRE, haya resultados o no. Mostrarla sólo en el caso vacío es el mismo
+   error con otra ropa: cuatro coincidencias sobre 241 fojas leídas de 260 tampoco es
+   lo mismo que cuatro sobre 260. */
+function coberturaHTML(c, hallazgos) {
+  if (!c || !c.fojas) return '';
+  const sobre = `<strong>${fmtNum.format(c.indexadas)}</strong> `
+    + (c.indexadas === 1 ? 'foja con lectura utilizable' : 'fojas con lectura utilizable');
+  if (!c.fuera) {
+    return `<p class="cobertura">${hallazgos} sobre ${sobre}: el sistema pudo leer
+      todo lo que hay cargado.</p>`;
+  }
+  // Dos motivos distintos y dos remedios distintos: la que nunca se procesó se
+  // arregla corriendo el proceso; la que se procesó y no dio texto hay que mirarla
+  // contra el papel. Decir «ilegibles» de las dos sería inventar sobre las primeras.
+  // Concuerdan en número. «1 que se procesaron» se nota, y este es un sistema que
+  // tiene un módulo entero de castellano para no escribir así.
+  const detalle = [];
+  if (c.sin_texto) detalle.push(`${fmtNum.format(c.sin_texto)} que se
+    ${c.sin_texto === 1 ? 'procesó' : 'procesaron'} sin sacar texto utilizable`);
+  if (c.sin_procesar) detalle.push(`${fmtNum.format(c.sin_procesar)} que todavía no se
+    ${c.sin_procesar === 1 ? 'procesó' : 'procesaron'}`);
+  return `<p class="cobertura falta">${hallazgos} sobre ${sobre}.
+    <strong>${plural(c.fuera, 'foja quedó', 'fojas quedaron')} fuera de esta
+    búsqueda</strong>${detalle.length ? ` — ${detalle.join(' y ')}` : ''}.
+    <a href="#/afuera">Ver cuáles</a>.</p>`;
 }
 
 function resultadosHTML(r) {
+  /* La misma foja llegaba varias veces —una por cada ruta de lectura que encontró la
+     palabra— con el mismo fragmento: diez renglones iguales seguidos. Una por foja y
+     fragmento. */
+  const vistas = new Set();
+  r = {...r, paginas: (r.paginas || []).filter(p => {
+    const k = `${p.sha256}:${p.nro}:${String(p.fragmento || '').replace(/\s+/g, ' ').trim()}`;
+    if (vistas.has(k)) return false;
+    vistas.add(k); return true;
+  })};
   if (r.aviso) return `<div class="aviso"><span class="sello alerta">Atención</span>
     <span>${esc(r.aviso)}</span></div>`;
   const total = (r.campos_total ?? r.campos.length) + (r.paginas_total ?? r.paginas.length);
@@ -3511,7 +3539,7 @@ function resultadosHTML(r) {
         {t:'Archivo', k:'archivo', c:'fol'},
         {t:'Campo', k:'campo'},
         {t:'Valor leído', c:'mono', r:f => esc(f.valor_literal)},
-        {t:'Contratado/a', c:'nombre', r:f => esc(f.nombre_literal || '—')},
+        {t:'Nombre', c:'nombre', r:f => f.nombre_literal ? esc(f.nombre_literal) : ausente('no_consta')},
         {t:'Período', c:'mono', r:f => f.inicio
             ? `${esc(fmtFecha(f.inicio))} → ${f.fin ? esc(fmtFecha(f.fin)) : '?'}` : '—'},
         {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '—' : esc(fmtPesos(f.monto_centavos))},
@@ -3520,11 +3548,15 @@ function resultadosHTML(r) {
       <h3>En el texto de los folios <span class="rotulo">(${r.paginas.length})</span></h3>
       <p class="prosa nota">Esto son <strong>lugares donde mirar</strong>:
         apareció en la página, sin que sea un campo extraído.</p>
-      <div class="hallazgos">${r.paginas.map(p => `
-        <div class="hallazgo">${p.documento_id ? `<a href="#/documento/${esc(p.documento_id)}">Ver documento</a>` : '<span>Sin documento asignado</span>'}
-          <span class="fol">${esc(p.archivo)} · f. ${p.nro}</span>
-          <span class="frag">${resaltar(p.fragmento)}</span>
-        <button class="mini" data-apartar="foja" data-referencia="${esc(p.sha256)}:${esc(p.nro)}">Apartar en colecci\u00f3n</button></div>`).join('')}</div>` : ''}`;
+      <ol class="res-fojas">${r.paginas.map(p => `
+        <li class="res-foja">
+          <span class="res-donde">${p.documento_id
+            ? `<a href="#/documento/${esc(p.documento_id)}">${esc(String(p.archivo || '').replace(/\.pdf$/i, ''))} · f. ${esc(String(p.nro))}</a>`
+            : `${esc(String(p.archivo || '').replace(/\.pdf$/i, ''))} · f. ${esc(String(p.nro))}`}</span>
+          <span class="res-frag">${resaltar(p.fragmento)}</span>
+          <button class="boton secundario res-apartar" data-apartar="foja" data-referencia="${esc(p.sha256)}:${esc(p.nro)}"
+            title="Apartar esta foja en una colección">Apartar</button>
+        </li>`).join('')}</ol>` : ''}`;
 }
 
 /* ── Personas ──────────────────────────────────────────────────────────── */
@@ -4648,30 +4680,45 @@ async function vSalud() {
    son dorsos en blanco y cuáles tienen tinta y no se pueden leer. Y de cualquiera se
    sale a mirar el papel, que es lo único que decide. */
 async function vFojas() {
-  const r = await api('/api/fojas');
-  if (!r.archivos || !r.archivos.length) return vistaVacia('f. 0008', 'Fojas', 'Fojas del expediente',
+  /* Las fojas de trabajo y las apartadas —dorsos en blanco, fojas sin texto útil— van
+     en dos listas. Intercaladas, la de trabajo queda sepultada entre dorsos y hay que
+     saltearlos de a uno. Apartadas no es escondidas: se cuentan arriba y se abren con
+     un clic, porque si el sistema se equivocó al apartar una, mirarla es lo único que
+     lo revela. */
+  const q = new URLSearchParams(location.hash.split('?')[1] || '');
+  const ver = q.get('ver') === 'apartadas' ? 'si' : 'no';
+  const [trabajo, apartadas] = await Promise.all([
+    api('/api/fojas?limite=1&apartadas=no'), api('/api/fojas?limite=1&apartadas=si')]);
+  if (location.hash.split('?')[0] !== '#/fojas') return;
+  const total = (trabajo.total || 0) + (apartadas.total || 0);
+  if (!total) return vistaVacia('f. 0008', 'Fojas', 'Fojas del expediente',
     'Todavía no hay fojas para mostrar',
     'Cargá los escaneos y corré la lectura: acá va a aparecer qué es cada foja.');
 
+  const pestaña = (clave, texto, n) => `<a class="chip-filtro${(ver === 'si') === (clave === 'apartadas') ? ' activo' : ''}"
+      href="#/fojas${clave === 'apartadas' ? '?ver=apartadas' : ''}">${esc(texto)}<span class="chip-n">${fmtNum.format(n)}</span></a>`;
   vista.innerHTML = bloque('f. 0008', 'Fojas', `
     <h2>Fojas del expediente</h2>
-    <p class="prosa">Qué es cada foja del escaneo.</p>
-    <div id="lista-fojas"></div>
-  `);
+    <p class="prosa">Qué es cada foja del escaneo. <strong>${fmtNum.format(trabajo.total)}</strong>
+      ${trabajo.total === 1 ? 'foja de trabajo' : 'fojas de trabajo'} y ${fmtNum.format(apartadas.total)}
+      fojas apartadas de ${fmtNum.format(total)} escaneadas. Un dorso en blanco no es trabajo
+      pendiente; si el sistema apartó una foja por error, en la lista de apartadas se ve.</p>
+    <div class="filtros-chips" role="tablist">
+      ${pestaña('trabajo', 'De trabajo', trabajo.total)}${pestaña('apartadas', 'Apartadas', apartadas.total)}
+    </div>
+    <div id="lista-fojas"></div>`);
 
-  const cuño = (clase, etiqueta) => clase === 'en_blanco' || clase === 'sin_texto_util'
-    ? `<span class="nulo">${esc(etiqueta)}</span>`
-    : (clase === 'desconocida' || !clase
-        ? `<span class="nulo">${esc(etiqueta)}</span>` : esc(etiqueta));
-
-  tablaServidor($('#lista-fojas'), '/api/fojas', 'fojas', [
-    {t: 'Archivo', c: 'mono fol', o: 'archivo', r: f => esc(f.archivo)},
-    {t: 'Foja', c: 'num fol', o: 'foja', r: f => String(f.nro || f.foja)},
-    {t: 'Qué es', o: 'clase', r: f => cuño(f.clase, f.etiqueta)}
-  ], {
-    placeholder: 'Buscar...',
-    alClic: f => location.hash = `#/foja/${esc(f.sha256)}/${f.nro || f.foja}`
-  });
+  // Lo apartado se ve apagado aun dentro de su lista: f.apartada viene del servidor.
+  const cuño = f => f.apartada || f.clase === 'desconocida' || !f.clase
+    ? `<span class="nulo">${esc(f.etiqueta || 'Sin clasificar')}</span>` : esc(f.etiqueta);
+  tablaServidor($('#lista-fojas'), '/api/fojas?apartadas=' + ver, 'fojas', [
+    {t: 'Archivo', o: 'archivo', r: f => esc(String(f.archivo || '').replace(/\.pdf$/i, ''))},
+    {t: 'Foja', c: 'num', o: 'foja', r: f => fmtNum.format(f.nro)},
+    {t: 'Qué es', c: 'crece', o: 'clase', r: cuño},
+    {t: '', r: f => `<a href="javascript:void(0)" class="enlace-foja">ver la foja</a>`},
+  ], {placeholder: 'Buscar por archivo o clase…',
+      alClic: f => abrirFojaSuelta(f.sha256, f.nro),
+      vacio: ver === 'si' ? 'No hay fojas apartadas.' : 'No hay fojas de trabajo.'});
 }
 
 /* ── Los números que el papel escribe dos veces ─────────────────────────────

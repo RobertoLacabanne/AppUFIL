@@ -50,8 +50,11 @@ def render(script):
     }
 
     let apiFojasMock = { archivos: [] };
+    let apiTrabajo = {total: 0}, apiApartadas = {total: 0};
     async function api(route, opts) {
         if (route === '/api/fojas') return apiFojasMock;
+        if (route === '/api/fojas?limite=1&apartadas=no') return apiTrabajo;
+        if (route === '/api/fojas?limite=1&apartadas=si') return apiApartadas;
         return {};
     }
     """
@@ -79,26 +82,22 @@ def render(script):
 
 class LegajoRealRender(unittest.TestCase):
     def test_fojas_paginadas_con_tablabuscable(self):
+        """
+        1.628 fojas del legajo real: la pantalla no las trae todas, pide la página al
+        servidor, separa las de trabajo de las apartadas y dice cuántas hay de cada una.
+        """
         render("""
         (async () => {
-            const fojas = Array.from({length: 1628}, (_, i) => ({nro: i+1, clase: 'caratula', etiqueta: 'Carátula', apartada: false}));
-            apiFojasMock = { 
-                archivos: [{
-                    sha256: 'abc',
-                    archivo: 'sintetico.pdf',
-                    de_trabajo: 1628,
-                    apartadas: 0,
-                    total: 1628,
-                    fojas: fojas
-                }]
-            };
-            
-            _elementos['#f-trabajo-abc'] = {};
+            apiTrabajo = {total: 990}; apiApartadas = {total: 638};
+            location.hash = '#/fojas';
             await vFojas();
-            
             if (_tablasLlamadas.length !== 1) throw new Error("No se llamó a tablaServidor");
-            if (_tablasLlamadas[0].ruta !== '/api/fojas') throw new Error("Ruta incorrecta");
-            if (location.hash !== '#/foja/abc/1') throw new Error("alClic no cambia location.hash correctamente: " + location.hash);
+            if (_tablasLlamadas[0].ruta !== '/api/fojas?apartadas=no')
+                throw new Error("Tiene que abrir en las fojas de trabajo: " + _tablasLlamadas[0].ruta);
+            if (!_vistaHtml.includes('990') || !_vistaHtml.includes('638'))
+                throw new Error("No dice cuántas de trabajo y cuántas apartadas");
+            if (!_fojaAbierta || _fojaAbierta.sha !== 'abc' || _fojaAbierta.nro !== 1)
+                throw new Error("El clic no abre la foja");
         })();
         """)
 
