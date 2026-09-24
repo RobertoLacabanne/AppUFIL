@@ -3359,15 +3359,12 @@ addEventListener('resize', () => {
 async function vIdentidad() {
   const hash = location.hash, fus = await api('/api/fusiones');
   if (hash !== location.hash) return;
-  const ausente = (motivo) => `<span class="nulo" title="${esc(motivo)}">—</span>`;
 
-  vista.innerHTML = bloque('f. 0007', 'Identidad', `
-    <div class="cabecera-seccion">
-      <h2>¿Son la misma persona?</h2>
-      <p class="prosa">CUIT, CUIL y DNI son clave fuerte: dos contratos con el mismo documento
-        ya están unidos. <strong>El nombre nunca alcanza.</strong> Estas propuestas requieren
-        confirmación humana, ya que una fusión errónea inventa una persona con el doble de contratos.</p>
-    </div>
+  vista.innerHTML = bloque('f. 0000', 'Revisión', `
+    <h1>¿Son la misma persona?</h1>
+    <p class="prosa">CUIT, CUIL y DNI son clave fuerte: dos contratos con el mismo documento
+      ya están unidos. <strong>El nombre nunca alcanza.</strong> Estas propuestas requieren
+      confirmación humana, ya que una fusión errónea inventa una persona con el doble de contratos.</p>
     
     <div class="cola-tarjetas">
       ${fus.length ? fus.map((f, i) => `
@@ -3379,12 +3376,12 @@ async function vIdentidad() {
         <div class="fusion-cuerpo mono">
           <div class="fusion-entidad">
             <strong>${esc(f.lit_a)}</strong>
-            <span class="apagado">${f.doc_a ? esc(f.doc_a) : ausente('Sin documento')}</span>
+            <span class="apagado">${f.doc_a ? esc(f.doc_a) : ausente('no_consta')}</span>
           </div>
           <div class="fusion-vs">vs</div>
           <div class="fusion-entidad">
             <strong>${esc(f.lit_b)}</strong>
-            <span class="apagado">${f.doc_b ? esc(f.doc_b) : ausente('Sin documento')}</span>
+            <span class="apagado">${f.doc_b ? esc(f.doc_b) : ausente('no_consta')}</span>
           </div>
         </div>
         <div class="fusion-acciones">
@@ -4047,8 +4044,8 @@ async function mostrarConjunto(id, archivos) {
 
 async function vReasociaciones() {
   if (location.hash !== '#/reasociaciones') return;
-  vista.innerHTML = bloque('REV', 'Revisiones desplazadas', `
-    <h2>Revisiones desplazadas</h2>
+  vista.innerHTML = bloque('f. 0000', 'Revisión', `
+    <h1>Revisiones desplazadas</h1>
     <p class="prosa">Decisiones humanas que perdieron su foja de anclaje original.</p>
     <div id="lista-reasoc"></div>
   `);
@@ -4437,8 +4434,9 @@ async function vEquipo() {
   const a = await api('/api/actividad');
 
   if (!a.total) {
-    return vista.innerHTML = bloque('f. 0105', 'Equipo', `
-      <h2>Trabajo del equipo</h2>
+    return vista.innerHTML = bloque('f. 0000', 'Administración', `
+      <h1>Trabajo del equipo</h1>
+      <p class="prosa">Registro de quién revisó cada campo y cuándo. Cada decisión queda registrada con su autor.</p>
       ${vacio('Todavía nadie revisó nada',
         'Acá va a aparecer quién revisó cada campo y cuándo. Cada decisión que alguien ' +
         'toma en la cola queda registrada con su nombre, y esto lo muestra junto.',
@@ -4449,8 +4447,8 @@ async function vEquipo() {
   const yo = revisor();
 
   vista.innerHTML =
-    bloque('f. 0105', 'Equipo', `
-      <h2>Trabajo del equipo</h2>
+    bloque('f. 0000', 'Administración', `
+      <h1>Trabajo del equipo</h1>
       <p class="prosa">Todos trabajan sobre la misma base: lo que revisa una persona lo
         ve el resto enseguida. <strong>${plural(a.total, 'decisión tomada a mano',
         'decisiones tomadas a mano')}</strong> en este legajo.</p>
@@ -4460,9 +4458,7 @@ async function vEquipo() {
         {t:'Campos revisados', c:'num', r:f => fmtNum.format(f.decisiones)},
         {t:'Empezó', c:'mono', r:f => esc(cuando(f.primera))},
         {t:'Última vez', c:'mono', r:f => esc(cuando(f.ultima))},
-      ], a.quienes)}`) +
-
-    bloque('f. 0106', 'Últimas', `
+      ], a.quienes)}
       <h2>Lo último que se decidió</h2>
       <p class="prosa">De lo más reciente a lo más viejo. Cada renglón lleva al
         documento, para poder mirar el folio.</p>
@@ -4475,10 +4471,10 @@ async function vEquipo() {
           return sello(tono, texto);
         }},
         {t:'Valor que quedó', c:'mono', r:f => f.valor
-          ? esc(f.valor) : '<span class="apagado">—</span>'},
+          ? esc(f.valor) : ausente('no_consta')},
         {t:'Documento', r:f => f.documento_id
           ? `<a href="#/documento/${f.documento_id}">${esc(f.archivo)}</a>`
-          : esc(f.archivo)},
+          : (f.archivo ? esc(f.archivo) : ausente('no_consta'))},
       ], a.ultimas)}`);
 }
 
@@ -4721,14 +4717,14 @@ async function vAfuera() {
   const d = await api('/api/afuera');
 
   if (!d.afuera) {
-    return vista.innerHTML = bloque('f. 0800', 'Control', `
-      <h2>Ningún archivo quedó afuera</h2>
-      <div class="aviso bien"><span class="sello ok">Completo</span>
-        <span>Los <b>${d.total_archivos}</b> archivos cargados produjeron al menos un
-        contrato. No hay nada perdido en el camino.</span></div>
+    return vista.innerHTML = bloque('f. 0000', 'Revisión', `
+      <h1>Archivos excluidos</h1>
       <p class="prosa">Esta pantalla es un control: cada vez que un PDF entra y no sale
         ningún contrato de él, aparece acá con el motivo. Conviene mirarla después de
-        cada lote.</p>`);
+        cada lote.</p>
+      <div class="aviso bien"><span class="sello ok">Completo</span>
+        <span>Los <b>${d.total_archivos}</b> archivos cargados produjeron al menos un
+        contrato. No hay nada perdido en el camino.</span></div>`);
   }
 
   // Agrupadas por motivo: doce archivos con el mismo problema son un solo problema.
@@ -4757,16 +4753,16 @@ async function vAfuera() {
       ], fs)}`);
   }).join('');
 
-  vista.innerHTML = bloque('f. 0800', 'Control', `
-      <h2>Quedaron afuera</h2>
-      <div class="aviso"><span class="sello alerta">Ojo</span>
-        <span><b>${d.afuera}</b> de <b>${d.total_archivos}</b> archivos cargados no
-        produjeron ningún contrato. No se perdieron —están registrados con su hash—
-        pero <b>no entran en ningún cruce ni en ningún acumulado</b>.</span></div>
+  vista.innerHTML = bloque('f. 0000', 'Revisión', `
+      <h1>Archivos excluidos</h1>
       <p class="prosa">Que un archivo quede afuera no siempre es un error: una nota de
         elevación o una constancia no son contratos y no tienen por qué producir uno. Lo
         que hay que descartar es lo otro: que sea un contrato que el sistema no supo
-        reconocer. Por eso están agrupados por motivo, con qué hacer en cada caso.</p>`)
+        reconocer. Por eso están agrupados por motivo, con qué hacer en cada caso.</p>
+      <div class="aviso"><span class="sello alerta">Ojo</span>
+        <span><b>${d.afuera}</b> de <b>${d.total_archivos}</b> archivos cargados no
+        produjeron ningún contrato. No se perdieron —están registrados con su hash—
+        pero <b>no entran en ningún cruce ni en ningún acumulado</b>.</span></div>`)
     + secciones;
 }
 
@@ -5234,7 +5230,10 @@ async function vFoliatura(sha) {
   const archivos = d.archivos || [];
   
   if (!archivos.length) {
-    vista.innerHTML = bloque('', 'Documentos', '<p class="prosa">No hay archivos cargados todavía.</p>');
+    vista.innerHTML = bloque('f. 0000', 'Revisión', `
+      <h1>Foliatura del papel</h1>
+      <p class="prosa">Revisión de las numeraciones de página anotadas en los documentos.</p>
+      <p class="prosa">No hay archivos cargados todavía.</p>`);
     return;
   }
   
@@ -5244,11 +5243,10 @@ async function vFoliatura(sha) {
   
   const conAlgo = f.fojas && f.fojas.filter ? f.fojas.filter(h => h.foliaturas && h.foliaturas.length).length : 0;
   
-  vista.innerHTML = bloque('', 'Documentos', `
-    <div class="encabezado-vista">
-      <h2>Foliatura del papel</h2>
-      <p class="prosa">${esc(conAlgo)} de ${esc(f.total || (f.fojas && f.fojas.length) || 0)} fojas tienen foliatura anotada.</p>
-    </div>
+  vista.innerHTML = bloque('f. 0000', 'Revisión', `
+    <h1>Foliatura del papel</h1>
+    <p class="prosa">Revisión de las numeraciones de página anotadas en los documentos.</p>
+    <p class="prosa">${esc(conAlgo)} de ${esc(f.total || (f.fojas && f.fojas.length) || 0)} fojas tienen foliatura anotada.</p>
     
     <div class="controles-tabla">
       <div class="filtros-fila">
@@ -5325,7 +5323,10 @@ async function vTablas(sha) {
   if (location.hash.indexOf('#/tablas') !== 0) return;
 
   if (!archivos.length) {
-    vista.innerHTML = bloque('', 'Documentos', '<p class="prosa">No hay archivos cargados todavía.</p>');
+    vista.innerHTML = bloque('f. 0000', 'Revisión', `
+      <h1>Tablas</h1>
+      <p class="prosa">Revisión de las tablas extraídas de los documentos.</p>
+      <p class="prosa">No hay archivos cargados todavía.</p>`);
     return;
   }
 
@@ -5338,17 +5339,23 @@ async function vTablas(sha) {
     const fin = inicio + porPagina;
     const muestra = tablas.slice(inicio, fin);
 
-    let contenido = selectorArchivo(archivos, elegido);
+    let encabezado = `
+      <h1>Tablas</h1>
+      <p class="prosa">Revisión de las tablas extraídas de los documentos.</p>
+      <label>Archivo: ${selectorArchivo(archivos, elegido)}</label>
+    `;
+    let contenido = encabezado;
+
     if (!total) {
       contenido += `<p class="prosa">No se reconoció ninguna tabla en este archivo.</p>`;
-      vista.innerHTML = bloque('', 'Documentos', contenido);
+      vista.innerHTML = bloque('f. 0000', 'Revisión', contenido);
     } else {
       contenido += `<p class="prosa">Se detectaron <strong>${total} tablas</strong>. Elegí una para ver sus renglones.</p>`;
       
       const htmlTabla = tabla([
         {t: 'Foja', c: 'num', r: a => esc(a.pagina_nro)},
         {t: 'Tamaño', r: a => `${esc(a.filas)} filas × ${esc(a.columnas)} cols`},
-        {t: 'Confianza', r: a => barraConf(a.confianza) + ' ' + fmtPct(a.confianza * 100)},
+        {t: 'Confianza', r: a => fmtPct(a.confianza * 100)},
         {t: 'Continuación', r: a => a.continua_de ? (a.union_quien ? `Sí (por ${esc(a.union_quien)})` : 'Propuesta') : '—'}
       ], muestra, { alClic: true, lista: 'tablas' });
 
@@ -5358,7 +5365,7 @@ async function vTablas(sha) {
         <button class="boton gris" id="btn-sig" ${fin >= total ? 'disabled' : ''}>Siguiente</button>
       </div>` : '';
 
-      vista.innerHTML = bloque('', 'Documentos', contenido + htmlTabla + controles);
+      vista.innerHTML = bloque('f. 0000', 'Revisión', contenido + htmlTabla + controles);
 
       vista.querySelectorAll('.tabla-env tbody tr').forEach((tr, i) => {
         tr.onclick = () => {
@@ -5621,11 +5628,9 @@ async function vRelaciones() {
     `<option value="${c.documento_id}">${esc(c.nombre_literal || c.documento_literal || c.archivo || 'Desconocido')} (f. ${c.pagina_desde || '?'})</option>`
   ).join('');
 
-  vista.innerHTML = bloque('', 'Relaciones', `
-  <div class="cabecera-seccion">
-    <h2>Relaciones entre documentos</h2>
+  vista.innerHTML = bloque('f. 0000', 'Revisión', `
+    <h1>Relaciones entre documentos</h1>
     <p class="prosa">Las relaciones permiten conectar documentos que se referencian mutuamente.</p>
-  </div>
   
   <div class="paneles-dobles">
     <div class="panel">
@@ -5704,7 +5709,11 @@ function htmlColeccion(c) {
 }
 async function vGuardadas() {
   const hash = location.hash, d = await api('/api/consultas-guardadas'); if (hash !== location.hash) return;
-  vista.innerHTML = bloque('', 'Consultas guardadas', htmlGuardadas(d));
+  vista.innerHTML = bloque('f. 0000', 'Documentación', `
+    <h1>Consultas guardadas</h1>
+    <p class="prosa">Una consulta guardada vuelve a ejecutar una búsqueda con sus filtros. Sus resultados cambian cuando cambian los datos. Una colección contiene lo apartado a mano y no cambia sola.</p>
+    ${d.consultas.length ? d.consultas.map(c => `<article class="revision-confirmada"><h3>${esc(c.nombre)}</h3><p>${esc(c.consulta)} · Guardó ${esc(c.quien)}</p><p>Filtros: ${esc(JSON.stringify(c.filtros))}</p><button class="boton" data-ejecutar="${esc(c.id)}">Volver a buscar</button> <button class="boton gris" data-borrar-consulta="${esc(c.id)}">Borrar consulta guardada</button></article>`).join('') : '<p>No hay consultas guardadas. Guardá una desde Buscar.</p>'}
+  `);
   vista.querySelectorAll('[data-ejecutar]').forEach(b => b.onclick = () => {
     const c = d.consultas.find(c => String(c.id) === b.dataset.ejecutar);
     if (Object.keys(c.filtros || {}).length) { toast('El servidor de b\u00fasqueda no expone filtros todav\u00eda. No se ejecutar\u00e1 una consulta distinta de la guardada.'); return; }
@@ -5714,7 +5723,12 @@ async function vGuardadas() {
 }
 async function vColecciones() {
   const hash = location.hash, d = await api('/api/colecciones'); if (hash !== location.hash) return;
-  vista.innerHTML = bloque('', 'Colecciones', htmlColecciones(d));
+  vista.innerHTML = bloque('f. 0000', 'Documentación', `
+    <h1>Colecciones</h1>
+    <p class="prosa">Una colección es una selección manual: no cambia sola al cargar documentos. Una consulta guardada vuelve a buscar y sus resultados pueden cambiar.</p>
+    ${d.colecciones.length ? d.colecciones.map(c => `<article class="revision-confirmada"><h3><a href="#/coleccion/${esc(c.id)}">${esc(c.nombre)}</a></h3><p>${esc(c.items)} elementos · Apartó ${esc(c.quien)}</p><p>${esc(c.nota || '')}</p></article>`).join('') : '<p>No hay colecciones. Podés crear una para apartar material.</p>'}
+    <form id="crear-coleccion"><label>Nombre <input name="nombre" required></label><label>Nota <textarea name="nota"></textarea></label><button class="boton">Crear colección</button></form>
+  `);
   $('#crear-coleccion').onsubmit = e => { e.preventDefault(); const f = e.currentTarget; accionInterfaz(f.querySelector('button'), async () => {
     const quien = await conRevisor(); if (!quien) return;
     const c = await guardarNucleo('/api/coleccion/crear', {nombre:f.elements.nombre.value.trim(), nota:f.elements.nota.value, quien}); location.hash = '#/coleccion/' + c.id;
@@ -5722,7 +5736,12 @@ async function vColecciones() {
 }
 async function vColeccion(id) {
   const hash = location.hash, c = await api('/api/coleccion?id=' + id); if (hash !== location.hash) return;
-  vista.innerHTML = bloque('', 'Colecci\u00f3n', htmlColeccion(c));
+  vista.innerHTML = bloque('f. 0000', 'Documentación', `
+    <h1>${esc(c.nombre)}</h1>
+    <p class="prosa">Colección manual: no cambia sola. Creó ${esc(c.quien)}.</p>
+    <p>${esc(c.nota || '')}</p>
+    ${c.items.length ? `<div class="tabla-env"><table><thead><tr><th>Elemento</th><th>Fuente</th><th>Quién y nota</th><th>Acción</th></tr></thead><tbody>${c.items.map((i,n) => `<tr><td>${esc(i.clase)} · ${esc(i.nombre || i.que_es)} · ${esc(i.referencia)}</td><td>${i.archivo ? esc(i.archivo) : ausente('sin archivo')} · fojas ${i.fojas ? esc(i.fojas) : ausente('no corresponde')}</td><td>${esc(i.quien)} · ${esc(i.nota || '')}</td><td><button class="mini" data-quitar-item="${n}">Quitar de la colección</button></td></tr>`).join('')}</tbody></table></div>` : '<p>Esta colección no tiene elementos.</p>'}
+  `);
   vista.querySelectorAll('[data-quitar-item]').forEach(b => b.onclick = () => accionInterfaz(b, async () => {
     const i = c.items[Number(b.dataset.quitarItem)];
     await guardarNucleo('/api/coleccion/quitar', {coleccion_id:Number(id), clase:i.clase, referencia:i.referencia}); await vColeccion(id);
@@ -5786,7 +5805,30 @@ async function vInformes() {
   const [d, c] = await Promise.all([api('/api/informes'), api('/api/colecciones')]);
   if (location.hash !== '#/informes') return;
   const colecciones = c.colecciones || [];
-  vista.innerHTML = bloque('', 'Documentos', htmlInformes(d.informes, colecciones));
+  vista.innerHTML = bloque('f. 0000', 'Salida', `
+    <h1>Informes</h1>
+    <p class="prosa">Estos informes <strong>ordenan y describen</strong> lo que el
+      sistema leyó de los originales. No sacan conclusiones sobre responsabilidad,
+      intención ni licitud: eso lo escribe quien firma. Cada fila dice el archivo y
+      la foja de donde sale, para poder verificarla contra el papel.</p>
+    ${d.informes.map(i => `<article class="nucleo-ficha">
+      <h3>${esc(i.nombre)}</h3>
+      ${i.descripcion ? `<p class="prosa nota explicacion-informe">${esc(i.descripcion)}</p>` : ''}
+      ${i.necesita === 'coleccion_id' ? (colecciones.length
+        ? `<label>Colección
+             <select data-coleccion-de="${esc(i.clave)}">${colecciones.map(col =>
+               `<option value="${esc(col.id)}">${esc(col.nombre)} (${esc(col.items)})</option>`
+             ).join('')}</select></label>`
+        : '<p class="apagado">Todavía no hay ninguna colección armada.</p>') : ''}
+      ${i.necesita === 'documento_ids'
+        ? '<p class="apagado">Se arma desde una colección o desde la búsqueda.</p>'
+        : `<p class="botonera">${i.formatos.map(f =>
+            `<button class="boton" data-informe="${esc(i.clave)}" data-formato="${esc(f)}"
+               ${i.necesita === 'coleccion_id' && !colecciones.length ? 'disabled' : ''}
+             >Sacar en ${esc(f.toUpperCase())}</button>`).join(' ')}</p>`}
+    </article>`).join('')}
+    <div id="salida-informe"></div>
+  `);
   vista.querySelectorAll('[data-informe]').forEach(b => b.onclick = async () => {
     const clave = b.dataset.informe;
     const sel = vista.querySelector(`[data-coleccion-de="${clave}"]`);
@@ -5797,7 +5839,7 @@ async function vInformes() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({clave, formato: b.dataset.formato,
                               coleccion_id: sel ? +sel.value : undefined})});
-      salida.innerHTML = `<p class="prosa">Qued\u00f3
+      salida.innerHTML = `<p class="prosa">Quedó
         <span class="mono">${esc(r.archivo)}</span> en
         <span class="mono">${esc(r.carpeta)}</span>.</p>`;
     } catch (e) {
