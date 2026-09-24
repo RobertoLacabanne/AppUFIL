@@ -2301,7 +2301,7 @@ function tripasAvance(hechos, universo, revisores, donde, cuantos) {
      donde además se veía que el 0 y el 1 no coinciden. Dos cuentas del mismo total en
      la misma pantalla es una de más. */
   const posicion = cuantos
-    ? `<span class="donde">Campo <strong>${fmtNum.format(donde + 1)}</strong> de
+    ? `<span class="donde">campo <strong>${fmtNum.format(donde + 1)}</strong> de
         ${fmtNum.format(cuantos)}</span> · ` : '';
   /* Y el total, una sola vez. «Campo 1 de 78 · 0 de 78 campos revisados» pone el 78
      dos veces en el mismo renglón, que en un teléfono es el renglón entero. Cuando
@@ -2665,10 +2665,12 @@ function filaCola(f, i) {
   /* En un conflicto los valores ya están en los botones: repetirlos arriba es hacer
      leer lo mismo dos veces. Lo que queda arriba es el valor cuando hay UNO solo, que
      es lo que hay que juzgar contra la foja. */
+  let m_nulo = MOTIVO_NULO[f.motivo] || f.motivo || '';
+  if (m_nulo) m_nulo = m_nulo.charAt(0).toUpperCase() + m_nulo.slice(1);
   const cuerpo = (f.clase === 'conflicto' && f.variantes) ? ''
     : `<div class="valor-campo">${f.valor
         ? `<span class="mono">${esc(f.valor)}</span>`
-        : `<span class="nulo">${esc(MOTIVO_NULO[f.motivo] || f.motivo)}</span>`
+        : `<span class="nulo">${esc(m_nulo)}</span>`
       } ${barraConf(f.confianza)}</div>`;
 
   /* Cuando otro documento tiene el mismo contratado, el mismo período y el mismo
@@ -2704,7 +2706,7 @@ function filaCola(f, i) {
   const porque = (f.clase === 'nulo' && (MOTIVO_NULO[f.motivo] || f.motivo)) ? ''
     : `<span class="porque">${esc(CLASE_COLA[f.clase] || f.clase)}</span>`;
 
-  const boton = o => `<button class="tecla ${o.clase || ''} ${o.valor ? 'opcion' : ''}"
+  const boton = o => `<button class="tecla boton secundario ${o.clase || ''} ${o.valor ? 'opcion' : ''}"
       data-campo="${f.campo_id}" data-accion="${o.accion}" data-valor="${esc(o.dato)}">
       <kbd>${o.tecla}</kbd>
       ${o.valor
@@ -2714,8 +2716,6 @@ function filaCola(f, i) {
     </button>`;
 
   return `<div class="fila" data-i="${i}">
-    <div class="marginalia">${nombreArchivo(f.archivo)}
-      <span>f. ${f.pagina_nro ?? '—'}</span></div>
     <div class="med">
       <div class="cabeza-campo">
         <span class="etiqueta-campo ${f.clase === 'conflicto' ? 'alerta' : ''}"
@@ -2724,6 +2724,8 @@ function filaCola(f, i) {
         ${f.familia && f.familia !== 'contrato'
           ? `<span class="porque">${esc(FAMILIA_DOC[f.familia])}</span>` : ''}
       </div>
+      <div class="marginalia">${nombreArchivo(f.archivo)}
+        <span>f. ${f.pagina_nro ?? '—'}</span></div>
       ${cuerpo}
       ${repetido}
       ${propuesta}
