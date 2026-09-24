@@ -2867,22 +2867,54 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
   padding: 0;
   color: inherit;
 }
-.taller-cuerpo .fila .marginalia {
-  font-size: var(--t-11);
+.taller-cuerpo .fila .doc-campo {
+  font-family: var(--sans);
+  font-size: var(--t-12);
   color: var(--tinta-3);
-  padding: 2px 0 4px 0;
-  display: block;
+  text-align: left;
+  margin-top: 4px;
+}
+.taller-cuerpo .fila .marginalia {
+  display: none;
 }
 .taller-cuerpo .valor-campo .nulo {
   border: none;
   background: transparent;
   padding: 0;
+  font-family: var(--sans);
+  font-size: var(--t-13);
   color: var(--tinta-3);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.taller-cuerpo .acc {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.taller-cuerpo .tecla {
+  flex-direction: row;
+  align-items: center;
+  padding: 6px 10px;
+  height: auto;
+  min-height: 0;
 }
 .taller-cuerpo .tecla kbd {
   border: 1px solid var(--filete-2);
   box-shadow: none;
   background: transparent;
+  font-size: var(--t-11);
+  padding: 2px 4px;
+  margin-right: 6px;
+}
+.taller-cuerpo .tecla .cuerpo {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
 }
 .taller-sub .riel, .taller-sub .riel i {
   border-radius: var(--radio-pildora);
