@@ -64,21 +64,49 @@ class EntidadesHTTP(HTTPBase):
 @unittest.skipUnless(shutil.which('node'),'Requiere Node')
 class EntidadesRender(unittest.TestCase):
     def test_vacios(self):
-        render("""assert.ok(htmlEntidades({clases:[],entidades:[],sin_resolver:[],propuestas:[]}).includes('No hay entidades')); assert.ok(htmlRelaciones([]).includes('No hay relaciones')); assert.ok(htmlEntidad({menciones:[]}).includes('No hay menciones'));""")
+        render("""assert.ok(htmlRelaciones([]).includes('No hay relaciones')); assert.ok(htmlEntidad({menciones:[]}).includes('No hay menciones'));""")
 
     def test_catalogos_fuentes_y_propuesta_sin_preseleccion(self):
         render(r"""
-for (const n of [7,31,83]) {
- const m={clase:'futura'+n,norm:'n',literal:'<literal>'+n,archivo:'archivo'+n,pagina_nro:n,origen:'fuente'+n,confianza:.31};
- const d={clases:[{clave:m.clase,que_es:'Clase inventada'+n}],entidades:[{id:n,clase:m.clase,nombre:'Nombre'+n,menciones:n,documentos:n+2,carril:'entidad'}],sin_resolver:[m],propuestas:[{clase:m.clase,norm:'n',literales:[m.literal],veces:n,motivo:'Motivo'+n}]};
- const h=htmlEntidades(d);
- for(const x of ['Clase inventada'+n,'fuente'+n,'archivo'+n,'Motivo'+n,'Propuesta','no se vuelve a preguntar','&lt;literal&gt;'+n]) assert.ok(h.includes(x),x);
- assert.ok(!h.includes(' selected')); assert.ok(!h.includes(' checked')); assert.ok(!h.includes('name="nombre" value='));
- assert.ok(htmlTiposRelacion([{clave:'tipo'+n,que_dice:'Tipo inventado'+n}]).includes('Tipo inventado'+n));
- const r={id:n,tipo:'tipo'+n,que_dice:'afirma'+n,fuente:'fuente'+n,confianza:.62,hacia:'llega'};
- assert.ok(htmlRelaciones([r]).includes('revision-propuesta'));
- assert.ok(htmlRelaciones([{...r,estado:'confirmada',quien:'autor'}]).includes('revision-confirmada'));
- for(const estado of ['propuesta','confirmada','rechazada']) assert.ok(htmlRelaciones([{...r,estado}]).includes('Fuente: fuente'+n));
- assert.ok(htmlEntidad({nombre:'N',menciones:[m,{...m,literal:'Otra forma'}]}).includes('Otra forma'));
-}
+global.location = { hash: '#/entidades' };
+global.vista = { innerHTML: '' };
+global.$ = () => ({});
+global.bloque = (a, b, c) => c;
+global.ausente = m => m;
+global.vacio = (t, m) => m;
+global.tablaServidor = (dest, url, clave, cols, opts) => {
+  global._cols = global._cols || {}; global._cols[clave] = cols;
+  global._opts = global._opts || {}; global._opts[clave] = opts;
+};
+global.api = async () => global._mockApiResult;
+(async () => {
+  for (const n of [7,31,83]) {
+   const m={clase:'futura'+n,norm:'n',literal:'<literal>'+n,archivo:'archivo'+n,pagina_nro:n,origen:'fuente'+n,confianza:.31};
+   const p={clase:'futura'+n,norm:'n',literales:['<literal>'+n],veces:n,motivo:'Motivo'+n};
+   global._mockApiResult = { total: 1, clases: [{clave:'futura'+n,que_es:'Clase inventada'+n}], sin_resolver_paginacion: {total:1}, propuestas_paginacion: {total:1} };
+   
+   global.location.hash = '#/entidades';
+   await vEntidades();
+   assert.ok(vista.innerHTML.includes('Clase inventada'+n));
+   assert.ok(global._opts.entidades.vacio.includes('No hay fichas'));
+   
+   global.location.hash = '#/entidades?ver=propuestas';
+   await vEntidades();
+   const rowP = global._cols.propuestas.map(c => c.r(p)).join('');
+   for(const x of ['Rechazar', '&lt;literal&gt;'+n]) assert.ok(rowP.includes(x), x);
+   assert.ok(!rowP.includes('name="nombre" value='));
+   
+   global.location.hash = '#/entidades?ver=sin-resolver';
+   await vEntidades();
+   const rowM = global._cols.sin_resolver.map(c => c.r(m)).join('');
+   assert.ok(rowM.includes('archivo'+n));
+   
+   assert.ok(htmlTiposRelacion([{clave:'tipo'+n,que_dice:'Tipo inventado'+n}]).includes('Tipo inventado'+n));
+   const r={id:n,tipo:'tipo'+n,que_dice:'afirma'+n,fuente:'fuente'+n,confianza:.62,hacia:'llega'};
+   assert.ok(htmlRelaciones([r]).includes('revision-propuesta'));
+   assert.ok(htmlRelaciones([{...r,estado:'confirmada',quien:'autor'}]).includes('revision-confirmada'));
+   for(const estado of ['propuesta','confirmada','rechazada']) assert.ok(htmlRelaciones([{...r,estado}]).includes('Fuente: fuente'+n));
+   assert.ok(htmlEntidad({nombre:'N',menciones:[m,{...m,literal:'Otra forma'}]}).includes('Otra forma'));
+  }
+})();
 """)

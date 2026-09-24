@@ -5417,16 +5417,6 @@ function fuenteMencion(m) {
 function htmlMenciones(ms) {
   return ms.length ? `<div class="tabla-env"><table><thead><tr><th>Lo que dice el papel</th><th>Fuente</th></tr></thead><tbody>${ms.map(m => `<tr><td class="mono">${esc(m.literal)}</td><td>${fuenteMencion(m)}</td></tr>`).join('')}</tbody></table></div>` : '<p>No hay menciones para mostrar.</p>';
 }
-function htmlEntidades(d, clase = '') {
-  const filtrar = xs => xs.filter(x => !clase || x.clase === clase);
-  const es = filtrar(d.entidades), ms = filtrar(d.sin_resolver), ps = filtrar(d.propuestas);
-  return `<h2>Entidades y menciones</h2><p class="prosa">Una menci\u00f3n es lo que dice un documento; una entidad es a qui\u00e9n se refiere.</p>
-    <label>Clase <select id="clase-entidad"><option value="">Todas las clases</option>${d.clases.map(c => `<option value="${esc(c.clave)}"${c.clave === clase ? ' selected' : ''}>${esc(c.que_es)}</option>`).join('')}</select></label>
-    <h3>Fichas</h3>${es.length ? `<div class="tabla-env"><table><thead><tr><th>Nombre y clase</th><th>Clave fuerte</th><th>Menciones / documentos</th><th>Resoluci\u00f3n</th></tr></thead><tbody>${es.map(e => `<tr><td><a href="#/${e.carril === 'persona' ? 'persona' : 'entidad'}/${esc(e.id)}">${esc(e.nombre || '\u00d8 nombre no informado')}</a> \u00b7 ${esc(e.clase)}</td><td class="mono">${esc(e.clave_fuerte || '\u00d8 sin clave fuerte')}</td><td>${esc(e.menciones)} menciones / ${esc(e.documentos)} documentos</td><td>${e.quien ? `Afirmado por ${esc(e.quien)}` : (e.clave_fuerte ? 'Resoluci\u00f3n del sistema por clave fuerte' : '\u00d8 autor de resoluci\u00f3n no informado')}</td></tr>`).join('')}</tbody></table></div>` : '<p>No hay entidades para esta clase.</p>'}
-    <h3>Menciones sin resolver</h3><p>Son trabajo pendiente, no un error.</p>${htmlMenciones(ms)}
-    <h3>Propuestas de fusi\u00f3n</h3><p class="prosa">Unir de m\u00e1s es peor que no unir: junta en una ficha lo que dos papeles dicen de personas distintas. Ninguna propuesta est\u00e1 confirmada de antemano. Rechazar deja constancia y no se vuelve a preguntar.</p>
-    ${ps.length ? ps.map(p => `<form class="revision-propuesta" data-fusion="${esc(p.norm)}" data-clase="${esc(p.clase)}"><h3>Propuesta \u00b7 ${esc(p.clase)}</h3><p class="mono">${p.literales.map(esc).join(' / ')}</p><p>${esc(p.veces)} menciones \u00b7 Motivo: ${esc(p.motivo)}</p>${htmlMenciones(ms.filter(m => m.norm === p.norm && m.clase === p.clase))}<label>Nombre que afirm\u00e1s <input name="nombre" required autocomplete="off"></label><button class="boton" type="submit">Confirmar con este nombre</button><button class="boton gris" type="button" data-rechazar-fusion>Rechazar: no volver a preguntar</button></form>`).join('') : '<p>No hay propuestas de fusi\u00f3n.</p>'}`;
-}
 function htmlEntidad(e) {
   return `<h2>${esc(e.nombre)}</h2><p>${esc(e.clase)} \u00b7 Clave fuerte: <span class="mono">${esc(e.clave_fuerte || '\u00d8 sin clave')}</span></p><p>${e.quien ? `Afirmado por ${esc(e.quien)}` : (e.clave_fuerte ? 'Resuelto por el sistema por clave fuerte' : '\u00d8 autor de resoluci\u00f3n no informado')}</p><h3>Todas las formas que dice el papel</h3>${htmlMenciones(e.menciones)}`;
 }
@@ -5444,55 +5434,89 @@ async function accionInterfaz(b, tarea) {
   try { await tarea(); } catch (e) { toast(e.message); } finally { b.disabled = false; }
 }
 async function vEntidades() {
-  const hash = location.hash, clase = new URLSearchParams(hash.split('?')[1] || '').get('clase') || '';
+  const hash = location.hash;
+  const hashParams = new URLSearchParams(hash.split('?')[1] || '');
+  const clase = hashParams.get('clase') || '';
+  const ver = hashParams.get('ver') || '';
+  
   const urlParams = clase ? '?clase=' + encodeURIComponent(clase) : '';
   const d = await api('/api/entidades' + urlParams);
   if (location.hash !== hash) return;
-  vista.innerHTML = bloque('', 'Entidades', `
-    <h2>Entidades y menciones</h2>
-    <p class="prosa">Una mención es lo que dice un documento; una entidad es a quién se refiere.</p>
-    <label>Clase <select id="clase-entidad"><option value="">Todas las clases</option>${d.clases.map(c => `<option value="${esc(c.clave)}"${c.clave === clase ? ' selected' : ''}>${esc(c.que_es)}</option>`).join('')}</select></label>
-    <h3>Fichas</h3><div id="entidades-es"></div>
-    <h3>Menciones sin resolver</h3><p class="prosa">Son trabajo pendiente, no un error.</p><div id="entidades-ms"></div>
-    <h3>Propuestas de fusión</h3><p class="prosa">Ninguna propuesta está confirmada de antemano.</p><div id="entidades-ps"></div>
+
+  const tFichas = d.total || 0;
+  const tSinResolver = d.sin_resolver_paginacion ? d.sin_resolver_paginacion.total : 0;
+  const tPropuestas = d.propuestas_paginacion ? d.propuestas_paginacion.total : 0;
+
+  vista.innerHTML = bloque('', 'Todas las fichas', `
+    <h1>Todas las fichas</h1>
+    <p class="prosa">Cada persona, empresa, organismo o expediente que el sistema identificó, con cuántas veces aparece.</p>
+    
+    <div class="filtros-chips">
+      <a href="#/entidades${clase ? '?clase='+encodeURIComponent(clase) : ''}" class="chip-filtro${!ver ? ' activo' : ''}">
+        Fichas <span class="chip-n">${tFichas}</span>
+      </a>
+      <a href="#/entidades?ver=sin-resolver${clase ? '&clase='+encodeURIComponent(clase) : ''}" class="chip-filtro${ver === 'sin-resolver' ? ' activo' : ''}">
+        Menciones sin resolver <span class="chip-n">${tSinResolver}</span>
+      </a>
+      <a href="#/entidades?ver=propuestas${clase ? '&clase='+encodeURIComponent(clase) : ''}" class="chip-filtro${ver === 'propuestas' ? ' activo' : ''}">
+        Propuestas de fusión <span class="chip-n">${tPropuestas}</span>
+      </a>
+    </div>
+
+    ${!ver ? `
+      <div class="filtros-chips">
+        <a href="#/entidades" class="chip-filtro${!clase ? ' activo' : ''}">Todas</a>
+        ${d.clases.map(c => `<a href="#/entidades?clase=${encodeURIComponent(c.clave)}" class="chip-filtro${clase === c.clave ? ' activo' : ''}">${esc(c.que_es)}</a>`).join('')}
+      </div>
+      <div id="entidades-es"></div>
+    ` : ''}
+
+    ${ver === 'sin-resolver' ? `<div id="entidades-ms"></div>` : ''}
+    ${ver === 'propuestas' ? `<div id="entidades-ps"></div>` : ''}
   `);
-  $('#clase-entidad').onchange = e => { location.hash = '#/entidades?clase=' + encodeURIComponent(e.target.value); };
 
-  tablaServidor($('#entidades-es'), '/api/entidades' + urlParams, 'entidades', [
-    {t: 'Nombre', o: 'nombre', r: e => `<a href="#/${e.carril === 'persona' ? 'persona' : 'entidad'}/${esc(e.id)}">${esc(e.nombre || '') || ausente('sin nombre')}</a>`, k: 'nombre'},
-    {t: 'Clase', o: 'clase', r: e => esc(e.clase)},
-    {t: 'Clave fuerte', o: 'documentos', c: 'mono', r: e => esc(e.clave_fuerte || '') || ausente('sin clave fuerte')},
-    {t: 'Menciones / doc', o: 'menciones', r: e => `${esc(e.menciones)} menciones / ${esc(e.documentos)} doc`, b: e => e.menciones},
-    {t: 'Resolución', r: e => e.quien ? `Por ${esc(e.quien)}` : (e.clave_fuerte ? 'Por clave fuerte' : ausente('sin autor'))}
-  ], {placeholder: 'Buscar entidad...', vacio: 'No hay entidades.'});
-
-  tablaServidor($('#entidades-ms'), '/api/entidades/sin-resolver' + urlParams, 'sin_resolver', [
-    {t: 'Mención', o: 'nombre', c: 'mono', r: m => esc(m.literal)},
-    {t: 'Clase', o: 'clase', r: m => esc(m.clase)},
-    {t: 'Fuente', r: m => fuenteMencion(m)}
-  ], {placeholder: 'Buscar mención...', vacio: 'No hay menciones sin resolver.'});
-
-  tablaServidor($('#entidades-ps'), '/api/entidades/propuestas' + urlParams, 'propuestas', [
-    {t: 'Clase', o: 'clase', r: p => esc(p.clase)},
-    {t: 'Menciones', o: 'nombre', c: 'mono', r: p => p.literales.map(esc).join(' / ')},
-    {t: 'Motivo', o: 'veces', r: p => `${esc(p.veces)} veces → ${esc(p.motivo)}`},
-    {t: 'Decisión', r: p => `<form class="revision-propuesta fila-acciones" data-fusion="${esc(p.norm)}" data-clase="${esc(p.clase)}"><input name="nombre" required placeholder="Nombre" autocomplete="off"> <button class="boton" type="submit">Confirmar</button> <button class="boton gris" type="button" data-rechazar-fusion>Rechazar</button></form>`}
-  ], {
-    vacio: 'No hay propuestas de fusión.', 
-    alCargar: r => {
-      vista.querySelectorAll('.revision-propuesta').forEach(f => {
-        if (f.dataset.binded) return;
-        f.dataset.binded = '1';
-        const enviar = async (b, aceptar) => accionInterfaz(b, async () => {
-          const quien = await conRevisor(); if (!quien) return;
-          await guardarNucleo('/api/entidad/' + (aceptar ? 'confirmar' : 'rechazar'), {clase:f.dataset.clase, norm:f.dataset.fusion, nombre:f.elements.nombre.value.trim(), quien});
-          await vEntidades();
+  if (!ver) {
+    const urlE = '/api/entidades' + urlParams;
+    tablaServidor($('#entidades-es'), urlE, 'entidades', [
+      {t: 'Nombre', o: 'nombre', r: e => `<a href="#/${e.carril === 'persona' ? 'persona' : (e.clase === 'empresa' ? 'proveedor' : 'entidad')}/${esc(e.id)}">${esc(e.nombre || '') || ausente('no_consta')}</a>`, k: 'nombre'},
+      {t: 'Clase', o: 'clase', r: e => esc(e.clase).toLowerCase()},
+      {t: 'Clave', o: 'documentos', c: 'mono', r: e => esc(e.clave_fuerte || '') || ausente('no_consta')},
+      {t: 'Documentos', o: 'documentos', r: e => e.documentos},
+      {t: 'Menciones', o: 'menciones', r: e => e.menciones}
+    ], {placeholder: 'Buscar entidad...', vacio: vacio('Sin fichas', 'No hay fichas.', ''), orden: 'documentos', sentido: 'desc'});
+  } else if (ver === 'sin-resolver') {
+    const urlM = '/api/entidades/sin-resolver' + urlParams;
+    tablaServidor($('#entidades-ms'), urlM, 'sin_resolver', [
+      {t: 'Lo que dice el papel', o: 'nombre', c: 'mono', r: m => esc(m.literal)},
+      {t: 'Clase', o: 'clase', r: m => esc(m.clase).toLowerCase()},
+      {t: 'Archivo', r: m => `<span class="mono">${esc(m.archivo)}</span>`},
+      {t: 'Foja', r: m => m.documento_id ? `<a href="#/documento/${esc(m.documento_id)}">foja ${esc(m.pagina_nro)}</a>` : ausente('no_consta')}
+    ], {placeholder: 'Buscar mención...', vacio: vacio('Sin menciones', 'No hay menciones sin resolver.', '')});
+  } else if (ver === 'propuestas') {
+    const urlP = '/api/entidades/propuestas' + urlParams;
+    tablaServidor($('#entidades-ps'), urlP, 'propuestas', [
+      {t: 'Clase', o: 'clase', r: p => esc(p.clase).toLowerCase()},
+      {t: 'Menciones', o: 'nombre', c: 'mono', r: p => p.literales.map(esc).join(' / ')},
+      {t: 'Veces', o: 'veces', r: p => esc(p.veces)},
+      {t: 'Decisión', r: p => `<form class="revision-propuesta fila-acciones" data-fusion="${esc(p.norm)}" data-clase="${esc(p.clase)}"><input name="nombre" required placeholder="Nombre" autocomplete="off"> <button class="boton" type="submit">Decidir</button> <button class="boton gris" type="button" data-rechazar-fusion>Rechazar</button></form>`}
+    ], {
+      vacio: vacio('Sin propuestas', 'No hay propuestas de fusión.', ''),
+      orden: 'veces', sentido: 'desc',
+      alCargar: r => {
+        vista.querySelectorAll('.revision-propuesta').forEach(f => {
+          if (f.dataset.binded) return;
+          f.dataset.binded = '1';
+          const enviar = async (b, aceptar) => accionInterfaz(b, async () => {
+            const quien = await conRevisor(); if (!quien) return;
+            await guardarNucleo('/api/entidad/' + (aceptar ? 'confirmar' : 'rechazar'), {clase:f.dataset.clase, norm:f.dataset.fusion, nombre:f.elements.nombre.value.trim(), quien});
+            await vEntidades();
+          });
+          f.onsubmit = e => { e.preventDefault(); enviar(f.querySelector('[type="submit"]'), true); };
+          f.querySelector('[data-rechazar-fusion]').onclick = e => enviar(e.currentTarget, false);
         });
-        f.onsubmit = e => { e.preventDefault(); enviar(f.querySelector('[type="submit"]'), true); };
-        f.querySelector('[data-rechazar-fusion]').onclick = e => enviar(e.currentTarget, false);
-      });
-    }
-  });
+      }
+    });
+  }
 }
 
 async function vEntidad(id) {
