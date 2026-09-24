@@ -720,3 +720,28 @@ signo), Facturado contra contratado sobre el contrato nuevo, ficha de proveedor,
 `tablaServidor`, nombres de contratación por pieza, enrutador con consulta, enlaces con
 color, escala tipográfica y radios de vuelta a los tokens. En el núcleo: una referencia a
 cien veces o más del precio deja la comparación en dudosa.
+
+### Cierre de la segunda sesión (23/09/2026, noche)
+
+- **Suite:** 955 pruebas, 0 fallos. **Recorrido de usuario** (`--modo flujo`): completo
+  a 1366 y 1920. **Barrido de las 41 pantallas:** ninguna con error ni desborde.
+- **Gemini, ronda 5:** integrada (`8de6e53`) y corregida por Claude: CSS triplicado,
+  funciones duplicadas, reglas del sistema, Buscar (contrato inventado: toda búsqueda daba
+  «sin coincidencias»), Fojas (perdió trabajo/apartadas), Personas y Sin reconocer.
+  Gemini fue detenido por el sistema por falta de memoria (1,6 GB libres de 7,7); su
+  trabajo sin commitear (una reescritura de Cronología que no parseaba) quedó en un stash.
+- **Codex:** sin cuota hasta el 26/09 21:17.
+- **Backend corregido al integrar:** la búsqueda devolvía una foja una vez por cada
+  documento de su archivo (161 veces en el PDF grande); `/api/archivos` y `/api/consulta`
+  paginados habían perdido claves.
+
+**Pendientes reales**
+1. **Cola de revisión** sin rediseñar (904 monoespaciados, 270 botones): la versión de los
+   subagentes de Gemini estaba rota y no se integró.
+2. **Todas las fichas** (`#/entidades`) sigue larga (10.589 px): tres listas apiladas. El
+   camino del usuario ya no pasa por ahí (Proveedores abre `#/proveedores`).
+3. **Vista de documento:** abre con un bloque que lista los 161 hermanos del PDF.
+4. **Ruido en la cola:** 13 «fecha de fin» de facturas (campo sin uso en comprobantes) y 49
+   campos de contratos de obra con perfil de contrato de personal.
+5. Contratos y Facturas y recibos siguen siendo listas del dominio de contratos de personal.
+6. **Producción:** después del despliegue, «Actualizar análisis» (sin OCR nuevo).
