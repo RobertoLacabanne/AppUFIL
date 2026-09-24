@@ -2847,6 +2847,46 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
 .vacio-texto { font-size: var(--t-13); color: var(--tinta-2); max-width: 400px; line-height: 1.5; }
 
 /* ═══ GEMINI R4 — inicio ═══ */
+.taller-cuerpo .fila {
+  grid-template-columns: minmax(0, 1fr) minmax(212px, 25%);
+  border-bottom: 1px solid var(--filete-2);
+  padding: 11px 0;
+}
+@media (max-width: 768px) {
+  .taller-cuerpo .fila { grid-template-columns: 1fr; }
+}
+.taller-cuerpo .fila.foco {
+  background: var(--realce);
+  box-shadow: inset 3px 0 0 var(--sello);
+}
+.cabeza-campo .etiqueta-campo {
+  font-family: var(--sans);
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+.taller-cuerpo .fila .marginalia {
+  font-size: var(--t-11);
+  color: var(--tinta-3);
+  padding: 2px 0 4px 0;
+  display: block;
+}
+.taller-cuerpo .valor-campo .nulo {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--tinta-3);
+}
+.taller-cuerpo .tecla kbd {
+  border: 1px solid var(--filete-2);
+  box-shadow: none;
+  background: transparent;
+}
+.taller-sub .riel, .taller-sub .riel i {
+  border-radius: var(--radio-pildora);
+}
 .encabezado-vista {
   margin-bottom: 24px;
 }
