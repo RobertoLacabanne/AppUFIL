@@ -162,7 +162,11 @@ def en_paginas(cx: sqlite3.Connection, consulta: str, limite: int = 60,
                    a.nombre AS archivo, d.id AS documento_id, d.camara
               FROM pagina_texto t
               JOIN archivo a ON a.sha256 = t.sha256
+              -- El documento que CONTIENE esa foja, no cualquiera del archivo: sin la
+              -- foja en la condición, una foja de un PDF con 161 piezas volvía 161 veces,
+              -- cada una apuntando a un documento distinto.
               LEFT JOIN documento d ON d.sha256 = t.sha256
+                   AND CAST(t.nro AS INTEGER) BETWEEN d.pagina_desde AND d.pagina_hasta
              WHERE pagina_texto MATCH ?
              ORDER BY rank LIMIT ? OFFSET ?""", (expr, limite, desde)).fetchall()
     except sqlite3.OperationalError:
