@@ -159,10 +159,10 @@ const CLASE_COLA = {conflicto:'Dos lecturas distintas', nulo:'No se pudo leer',
    Decía «está escrito a mano y no se lee» abajo de un «está escrito a mano»: el mismo
    motivo dos veces en la misma tarjeta, y en un teléfono uno abajo del otro. */
 const TEXTO_CIERRE = {
-  ausente: 'confirmar que no está',
-  ilegible: 'confirmar que no se lee',
-  ambiguo: 'confirmar que no se puede saber cuál es',
-  manuscrito: 'confirmar que no se lee',
+  ausente: 'Confirmar que no está',
+  ilegible: 'Confirmar que no se lee',
+  ambiguo: 'Confirmar que no se puede saber cuál es',
+  manuscrito: 'Confirmar que no se lee',
 };
 
 const MOTIVO_NULO = {
@@ -2301,7 +2301,7 @@ function tripasAvance(hechos, universo, revisores, donde, cuantos) {
      donde además se veía que el 0 y el 1 no coinciden. Dos cuentas del mismo total en
      la misma pantalla es una de más. */
   const posicion = cuantos
-    ? `<span class="donde">campo <strong>${fmtNum.format(donde + 1)}</strong> de
+    ? `<span class="donde">Campo <strong>${fmtNum.format(donde + 1)}</strong> de
         ${fmtNum.format(cuantos)}</span> · ` : '';
   /* Y el total, una sola vez. «Campo 1 de 78 · 0 de 78 campos revisados» pone el 78
      dos veces en el mismo renglón, que en un teléfono es el renglón entero. Cuando
@@ -2636,8 +2636,8 @@ function filaCola(f, i) {
     // «Ninguna de las dos» con tres variantes en pantalla es falso, y lo que está
     // mal escrito en un botón lo lee alguien que está decidiendo sobre un legajo.
     acciones.push({tecla: 'N', accion: 'ambiguo', dato: '', clase: 'secundaria',
-                   texto: f.variantes.length === 2 ? 'ninguna de las dos'
-                                                   : 'ninguna de esas'});
+                   texto: f.variantes.length === 2 ? 'Ninguna de las dos'
+                                                   : 'Ninguna de esas'});
   } else if (f.motivo === 'manuscrito') {
     // Confirmar la propuesta es UNA tecla, y queda registrado como corrección humana:
     // el dato entra porque una persona lo miró contra el recorte, no porque lo dijo
@@ -2647,18 +2647,18 @@ function filaCola(f, i) {
                      de: 'propuesta · ' + (f.propuesta.modelo || ''),
                      accion: 'corregir', dato: f.propuesta.valor});
     }
-    acciones.push({tecla: 'C', texto: 'escribirlo a mano', accion: 'pedir', dato: ''});
-    acciones.push({tecla: 'X', texto: 'está escrito a mano y no se lee',
+    acciones.push({tecla: 'C', texto: 'Escribirlo a mano', accion: 'pedir', dato: ''});
+    acciones.push({tecla: 'X', texto: 'Está escrito a mano y no se lee',
                    accion: 'verificar', dato: '', clase: 'secundaria'});
   } else if (f.motivo) {
-    acciones.push({tecla: 'C', texto: 'escribirlo a mano', accion: 'pedir', dato: ''});
-    acciones.push({tecla: 'X', texto: TEXTO_CIERRE[f.motivo] || 'confirmarlo y cerrarlo',
+    acciones.push({tecla: 'C', texto: 'Escribirlo a mano', accion: 'pedir', dato: ''});
+    acciones.push({tecla: 'X', texto: TEXTO_CIERRE[f.motivo] || 'Confirmarlo y cerrarlo',
                    accion: 'verificar', dato: '', clase: 'secundaria'});
   } else {
-    acciones.push({tecla: 'V', texto: 'es correcto', accion: 'verificar', dato: '',
+    acciones.push({tecla: 'V', texto: 'Es correcto', accion: 'verificar', dato: '',
                    clase: 'principal'});
-    acciones.push({tecla: 'C', texto: 'corregir', accion: 'pedir', dato: ''});
-    acciones.push({tecla: 'X', texto: 'no se lee en el papel', accion: 'ilegible',
+    acciones.push({tecla: 'C', texto: 'Corregir', accion: 'pedir', dato: ''});
+    acciones.push({tecla: 'X', texto: 'No se lee en el papel', accion: 'ilegible',
                    dato: '', clase: 'secundaria'});
   }
 
@@ -2724,8 +2724,7 @@ function filaCola(f, i) {
         ${f.familia && f.familia !== 'contrato'
           ? `<span class="porque">${esc(FAMILIA_DOC[f.familia])}</span>` : ''}
       </div>
-      <div class="marginalia">${nombreArchivo(f.archivo)}
-        <span>f. ${f.pagina_nro ?? '—'}</span></div>
+      <div class="doc-campo">${nombreArchivo(f.archivo)}${f.pagina_nro != null ? ` <span>f. ${f.pagina_nro}</span>` : ''}</div>
       ${cuerpo}
       ${repetido}
       ${propuesta}
