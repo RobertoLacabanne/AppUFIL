@@ -2724,7 +2724,7 @@ function filaCola(f, i) {
         ${f.familia && f.familia !== 'contrato'
           ? `<span class="porque">${esc(FAMILIA_DOC[f.familia])}</span>` : ''}
       </div>
-      <div class="doc-campo">${nombreArchivo(f.archivo)}${f.pagina_nro != null ? ` <span>f. ${f.pagina_nro}</span>` : ''}</div>
+      <div class="doc-campo">${esc(String(f.archivo || '').replace(/\.pdf$/i, ''))}${f.pagina_nro != null ? ` · f. ${f.pagina_nro}` : ''}</div>
       ${cuerpo}
       ${repetido}
       ${propuesta}
