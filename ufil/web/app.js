@@ -5474,7 +5474,7 @@ async function vEntidades() {
   const tSinResolver = d.sin_resolver_paginacion ? d.sin_resolver_paginacion.total : 0;
   const tPropuestas = d.propuestas_paginacion ? d.propuestas_paginacion.total : 0;
 
-  vista.innerHTML = bloque('', 'Todas las fichas', `
+  vista.innerHTML = bloque('f. 0000', 'Revisión', `
     <h1>Todas las fichas</h1>
     <p class="prosa">Cada persona, empresa, organismo o expediente que el sistema identificó, con cuántas veces aparece.</p>
     
@@ -5523,23 +5523,37 @@ async function vEntidades() {
     const urlP = '/api/entidades/propuestas' + urlParams;
     tablaServidor($('#entidades-ps'), urlP, 'propuestas', [
       {t: 'Clase', o: 'clase', r: p => esc(p.clase).toLowerCase()},
-      {t: 'Menciones', o: 'nombre', c: 'mono', r: p => p.literales.map(esc).join(' / ')},
+      {t: 'Formas en que aparece', o: 'nombre', r: p => p.literales.map(esc).join(' / ')},
       {t: 'Veces', o: 'veces', r: p => esc(p.veces)},
-      {t: 'Decisión', r: p => `<form class="revision-propuesta fila-acciones" data-fusion="${esc(p.norm)}" data-clase="${esc(p.clase)}"><input name="nombre" required placeholder="Nombre" autocomplete="off"> <button class="boton" type="submit">Decidir</button> <button class="boton gris" type="button" data-rechazar-fusion>Rechazar</button></form>`}
+      {t: 'Decisión', r: p => `<button class="boton" type="button" data-abrir-fusion="${esc(p.norm)}" data-clase="${esc(p.clase)}">Decidir</button>`}
     ], {
       vacio: vacio('Sin propuestas', 'No hay propuestas de fusión.', ''),
       orden: 'veces', sentido: 'desc',
       alCargar: r => {
-        vista.querySelectorAll('.revision-propuesta').forEach(f => {
-          if (f.dataset.binded) return;
-          f.dataset.binded = '1';
-          const enviar = async (b, aceptar) => accionInterfaz(b, async () => {
-            const quien = await conRevisor(); if (!quien) return;
-            await guardarNucleo('/api/entidad/' + (aceptar ? 'confirmar' : 'rechazar'), {clase:f.dataset.clase, norm:f.dataset.fusion, nombre:f.elements.nombre.value.trim(), quien});
-            await vEntidades();
-          });
-          f.onsubmit = e => { e.preventDefault(); enviar(f.querySelector('[type="submit"]'), true); };
-          f.querySelector('[data-rechazar-fusion]').onclick = e => enviar(e.currentTarget, false);
+        vista.querySelectorAll('[data-abrir-fusion]').forEach(b => {
+          if (b.dataset.binded) return;
+          b.dataset.binded = '1';
+          b.onclick = () => {
+            const norm = b.dataset.abrirFusion, clase = b.dataset.clase;
+            const d = dialogo(`
+              <form class="revision-propuesta" data-fusion="${esc(norm)}" data-clase="${esc(clase)}">
+                <label>Nombre que afirmás <input name="nombre" required autocomplete="off"></label>
+                <div class="fila-acciones">
+                  <button class="boton" type="submit">Confirmar con este nombre</button>
+                  <button class="boton gris" type="button" data-rechazar-fusion>Rechazar: no volver a preguntar</button>
+                </div>
+              </form>
+            `);
+            const f = d.querySelector('form');
+            const enviar = async (btn, aceptar) => accionInterfaz(btn, async () => {
+              const quien = await conRevisor(); if (!quien) return;
+              await guardarNucleo('/api/entidad/' + (aceptar ? 'confirmar' : 'rechazar'), {clase: f.dataset.clase, norm: f.dataset.fusion, nombre: f.elements.nombre.value.trim(), quien});
+              d.close();
+              await vEntidades();
+            });
+            f.onsubmit = e => { e.preventDefault(); enviar(f.querySelector('[type="submit"]'), true); };
+            f.querySelector('[data-rechazar-fusion]').onclick = e => enviar(e.currentTarget, false);
+          };
         });
       }
     });

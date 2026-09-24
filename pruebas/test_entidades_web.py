@@ -93,7 +93,7 @@ global.api = async () => global._mockApiResult;
    global.location.hash = '#/entidades?ver=propuestas';
    await vEntidades();
    const rowP = global._cols.propuestas.map(c => c.r(p)).join('');
-   for(const x of ['Rechazar', '&lt;literal&gt;'+n]) assert.ok(rowP.includes(x), x);
+   for(const x of ['Decidir', '&lt;literal&gt;'+n]) assert.ok(rowP.includes(x), x);
    assert.ok(!rowP.includes('name="nombre" value='));
    
    global.location.hash = '#/entidades?ver=sin-resolver';
