@@ -5599,6 +5599,8 @@ async function vEntidad(id) {
         <span class="etiqueta">${esc(e.clase)}</span>
         <span class="mono">${e.clave_fuerte ? esc(e.clave_fuerte) : ausente('Sin clave fuerte registrada')}</span>
       </div>
+      ${e.clase === 'empresa' ? `<p class="nota-seccion"><a href="#/proveedor/${esc(id)}">Ver su ficha
+        de proveedor</a>: qué se le compró, a qué precio y qué diferencias hay.</p>` : ''}
     </div>
     
     <div class="cifras sep-corta">
