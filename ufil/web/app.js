@@ -4784,7 +4784,7 @@ function vComoFunciona() {
           cuán comparables son; una comparación dudosa nunca se muestra como firme.</li>
         <li><strong>Hallazgos:</strong> diferencias detectadas, cada una con su cuenta y su
           fuente, para que una persona las revise. <strong>El sistema no concluye</strong>:
-          no dice que hubo sobreprecio ni nada parecido; eso lo escribe Fiscalía.</li>
+          no califica un precio ni lo que encuentra; eso lo escribe Fiscalía.</li>
       </ol>
       <div class="aviso"><span class="sello alerta">Importante</span>
         <span>No es un sistema de gestión del legajo y no produce piezas procesales.
