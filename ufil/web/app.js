@@ -3560,109 +3560,30 @@ function resultadosHTML(r) {
 }
 
 /* ── Personas ──────────────────────────────────────────────────────────── */
-async function fetchPersonas() {
-  return await api('/api/documentos');
-}
-
 async function vPersonas() {
-  if (location.hash !== '#/personas') return;
-  const filas = await fetchPersonas();
-  
-  if (!filas.length) {
-    return vistaVacia('f. 0011', 'Personas', 'Contratados', 'Todavía no hay contratados', 'Las personas se arman al procesar un lote: los contratos con el mismo CUIL se agrupan solos.');
+  // /api/documentos es la lista de personas agrupadas por documento; viene paginada.
+  const cuenta = await api('/api/documentos?limite=1');
+  if (location.hash.split('?')[0] !== '#/personas') return;
+  if (!cuenta || !cuenta.total) {
+    return vistaVacia('f. 0011', 'Personas', 'Personas',
+      'Todavía no hay personas identificadas',
+      'Las personas se arman al procesar un lote: los documentos con el mismo CUIL o DNI se agrupan solos.');
   }
-  
   vista.innerHTML = bloque('f. 0011', 'Personas', `
-    <div class="encabezado-vista">
-      <h2>Contratados</h2>
-      <p class="prosa">Agrupados por documento cuando lo hay. <strong>Los que no tienen documento legible aparecen sueltos</strong>.</p>
-    </div>
-    <div class="controles-tabla">
-      <div class="filtros-fila">
-        <input type="search" id="buscar-persona" placeholder="Buscar por nombre o documento..." autocomplete="off">
-      </div>
-    </div>
-    <div id="tabla-personas-paginada"></div>
-  `);
-
-  const inputBuscar = $('#buscar-persona');
-  let q = '';
-  let paginaActual = 0;
-  const POR_PAGINA = 50;
-
-  function renderTabla() {
-    const contenedor = $('#tabla-personas-paginada');
-    if (!contenedor) return;
-
-    let filtradas = filas;
-    if (q) {
-      const termino = sinTildes(q);
-      filtradas = filtradas.filter(f => 
-        sinTildes(f.contratado || '').includes(termino) || 
-        sinTildes(f.documento || '').includes(termino)
-      );
-    }
-
-    const total = filtradas.length;
-    const paginas = Math.ceil(total / POR_PAGINA);
-    if (paginaActual >= paginas && paginas > 0) paginaActual = paginas - 1;
-
-    const inicio = paginaActual * POR_PAGINA;
-    const fin = Math.min(inicio + POR_PAGINA, total);
-    const mostrar = filtradas.slice(inicio, fin);
-
-    if (total === 0) {
-      contenedor.innerHTML = vacio('Sin resultados', 'No se encontraron contratados.', null);
-      return;
-    }
-
-    const htmlTabla = tabla([
-      {t: 'Contratado/a', r: f => esc(f.contratado || '—'), c: 'nombre'},
-      {t: 'Documento', r: f => f.documento ? esc(f.documento) : ausente('Sin documento'), c: 'mono'},
-      {t: 'Contratos', r: f => esc(f.contratos || 0), c: 'num'},
-      {t: 'Sin monto', r: f => f.contratos_sin_monto ? `<span class="pendiente">${f.contratos_sin_monto}</span>` : '0', c: 'num'},
-      {t: 'Acumulado', r: f => f.acumulado_centavos != null ? esc(fmtPesos(f.acumulado_centavos)) : ausente('Sin datos'), c: 'num'},
-      {t: 'Cámaras', r: f => f.camaras ? esc(f.camaras.split(',').filter(Boolean).map(camaraTexto).join(' + ')) : ausente('Sin cámara')},
-      {t: 'Desde', r: f => f.primer_inicio ? esc(fmtFecha(f.primer_inicio)) : ausente('Sin inicio'), c: 'mono'},
-      {t: 'Hasta', r: f => f.ultimo_fin ? esc(fmtFecha(f.ultimo_fin)) : ausente('Sin fin'), c: 'mono'},
-      {t: 'Conf.', r: f => barraConf(f.confianza_min), c: 'num'}
-    ], mostrar, { alClic: true, lista: 'personas-lista' });
-
-    const controlesPie = `
-      <div class="paginacion">
-        <span class="pag-info">${inicio + 1}–${fin} de ${total}</span>
-        <div class="pag-botones">
-          <button type="button" class="boton gris" id="btn-pag-ant" ${paginaActual === 0 ? 'disabled' : ''}>Anterior</button>
-          <button type="button" class="boton gris" id="btn-pag-sig" ${paginaActual >= paginas - 1 ? 'disabled' : ''}>Siguiente</button>
-        </div>
-      </div>
-    `;
-
-    contenedor.innerHTML = htmlTabla + controlesPie;
-
-    contenedor.querySelectorAll('table[data-lista="personas-lista"] tbody tr').forEach(tr => {
-      tr.onclick = () => {
-        const e = mostrar[+tr.dataset.i];
-        location.hash = '#/persona/' + e.persona_id;
-      };
-    });
-
-    const btnAnt = $('#btn-pag-ant');
-    if (btnAnt) btnAnt.onclick = () => { if (paginaActual > 0) { paginaActual--; renderTabla(); } };
-    
-    const btnSig = $('#btn-pag-sig');
-    if (btnSig) btnSig.onclick = () => { if (paginaActual < paginas - 1) { paginaActual++; renderTabla(); } };
-  }
-
-  if (inputBuscar) {
-    inputBuscar.oninput = () => {
-      q = inputBuscar.value.trim();
-      paginaActual = 0;
-      renderTabla();
-    };
-  }
-
-  renderTabla();
+    <h1>Personas</h1>
+    <p class="prosa">Agrupadas por documento cuando lo hay. <strong>Las que no tienen documento
+      legible aparecen sueltas</strong>: el nombre solo nunca alcanza para decir que dos son la
+      misma persona.</p>
+    <div id="tabla-personas"></div>`);
+  tablaServidor($('#tabla-personas'), '/api/documentos', 'personas', [
+    {t: 'Nombre', c: 'crece', o: 'nombre', r: f => f.contratado ? esc(f.contratado) : ausente('no_consta')},
+    {t: 'Documento', c: 'fol', r: f => f.documento ? esc(f.documento) : ausente('no_consta')},
+    {t: 'Contratos', c: 'num', r: f => fmtNum.format(f.contratos || 0)},
+    {t: 'Acumulado firme', c: 'num', o: 'monto', r: f => f.acumulado_centavos == null
+        ? ausente('no_consta') : esc(fmtPesos(f.acumulado_centavos))},
+  ], {orden: 'monto', sentido: 'desc', placeholder: 'Buscar por nombre o documento…',
+      alClic: f => { location.hash = '#/persona/' + f.persona_id; },
+      vacio: 'No hay personas que coincidan.'});
 }
 
 

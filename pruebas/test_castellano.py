@@ -217,8 +217,11 @@ class LasTablasGrandesSePuedenRecorrer(unittest.TestCase):
 
     def test_las_cuatro_tablas_grandes_usan_el_buscador(self):
         for destino in self.GRANDES:
-            self.assertIn(f"tablaBuscable($('#{destino}')", self.js,
-                          f"«{destino}» volvió a pintar todas las filas de una")
+            # Con buscador en el navegador o paginada en el servidor: las dos recorren
+            # sin pintar todas las filas de una.
+            self.assertTrue(f"tablaBuscable($('#{destino}')" in self.js
+                            or f"tablaServidor($('#{destino}')" in self.js,
+                            f"«{destino}» volvió a pintar todas las filas de una")
 
     def test_ninguna_pinta_mas_de_una_tanda_de_entrada(self):
         m = re.search(r"const POR_TANDA = (\d+);", self.js)
