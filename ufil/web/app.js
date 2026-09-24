@@ -1479,11 +1479,15 @@ async function vPanel() {
      existen. Ninguna de las dos consultas puede tirar abajo la pantalla: si falla,
      esa parte no se muestra y lo demás sí. */
   const quieto = pr => pr.then(x => x, () => null);
-  const [res, lc, lh] = await Promise.all([
+  const [res, lc, lh, lp] = await Promise.all([
     quieto(api('/api/resumen')),
     quieto(api('/api/contrataciones?desde=0&limite=200')),
     quieto(api('/api/hallazgos?desde=0&limite=200')),
+    quieto(api('/api/entidades/propuestas?limite=1')),
   ]);
+  const propuestas = lp && lp.total ? lp.total : 0;
+  const ejemploPropuesta = lp && lp.propuestas && lp.propuestas[0]
+    ? (lp.propuestas[0].literales || []).join(' / ') : '';
   if (location.hash && !/^#\/(panel)?$/.test(location.hash.split('?')[0])) return;
 
   const n = x => fmtNum.format(x || 0);
@@ -1512,6 +1516,11 @@ async function vPanel() {
     p.fusiones && {n: p.fusiones, que: p.fusiones === 1 ? 'identidad por confirmar' : 'identidades por confirmar',
       por: 'Nombres escritos de maneras distintas que podrían ser la misma persona o empresa.',
       href: '#/identidad', accion: 'Confirmar'},
+    propuestas && {n: propuestas, que: propuestas === 1 ? 'nombre por confirmar' : 'nombres por confirmar',
+      por: `Formas distintas de escribir a la misma empresa o persona${ejemploPropuesta
+        ? ` (por ejemplo, «${ejemploPropuesta}»)` : ''}. Hasta que alguien las confirme, un
+        proveedor puede figurar sólo por su CUIT.`,
+      href: '#/entidades?ver=propuestas', accion: 'Decidir'},
     sinReconocer && {n: sinReconocer, que: sinReconocer === 1 ? 'documento sin reconocer' : 'documentos sin reconocer',
       por: 'El sistema no supo qué tipo de documento es: hasta que se diga, no entra en ninguna contratación.',
       href: '#/sin-reconocer', accion: 'Clasificar'},
