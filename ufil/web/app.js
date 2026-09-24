@@ -2088,31 +2088,44 @@ async function vDocumento(id) {
                            : `foja ${p.nro}`}">f. ${p.nro}${p.rotacion ? ' ↻' : ''}</button>`).join('');
   const enderezadas = paginas.filter(p => p.rotacion);
 
-  vista.innerHTML = bloque('f. ' + String(id).padStart(4, '0'), 'Visor', `
-    <h2>${esc(doc.archivo)}${varios
-        ? ` <span class="rotulo">documento ${doc.orden} de ${d.hermanos.length}</span>` : ''}</h2>
-    <p class="tipo-doc"><span class="sello">${esc(TIPO_DOC[doc.tipo] || doc.tipo)}</span></p>
-    <p class="prosa nota">
-      ${doc.camara ? 'Cámara de ' + esc(camaraTexto(doc.camara)) + ' · ' : ''}perfil <span class="mono">${esc(doc.perfil)}</span> ·
-      lote ${esc(doc.lote || '—')} ·
-      fojas <span class="mono">${doc.pagina_desde}–${doc.pagina_hasta}</span><br>
-      <span class="mono menor">huella digital ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
-    ${enderezadas.length ? `<div class="aviso info"><span class="sello">Enderezado</span>
+  /* Cuando el PDF trae muchas piezas, se navega entre ellas; no se las lista todas. El
+     aviso con los 161 hermanos como enlaces ocupaba media pantalla antes de mostrar la
+     foja. Ahora: la anterior, la siguiente, y la lista completa plegada. */
+  const hermanos = d.hermanos || [];
+  const pos = hermanos.findIndex(h => h.id === doc.id);
+  const vecino = h => h ? `<a href="#/documento/${h.id}">${esc(TIPO_DOC[h.tipo] || h.tipo || 'Pieza')},
+      f. ${h.pagina_desde}${h.pagina_hasta !== h.pagina_desde ? '–' + h.pagina_hasta : ''}</a>` : '';
+  const navegador = varios ? `<nav class="nav-piezas" aria-label="Otras piezas del mismo PDF">
+      <span class="nav-piezas-pos">Pieza ${fmtNum.format(doc.orden)} de ${fmtNum.format(hermanos.length)} de este PDF</span>
+      ${pos > 0 ? `<span>← ${vecino(hermanos[pos - 1])}</span>` : ''}
+      ${pos >= 0 && pos < hermanos.length - 1 ? `<span>${vecino(hermanos[pos + 1])} →</span>` : ''}
+      <details class="nav-piezas-todas"><summary>Ver las ${fmtNum.format(hermanos.length)}</summary>
+        <ol>${hermanos.map(h => `<li${h.id === doc.id ? ' aria-current="true"' : ''}>${vecino(h)}</li>`).join('')}</ol>
+      </details>
+    </nav>` : '';
+  vista.innerHTML = bloque('f. ' + String(id).padStart(4, '0'), 'Documento', `
+    <nav class="migas" aria-label="Estás en"><a href="#/piezas">Documentos</a></nav>
+    <h1>${esc(TIPO_DOC[doc.tipo] || String(doc.tipo || 'Documento').replace(/_/g, ' '))}</h1>
+    <p class="ficha-objeto">${esc(String(doc.archivo || '').replace(/\.pdf$/i, ''))} · fojas
+      ${doc.pagina_desde}${doc.pagina_hasta !== doc.pagina_desde ? '–' + doc.pagina_hasta : ''}</p>
+    ${navegador}
+    <details class="datos-tecnicos"><summary>Datos técnicos</summary>
+      <p class="nota-seccion">${doc.camara ? 'Cámara de ' + esc(camaraTexto(doc.camara)) + ' · ' : ''}perfil
+        <span class="mono">${esc(doc.perfil)}</span> · lote ${esc(doc.lote || '—')} ·
+        <span class="mono">huella digital ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
+    </details>
+    ${enderezadas.length ? `<div class="aviso info">${sello('neutro', 'Enderezada')}
       <span>${enderezadas.length === 1 ? 'La foja' : 'Las fojas'}
       ${enderezadas.map(p => `${p.nro} (${p.rotacion}°)`).join(', ')} llegó girada en el escaneo. <strong>El original no se tocó</strong>: se giró la copia de trabajo para poder leerla, y es esa la que ves acá.</span></div>` : ''}
-    ${varios ? `<div class="aviso atencion"><span class="sello alerta">Ojo</span>
-      <span>Este PDF trae <strong>${plural(d.hermanos.length, 'documento', 'documentos')}</strong> adentro. Estás viendo el número ${doc.orden}, que ocupa las fojas ${doc.pagina_desde} a ${doc.pagina_hasta}. Los otros:
-      ${d.hermanos.filter(h => h.id !== doc.id).map(h =>
-        `<a href="#/documento/${h.id}">#${h.orden} ${esc(TIPO_DOC[h.tipo] || h.tipo || '')} (f. ${h.pagina_desde}–${h.pagina_hasta})</a>`
-      ).join(' · ')}</span></div>` : ''}
-    <section id="relaciones-documento" aria-live="polite">Cargando relaciones...</section>
-    <section id="continuidad-pieza" class="nucleo-continuidad" aria-live="polite">Cargando tramos...</section>
-    <div class="visor">
+    <div class="visor${d.campos.length ? '' : ' visor-sin-datos'}">
       <div class="datos">
         <div class="entre-extremos">
           <span class="rotulo">Carril de datos — leído del documento</span>
         </div>
-        ${campos}
+        ${d.campos.length ? campos : `<p class="nota-seccion">De esta pieza el sistema
+          reconoce qué es, pero todavía no lee sus datos campo por campo. Los renglones
+          con precio que se leyeron de ella están en
+          <a href="#/precios">Ítems y precios</a>.</p>`}
       </div>
       <div class="lamina">
         ${paginas.length > 1 ? `<div class="fojas-selector">${tiras}</div>` : ''}
@@ -2125,6 +2138,11 @@ async function vDocumento(id) {
         <button class="boton gris" id="abrir-foja-doc" type="button">Ver la foja entera, para leerla</button>
       </div>
     </div>
+    <!-- Lo que se viene a ver —los datos y la foja— va primero; las relaciones con
+         otras piezas y la continuidad en otras fojas, que son trabajo de revisión,
+         después. -->
+    <section id="relaciones-documento" class="sep" aria-live="polite">Cargando relaciones...</section>
+    <section id="continuidad-pieza" class="nucleo-continuidad" aria-live="polite">Cargando tramos...</section>
     ${d.interpretaciones.length ? `
       <div class="sep">
         <span class="rotulo">Carril de interpretación — conjeturas del sistema</span>

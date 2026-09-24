@@ -3561,3 +3561,15 @@ a.item-literal:hover{text-decoration:underline}
 .nulo{background:transparent; border:0; padding:0; letter-spacing:0; font-weight:400;
   color:var(--tinta-3); font-size:inherit}
 .nulo.conf{background:transparent; color:var(--lapiz)}
+/* Navegar entre las piezas de un mismo PDF sin listarlas todas. */
+.nav-piezas{display:flex; flex-wrap:wrap; gap:6px 18px; align-items:baseline;
+  font-size:var(--t-13); color:var(--tinta-2); margin:6px 0 12px}
+.nav-piezas-pos{color:var(--tinta)}
+.nav-piezas-todas > summary{cursor:pointer; color:var(--tribunal-txt)}
+.nav-piezas-todas ol{columns:3 18em; margin:8px 0 0; padding-left:1.6em; font-size:var(--t-12)}
+.nav-piezas-todas li[aria-current]{font-weight:600}
+.datos-tecnicos{margin:0 0 12px}
+.datos-tecnicos > summary{font-size:var(--t-12); color:var(--tinta-3); cursor:pointer}
+/* Sin campos que mostrar, la columna de datos se achica a una nota y la foja se lleva
+   el ancho: un panel vacío de media pantalla al lado del papel no dice nada. */
+.visor.visor-sin-datos{grid-template-columns:minmax(14em,20em) minmax(0,1fr)}
