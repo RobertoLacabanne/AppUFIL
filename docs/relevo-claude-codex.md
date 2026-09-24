@@ -745,3 +745,22 @@ cien veces o más del precio deja la comparación en dudosa.
    campos de contratos de obra con perfil de contrato de personal.
 5. Contratos y Facturas y recibos siguen siendo listas del dominio de contratos de personal.
 6. **Producción:** después del despliegue, «Actualizar análisis» (sin OCR nuevo).
+
+### Tercera tanda (23/09/2026, noche): Gemini como obrero supervisado
+
+Modo de trabajo: un encargo corto por corrida (`ENCARGO.md` + `REGLAS_OBRERO.md` en su
+worktree), sin subagentes ni barridos de su lado (la memoria de la máquina no alcanza);
+Claude revisa cada commit con `revisar_commit_web.py`, lo mira en Chrome contra el legajo
+real, lo integra o lo devuelve con correcciones. Lanzador: `agy.exe -p "<leé REGLAS y
+ENCARGO>" --model gemini-3.1-pro-high --add-dir <worktree> --add-dir C:\Users\rober\AppUFIL\.git
+--mode accept-edits --sandbox`.
+
+Hecho en esta tanda: Todas las fichas en tres pestañas paginadas (Gemini, con una
+corrección), cola de revisión en renglones (Gemini + ajuste de Claude), encabezado único
+en diez pantallas (Gemini), vista de documento que abre por la foja (Claude), cuño viejo y
+raya en caja llevados al lenguaje nuevo en todo el sistema (Claude), tarea de nombres por
+confirmar en el Resumen, campos «sin uso» fuera de la cola, textos de «Cómo funciona».
+
+Ensayado para el despliegue: migración 25 → 27 sobre el original de producción sin
+cambiar filas, y el plan de «Actualizar análisis» (reutiliza 1.288 fojas, relee 340,
+conserva las 6 revisiones humanas).
