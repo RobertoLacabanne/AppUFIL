@@ -3544,3 +3544,20 @@ a.item-literal:hover{text-decoration:underline}
 .res-frag{color:var(--tinta-2); line-height:1.5}
 .res-apartar{padding:3px 10px; font-size:var(--t-12)}
 @media (max-width:900px){ .res-foja{grid-template-columns:1fr} }
+
+/* ── El lenguaje viejo, llevado al nuevo en un solo lugar ─────────────────
+   Dos rasgos de la primera época seguían en muchas pantallas: el cuño en mayúsculas
+   con doble filete («VIGENTE», «DESACTUALIZADA», «OJO», «ERROR») y la raya adentro
+   de una cajita para lo que falta. Al lado de las pantallas nuevas se leían como de
+   otra aplicación. El cuño pasa a ser el mismo sello que el resto —palabra, filete
+   fino, radio de control— y la ausencia, una raya apagada sin caja. Una persona
+   que lee «Vigente» entiende lo mismo que con «VIGENTE»; lo que cambia es que ya no
+   le gritan. */
+.sello{outline:none; outline-offset:0; border:1px solid currentColor; border-radius:var(--radio);
+  padding:2px 8px; font-size:var(--t-11); font-weight:600; letter-spacing:.01em;
+  text-transform:none; font-variant-caps:normal; line-height:1.5; white-space:nowrap;
+  background:transparent}
+.sello::first-letter{text-transform:uppercase}
+.nulo{background:transparent; border:0; padding:0; letter-spacing:0; font-weight:400;
+  color:var(--tinta-3); font-size:inherit}
+.nulo.conf{background:transparent; color:var(--lapiz)}
