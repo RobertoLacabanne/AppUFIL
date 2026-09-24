@@ -1731,31 +1731,42 @@ async function vPanel() {
 }
 
 async function vContratos() {
-  const filas = await api('/api/contratos');
-  if (!filas.length) return vistaVacia('f. 0004', 'Datos', 'Contratos',
-    'Todavía no hay contratos leídos',
-    'Cargá un lote de escaneos y procesalo. Los contratos aparecen acá apenas termina.');
-  vista.innerHTML = bloque('f. 0004', 'Datos', `
-    <h2>Contratos</h2>
-    <p class="prosa">La tabla consolidada. Un campo entra sólo si tiene valor y no tiene conflicto abierto: lo que no se pudo leer aparece vacío, nunca completado.</p>
+  vista.innerHTML = bloque('f. 0000', 'Documentación', `
+    <h1>Contratos</h1>
+    <p class="prosa">Lo que se pactó pagar. Lo que no se leyó con seguridad no entra en ningún total.</p>
     <div id="tabla-contratos"></div>`);
-  tablaBuscable($('#tabla-contratos'), [
-      {t:'Doc', k:'documento_id', c:'fol'},
-      {t:'Archivo', k:'archivo', c:'fol'},
-      {t:'Cámara', b:f => camaraTexto(f.camara), r:f => f.camara ? esc(camaraTexto(f.camara)) : '<span class="nulo" title="sin cámara">—</span>'},
-      {t:'Contratado/a', c:'nombre', b:f => f.nombre_literal,
-       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo" title="sin dato">—</span>'},
-      {t:'Documento', c:'mono', b:f => f.documento_literal,
-       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo" title="sin dato">—</span>'},
-      {t:'Inicio', c:'mono', b:f => f.inicio,
-       r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class="nulo" title="sin dato">—</span>'},
-      {t:'Fin', c:'mono', b:f => f.fin,
-       r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class="nulo" title="sin dato">—</span>'},
-      {t:'Monto', c:'num', b:f => f.monto_centavos,
-       r:f => f.monto_centavos == null ? '<span class="nulo" title="sin dato">—</span>' : esc(fmtPesos(f.monto_centavos))},
-      {t:'Conf.', c:'num', b:f => f.confianza_min, r:f => barraConf(f.confianza_min)},
-    ], filas, {alClic: f => location.hash = '#/documento/' + f.documento_id,
-               placeholder: 'Buscar por nombre, documento, archivo…'});
+
+  const renderArchivo = f => {
+    const a = f.archivo || '';
+    const ext = a.toLowerCase().endsWith('.pdf') ? a.slice(0, -4) : a;
+    return esc(`${ext} · f. ${f.pagina_desde ?? '?'}`);
+  };
+
+  const columnasCompletas = [
+    {t:'Archivo', v:'archivo', r: renderArchivo},
+    {t:'Cámara', v:'camara', b: f => camaraTexto(f.camara), r: f => f.camara ? esc(camaraTexto(f.camara)) : ausente('no_consta')},
+    {t:'Nombre', v:'nombre_literal', c:'nombre', b: f => f.nombre_literal, r: f => f.nombre_literal ? esc(f.nombre_literal) : ausente('no_consta')},
+    {t:'Documento', v:'documento_literal', c:'mono', b: f => f.documento_literal, r: f => f.documento_literal ? esc(f.documento_literal) : ausente('no_consta')},
+    {t:'Inicio', v:'inicio', c:'mono', b: f => f.inicio, r: f => f.inicio ? esc(fmtFecha(f.inicio)) : ausente('no_consta')},
+    {t:'Fin', v:'fin', c:'mono', b: f => f.fin, r: f => f.fin ? esc(fmtFecha(f.fin)) : ausente('no_consta')},
+    {t:'Monto', v:'monto_centavos', c:'num', b: f => f.monto_centavos, r: f => f.monto_centavos == null ? ausente('no_consta') : esc(fmtPesos(f.monto_centavos))},
+    {t:'Conf.', v:'confianza_min', c:'num apagado', b: f => f.confianza_min, r: f => f.confianza_min != null ? esc(Math.round(f.confianza_min * 100) + '%') : ausente('no_consta')},
+  ];
+  const cols = [];
+
+  tablaServidor($('#tabla-contratos'), '/api/contratos', 'contratos', cols, {
+    alClic: f => location.hash = '#/documento/' + f.documento_id,
+    placeholder: 'Buscar por nombre, documento, archivo…',
+    alCargar: r => {
+      const filas = r.contratos || [];
+      cols.length = 0;
+      for (const col of columnasCompletas) {
+        if (col.v === 'archivo' || filas.some(f => f[col.v] != null && f[col.v] !== '')) {
+          cols.push(col);
+        }
+      }
+    }
+  });
 }
 
 
@@ -1763,37 +1774,42 @@ async function vContratos() {
    El otro carril. Separado de los contratos porque dice otra cosa: el contrato es lo
    que se pactó pagar, el comprobante es lo que se cobró. */
 async function vComprobantes() {
-  const filas = await api('/api/comprobantes');
-  if (!filas.length) return vistaVacia('f. 0004', 'Datos', 'Facturas y recibos',
-    'Todavía no hay comprobantes leídos',
-    'Acá van las facturas, recibos y remitos que vengan en los escaneos. Se separan de los contratos porque dicen otra cosa: lo que se cobró, no lo que se pactó.');
-
-  const aMano = filas.filter(f => f.monto_centavos == null).length;
-  vista.innerHTML = bloque('f. 0004', 'Datos', `
-    <h2>Facturas y recibos</h2>
-    <p class="prosa">Lo que se cobró. <strong>No se suma con los contratos</strong>: son la misma plata vista de los dos lados, y cuando la factura es el cobro de ese contrato, sumarlas la cuenta dos veces. El cruce está en <a href="#/cruce">Lo facturado contra lo contratado</a>.</p>
-    ${aMano ? `<div class="aviso info">
-      <span class="sello atencion">A mano</span>
-      <span>${plural(aMano, 'comprobante tiene', 'comprobantes tienen')} el importe escrito a mano. <strong>No se lee con OCR</strong> —leerlo mal y no saberlo es peor que no leerlo— así que aparece vacío y espera que una persona lo cargue mirando la foja. Están en <a href="#/cola">la cola de revisión</a>.</span>
-    </div>` : ''}
+  vista.innerHTML = bloque('f. 0000', 'Documentación', `
+    <h1>Facturas y recibos</h1>
+    <p class="prosa">Lo que se cobró. Lo que no se leyó con seguridad no entra en ningún total.</p>
     <div id="tabla-comprobantes"></div>`);
-  tablaBuscable($('#tabla-comprobantes'), [
-      {t:'Doc', k:'documento_id', c:'fol'},
-      {t:'Tipo', b:f => TIPO_DOC[f.tipo] || f.tipo, r:f => esc(TIPO_DOC[f.tipo] || f.tipo)},
-      {t:'Archivo', k:'archivo', c:'fol'},
-      {t:'Emisor', b:f => f.nombre_literal,
-       r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo" title="sin dato">—</span>'},
-      {t:'CUIT', c:'mono', b:f => f.documento_literal,
-       r:f => f.documento_literal ? esc(f.documento_literal) : '<span class="nulo" title="sin dato">—</span>'},
-      {t:'Comprobante', c:'mono', b:f => f.comprobante,
-       r:f => f.comprobante ? esc(f.comprobante) : '<span class="nulo" title="sin dato">—</span>'},
-      {t:'Emitida', c:'mono', b:f => f.emitida,
-       r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class="nulo" title="sin dato">—</span>'},
-      {t:'Importe', c:'num', b:f => f.monto_centavos,
-       r:f => f.monto_centavos == null ? '<span class="nulo" title="a mano">—</span>' : esc(fmtPesos(f.monto_centavos))},
-      {t:'Conf.', c:'num', b:f => f.confianza_min, r:f => barraConf(f.confianza_min)},
-    ], filas, {alClic: f => location.hash = '#/documento/' + f.documento_id,
-               placeholder: 'Buscar por emisor, CUIT, número de comprobante…'});
+
+  const renderArchivo = f => {
+    const a = f.archivo || '';
+    const ext = a.toLowerCase().endsWith('.pdf') ? a.slice(0, -4) : a;
+    return esc(`${ext} · f. ${f.pagina_desde ?? '?'}`);
+  };
+
+  const columnasCompletas = [
+    {t:'Tipo', v:'tipo', b: f => TIPO_DOC[f.tipo] || f.tipo, r: f => f.tipo ? esc(TIPO_DOC[f.tipo] || f.tipo) : ausente('no_consta')},
+    {t:'Archivo', v:'archivo', r: renderArchivo},
+    {t:'Emisor', v:'nombre_literal', b: f => f.nombre_literal, r: f => f.nombre_literal ? esc(f.nombre_literal) : ausente('no_consta')},
+    {t:'CUIT', v:'documento_literal', c:'mono', b: f => f.documento_literal, r: f => f.documento_literal ? esc(f.documento_literal) : ausente('no_consta')},
+    {t:'Comprobante', v:'comprobante', c:'mono', b: f => f.comprobante, r: f => f.comprobante ? esc(f.comprobante) : ausente('no_consta')},
+    {t:'Emitida', v:'emitida', c:'mono', b: f => f.emitida, r: f => f.emitida ? esc(fmtFecha(f.emitida)) : ausente('no_consta')},
+    {t:'Importe', v:'monto_centavos', c:'num', b: f => f.monto_centavos, r: f => f.monto_centavos == null ? ausente('no_consta') : esc(fmtPesos(f.monto_centavos))},
+    {t:'Conf.', v:'confianza_min', c:'num apagado', b: f => f.confianza_min, r: f => f.confianza_min != null ? esc(Math.round(f.confianza_min * 100) + '%') : ausente('no_consta')},
+  ];
+  const cols = [];
+
+  tablaServidor($('#tabla-comprobantes'), '/api/comprobantes', 'comprobantes', cols, {
+    alClic: f => location.hash = '#/documento/' + f.documento_id,
+    placeholder: 'Buscar por emisor, CUIT, número de comprobante…',
+    alCargar: r => {
+      const filas = r.comprobantes || [];
+      cols.length = 0;
+      for (const col of columnasCompletas) {
+        if (col.v === 'archivo' || filas.some(f => f[col.v] != null && f[col.v] !== '')) {
+          cols.push(col);
+        }
+      }
+    }
+  });
 }
 
 
