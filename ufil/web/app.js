@@ -2068,7 +2068,7 @@ async function vDocumento(id) {
       }</div></dd></div>`;
     }
     const ancla = c.x0 != null
-      ? `<button class="ancla boton-ancla" data-campo="${c.id}">f.${c.pagina_nro} &middot; ▣</button>` : '';
+      ? `<button class="ancla boton-ancla" data-campo="${c.id}">f.${c.pagina_nro} · ▣</button>` : '';
     const tocado = c.estado === 'verificado' || c.estado === 'corregido';
     const marca = tocado
       ? ` <span class="sello ok mini-cuno">✓ ${
@@ -2093,8 +2093,8 @@ async function vDocumento(id) {
         ? ` <span class="rotulo">documento ${doc.orden} de ${d.hermanos.length}</span>` : ''}</h2>
     <p class="tipo-doc"><span class="sello">${esc(TIPO_DOC[doc.tipo] || doc.tipo)}</span></p>
     <p class="prosa nota">
-      ${doc.camara ? 'Cámara de ' + esc(camaraTexto(doc.camara)) + ' &middot; ' : ''}perfil <span class="mono">${esc(doc.perfil)}</span> &middot;
-      lote ${esc(doc.lote || '—')} &middot;
+      ${doc.camara ? 'Cámara de ' + esc(camaraTexto(doc.camara)) + ' · ' : ''}perfil <span class="mono">${esc(doc.perfil)}</span> ·
+      lote ${esc(doc.lote || '—')} ·
       fojas <span class="mono">${doc.pagina_desde}–${doc.pagina_hasta}</span><br>
       <span class="mono menor">huella digital ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
     ${enderezadas.length ? `<div class="aviso info"><span class="sello">Enderezado</span>
@@ -2104,7 +2104,7 @@ async function vDocumento(id) {
       <span>Este PDF trae <strong>${plural(d.hermanos.length, 'documento', 'documentos')}</strong> adentro. Estás viendo el número ${doc.orden}, que ocupa las fojas ${doc.pagina_desde} a ${doc.pagina_hasta}. Los otros:
       ${d.hermanos.filter(h => h.id !== doc.id).map(h =>
         `<a href="#/documento/${h.id}">#${h.orden} ${esc(TIPO_DOC[h.tipo] || h.tipo || '')} (f. ${h.pagina_desde}–${h.pagina_hasta})</a>`
-      ).join(' &middot; ')}</span></div>` : ''}
+      ).join(' · ')}</span></div>` : ''}
     <section id="relaciones-documento" aria-live="polite">Cargando relaciones...</section>
     <section id="continuidad-pieza" class="nucleo-continuidad" aria-live="polite">Cargando tramos...</section>
     <div class="visor">
@@ -3986,24 +3986,6 @@ async function cargarContinuidad(id, sha) {
   } catch (e) { if (host.isConnected) host.textContent = e.message; }
 }
 
-function htmlConjunto(c, archivos) {
-  const partes = c.partes;
-  return `<h3>${esc(c.nombre)}</h3><p>${esc(c.organismo || '\u00d8 Organismo sin indicar')} ·
-    ${esc(c.expediente || '\u00d8 Expediente sin indicar')} · ${esc(c.anio || '\u00d8 A\u00f1o sin indicar')}</p>
-    ${c.nota ? `<p class="prosa">${esc(c.nota)}</p>` : ''}
-    <p>${partes.length} archivos · ${partes.reduce((n,p) => n+p.paginas,0)} fojas ·
-    ${partes.reduce((n,p) => n+p.piezas,0)} piezas</p>
-    <p class="prosa">El orden se guarda con cada movimiento. Sub\u00ed o baj\u00e1 las partes para respetar el orden de la entrega.</p>
-    <ol>${partes.map((p,i) => `<li class="nucleo-ficha"><span class="mono">${esc(p.nombre)}</span>
-      <p>${esc(p.paginas)} fojas · ${esc(p.piezas)} piezas</p>
-      <button class="boton gris" data-mover="${i}" data-salto="-1" ${i === 0 ? 'disabled' : ''}>Subir</button>
-      <button class="boton gris" data-mover="${i}" data-salto="1" ${i === partes.length-1 ? 'disabled' : ''}>Bajar</button>
-      <button class="boton gris" data-quitar="${i}">Quitar del conjunto</button></li>`).join('')}</ol>
-    ${partes.length ? '' : '<p>Este conjunto todav\u00eda no tiene archivos.</p>'}
-    <form id="agregar-parte" class="nucleo-form"><label>Archivo para sumar
-      <select name="sha256" required>${opcionesArchivos(archivos.filter(a => !partes.some(p => p.sha256 === a.sha256)))}</select></label>
-      <button class="boton">Sumar al final</button></form>`;
-}
 
 function htmlConjunto(c, archivos) {
   const partes = c.partes;
@@ -4011,12 +3993,12 @@ function htmlConjunto(c, archivos) {
   const exp = c.expediente ? esc(c.expediente) : '<span class="nulo" title="sin expediente">—</span>';
   const anio = c.anio ? esc(c.anio) : '<span class="nulo" title="sin año">—</span>';
   return `<h3>${esc(c.nombre)}</h3>
-    <p>${org} &middot; ${exp} &middot; ${anio}</p>
+    <p>${org} · ${exp} · ${anio}</p>
     ${c.nota ? `<p class="prosa">${esc(c.nota)}</p>` : ''}
-    <p>${partes.length} archivos &middot; ${partes.reduce((n,p) => n+p.paginas,0)} fojas &middot; ${partes.reduce((n,p) => n+p.piezas,0)} piezas</p>
+    <p>${partes.length} archivos · ${partes.reduce((n,p) => n+p.paginas,0)} fojas · ${partes.reduce((n,p) => n+p.piezas,0)} piezas</p>
     <p class="prosa">El orden se guarda con cada movimiento. Subí o bajá las partes para respetar el orden de la entrega.</p>
     <ol class="lista-partes">${partes.map((p,i) => `<li class="parte-ficha"><span class="mono">${esc(p.nombre)}</span>
-      <p>${esc(p.paginas)} fojas &middot; ${esc(p.piezas)} piezas</p>
+      <p>${esc(p.paginas)} fojas · ${esc(p.piezas)} piezas</p>
       <div class="acciones-parte">
         <button class="boton secundario" data-mover="${i}" data-salto="-1" ${i === 0 ? 'disabled' : ''}>Subir</button>
         <button class="boton secundario" data-mover="${i}" data-salto="1" ${i === partes.length-1 ? 'disabled' : ''}>Bajar</button>
@@ -4028,30 +4010,6 @@ function htmlConjunto(c, archivos) {
       <button class="boton">Sumar al final</button></form>`;
 }
 
-async function mostrarConjunto(id, archivos) {
-  const host = $('#detalle-conjunto');
-  if (!id) { host.innerHTML=''; return; }
-  try {
-    const c = await api('/api/conjunto?id='+id);
-    if (!host.isConnected || +$('#elegir-conjunto').value !== +id) return;
-    host.innerHTML = htmlConjunto(c, archivos);
-    const cambiar = async (ruta, datos) => {
-      host.querySelectorAll('button').forEach(b => b.disabled=true);
-      try { await guardarNucleo(ruta, {conjunto_id:+id,...datos}); await vConjuntos(id); }
-      catch(e) { toast(e.message); await mostrarConjunto(id, archivos); }
-    };
-    $('#agregar-parte',host).onsubmit = e => {
-      e.preventDefault(); cambiar('/api/conjunto/agregar', {sha256:e.currentTarget.elements.sha256.value});
-    };
-    host.querySelectorAll('[data-quitar]').forEach(b => b.onclick = () =>
-      cambiar('/api/conjunto/quitar',{sha256:c.partes[+b.dataset.quitar].sha256}));
-    host.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => {
-      const shas=c.partes.map(p => p.sha256), i=+b.dataset.mover, j=i+(+b.dataset.salto);
-      [shas[i],shas[j]]=[shas[j],shas[i]];
-      cambiar('/api/conjunto/reordenar',{shas});
-    });
-  } catch(e) { if (host.isConnected) host.textContent=e.message; }
-}
 
 async function vConjuntos(elegido) {
   const [d,a] = await Promise.all([api('/api/conjuntos'), api('/api/archivos')]);
@@ -4127,45 +4085,6 @@ async function vReasociaciones() {
   ]);
 }
 
-function htmlActualizacion(plan, revisiones) {
-  const nombres = new Map(plan.etapas.map(e => [e.clave, e.nombre]));
-  const etiqueta = clave => ({paginas_ocr: 'Fojas de OCR', lecturas: 'Lecturas guardadas',
-    indice: '\u00cdndice de b\u00fasqueda', archivos: 'Archivos', documentos: 'Documentos',
-    total: 'Total', preservadas: 'Preservadas',
-    requieren_reasociacion: 'Necesitan reasociaci\u00f3n'}[clave] || clave.replaceAll('_', ' '));
-  const cuentas = datos => `<dl>${Object.entries(datos).map(([k, v]) =>
-    `<div><dt>${esc(etiqueta(k))}</dt><dd>${typeof v === 'boolean' ? (v ? 'S\u00ed' : 'No') : esc(fmtNum.format(v))}</dd></div>`).join('')}</dl>`;
-  const sinMaterial = plan.etapas.filter(e => e.alcance !== 'legajo').every(e => e.total === 0);
-  return `<h2>Actualizar an\u00e1lisis</h2>
-    <p class="prosa">${sinMaterial ? 'No hay material cargado para actualizar.' : plan.vigente
-      ? 'El an\u00e1lisis est\u00e1 vigente. No hay nada que actualizar.'
-      : 'Mir\u00e1 qu\u00e9 se aprovecha y qu\u00e9 hace falta recalcular antes de empezar.'}</p>
-    <div class="actualizacion-cuentas">
-      <section><h3>Se reutiliza</h3>${cuentas(plan.reutiliza)}</section>
-      <section><h3>Se recalcula</h3>${cuentas(plan.recalcula)}</section>
-    </div>
-    <p class="prosa nota">Las cuentas de OCR indican las fojas que se aprovechan y las que se vuelven a leer.
-      Las etapas se registran por separado, pero algunas se ejecutan juntas por archivo.</p>
-    <h3>Etapas</h3><div class="actualizacion-etapas">${plan.etapas.map(e => `<article>
-      <h4>${esc(e.nombre)} <span class="sello ${e.estado === 'desactualizada' || e.estado === 'nunca' ? 'atencion' : 'neutro'}">${esc(e.estado)}</span></h4>
-      ${e.explica ? `<p>${esc(e.explica)}</p>` : ''}
-      ${e.motivo ? `<p>${esc(e.motivo)}</p>` : ''}
-      ${e.estado === 'heredada' || e.heredados > 0 ? '<p>Hay resultados heredados aprovechables: se adopt\u00f3 lo que ya estaba sin volver a leerlo; no se comprob\u00f3 que coincida.</p>' : ''}
-      <p>Aprovechables: ${esc(fmtNum.format(e.vigentes))} · Desactualizados: ${esc(fmtNum.format(e.desactualizados))}
-        · Total: ${esc(fmtNum.format(e.total))} · Costo: ${esc(e.cuesta)}</p>
-    </article>`).join('')}</div>
-    <h3>Trabajo de las personas</h3>${cuentas(plan.revisiones)}
-    <p class="prosa">Las revisiones que necesitan reasociaci\u00f3n se conservan. No se aplican solas porque no es seguro
-      a qu\u00e9 pieza corresponden. Necesitan que una persona las mire; no son trabajo perdido.</p>
-    ${revisiones.length ? '<p><a href="#/reasociaciones">Resolver las revisiones desplazadas</a></p>' : ''}
-    ${revisiones.map(r => `<article class="actualizacion-revision"><h4 class="mono">${esc(r.archivo)}</h4>
-      <p>${esc(r.campo)}: ${r.valor == null ? 'Sin valor' : esc(r.valor)}</p>
-      <p>${esc(r.quien)} · ${esc(r.cuando)}</p><p>${esc(r.motivo)}</p></article>`).join('')}
-    ${plan.archivos.length ? `<h3>Archivos alcanzados</h3><ul>${plan.archivos.map(a =>
-      `<li><span class="mono">${esc(a.nombre)}</span> · Fojas: ${esc(fmtNum.format(a.paginas))}
-      · ${a.desactualizadas.map(k => esc(nombres.get(k) || k)).join(', ')}</li>`).join('')}</ul>` : ''}
-    ${!plan.vigente && !sinMaterial ? '<button class="boton" id="b-actualizar">Actualizar an\u00e1lisis</button>' : ''}`;
-}
 
 function htmlActualizacion(plan, revisiones) {
   const nombres = new Map(plan.etapas.map(e => [e.clave, e.nombre]));
@@ -4190,16 +4109,16 @@ function htmlActualizacion(plan, revisiones) {
       ${e.explica ? `<p>${esc(e.explica)}</p>` : ''}
       ${e.motivo ? `<p>${esc(e.motivo)}</p>` : ''}
       ${e.estado === 'heredada' || e.heredados > 0 ? '<p>Hay resultados heredados aprovechables: se adoptó lo que ya estaba sin volver a leerlo; no se comprobó que coincida.</p>' : ''}
-      <p>Aprovechables: ${esc(fmtNum.format(e.vigentes))} &middot; Desactualizados: ${esc(fmtNum.format(e.desactualizados))} &middot; Total: ${esc(fmtNum.format(e.total))} &middot; Costo: ${esc(e.cuesta)}</p>
+      <p>Aprovechables: ${esc(fmtNum.format(e.vigentes))} · Desactualizados: ${esc(fmtNum.format(e.desactualizados))} · Total: ${esc(fmtNum.format(e.total))} · Costo: ${esc(e.cuesta)}</p>
     </article>`).join('')}</div>
     <h3>Trabajo de las personas</h3>${cuentas(plan.revisiones)}
     <p class="prosa">Las revisiones que necesitan reasociación se conservan. No se aplican solas porque no es seguro a qué pieza corresponden. Necesitan que una persona las mire; no son trabajo perdido.</p>
     ${revisiones.length ? '<p><a href="#/reasociaciones" class="boton secundario">Resolver las revisiones desplazadas</a></p>' : ''}
     ${revisiones.map(r => `<article class="actualizacion-revision"><h4 class="mono">${esc(r.archivo)}</h4>
       <p>${esc(r.campo)}: ${r.valor == null ? '<span class="nulo" title="sin valor">—</span>' : esc(r.valor)}</p>
-      <p>${esc(r.quien)} &middot; ${esc(r.cuando)}</p><p>${esc(r.motivo)}</p></article>`).join('')}
+      <p>${esc(r.quien)} · ${esc(r.cuando)}</p><p>${esc(r.motivo)}</p></article>`).join('')}
     ${plan.archivos.length ? `<h3>Archivos alcanzados</h3><ul class="lista-archivos">${plan.archivos.map(a =>
-      `<li><span class="mono">${esc(a.nombre)}</span> &middot; Fojas: ${esc(fmtNum.format(a.paginas))} &middot; ${a.desactualizadas.map(k => esc(nombres.get(k) || k)).join(', ')}</li>`).join('')}</ul>` : ''}
+      `<li><span class="mono">${esc(a.nombre)}</span> · Fojas: ${esc(fmtNum.format(a.paginas))} · ${a.desactualizadas.map(k => esc(nombres.get(k) || k)).join(', ')}</li>`).join('')}</ul>` : ''}
     ${!plan.vigente && !sinMaterial ? '<button class="boton principal" id="b-actualizar">Actualizar análisis</button>' : ''}`;
 }
 

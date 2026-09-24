@@ -2847,10 +2847,10 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
 .vacio-texto { font-size: var(--t-13); color: var(--tinta-2); max-width: 400px; line-height: 1.5; }
 
 /* ═══ GEMINI R4 — inicio ═══ */
-/* ═══ GEMINI R4 — inicio ═══ */
 .encabezado-vista {
   margin-bottom: 24px;
 }
+
 .controles-tabla {
   display: flex;
   justify-content: space-between;
@@ -2858,11 +2858,13 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
   margin-bottom: 16px;
   gap: 16px;
 }
+
 .filtros-fila {
   display: flex;
   gap: 12px;
   align-items: center;
 }
+
 .paginacion {
   display: flex;
   justify-content: space-between;
@@ -2871,18 +2873,21 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
   padding-top: 16px;
   border-top: 1px solid var(--filete);
 }
+
 .pag-info {
   font-size: 13px;
   color: var(--tinta-2);
 }
+
 .pag-botones {
   display: flex;
   gap: 8px;
 }
-/* ═══ GEMINI R4 — fin ═══ */
+
 /* css_BatchB.css */
 
 /* vTablas y vFojas */
+
 .paginacion {
   display: flex;
   justify-content: center;
@@ -2890,18 +2895,22 @@ dialog::backdrop { background: rgba(11, 18, 25, 0.5); }
   gap: 16px;
   margin-top: 24px;
 }
+
 .paginacion-info {
   font-size: 13px;
   color: var(--tinta-2);
 }
+
 tr.clic {
   cursor: pointer;
 }
+
 tr.clic:hover {
   background: var(--folio);
 }
 
 /* vCola */
+
 .layout-3-col {
   display: grid;
   grid-template-columns: 250px 300px 1fr;
@@ -2909,14 +2918,17 @@ tr.clic:hover {
   height: 100%;
   overflow: hidden;
 }
+
 .lista-izquierda {
   overflow-y: auto;
   border-right: 1px solid var(--filete);
   padding-right: 8px;
 }
+
 .grupo-cola {
   margin-bottom: 16px;
 }
+
 .grupo-cola-titulo {
   font-size: 12px;
   font-weight: 600;
@@ -2924,28 +2936,33 @@ tr.clic:hover {
   margin-bottom: 8px;
   padding: 4px 8px;
   background: var(--folio);
-  border-radius: 4px;
+  border-radius: var(--radio);
 }
+
 .fila-cola-item {
   padding: 8px;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radio);
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
+
 .fila-cola-item:hover {
   background: var(--folio);
 }
+
 .fila-cola-item.activo {
   background: var(--realce);
   border-left: 3px solid var(--marca);
 }
+
 .valor-resumen {
   font-family: monospace;
   font-size: 12px;
   color: var(--tinta);
 }
+
 .panel-central-acciones {
   padding: 16px;
   border-right: 1px solid var(--filete);
@@ -2954,97 +2971,134 @@ tr.clic:hover {
   gap: 24px;
   overflow-y: auto;
 }
+
 .botonera-acciones {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+
 .foco-cabecera {
   margin-bottom: 12px;
 }
+
 .foco-cabecera h3 {
   margin: 0 0 4px 0;
   font-size: 15px;
 }
+
 .progreso-visible {
   font-size: 13px;
   color: var(--tinta-2);
   font-weight: normal;
 }
-/* ═══ GEMINI R4 — inicio ═══ */
 
 /* vBuscar */
+
 .cabecera-seccion { margin-bottom: 24px; }
+
 .input-grande { font-size: 15px; padding: 8px 12px; width: 100%; max-width: 600px; }
-.vacio-ilustrado { padding: 40px; text-align: center; color: var(--tinta-2); background: var(--fondo-suave); border-radius: 4px; }
+
+.vacio-ilustrado { padding: 40px; text-align: center; color: var(--tinta-2); background: var(--fondo-suave); border-radius: var(--radio); }
+
 .vacio-ilustrado h3 { margin-top: 0; color: var(--tinta); }
+
 .vacio-ilustrado ul { text-align: left; max-width: 400px; margin: 16px auto 0; padding-left: 20px; }
+
 .resultados-lista { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
+
 .resultado-buscar { padding-bottom: 16px; border-bottom: 1px solid var(--filete); }
+
 .resultado-buscar h3 { margin: 0 0 4px; font-size: 15px; }
+
 .resultado-buscar .kwic { margin: 0 0 4px; font-size: 13px; color: var(--tinta); line-height: 1.4; }
+
 .resultado-buscar .apagado { font-size: 12px; }
 
 /* Fichas vEntidad / vPersona */
+
 .cabecera-ficha { margin-bottom: 24px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+
 .cabecera-ficha h2 { margin: 0; }
+
 .identificadores { display: flex; gap: 8px; align-items: center; }
-.etiqueta { background: var(--fondo-suave); padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+
+.etiqueta { background: var(--fondo-suave); padding: 2px 8px; border-radius: var(--radio); font-size: 12px; font-weight: 500; }
+
 .nulo { color: var(--tinta-2); cursor: help; }
 
 /* vIdentidad */
+
 .cola-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 24px; }
-.tarjeta-fusion { border: 1px solid var(--borde-control); border-radius: 4px; padding: 16px; background: var(--folio); display: flex; flex-direction: column; gap: 12px; }
+
+.tarjeta-fusion { border: 1px solid var(--borde-control); border-radius: var(--radio); padding: 16px; background: var(--folio); display: flex; flex-direction: column; gap: 12px; }
+
 .fusion-cabecera { display: flex; justify-content: space-between; align-items: center; }
+
 .fusion-cabecera .confianza { font-size: 12px; font-weight: 500; color: var(--tinta-2); }
-.fusion-cuerpo { display: flex; flex-direction: column; gap: 8px; background: var(--fondo-suave); padding: 12px; border-radius: 4px; }
+
+.fusion-cuerpo { display: flex; flex-direction: column; gap: 8px; background: var(--fondo-suave); padding: 12px; border-radius: var(--radio); }
+
 .fusion-entidad { display: flex; justify-content: space-between; gap: 8px; }
+
 .fusion-vs { text-align: center; font-size: 11px; color: var(--tinta-2); text-transform: uppercase; font-weight: bold; }
+
 .fusion-acciones { display: flex; gap: 8px; margin-top: auto; }
+
 .fusion-acciones button { flex: 1; }
 
 /* vRelaciones */
+
 .paneles-dobles { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 24px; align-items: start; }
-.panel-formulario { background: var(--fondo-suave); padding: 24px; border-radius: 4px; }
+
+.panel-formulario { background: var(--fondo-suave); padding: 24px; border-radius: var(--radio); }
+
 .formulario-estilizado .campo { margin-bottom: 16px; display: flex; flex-direction: column; gap: 4px; }
+
 .formulario-estilizado label { font-weight: 500; font-size: 13px; }
-.formulario-estilizado input, .formulario-estilizado textarea { padding: 8px; border: 1px solid var(--borde-control); border-radius: 4px; font-family: inherit; }
-.formulario-estilizado input:focus, .formulario-estilizado textarea:focus { border-color: var(--oro); outline: none; }
+
+.formulario-estilizado input, .formulario-estilizado textarea { padding: 8px; border: 1px solid var(--borde-control); border-radius: var(--radio); font-family: inherit; }
+
+.formulario-estilizado input:focus, .formulario-estilizado textarea:focus { border-color: var(--sello); outline: none; }
+
 .boton.primario { background: var(--tinta); color: var(--folio); font-weight: bold; cursor: pointer; }
 
-/* ═══ GEMINI R4 — fin ═══ */
-/* ═══ GEMINI R4 — inicio ═══ */
-
 /* Formularios */
+
 .formulario-estandar {
   display: flex;
   flex-direction: column;
   gap: 12px;
   max-width: 400px;
 }
+
 .formulario-estandar label {
   display: flex;
   flex-direction: column;
   font-size: 13px;
   font-weight: 500;
 }
+
 .formulario-estandar input, .formulario-estandar select {
   padding: 6px 8px;
-  border: 1px solid var(--filete);
-  border-radius: 4px;
+  border: 1px solid var(--borde-control);
+  border-radius: var(--radio);
   font-size: 15px;
 }
 
 /* Tablas */
+
 .tabla-estandar {
   width: 100%;
   border-collapse: collapse;
 }
+
 .tabla-estandar th, .tabla-estandar td {
   padding: 10px;
   text-align: left;
   border-bottom: 1px solid var(--filete);
 }
+
 .tabla-estandar th {
   font-size: 13px;
   font-weight: 600;
@@ -3052,10 +3106,12 @@ tr.clic:hover {
 }
 
 /* Conjuntos */
+
 .selector-conjunto {
   display: block;
   margin: 16px 0;
 }
+
 .lista-partes {
   list-style: none;
   padding: 0;
@@ -3063,6 +3119,7 @@ tr.clic:hover {
   flex-direction: column;
   gap: 8px;
 }
+
 .parte-ficha {
   display: flex;
   align-items: center;
@@ -3070,70 +3127,83 @@ tr.clic:hover {
   padding: 12px;
   background: var(--folio);
   border: 1px solid var(--filete);
-  border-radius: 4px;
+  border-radius: var(--radio);
 }
+
 .acciones-parte {
   display: flex;
   gap: 8px;
 }
 
 /* Estado Vacío */
+
 .estado-vacio {
   color: var(--tinta-2);
   font-style: italic;
 }
 
 /* Botones Adicionales */
+
 .boton-ancla {
   background: transparent;
   border: none;
   cursor: pointer;
   color: var(--tribunal);
 }
+
 .boton-ancla:hover {
   text-decoration: underline;
 }
 
 /* Actualización */
+
 .actualizacion-cuentas {
   display: flex;
   gap: 32px;
   margin-bottom: 24px;
 }
+
 .lista-definiciones div {
   display: flex;
   justify-content: space-between;
   border-bottom: 1px solid var(--filete-2);
   padding: 4px 0;
 }
+
 .actualizacion-etapas {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
 }
+
 .tarjeta-etapa {
   border: 1px solid var(--filete);
-  border-radius: 4px;
+  border-radius: var(--radio);
   padding: 16px;
   background: var(--folio);
 }
+
 .tarjeta-etapa h4 {
   margin-top: 0;
 }
+
 .actualizacion-revision {
   border-left: 4px solid var(--filete);
   padding-left: 12px;
   margin-bottom: 16px;
 }
+
 .lista-archivos {
   padding-left: 20px;
 }
+
 .lista-fiscales {
   padding-left: 20px;
   margin: 8px 0;
 }
 
 /* Visor */
+
 .fojas-selector {
   display: flex;
   gap: 4px;
@@ -3141,46 +3211,21 @@ tr.clic:hover {
   padding-bottom: 8px;
 }
 
-/* ═══ GEMINI R4 — fin ═══ */
-
-/* ═══ GEMINI R4 — fin ═══ */
-/* css_BatchB.css */
-
-/* vTablas y vFojas */
-.paginacion {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  margin-top: 24px;
-}
 .paginacion-info {
   font-size: var(--t-13);
   color: var(--texto-secundario);
 }
-tr.clic {
-  cursor: pointer;
-}
+
 tr.clic:hover {
   background: var(--fondo-hover);
 }
 
-/* vCola */
-.layout-3-col {
-  display: grid;
-  grid-template-columns: 250px 300px 1fr;
-  gap: 16px;
-  height: 100%;
-  overflow: hidden;
-}
 .lista-izquierda {
   overflow-y: auto;
   border-right: 1px solid var(--borde);
   padding-right: 8px;
 }
-.grupo-cola {
-  margin-bottom: 16px;
-}
+
 .grupo-cola-titulo {
   font-size: var(--t-12);
   font-weight: 600;
@@ -3190,6 +3235,7 @@ tr.clic:hover {
   background: var(--fondo-secundario);
   border-radius: var(--radio);
 }
+
 .fila-cola-item {
   padding: 8px;
   cursor: pointer;
@@ -3198,18 +3244,22 @@ tr.clic:hover {
   flex-direction: column;
   gap: 4px;
 }
+
 .fila-cola-item:hover {
   background: var(--fondo-hover);
 }
+
 .fila-cola-item.activo {
   background: var(--fondo-seleccion);
   border-left: 3px solid var(--marca);
 }
+
 .valor-resumen {
   font-family: monospace;
   font-size: var(--t-12);
   color: var(--texto);
 }
+
 .panel-central-acciones {
   padding: 16px;
   border-right: 1px solid var(--borde);
@@ -3218,620 +3268,22 @@ tr.clic:hover {
   gap: 24px;
   overflow-y: auto;
 }
-.botonera-acciones {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.foco-cabecera {
-  margin-bottom: 12px;
-}
+
 .foco-cabecera h3 {
   margin: 0 0 4px 0;
   font-size: var(--t-15);
 }
+
 .progreso-visible {
   font-size: var(--t-13);
   color: var(--texto-secundario);
   font-weight: normal;
 }
-/* ═══ GEMINI R4 — inicio ═══ */
-/* ═══ GEMINI R4 — inicio ═══ */
-.encabezado-vista {
-  margin-bottom: 24px;
-}
-.controles-tabla {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  gap: 16px;
-}
-.filtros-fila {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.paginacion {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--filete);
-}
-.pag-info {
-  font-size: 13px;
-  color: var(--tinta-2);
-}
-.pag-botones {
-  display: flex;
-  gap: 8px;
-}
-/* ═══ GEMINI R4 — fin ═══ */
-/* css_BatchB.css */
 
-/* vTablas y vFojas */
-.paginacion {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  margin-top: 24px;
-}
-.paginacion-info {
-  font-size: 13px;
-  color: var(--tinta-2);
-}
-tr.clic {
-  cursor: pointer;
-}
-tr.clic:hover {
-  background: var(--folio);
-}
-
-/* vCola */
-.layout-3-col {
-  display: grid;
-  grid-template-columns: 250px 300px 1fr;
-  gap: 16px;
-  height: 100%;
-  overflow: hidden;
-}
-.lista-izquierda {
-  overflow-y: auto;
-  border-right: 1px solid var(--filete);
-  padding-right: 8px;
-}
-.grupo-cola {
-  margin-bottom: 16px;
-}
-.grupo-cola-titulo {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--tinta-2);
-  margin-bottom: 8px;
-  padding: 4px 8px;
-  background: var(--folio);
-  border-radius: 4px;
-}
-.fila-cola-item {
-  padding: 8px;
-  cursor: pointer;
-  border-radius: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.fila-cola-item:hover {
-  background: var(--folio);
-}
-.fila-cola-item.activo {
-  background: var(--realce);
-  border-left: 3px solid var(--marca);
-}
-.valor-resumen {
-  font-family: monospace;
-  font-size: 12px;
-  color: var(--tinta);
-}
-.panel-central-acciones {
-  padding: 16px;
-  border-right: 1px solid var(--filete);
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  overflow-y: auto;
-}
-.botonera-acciones {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.foco-cabecera {
-  margin-bottom: 12px;
-}
-.foco-cabecera h3 {
-  margin: 0 0 4px 0;
-  font-size: 15px;
-}
-.progreso-visible {
-  font-size: 13px;
-  color: var(--tinta-2);
-  font-weight: normal;
-}
-/* ═══ GEMINI R4 — inicio ═══ */
-
-/* vBuscar */
-.cabecera-seccion { margin-bottom: 24px; }
-.input-grande { font-size: 15px; padding: 8px 12px; width: 100%; max-width: 600px; }
-.vacio-ilustrado { padding: 40px; text-align: center; color: var(--tinta-2); background: var(--fondo-suave); border-radius: 4px; }
-.vacio-ilustrado h3 { margin-top: 0; color: var(--tinta); }
-.vacio-ilustrado ul { text-align: left; max-width: 400px; margin: 16px auto 0; padding-left: 20px; }
-.resultados-lista { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
-.resultado-buscar { padding-bottom: 16px; border-bottom: 1px solid var(--filete); }
-.resultado-buscar h3 { margin: 0 0 4px; font-size: 15px; }
-.resultado-buscar .kwic { margin: 0 0 4px; font-size: 13px; color: var(--tinta); line-height: 1.4; }
-.resultado-buscar .apagado { font-size: 12px; }
-
-/* Fichas vEntidad / vPersona */
-.cabecera-ficha { margin-bottom: 24px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
-.cabecera-ficha h2 { margin: 0; }
-.identificadores { display: flex; gap: 8px; align-items: center; }
-.etiqueta { background: var(--fondo-suave); padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-.nulo { color: var(--tinta-2); cursor: help; }
-
-/* vIdentidad */
-.cola-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 24px; }
-.tarjeta-fusion { border: 1px solid var(--borde-control); border-radius: 4px; padding: 16px; background: var(--folio); display: flex; flex-direction: column; gap: 12px; }
-.fusion-cabecera { display: flex; justify-content: space-between; align-items: center; }
-.fusion-cabecera .confianza { font-size: 12px; font-weight: 500; color: var(--tinta-2); }
-.fusion-cuerpo { display: flex; flex-direction: column; gap: 8px; background: var(--fondo-suave); padding: 12px; border-radius: 4px; }
-.fusion-entidad { display: flex; justify-content: space-between; gap: 8px; }
-.fusion-vs { text-align: center; font-size: 11px; color: var(--tinta-2); text-transform: uppercase; font-weight: bold; }
-.fusion-acciones { display: flex; gap: 8px; margin-top: auto; }
-.fusion-acciones button { flex: 1; }
-
-/* vRelaciones */
-.paneles-dobles { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 24px; align-items: start; }
-.panel-formulario { background: var(--fondo-suave); padding: 24px; border-radius: 4px; }
-.formulario-estilizado .campo { margin-bottom: 16px; display: flex; flex-direction: column; gap: 4px; }
-.formulario-estilizado label { font-weight: 500; font-size: 13px; }
-.formulario-estilizado input, .formulario-estilizado textarea { padding: 8px; border: 1px solid var(--borde-control); border-radius: 4px; font-family: inherit; }
-.formulario-estilizado input:focus, .formulario-estilizado textarea:focus { border-color: var(--oro); outline: none; }
-.boton.primario { background: var(--tinta); color: var(--folio); font-weight: bold; cursor: pointer; }
-
-/* ═══ GEMINI R4 — fin ═══ */
-/* ═══ GEMINI R4 — inicio ═══ */
-
-/* Formularios */
-.formulario-estandar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-width: 400px;
-}
-.formulario-estandar label {
-  display: flex;
-  flex-direction: column;
-  font-size: 13px;
-  font-weight: 500;
-}
-.formulario-estandar input, .formulario-estandar select {
-  padding: 6px 8px;
-  border: 1px solid var(--filete);
-  border-radius: 4px;
-  font-size: 15px;
-}
-
-/* Tablas */
-.tabla-estandar {
-  width: 100%;
-  border-collapse: collapse;
-}
-.tabla-estandar th, .tabla-estandar td {
-  padding: 10px;
-  text-align: left;
-  border-bottom: 1px solid var(--filete);
-}
-.tabla-estandar th {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--tinta-2);
-}
-
-/* Conjuntos */
-.selector-conjunto {
-  display: block;
-  margin: 16px 0;
-}
-.lista-partes {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.parte-ficha {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  background: var(--folio);
-  border: 1px solid var(--filete);
-  border-radius: 4px;
-}
-.acciones-parte {
-  display: flex;
-  gap: 8px;
-}
-
-/* Estado Vacío */
-.estado-vacio {
-  color: var(--tinta-2);
-  font-style: italic;
-}
-
-/* Botones Adicionales */
-.boton-ancla {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--tribunal);
-}
-.boton-ancla:hover {
-  text-decoration: underline;
-}
-
-/* Actualización */
-.actualizacion-cuentas {
-  display: flex;
-  gap: 32px;
-  margin-bottom: 24px;
-}
-.lista-definiciones div {
-  display: flex;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--filete-2);
-  padding: 4px 0;
-}
-.actualizacion-etapas {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
-.tarjeta-etapa {
-  border: 1px solid var(--filete);
-  border-radius: 4px;
-  padding: 16px;
-  background: var(--folio);
-}
-.tarjeta-etapa h4 {
-  margin-top: 0;
-}
-.actualizacion-revision {
-  border-left: 4px solid var(--filete);
-  padding-left: 12px;
-  margin-bottom: 16px;
-}
-.lista-archivos {
-  padding-left: 20px;
-}
-.lista-fiscales {
-  padding-left: 20px;
-  margin: 8px 0;
-}
-
-/* Visor */
-.fojas-selector {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-}
-
-/* ═══ GEMINI R4 — fin ═══ */
-
-/* ═══ GEMINI R4 — fin ═══ */
-/* ═══ GEMINI R4 — inicio ═══ */
-/* ═══ GEMINI R4 — inicio ═══ */
-.encabezado-vista {
-  margin-bottom: 24px;
-}
-.controles-tabla {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  gap: 16px;
-}
-.filtros-fila {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.paginacion {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--filete);
-}
-.pag-info {
-  font-size: 13px;
-  color: var(--tinta-2);
-}
-.pag-botones {
-  display: flex;
-  gap: 8px;
-}
-/* ═══ GEMINI R4 — fin ═══ */
-/* css_BatchB.css */
-
-/* vTablas y vFojas */
-.paginacion {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  margin-top: 24px;
-}
-.paginacion-info {
-  font-size: 13px;
-  color: var(--tinta-2);
-}
-tr.clic {
-  cursor: pointer;
-}
-tr.clic:hover {
-  background: var(--folio);
-}
-
-/* vCola */
-.layout-3-col {
-  display: grid;
-  grid-template-columns: 250px 300px 1fr;
-  gap: 16px;
-  height: 100%;
-  overflow: hidden;
-}
-.lista-izquierda {
-  overflow-y: auto;
-  border-right: 1px solid var(--filete);
-  padding-right: 8px;
-}
-.grupo-cola {
-  margin-bottom: 16px;
-}
-.grupo-cola-titulo {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--tinta-2);
-  margin-bottom: 8px;
-  padding: 4px 8px;
-  background: var(--folio);
-  border-radius: 4px;
-}
-.fila-cola-item {
-  padding: 8px;
-  cursor: pointer;
-  border-radius: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.fila-cola-item:hover {
-  background: var(--folio);
-}
-.fila-cola-item.activo {
-  background: var(--realce);
-  border-left: 3px solid var(--marca);
-}
-.valor-resumen {
-  font-family: monospace;
-  font-size: 12px;
-  color: var(--tinta);
-}
-.panel-central-acciones {
-  padding: 16px;
-  border-right: 1px solid var(--filete);
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  overflow-y: auto;
-}
-.botonera-acciones {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.foco-cabecera {
-  margin-bottom: 12px;
-}
-.foco-cabecera h3 {
-  margin: 0 0 4px 0;
-  font-size: 15px;
-}
-.progreso-visible {
-  font-size: 13px;
-  color: var(--tinta-2);
-  font-weight: normal;
-}
-/* ═══ GEMINI R4 — inicio ═══ */
-
-/* vBuscar */
-.cabecera-seccion { margin-bottom: 24px; }
-.input-grande { font-size: 15px; padding: 8px 12px; width: 100%; max-width: 600px; }
-.vacio-ilustrado { padding: 40px; text-align: center; color: var(--tinta-2); background: var(--fondo-suave); border-radius: 4px; }
-.vacio-ilustrado h3 { margin-top: 0; color: var(--tinta); }
-.vacio-ilustrado ul { text-align: left; max-width: 400px; margin: 16px auto 0; padding-left: 20px; }
-.resultados-lista { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
-.resultado-buscar { padding-bottom: 16px; border-bottom: 1px solid var(--filete); }
-.resultado-buscar h3 { margin: 0 0 4px; font-size: 15px; }
-.resultado-buscar .kwic { margin: 0 0 4px; font-size: 13px; color: var(--tinta); line-height: 1.4; }
-.resultado-buscar .apagado { font-size: 12px; }
-
-/* Fichas vEntidad / vPersona */
-.cabecera-ficha { margin-bottom: 24px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
-.cabecera-ficha h2 { margin: 0; }
-.identificadores { display: flex; gap: 8px; align-items: center; }
-.etiqueta { background: var(--fondo-suave); padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-.nulo { color: var(--tinta-2); cursor: help; }
-
-/* vIdentidad */
-.cola-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 24px; }
-.tarjeta-fusion { border: 1px solid var(--borde-control); border-radius: 4px; padding: 16px; background: var(--folio); display: flex; flex-direction: column; gap: 12px; }
-.fusion-cabecera { display: flex; justify-content: space-between; align-items: center; }
-.fusion-cabecera .confianza { font-size: 12px; font-weight: 500; color: var(--tinta-2); }
-.fusion-cuerpo { display: flex; flex-direction: column; gap: 8px; background: var(--fondo-suave); padding: 12px; border-radius: 4px; }
-.fusion-entidad { display: flex; justify-content: space-between; gap: 8px; }
-.fusion-vs { text-align: center; font-size: 11px; color: var(--tinta-2); text-transform: uppercase; font-weight: bold; }
-.fusion-acciones { display: flex; gap: 8px; margin-top: auto; }
-.fusion-acciones button { flex: 1; }
-
-/* vRelaciones */
-.paneles-dobles { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 24px; align-items: start; }
-.panel-formulario { background: var(--fondo-suave); padding: 24px; border-radius: 4px; }
-.formulario-estilizado .campo { margin-bottom: 16px; display: flex; flex-direction: column; gap: 4px; }
-.formulario-estilizado label { font-weight: 500; font-size: 13px; }
-.formulario-estilizado input, .formulario-estilizado textarea { padding: 8px; border: 1px solid var(--borde-control); border-radius: 4px; font-family: inherit; }
-.formulario-estilizado input:focus, .formulario-estilizado textarea:focus { border-color: var(--oro); outline: none; }
-.boton.primario { background: var(--tinta); color: var(--folio); font-weight: bold; cursor: pointer; }
-
-/* ═══ GEMINI R4 — fin ═══ */
-/* ═══ GEMINI R4 — inicio ═══ */
-
-/* Formularios */
-.formulario-estandar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-width: 400px;
-}
-.formulario-estandar label {
-  display: flex;
-  flex-direction: column;
-  font-size: 13px;
-  font-weight: 500;
-}
-.formulario-estandar input, .formulario-estandar select {
-  padding: 6px 8px;
-  border: 1px solid var(--filete);
-  border-radius: 4px;
-  font-size: 15px;
-}
-
-/* Tablas */
-.tabla-estandar {
-  width: 100%;
-  border-collapse: collapse;
-}
-.tabla-estandar th, .tabla-estandar td {
-  padding: 10px;
-  text-align: left;
-  border-bottom: 1px solid var(--filete);
-}
-.tabla-estandar th {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--tinta-2);
-}
-
-/* Conjuntos */
-.selector-conjunto {
-  display: block;
-  margin: 16px 0;
-}
-.lista-partes {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.parte-ficha {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  background: var(--folio);
-  border: 1px solid var(--filete);
-  border-radius: 4px;
-}
-.acciones-parte {
-  display: flex;
-  gap: 8px;
-}
-
-/* Estado Vacío */
-.estado-vacio {
-  color: var(--tinta-2);
-  font-style: italic;
-}
-
-/* Botones Adicionales */
-.boton-ancla {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--tribunal);
-}
-.boton-ancla:hover {
-  text-decoration: underline;
-}
-
-/* Actualización */
-.actualizacion-cuentas {
-  display: flex;
-  gap: 32px;
-  margin-bottom: 24px;
-}
-.lista-definiciones div {
-  display: flex;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--filete-2);
-  padding: 4px 0;
-}
-.actualizacion-etapas {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
-.tarjeta-etapa {
-  border: 1px solid var(--filete);
-  border-radius: 4px;
-  padding: 16px;
-  background: var(--folio);
-}
-.tarjeta-etapa h4 {
-  margin-top: 0;
-}
-.actualizacion-revision {
-  border-left: 4px solid var(--filete);
-  padding-left: 12px;
-  margin-bottom: 16px;
-}
-.lista-archivos {
-  padding-left: 20px;
-}
-.lista-fiscales {
-  padding-left: 20px;
-  margin: 8px 0;
-}
-
-/* Visor */
-.fojas-selector {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-}
-
-/* ═══ GEMINI R4 — fin ═══ */
-
-/* ═══ GEMINI R4 — fin ═══ */
-
+/* Clases que pintan las vistas y no tenían regla. */
+.lista-relaciones{list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px}
+.panel{background:var(--papel-2); border:1px solid var(--filete-2); border-radius:var(--radio-folio); padding:14px 16px}
+.sep-abajo{margin-bottom:18px}
 /* ═══ GEMINI R4 — fin ═══ */
 
 /* ── Comparación de precio ────────────────────────────────────────────────
@@ -4078,3 +3530,6 @@ a.item-literal:hover{text-decoration:underline}
   outline:2px solid var(--sello); outline-offset:1px; border-color:var(--sello)}
 :where(main, dialog) :where(input, textarea)::placeholder{color:var(--tinta-3)}
 :where(main, dialog) :where(label){color:var(--tinta-2); font-size:var(--t-13)}
+/* La paginación al pie de una lista va centrada con aire arriba; la que vive en la
+   cabecera de una tabla, al lado de la cuenta, no. */
+.buscador-tabla .paginacion, .tabla-cabecera .paginacion{margin-top:0; justify-content:flex-end}
