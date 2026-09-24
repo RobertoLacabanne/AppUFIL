@@ -3655,3 +3655,4 @@ a.item-literal:hover{text-decoration:underline}
 .acc .tecla.boton{justify-content:flex-start}
 .acc .tecla.boton .cuerpo{text-align:left}
 .taller-cuerpo .fila{grid-template-columns:minmax(0,1fr) minmax(240px,36%)}
+.tarea-que b::first-letter{text-transform:uppercase}
