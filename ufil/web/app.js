@@ -1111,7 +1111,7 @@ async function vLegajos() {
         <label>Fiscal responsable <span class="opt">(opcional)</span>
           <input name="fiscal" autocomplete="off"></label>
         <label class="ancho">Carátula
-          <input name="caratula" required placeholder="Contratos Legislatura"
+          <input name="caratula" required placeholder="Carátula del expediente"
                  autocomplete="off"></label>
         <button class="boton lleno" type="submit">Crear el legajo</button>
       </form>
