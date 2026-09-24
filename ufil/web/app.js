@@ -4152,7 +4152,7 @@ async function vIngesta() {
 
     <div class="campos-lote">
       <label>Lote <input type="text" id="i-lote" value="${esc(lote)}"
-        placeholder="contratos-camara-A-2024"></label>
+        placeholder="entrega-2024-05"></label>
       <label>Referencia <input type="text" id="i-legajo"
         placeholder="opcional — expediente, actuación"
         title="Sólo queda anotado en la procedencia del archivo. No cambia de legajo."></label>
@@ -4770,9 +4770,22 @@ function vComoFunciona() {
   vista.innerHTML =
     bloque('f. 0100', 'Qué es', `
       <h2>Cómo funciona</h2>
-      <p class="prosa">Este sistema lee contratos escaneados y arma con ellos una tabla que
-        se puede cruzar. Sirve para <strong>entender rápido un volumen de papel que hoy no se
+      <p class="prosa">Este sistema lee la documentación escaneada de un legajo —pliegos,
+        ofertas, órdenes de compra, facturas, remitos, pagos, resoluciones—, reconstruye
+        cada contratación, lee sus renglones y precios, los compara entre sí y marca las
+        diferencias. Sirve para <strong>entender rápido un volumen de papel que hoy no se
         puede abarcar</strong> y para decidir dónde mirar.</p>
+      <ol class="prosa">
+        <li><strong>Contrataciones:</strong> los documentos que comparten expediente o
+          identificadores se agrupan en un procedimiento, etapa por etapa.</li>
+        <li><strong>Ítems y precios:</strong> cada renglón leído, con lo que dice el papel
+          y lo que entendió el sistema, y su foja.</li>
+        <li><strong>Comparación:</strong> cada precio al lado de los del mismo ítem, con
+          cuán comparables son; una comparación dudosa nunca se muestra como firme.</li>
+        <li><strong>Hallazgos:</strong> diferencias detectadas, cada una con su cuenta y su
+          fuente, para que una persona las revise. <strong>El sistema no concluye</strong>:
+          no dice que hubo sobreprecio ni nada parecido; eso lo escribe Fiscalía.</li>
+      </ol>
       <div class="aviso"><span class="sello alerta">Importante</span>
         <span>No es un sistema de gestión del legajo y no produce piezas procesales.
         <strong>Lo que se incorpora formalmente al legajo se hace después, a mano, sobre la
@@ -4839,8 +4852,9 @@ function vComoFunciona() {
         <li>Cuando dos lecturas del mismo campo no coinciden, el sistema <strong>no
           elige</strong>: muestra las dos y espera.</li>
         <li>Cuando la lectura es dudosa, el dato se muestra rayado y va a la cola.</li>
-        <li>Dos contratos con el mismo CUIL son la misma persona, y eso se resuelve solo. El
-          nombre parecido, <strong>nunca</strong>: se propone y lo confirma alguien.</li>
+        <li>Dos documentos con el mismo CUIT o CUIL son la misma empresa o persona, y eso se
+          resuelve solo. El nombre parecido, <strong>nunca</strong>: se propone y lo
+          confirma alguien.</li>
         <li>Cada decisión humana queda registrada con quién y cuándo, y no se pierde si
           después se vuelve a procesar el lote.</li>
       </ul>
