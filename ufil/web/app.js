@@ -1728,13 +1728,12 @@ async function vContratos() {
     'Cargá un lote de escaneos y procesalo. Los contratos aparecen acá apenas termina.');
   vista.innerHTML = bloque('f. 0004', 'Datos', `
     <h2>Contratos</h2>
-    <p class="prosa">La tabla consolidada. Un campo entra sólo si tiene valor y no tiene
-      conflicto abierto: lo que no se pudo leer aparece vacío, nunca completado.</p>
+    <p class="prosa">La tabla consolidada. Un campo entra sólo si tiene valor y no tiene conflicto abierto: lo que no se pudo leer aparece vacío, nunca completado.</p>
     <div id="tabla-contratos"></div>`);
   tablaBuscable($('#tabla-contratos'), [
       {t:'Doc', k:'documento_id', c:'fol'},
       {t:'Archivo', k:'archivo', c:'fol'},
-      {t:'Cámara', b:f => camaraTexto(f.camara), r:f => esc(camaraTexto(f.camara))},
+      {t:'Cámara', b:f => camaraTexto(f.camara), r:f => f.camara ? esc(camaraTexto(f.camara)) : '<span class="nulo" title="sin cámara">—</span>'},
       {t:'Contratado/a', c:'nombre', b:f => f.nombre_literal,
        r:f => f.nombre_literal ? esc(f.nombre_literal) : '<span class="nulo" title="sin dato">—</span>'},
       {t:'Documento', c:'mono', b:f => f.documento_literal,
@@ -1750,6 +1749,7 @@ async function vContratos() {
                placeholder: 'Buscar por nombre, documento, archivo…'});
 }
 
+
 /* ── Comprobantes ──────────────────────────────────────────────────────────
    El otro carril. Separado de los contratos porque dice otra cosa: el contrato es lo
    que se pactó pagar, el comprobante es lo que se cobró. */
@@ -1757,22 +1757,15 @@ async function vComprobantes() {
   const filas = await api('/api/comprobantes');
   if (!filas.length) return vistaVacia('f. 0004', 'Datos', 'Facturas y recibos',
     'Todavía no hay comprobantes leídos',
-    'Acá van las facturas, recibos y remitos que vengan en los escaneos. Se separan de ' +
-    'los contratos porque dicen otra cosa: lo que se cobró, no lo que se pactó.');
+    'Acá van las facturas, recibos y remitos que vengan en los escaneos. Se separan de los contratos porque dicen otra cosa: lo que se cobró, no lo que se pactó.');
 
   const aMano = filas.filter(f => f.monto_centavos == null).length;
   vista.innerHTML = bloque('f. 0004', 'Datos', `
     <h2>Facturas y recibos</h2>
-    <p class="prosa">Lo que se cobró. <strong>No se suma con los contratos</strong>: son
-      la misma plata vista de los dos lados, y cuando la factura es el cobro de ese
-      contrato, sumarlas la cuenta dos veces. El cruce está en
-      <a href="#/cruce">Lo facturado contra lo contratado</a>.</p>
-    ${aMano ? `<div class="aviso">
+    <p class="prosa">Lo que se cobró. <strong>No se suma con los contratos</strong>: son la misma plata vista de los dos lados, y cuando la factura es el cobro de ese contrato, sumarlas la cuenta dos veces. El cruce está en <a href="#/cruce">Lo facturado contra lo contratado</a>.</p>
+    ${aMano ? `<div class="aviso info">
       <span class="sello atencion">A mano</span>
-      <span>${plural(aMano, 'comprobante tiene', 'comprobantes tienen')} el importe
-        escrito a mano. <strong>No se lee con OCR</strong> —leerlo mal y no saberlo es
-        peor que no leerlo— así que aparece vacío y espera que una persona lo cargue
-        mirando la foja. Están en <a href="#/cola">la cola de revisión</a>.</span>
+      <span>${plural(aMano, 'comprobante tiene', 'comprobantes tienen')} el importe escrito a mano. <strong>No se lee con OCR</strong> —leerlo mal y no saberlo es peor que no leerlo— así que aparece vacío y espera que una persona lo cargue mirando la foja. Están en <a href="#/cola">la cola de revisión</a>.</span>
     </div>` : ''}
     <div id="tabla-comprobantes"></div>`);
   tablaBuscable($('#tabla-comprobantes'), [
@@ -1793,6 +1786,7 @@ async function vComprobantes() {
     ], filas, {alClic: f => location.hash = '#/documento/' + f.documento_id,
                placeholder: 'Buscar por emisor, CUIT, número de comprobante…'});
 }
+
 
 /* ── Lo facturado contra lo contratado ─────────────────────────────────────
    El cruce que el caso necesita: cuánto se comprometió a pagar y cuánto se facturó
@@ -2074,26 +2068,22 @@ async function vDocumento(id) {
       }</div></dd></div>`;
     }
     const ancla = c.x0 != null
-      ? `<button class="ancla" data-campo="${c.id}">f.${c.pagina_nro} · ▣</button>` : '';
+      ? `<button class="ancla boton-ancla" data-campo="${c.id}">f.${c.pagina_nro} &middot; ▣</button>` : '';
     const tocado = c.estado === 'verificado' || c.estado === 'corregido';
     const marca = tocado
       ? ` <span class="sello ok mini-cuno">✓ ${
            c.estado === 'corregido' ? 'cargado a mano' : 'verificado'}</span>` +
-        ` <button class="deshacer" data-campo="${c.id}"
-            title="volver a lo que había leído el sistema">deshacer</button>` : '';
-    // Cada campo puede contar su historia. Va atrás de un botón y no siempre abierto:
-    // lo normal es que un campo tenga una línea, y catorce fichas desplegadas serían
-    // ruido; pero cuando alguien pregunta «¿quién puso esto?», la respuesta está a un
-    // clic y no depende de que nadie se acuerde.
-    const historial = `<button class="historial" data-campo="${c.id}"
-        title="quién decidió esto, y cuándo">rastro</button>`;
+        ` <button class="deshacer boton secundario" data-campo="${c.id}"
+            title="volver a lo que había leído el sistema">Deshacer</button>` : '';
+    const historial = `<button class="historial boton secundario" data-campo="${c.id}"
+        title="quién decidió esto, y cuándo">Rastro</button>`;
     return `<div class="campo"><dt>${esc(rotularCampo(c.nombre, doc.familia))}</dt>
       <dd>${celdaValor(c)}${ancla}${marca}${historial}
         <div class="rastro" id="rastro-${c.id}" hidden></div></dd></div>`;
   }).join('');
 
   const tiras = paginas.map(p =>
-    `<button class="foja" data-nro="${p.nro}"${p.rotacion ? ' data-girada="1"' : ''}
+    `<button class="foja boton secundario" data-nro="${p.nro}"${p.rotacion ? ' data-girada="1"' : ''}
        title="${p.rotacion ? `esta foja llegó girada ${p.rotacion}° y se enderezó para leerla`
                            : `foja ${p.nro}`}">f. ${p.nro}${p.rotacion ? ' ↻' : ''}</button>`).join('');
   const enderezadas = paginas.filter(p => p.rotacion);
@@ -2103,23 +2093,18 @@ async function vDocumento(id) {
         ? ` <span class="rotulo">documento ${doc.orden} de ${d.hermanos.length}</span>` : ''}</h2>
     <p class="tipo-doc"><span class="sello">${esc(TIPO_DOC[doc.tipo] || doc.tipo)}</span></p>
     <p class="prosa nota">
-      ${doc.camara ? 'Cámara de ' + esc(camaraTexto(doc.camara)) + ' · ' : ''}perfil <span class="mono">${esc(doc.perfil)}</span> ·
-      lote ${esc(doc.lote || '—')} ·
+      ${doc.camara ? 'Cámara de ' + esc(camaraTexto(doc.camara)) + ' &middot; ' : ''}perfil <span class="mono">${esc(doc.perfil)}</span> &middot;
+      lote ${esc(doc.lote || '—')} &middot;
       fojas <span class="mono">${doc.pagina_desde}–${doc.pagina_hasta}</span><br>
       <span class="mono menor">huella digital ${esc(String(doc.sha256).slice(0, 32))}…</span></p>
     ${enderezadas.length ? `<div class="aviso info"><span class="sello">Enderezado</span>
       <span>${enderezadas.length === 1 ? 'La foja' : 'Las fojas'}
-      ${enderezadas.map(p => `${p.nro} (${p.rotacion}°)`).join(', ')} llegó girada en el
-      escaneo. <strong>El original no se tocó</strong>: se giró la copia de trabajo para
-      poder leerla, y es esa la que ves acá.</span></div>` : ''}
-    ${varios ? `<div class="aviso"><span class="sello alerta">Ojo</span>
-      <span>Este PDF trae <strong>${plural(d.hermanos.length, 'documento', 'documentos')}</strong>
-      adentro. Estás viendo el número ${doc.orden}, que ocupa las fojas
-      ${doc.pagina_desde} a ${doc.pagina_hasta}. Los otros:
+      ${enderezadas.map(p => `${p.nro} (${p.rotacion}°)`).join(', ')} llegó girada en el escaneo. <strong>El original no se tocó</strong>: se giró la copia de trabajo para poder leerla, y es esa la que ves acá.</span></div>` : ''}
+    ${varios ? `<div class="aviso atencion"><span class="sello alerta">Ojo</span>
+      <span>Este PDF trae <strong>${plural(d.hermanos.length, 'documento', 'documentos')}</strong> adentro. Estás viendo el número ${doc.orden}, que ocupa las fojas ${doc.pagina_desde} a ${doc.pagina_hasta}. Los otros:
       ${d.hermanos.filter(h => h.id !== doc.id).map(h =>
-        `<a href="#/documento/${h.id}">#${h.orden} ${esc(TIPO_DOC[h.tipo] || h.tipo || '')}
-          (f. ${h.pagina_desde}–${h.pagina_hasta})</a>`
-      ).join(' · ')}</span></div>` : ''}
+        `<a href="#/documento/${h.id}">#${h.orden} ${esc(TIPO_DOC[h.tipo] || h.tipo || '')} (f. ${h.pagina_desde}–${h.pagina_hasta})</a>`
+      ).join(' &middot; ')}</span></div>` : ''}
     <section id="relaciones-documento" aria-live="polite">Cargando relaciones...</section>
     <section id="continuidad-pieza" class="nucleo-continuidad" aria-live="polite">Cargando tramos...</section>
     <div class="visor">
@@ -2130,26 +2115,20 @@ async function vDocumento(id) {
         ${campos}
       </div>
       <div class="lamina">
-        ${paginas.length > 1 ? `<div class="fojas">${tiras}</div>` : ''}
-        <div class="lienzo" id="lienzo">
+        ${paginas.length > 1 ? `<div class="fojas-selector">${tiras}</div>` : ''}
+        <div class="lienzo" id="lienzo" title="Tocá para ver la foja entera">
           <img id="folio" alt="Foja de ${esc(doc.archivo)}">
           <div class="recuadro" id="recuadro" hidden></div>
         </div>
         <div class="pie-lamina"><span id="pie-campo">tocá una ficha de anclaje</span>
           <span id="pie-xy"></span></div>
-        <!-- La foja de al lado entra entera y por eso no se lee: a ese tamaño no se
-             distingue un importe. Es un mapa, no el documento. Para leerlo está el
-             visor, que la abre al tamaño del escaneo. -->
-        <button class="boton gris" id="abrir-foja-doc" type="button">Ver la foja
-          entera, para leerla</button>
+        <button class="boton gris" id="abrir-foja-doc" type="button">Ver la foja entera, para leerla</button>
       </div>
     </div>
     ${d.interpretaciones.length ? `
       <div class="sep">
         <span class="rotulo">Carril de interpretación — conjeturas del sistema</span>
-        <p class="prosa nota">Esto no se leyó de ningún
-          papel: son hipótesis armadas cruzando datos. Pueden estar mal. Cada una linkea a
-          los documentos que la sostienen.</p>
+        <p class="prosa nota">Esto no se leyó de ningún papel: son hipótesis armadas cruzando datos. Pueden estar mal. Cada una linkea a los documentos que la sostienen.</p>
         ${d.interpretaciones.map(interpHTML).join('')}
       </div>` : ''}`);
 
@@ -2168,16 +2147,11 @@ async function vDocumento(id) {
   const recuadro = $('#recuadro');
   const folio = $('#folio');
 
-  /* Abrir en la foja donde están los datos, no en la primera. En un expediente la
-     primera suele ser la carátula, y arrancar ahí obliga a un clic de más siempre. */
   const cuenta = {};
   anclables.forEach(c => { if (c.pagina_nro) cuenta[c.pagina_nro] = (cuenta[c.pagina_nro] || 0) + 1; });
   const conDatos = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a])[0];
   let actual = conDatos ? +conDatos : paginas[0].nro;
 
-  /* Cambiar de foja: la imagen Y las dimensiones de referencia. Usar las de la primera
-     página para todas hacía que el recuadro cayera corrido cuando el escaneo tenía
-     hojas de tamaño distinto. */
   function verFoja(nro) {
     actual = nro;
     folio.src = `/pagina?doc=${id}&nro=${nro}`;
@@ -2196,10 +2170,6 @@ async function vDocumento(id) {
   vista.querySelectorAll('.historial').forEach(b =>
     b.onclick = () => verRastro(+b.dataset.campo));
 
-  /* La misma foja, a pantalla completa. Se abre desde el botón y tocando la lámina:
-     quien quiere leerla va a tocarla antes de buscar un botón. `ultimoAnclado` es el
-     campo que se marcó por última vez, para que el visor abra con ese recuadro
-     dibujado y no vacío. */
   let ultimoAnclado = null;
   const abrirLaFoja = () => {
     const pag = paginas.find(p => p.nro === actual) || paginas[0];
@@ -2213,7 +2183,6 @@ async function vDocumento(id) {
   };
   $('#abrir-foja-doc').onclick = abrirLaFoja;
   $('#lienzo').onclick = abrirLaFoja;
-  $('#lienzo').title = 'Tocá para ver la foja entera';
 
   vista.querySelectorAll('.ancla').forEach(b => b.onclick = () => {
     const c = anclables.find(x => x.id === +b.dataset.campo);
@@ -2227,12 +2196,11 @@ async function vDocumento(id) {
     recuadro.style.top    = (100 * c.y0 / pag.alto_pt) + '%';
     recuadro.style.width  = (100 * (c.x1 - c.x0) / pag.ancho_pt) + '%';
     recuadro.style.height = (100 * (c.y1 - c.y0) / pag.alto_pt) + '%';
-    recuadro.className = 'recuadro' + (c.nulo_motivo ? ' conf' : '');
-    $('#pie-campo').textContent = 'campo: ' + c.nombre + (c.ruta ? ' · ruta ' + c.ruta : '');
-    $('#pie-xy').textContent = `f.${nro} · [${[c.x0,c.y0,c.x1,c.y1].map(v=>Math.round(v)).join(',')}]`;
-    vista.querySelectorAll('.ancla').forEach(o => o.setAttribute('aria-pressed', o === b));
+    $('#pie-campo').textContent = rotularCampo(c.nombre, doc.familia);
+    $('#pie-xy').textContent = `[x:${c.x0.toFixed(1)} y:${c.y0.toFixed(1)}]`;
   });
 }
+
 
 /* ── cola de revisión: el folio al lado, sin salir de la pantalla ──────── */
 /* Antes cada campo costaba dos navegaciones (ir al folio y volver) y se perdía el
@@ -3361,28 +3329,44 @@ addEventListener('resize', () => {
 });
 
 async function vIdentidad() {
-  const fus = await api('/api/fusiones');
+  const hash = location.hash, fus = await api('/api/fusiones');
+  if (hash !== location.hash) return;
+  const ausente = (motivo) => `<span class="nulo" title="${esc(motivo)}">—</span>`;
+
   vista.innerHTML = bloque('f. 0007', 'Identidad', `
-    <h2>¿Son la misma persona?</h2>
-    <p class="prosa">CUIT, CUIL y DNI son clave fuerte: dos contratos con el mismo documento
-      ya están unidos, solos. <strong>El nombre nunca alcanza.</strong> Lo de acá abajo son
-      propuestas; ninguna se aplica sin que alguien la confirme, porque una fusión errónea
-      inventa un contratado con el doble de contratos.</p>
-    <div class="cola">${fus.length ? fus.map((f, i) => `
-      <div class="fila" data-i="${i}">
-        <div class="marginalia"><span>#${f.id}</span><span>${(f.score * 100).toFixed(0)}%</span></div>
-        <div class="med">
-          <div class="rotulo sep-abajo-corta">${esc(f.motivo)}</div>
-          <div class="mono pila-menor">
-            <span>${esc(f.lit_a)} <span class="apagado">— ${esc(f.doc_a || 'sin documento')}</span></span>
-            <span>${esc(f.lit_b)} <span class="apagado">— ${esc(f.doc_b || 'sin documento')}</span></span>
+    <div class="cabecera-seccion">
+      <h2>¿Son la misma persona?</h2>
+      <p class="prosa">CUIT, CUIL y DNI son clave fuerte: dos contratos con el mismo documento
+        ya están unidos. <strong>El nombre nunca alcanza.</strong> Estas propuestas requieren
+        confirmación humana, ya que una fusión errónea inventa una persona con el doble de contratos.</p>
+    </div>
+    
+    <div class="cola-tarjetas">
+      ${fus.length ? fus.map((f, i) => `
+      <div class="tarjeta-fusion" data-i="${i}">
+        <div class="fusion-cabecera">
+          <span class="rotulo">${esc(f.motivo)}</span>
+          <span class="confianza" title="Nivel de coincidencia algorítmica">${(f.score * 100).toFixed(0)}% coincidencia</span>
+        </div>
+        <div class="fusion-cuerpo mono">
+          <div class="fusion-entidad">
+            <strong>${esc(f.lit_a)}</strong>
+            <span class="apagado">${f.doc_a ? esc(f.doc_a) : ausente('Sin documento')}</span>
+          </div>
+          <div class="fusion-vs">vs</div>
+          <div class="fusion-entidad">
+            <strong>${esc(f.lit_b)}</strong>
+            <span class="apagado">${f.doc_b ? esc(f.doc_b) : ausente('Sin documento')}</span>
           </div>
         </div>
-        <div class="acc">
-          <button class="tecla" data-fus="${f.id}" data-ok="1"><kbd>F</kbd> son la misma persona</button>
-          <button class="tecla" data-fus="${f.id}" data-ok="0"><kbd>S</kbd> son distintas</button>
+        <div class="fusion-acciones">
+          <button class="boton primario" data-fus="${f.id}" data-ok="1">Son la misma persona</button>
+          <button class="boton gris" data-fus="${f.id}" data-ok="0">Son distintas</button>
         </div>
-      </div>`).join('') : '<div class="vacio">No hay fusiones pendientes.</div>'}</div>`);
+      </div>`).join('') : '<div class="vacio">No hay fusiones pendientes para revisar.</div>'}
+    </div>
+  `);
+
   vista.querySelectorAll('[data-fus]').forEach(b => b.onclick = async () => {
     const quien = await conRevisor(); if (!quien) return;
     try {
@@ -3392,6 +3376,7 @@ async function vIdentidad() {
     } catch (e) { toast('No se pudo guardar: ' + e.message); }
   });
 }
+
 
 async function vInterpretacion() {
   const items = await api('/api/interpretaciones');
@@ -3454,22 +3439,55 @@ async function vBuscar(q) {
   }
   
   const dibujarFila = f => {
-      let t = `<div class="resultado-buscar"><a class="ancla" href="#/${esc(f.clase)}/${f.id}">${esc(f.titulo)}</a>`;
-      if (f.kwic) t += `<div class="kwic">${f.kwic}</div>`; // kwic must already be highlighted from backend, might not need esc
+      let url = f.clase === 'documento' ? `#/${esc(f.clase)}/${f.id}` : `#/documento/${f.documento_id || f.id}`;
+      let t = `<div class="resultado-buscar">`;
+      t += `<h3><a class="ancla" href="${url}">${esc(f.titulo)}</a></h3>`;
+      if (f.kwic) t += `<p class="kwic">${f.kwic}</p>`;
+      if (f.archivo) t += `<p class="mono apagado">${esc(f.archivo)} · f. ${f.nro || '?'}</p>`;
       t += `</div>`;
       return t;
   };
 
-  vista.innerHTML = bloque('f. 0010', 'Buscar', `<h2>Buscar en el corpus</h2>
-    <form id="f-buscar" class="fila-suelta"><label>Buscar <input id="q" value="${esc(q)}" autocomplete="off" autofocus></label><button class="boton">Ir</button></form>
-    ${r ? (r.filas.length ? `<div class="resultados">${r.filas.map(dibujarFila).join('')}</div>` : vacio('Sin resultados', 'No se encontró nada que coincida.')) : ''}`);
+  const estadoVacio = `
+    <div class="vacio-ilustrado">
+        <h3>Búsqueda global</h3>
+        <p>Busca en el texto reconocido de todos los documentos y en los datos extraídos (nombres, CUITs, montos).</p>
+        <p>Si no encontrás lo que buscás:</p>
+        <ul>
+            <li>Probá con una sola palabra clave en lugar de frases largas.</li>
+            <li>Revisá que no haya errores de tipeo.</li>
+            <li>El documento podría estar cargado pero aún sin extraer (buscalo por archivo).</li>
+        </ul>
+    </div>
+  `;
+
+  const sinResultados = `
+    <div class="vacio">
+        <h3>Sin coincidencias para «${esc(q)}»</h3>
+        <p>No se encontró ninguna mención exacta en los textos ni en los datos extraídos.</p>
+        <p>Consejos: buscá el apellido solo o el CUIT sin guiones.</p>
+    </div>
+  `;
+
+  vista.innerHTML = bloque('f. 0010', 'Buscar', `
+    <div class="cabecera-seccion">
+      <h2>Buscar en el corpus</h2>
+    </div>
+    <form id="f-buscar" class="fila-suelta sep-abajo">
+      <label class="oculto" for="q">Término de búsqueda</label>
+      <input id="q" class="input-grande" placeholder="Nombre, CUIT, expediente o palabra clave..." value="${esc(q)}" autocomplete="off" autofocus>
+      <button class="boton primario">Buscar</button>
+    </form>
+    ${!q ? estadoVacio : (r && r.filas && r.filas.length ? `<div class="resultados-lista">${r.filas.map(dibujarFila).join('')}</div>` : sinResultados)}
+  `);
   
   document.getElementById('f-buscar').onsubmit = e => {
       e.preventDefault();
-      const nq = document.getElementById('q').value;
+      const nq = document.getElementById('q').value.trim();
       if (nq) location.hash = '#/buscar/' + encodeURIComponent(nq);
   };
 }
+
 function resultadosHTML(r) {
   if (r.aviso) return `<div class="aviso"><span class="sello alerta">Atención</span>
     <span>${esc(r.aviso)}</span></div>`;
@@ -3510,41 +3528,111 @@ function resultadosHTML(r) {
 }
 
 /* ── Personas ──────────────────────────────────────────────────────────── */
-async function vPersonas() {
-  const filas = await api('/api/documentos');
-  if (!filas.length) return vistaVacia('f. 0011', 'Personas', 'Contratados',
-    'Todavía no hay contratados',
-    'Las personas se arman al procesar un lote: los contratos con el mismo CUIL se agrupan ' +
-    'solos, y el resto queda separado hasta que alguien confirme.');
-  vista.innerHTML = bloque('f. 0011', 'Personas', `
-    <h2>Contratados</h2>
-    <p class="prosa">Agrupados por documento cuando lo hay. <strong>Los que no tienen
-      documento legible aparecen sueltos</strong>, uno por contrato: sin clave fuerte el
-      sistema no los junta solo, y eso es a propósito.</p>
-    <div id="tabla-personas"></div>`);
-  tablaBuscable($('#tabla-personas'), [
-      {t:'Contratado/a', c:'nombre', k:'contratado'},
-      {t:'Documento', c:'mono', b:f => f.documento,
-       r:f => f.documento ? esc(f.documento) : '<span class="nulo" title="sin dato">—</span>'},
-      {t:'Contratos', k:'contratos', c:'num'},
-      {t:'Sin monto', c:'num', b:f => f.contratos_sin_monto,
-       r:f => f.contratos_sin_monto
-         ? `<span class="pendiente">${f.contratos_sin_monto}</span>` : '0'},
-      {t:'Acumulado', c:'num', b:f => f.acumulado_centavos,
-       r:f => esc(fmtPesos(f.acumulado_centavos))},
-      // Vienen como «A,B» de un GROUP_CONCAT. Se traducen y se separan legible.
-      {t:'Cámaras',
-       b:f => (f.camaras || '').split(',').filter(Boolean).map(camaraTexto).join(' + '),
-       r:f => esc((f.camaras || '').split(',').filter(Boolean)
-          .map(camaraTexto).join(' + ')) || '—'},
-      {t:'Desde', c:'mono', b:f => f.primer_inicio,
-       r:f => f.primer_inicio ? esc(fmtFecha(f.primer_inicio)) : '—'},
-      {t:'Hasta', c:'mono', b:f => f.ultimo_fin,
-       r:f => f.ultimo_fin ? esc(fmtFecha(f.ultimo_fin)) : '—'},
-      {t:'Conf.', c:'num', b:f => f.confianza_min, r:f => barraConf(f.confianza_min)},
-    ], filas, {alClic: f => location.hash = '#/persona/' + f.persona_id,
-               placeholder: 'Buscar por nombre o documento…'});
+async function fetchPersonas() {
+  return await api('/api/documentos');
 }
+
+async function vPersonas() {
+  if (location.hash !== '#/personas') return;
+  const filas = await fetchPersonas();
+  
+  if (!filas.length) {
+    return vistaVacia('f. 0011', 'Personas', 'Contratados', 'Todavía no hay contratados', 'Las personas se arman al procesar un lote: los contratos con el mismo CUIL se agrupan solos.');
+  }
+  
+  vista.innerHTML = bloque('f. 0011', 'Personas', `
+    <div class="encabezado-vista">
+      <h2>Contratados</h2>
+      <p class="prosa">Agrupados por documento cuando lo hay. <strong>Los que no tienen documento legible aparecen sueltos</strong>.</p>
+    </div>
+    <div class="controles-tabla">
+      <div class="filtros-fila">
+        <input type="search" id="buscar-persona" placeholder="Buscar por nombre o documento..." autocomplete="off">
+      </div>
+    </div>
+    <div id="tabla-personas-paginada"></div>
+  `);
+
+  const inputBuscar = $('#buscar-persona');
+  let q = '';
+  let paginaActual = 0;
+  const POR_PAGINA = 50;
+
+  function renderTabla() {
+    const contenedor = $('#tabla-personas-paginada');
+    if (!contenedor) return;
+
+    let filtradas = filas;
+    if (q) {
+      const termino = sinTildes(q);
+      filtradas = filtradas.filter(f => 
+        sinTildes(f.contratado || '').includes(termino) || 
+        sinTildes(f.documento || '').includes(termino)
+      );
+    }
+
+    const total = filtradas.length;
+    const paginas = Math.ceil(total / POR_PAGINA);
+    if (paginaActual >= paginas && paginas > 0) paginaActual = paginas - 1;
+
+    const inicio = paginaActual * POR_PAGINA;
+    const fin = Math.min(inicio + POR_PAGINA, total);
+    const mostrar = filtradas.slice(inicio, fin);
+
+    if (total === 0) {
+      contenedor.innerHTML = vacio('Sin resultados', 'No se encontraron contratados.', null);
+      return;
+    }
+
+    const htmlTabla = tabla([
+      {t: 'Contratado/a', r: f => esc(f.contratado || '—'), c: 'nombre'},
+      {t: 'Documento', r: f => f.documento ? esc(f.documento) : ausente('Sin documento'), c: 'mono'},
+      {t: 'Contratos', r: f => esc(f.contratos || 0), c: 'num'},
+      {t: 'Sin monto', r: f => f.contratos_sin_monto ? `<span class="pendiente">${f.contratos_sin_monto}</span>` : '0', c: 'num'},
+      {t: 'Acumulado', r: f => f.acumulado_centavos != null ? esc(fmtPesos(f.acumulado_centavos)) : ausente('Sin datos'), c: 'num'},
+      {t: 'Cámaras', r: f => f.camaras ? esc(f.camaras.split(',').filter(Boolean).map(camaraTexto).join(' + ')) : ausente('Sin cámara')},
+      {t: 'Desde', r: f => f.primer_inicio ? esc(fmtFecha(f.primer_inicio)) : ausente('Sin inicio'), c: 'mono'},
+      {t: 'Hasta', r: f => f.ultimo_fin ? esc(fmtFecha(f.ultimo_fin)) : ausente('Sin fin'), c: 'mono'},
+      {t: 'Conf.', r: f => barraConf(f.confianza_min), c: 'num'}
+    ], mostrar, { alClic: true, lista: 'personas-lista' });
+
+    const controlesPie = `
+      <div class="paginacion">
+        <span class="pag-info">${inicio + 1}–${fin} de ${total}</span>
+        <div class="pag-botones">
+          <button type="button" class="boton gris" id="btn-pag-ant" ${paginaActual === 0 ? 'disabled' : ''}>Anterior</button>
+          <button type="button" class="boton gris" id="btn-pag-sig" ${paginaActual >= paginas - 1 ? 'disabled' : ''}>Siguiente</button>
+        </div>
+      </div>
+    `;
+
+    contenedor.innerHTML = htmlTabla + controlesPie;
+
+    contenedor.querySelectorAll('table[data-lista="personas-lista"] tbody tr').forEach(tr => {
+      tr.onclick = () => {
+        const e = mostrar[+tr.dataset.i];
+        location.hash = '#/persona/' + e.persona_id;
+      };
+    });
+
+    const btnAnt = $('#btn-pag-ant');
+    if (btnAnt) btnAnt.onclick = () => { if (paginaActual > 0) { paginaActual--; renderTabla(); } };
+    
+    const btnSig = $('#btn-pag-sig');
+    if (btnSig) btnSig.onclick = () => { if (paginaActual < paginas - 1) { paginaActual++; renderTabla(); } };
+  }
+
+  if (inputBuscar) {
+    inputBuscar.oninput = () => {
+      q = inputBuscar.value.trim();
+      paginaActual = 0;
+      renderTabla();
+    };
+  }
+
+  renderTabla();
+}
+
 
 /* Cronología de tramos: un renglón por contrato sobre un eje temporal común.
    Un solo tono para los contratos; el rojo de estado marca SÓLO la superposición,
@@ -3607,45 +3695,52 @@ function cronologia(contratos, solapes) {
 
 async function vPersona(id) {
   const d = await api('/api/persona?id=' + id);
+  const hash = location.hash;
+  if (hash !== location.hash) return;
   const t = d.totales;
-  const nombre = d.alias[0] ? d.alias[0].nombre_literal : '(sin nombre legible)';
+  const nombre = d.alias[0] ? d.alias[0].nombre_literal : '—';
   const otros = d.alias.slice(1);
+  const ausente = (motivo) => `<span class="nulo" title="${esc(motivo)}">—</span>`;
 
-  vista.innerHTML = bloque('f. ' + String(id).padStart(4,'0'), 'Ficha', `
-    <h2>${esc(nombre)}</h2>
+  vista.innerHTML = bloque('f. ' + String(id).padStart(4,'0'), 'Persona', `
+    <div class="cabecera-ficha">
+      <h2>${esc(nombre) !== '—' ? esc(nombre) : ausente('Sin nombre legible')}</h2>
+      <div class="identificadores">
+        <span class="mono">${d.persona.clave_fuerte ? `${esc(d.persona.doc_tipo)} ${esc(d.persona.doc_numero)}` : ausente('Sin documento legible')}</span>
+      </div>
+    </div>
+    
     <p class="prosa nota">
       ${d.persona.clave_fuerte
-        ? `Documento <span class="mono">${esc(d.persona.doc_tipo)} ${esc(d.persona.doc_numero)}</span> ·
-           los contratos se agruparon por clave fuerte.`
-        : `<strong>Sin documento legible.</strong> Este contratado no se agrupó con ningún otro:
-           el nombre solo nunca alcanza para decir que dos contratos son de la misma persona.`}
-      ${otros.length ? `<br>También aparece escrito como ${otros.map(o =>
-        `<span class="mono">${esc(o.nombre_literal)}</span>`).join(', ')}.` : ''}</p>
+        ? `Los contratos se agruparon por esta clave fuerte.`
+        : `Este contratado no se agrupó con ningún otro porque el nombre solo nunca alcanza para garantizar identidad.`}
+      ${otros.length ? `<br>También aparece escrito como: ${otros.map(o =>
+        `<span class="mono">${esc(o.nombre_literal)}</span>`).join(', ')}.` : ''}
+    </p>
 
     <div class="cifras sep-corta">
       <div class="cifra"><b>${t.contratos}</b><span>contratos</span></div>
-      <div class="cifra"><b>${esc(fmtPesos(t.acumulado_centavos) || '—')}</b><span>mensual acumulado</span></div>
+      <div class="cifra"><b>${t.acumulado_centavos != null ? esc(fmtPesos(t.acumulado_centavos)) : ausente('No hay montos')}</b><span>mensual acumulado</span></div>
       <div class="cifra ${d.solapes.length ? 'alerta' : ''}"><b>${d.solapes.length}</b><span>superposiciones</span></div>
-      <div class="cifra"><b>${esc((t.camaras || []).map(camaraTexto).join(' + ') || '—')}</b><span>cámaras</span></div>
+      <div class="cifra"><b>${t.camaras && t.camaras.length ? esc(t.camaras.map(camaraTexto).join(' + ')) : ausente('Sin cámara')}</b><span>cámaras</span></div>
       <div class="cifra ${t.sin_monto ? 'alerta' : ''}"><b>${t.sin_monto}</b><span>sin monto legible</span></div>
     </div>
+    
     ${t.sin_monto || t.sin_fechas ? `<p class="prosa nota">
       El acumulado suma sólo los contratos con monto firme: hay ${t.sin_monto} sin monto y
       ${t.sin_fechas} sin fechas completas. <strong>Es un piso, no un total.</strong></p>` : ''}
+    
     ${t.comprobantes ? `
     <div class="cifras sep-corta">
       <div class="cifra facturado"><b>${t.comprobantes}</b><span>facturas y recibos</span></div>
-      <div class="cifra facturado"><b>${esc(fmtPesos(t.facturado_centavos) || '—')}</b><span>facturado legible</span></div>
+      <div class="cifra facturado"><b>${t.facturado_centavos != null ? esc(fmtPesos(t.facturado_centavos)) : ausente('Sin importe')}</b><span>facturado legible</span></div>
       ${t.comprobantes_sin_importe ? `<div class="cifra alerta">
-        <b>${t.comprobantes_sin_importe}</b><span>importes a mano, sin leer</span></div>` : ''}
+        <b>${t.comprobantes_sin_importe}</b><span>importes a mano</span></div>` : ''}
     </div>
     <p class="prosa nota">
       <strong>Lo facturado no se suma con lo contratado.</strong> El mensual acumulado es
-      lo que dicen los contratos por mes; lo facturado es lo que esta persona cobró. Son
-      la misma plata vista de los dos lados${t.comprobantes_sin_importe
-        ? `, y el facturado además está incompleto: ${plural(t.comprobantes_sin_importe,
-            'comprobante trae el importe a mano', 'comprobantes traen el importe a mano')}
-           y el sistema no lo lee` : ''}.</p>` : ''}
+      lo que dicen los contratos; lo facturado es lo que cobró. Son la misma plata vista de los dos lados${t.comprobantes_sin_importe
+        ? `, y el facturado está incompleto: ${plural(t.comprobantes_sin_importe, 'comprobante trae', 'comprobantes traen')} el importe a mano y no se lee` : ''}.</p>` : ''}
 
     <h3>Cronología</h3>
     ${cronologia(d.contratos, d.solapes)}
@@ -3655,53 +3750,49 @@ async function vPersona(id) {
       ${tabla([
         {t:'Folios', c:'fol', r:f => `${esc(f.archivo_a)}<br>${esc(f.archivo_b)}`},
         {t:'Cruce', r:f => f.cruce === 'intercámara' ? `<span class="marca">${esc(f.cruce)}</span>` : esc(f.cruce)},
-        {t:'Desde', c:'mono', r:f => esc(fmtFecha(f.desde))},
-        {t:'Hasta', c:'mono', r:f => esc(fmtFecha(f.hasta))},
+        {t:'Desde', c:'mono', r:f => f.desde ? esc(fmtFecha(f.desde)) : ausente('Falta inicio')},
+        {t:'Hasta', c:'mono', r:f => f.hasta ? esc(fmtFecha(f.hasta)) : ausente('Falta fin')},
         {t:'Días', k:'dias', c:'num'},
       ], d.solapes)}` : ''}
 
     <h3>Contratos</h3>
     ${tabla([
       {t:'Archivo', k:'archivo', c:'fol'},
-      {t:'Cámara', r:f => esc(camaraTexto(f.camara))},
-      {t:'Cargo', r:f => esc(f.cargo || '—')},
-      {t:'Inicio', c:'mono', r:f => f.inicio ? esc(fmtFecha(f.inicio)) : '<span class="nulo" title="sin dato">—</span>'},
-      {t:'Fin', c:'mono', r:f => f.fin ? esc(fmtFecha(f.fin)) : '<span class="nulo" title="sin dato">—</span>'},
-      {t:'Monto', c:'num', r:f => f.monto_centavos == null ? '<span class="nulo" title="sin dato">—</span>' : esc(fmtPesos(f.monto_centavos))},
+      {t:'Cámara', r:f => f.camara ? esc(camaraTexto(f.camara)) : ausente('Sin cámara')},
+      {t:'Cargo', r:f => f.cargo ? esc(f.cargo) : ausente('Sin cargo')},
+      {t:'Inicio', c:'mono', r:f => f.inicio ? esc(fmtFecha(f.inicio)) : ausente('Sin inicio')},
+      {t:'Fin', c:'mono', r:f => f.fin ? esc(fmtFecha(f.fin)) : ausente('Sin fin')},
+      {t:'Monto', c:'num', r:f => f.monto_centavos != null ? esc(fmtPesos(f.monto_centavos)) : ausente('Sin monto')},
       {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
     ], d.contratos, {alClic:true, lista:'contratos'})}
 
     ${(d.comprobantes || []).length ? `
       <h3>Facturas y recibos</h3>
-      <p class="prosa nota">Emitidos con el mismo documento. El CUIL de
-        la factura lleva adentro el DNI del contrato, así que se enganchan solos.</p>
+      <p class="prosa nota">Emitidos con el mismo documento. El CUIL de la factura lleva adentro el DNI del contrato.</p>
       ${tabla([
         {t:'Archivo', k:'archivo', c:'fol'},
-        {t:'Tipo', r:f => esc(TIPO_DOC[f.tipo] || f.tipo)},
-        {t:'Comprobante', c:'mono', r:f => f.comprobante ? esc(f.comprobante) : '<span class="nulo" title="sin dato">—</span>'},
-        {t:'Emitida', c:'mono', r:f => f.emitida ? esc(fmtFecha(f.emitida)) : '<span class="nulo" title="sin dato">—</span>'},
-        {t:'Importe', c:'num', r:f => f.monto_centavos == null
-            ? '<span class="nulo" title="a mano">—</span>' : esc(fmtPesos(f.monto_centavos))},
+        {t:'Tipo', r:f => f.tipo ? esc(TIPO_DOC[f.tipo] || f.tipo) : ausente('Sin tipo')},
+        {t:'Comprobante', c:'mono', r:f => f.comprobante ? esc(f.comprobante) : ausente('Sin comprobante')},
+        {t:'Emitida', c:'mono', r:f => f.emitida ? esc(fmtFecha(f.emitida)) : ausente('Sin fecha')},
+        {t:'Importe', c:'num', r:f => f.monto_centavos != null ? esc(fmtPesos(f.monto_centavos)) : ausente('Importe a mano')},
         {t:'Conf.', c:'num', r:f => barraConf(f.confianza_min)},
       ], d.comprobantes, {alClic:true, lista:'comprobantes'})}` : ''}
 
-    ${d.interpretaciones.length ? `
+    ${d.interpretaciones && d.interpretaciones.length ? `
       <div class="sep">
         <span class="rotulo">Carril de interpretación</span>
-        <p class="prosa nota">Nada de esto se leyó de un
-          papel. Son hipótesis armadas cruzando los datos de arriba, y pueden estar mal.</p>
+        <p class="prosa nota">Nada de esto se leyó de un papel. Son hipótesis cruzando datos y pueden estar mal.</p>
         ${d.interpretaciones.map(interpHTML).join('')}
-      </div>` : ''}`);
+      </div>` : ''}
+  `);
 
-  // OJO: antes esto tomaba «la última tabla» y le enganchaba los contratos. Con la de
-  // comprobantes abajo, cada fila de una factura abría el contrato del mismo índice.
-  // Ahora cada tabla se marca con lo que muestra y el clic va a lo que dice la fila.
   vista.querySelectorAll('table[data-lista]').forEach(tabla => {
     const filas = tabla.dataset.lista === 'contratos' ? d.contratos : d.comprobantes;
     tabla.querySelectorAll('tbody tr').forEach(tr =>
       tr.onclick = () => location.hash = '#/documento/' + filas[+tr.dataset.i].documento_id);
   });
 }
+
 
 /* ── Carga de escaneos ─────────────────────────────────────────────────── */
 let subiendo = false;
@@ -3914,31 +4005,27 @@ function htmlConjunto(c, archivos) {
       <button class="boton">Sumar al final</button></form>`;
 }
 
-async function vConjuntos(elegido) {
-  const [d,a] = await Promise.all([api('/api/conjuntos'), api('/api/archivos')]);
-  if (location.hash !== '#/conjuntos') return;
-  vista.innerHTML = bloque('', 'Documentos', `<h2>Conjuntos documentales</h2>
-    <p class="prosa">Agrup\u00e1 los archivos de una entrega y conserv\u00e1 su orden.</p>
-    <form id="crear-conjunto" class="nucleo-form"><label>Nombre <input name="nombre" required></label>
-      <label>Organismo <input name="organismo"></label><label>Expediente <input name="expediente"></label>
-      <label>A\u00f1o <input name="anio" type="number"></label><label>Nota <input name="nota"></label>
-      <button class="boton">Crear conjunto</button></form>
-    ${d.conjuntos.length ? `<label>Conjunto <select id="elegir-conjunto"><option value="">Eleg\u00ed un conjunto</option>
-      ${d.conjuntos.map(c => `<option value="${c.id}">${esc(c.nombre)} (${c.archivos} archivos, ${c.paginas} fojas)</option>`).join('')}</select></label>`
-      : '<p>No hay conjuntos documentales.</p>'}<section id="detalle-conjunto" aria-live="polite"></section>`);
-  $('#crear-conjunto').onsubmit = async e => {
-    e.preventDefault(); const f=e.currentTarget, b=f.querySelector('button'); b.disabled=true;
-    try {
-      const datos = Object.fromEntries(new FormData(f));
-      for (const k of ['organismo','expediente','nota']) datos[k] = datos[k].trim() || null;
-      datos.anio = datos.anio ? +datos.anio : null;
-      const c = await guardarNucleo('/api/conjunto/crear', datos); await vConjuntos(c.id);
-    } catch(e) { toast(e.message); } finally { b.disabled=false; }
-  };
-  const selector = $('#elegir-conjunto');
-  if (!selector) return;
-  selector.onchange = () => mostrarConjunto(+selector.value, a.archivos);
-  if (elegido) { selector.value=String(elegido); await mostrarConjunto(elegido, a.archivos); }
+function htmlConjunto(c, archivos) {
+  const partes = c.partes;
+  const org = c.organismo ? esc(c.organismo) : '<span class="nulo" title="sin organismo">—</span>';
+  const exp = c.expediente ? esc(c.expediente) : '<span class="nulo" title="sin expediente">—</span>';
+  const anio = c.anio ? esc(c.anio) : '<span class="nulo" title="sin año">—</span>';
+  return `<h3>${esc(c.nombre)}</h3>
+    <p>${org} &middot; ${exp} &middot; ${anio}</p>
+    ${c.nota ? `<p class="prosa">${esc(c.nota)}</p>` : ''}
+    <p>${partes.length} archivos &middot; ${partes.reduce((n,p) => n+p.paginas,0)} fojas &middot; ${partes.reduce((n,p) => n+p.piezas,0)} piezas</p>
+    <p class="prosa">El orden se guarda con cada movimiento. Subí o bajá las partes para respetar el orden de la entrega.</p>
+    <ol class="lista-partes">${partes.map((p,i) => `<li class="parte-ficha"><span class="mono">${esc(p.nombre)}</span>
+      <p>${esc(p.paginas)} fojas &middot; ${esc(p.piezas)} piezas</p>
+      <div class="acciones-parte">
+        <button class="boton secundario" data-mover="${i}" data-salto="-1" ${i === 0 ? 'disabled' : ''}>Subir</button>
+        <button class="boton secundario" data-mover="${i}" data-salto="1" ${i === partes.length-1 ? 'disabled' : ''}>Bajar</button>
+        <button class="boton peligro" data-quitar="${i}">Quitar</button>
+      </div></li>`).join('')}</ol>
+    ${partes.length ? '' : '<p class="estado-vacio">Este conjunto todavía no tiene archivos.</p>'}
+    <form id="agregar-parte" class="formulario-estandar"><label>Archivo para sumar
+      <select name="sha256" required>${opcionesArchivos(archivos.filter(a => !partes.some(p => p.sha256 === a.sha256)))}</select></label>
+      <button class="boton">Sumar al final</button></form>`;
 }
 
 async function mostrarConjunto(id, archivos) {
@@ -3966,55 +4053,78 @@ async function mostrarConjunto(id, archivos) {
   } catch(e) { if (host.isConnected) host.textContent=e.message; }
 }
 
+async function vConjuntos(elegido) {
+  const [d,a] = await Promise.all([api('/api/conjuntos'), api('/api/archivos')]);
+  if (location.hash !== '#/conjuntos') return;
+  vista.innerHTML = bloque('f. 0005', 'Documentos', `<h2>Conjuntos documentales</h2>
+    <p class="prosa">Agrupá los archivos de una entrega y conservá su orden.</p>
+    <form id="crear-conjunto" class="formulario-estandar"><label>Nombre <input name="nombre" required></label>
+      <label>Organismo <input name="organismo"></label><label>Expediente <input name="expediente"></label>
+      <label>Año <input name="anio" type="number"></label><label>Nota <input name="nota"></label>
+      <button class="boton">Crear conjunto</button></form>
+    ${d.conjuntos.length ? `<label class="selector-conjunto">Conjunto <select id="elegir-conjunto"><option value="">Elegí un conjunto</option>
+      ${d.conjuntos.map(c => `<option value="${c.id}">${esc(c.nombre)} (${c.archivos} archivos, ${c.paginas} fojas)</option>`).join('')}</select></label>`
+      : '<p class="estado-vacio">No hay conjuntos documentales.</p>'}<section id="detalle-conjunto" aria-live="polite"></section>`);
+  $('#crear-conjunto').onsubmit = async e => {
+    e.preventDefault(); const f=e.currentTarget, b=f.querySelector('button'); b.disabled=true;
+    try {
+      const datos = Object.fromEntries(new FormData(f));
+      for (const k of ['organismo','expediente','nota']) datos[k] = datos[k].trim() || null;
+      datos.anio = datos.anio ? +datos.anio : null;
+      const c = await guardarNucleo('/api/conjunto/crear', datos); await vConjuntos(c.id);
+    } catch(e) { toast(e.message); } finally { b.disabled=false; }
+  };
+  const selector = $('#elegir-conjunto');
+  if (!selector) return;
+  selector.onchange = () => mostrarConjunto(+selector.value, a.archivos);
+  if (elegido) { selector.value=String(elegido); await mostrarConjunto(elegido, a.archivos); }
+}
+
+
+async function mostrarConjunto(id, archivos) {
+  const host = $('#detalle-conjunto');
+  if (!id) { host.innerHTML=''; return; }
+  try {
+    const c = await api('/api/conjunto?id='+id);
+    if (!host.isConnected || +$('#elegir-conjunto').value !== +id) return;
+    host.innerHTML = htmlConjunto(c, archivos);
+    const cambiar = async (ruta, datos) => {
+      host.querySelectorAll('button').forEach(b => b.disabled=true);
+      try { await guardarNucleo(ruta, {conjunto_id:+id,...datos}); await vConjuntos(id); }
+      catch(e) { toast(e.message); await mostrarConjunto(id, archivos); }
+    };
+    $('#agregar-parte',host).onsubmit = e => {
+      e.preventDefault(); cambiar('/api/conjunto/agregar', {sha256:e.currentTarget.elements.sha256.value});
+    };
+    host.querySelectorAll('[data-quitar]').forEach(b => b.onclick = () =>
+      cambiar('/api/conjunto/quitar',{sha256:c.partes[+b.dataset.quitar].sha256}));
+    host.querySelectorAll('[data-mover]').forEach(b => b.onclick = () => {
+      const shas=c.partes.map(p => p.sha256), i=+b.dataset.mover, j=i+(+b.dataset.salto);
+      [shas[i],shas[j]]=[shas[j],shas[i]];
+      cambiar('/api/conjunto/reordenar',{shas});
+    });
+  } catch(e) { if (host.isConnected) host.textContent=e.message; }
+}
+
 async function vReasociaciones() {
-  const {revisiones} = await api('/api/reasociaciones/pendientes');
   if (location.hash !== '#/reasociaciones') return;
-  
   vista.innerHTML = bloque('REV', 'Revisiones desplazadas', `
     <h2>Revisiones desplazadas</h2>
     <p class="prosa">Decisiones humanas que perdieron su foja de anclaje original.</p>
     <div id="lista-reasoc"></div>
   `);
 
-  tablaBuscable($('#lista-reasoc'), [
+  tablaServidor($('#lista-reasoc'), '/api/reasociaciones/pendientes', 'revisiones', [
     {t: 'Clase', r: r => esc(r.clase)},
     {t: 'Documento', r: r => `<a href="#/documento/${esc(r.documento_id)}">${esc(r.archivo || 'doc ' + r.documento_id)}</a>`},
     {t: 'Foja', c: 'num', r: r => `<a href="javascript:abrirFojaSuelta('${esc(r.sha256)}', ${r.ancla_pagina}, '${esc(r.archivo)}')">f. ${esc(r.ancla_pagina)}</a>`},
     {t: 'Texto original', c: 'mono', r: r => esc(r.texto)},
-    {t: 'Decisión', r: (r, i) => `<div class="fila-acciones" data-revision="${i}">
-      <label><input type="radio" name="res-${i}" value="reasociar"> Reasociar</label>
-      <label><input type="radio" name="res-${i}" value="descartar"> Descartar</label>
+    {t: 'Decisin', r: (r, i) => `<div class="fila-acciones" data-revision="${r.id}">
+      <label><input type="radio" name="res-${r.id}" value="reasociar"> Reasociar</label>
+      <label><input type="radio" name="res-${r.id}" value="descartar"> Descartar</label>
       <button class="boton" data-resolver="ejecutar" disabled>Ejecutar</button>
     </div>`}
-  ], revisiones);
-
-  $('#lista-reasoc').addEventListener('change', e => {
-    if (e.target.type === 'radio') {
-      const form = e.target.closest('div');
-      form.querySelector('button').disabled = false;
-    }
-  });
-
-  $('#lista-reasoc').addEventListener('click', async e => {
-    if (e.target.dataset.resolver === 'ejecutar') {
-      const btn = e.target;
-      const tarjeta = btn.closest('div');
-      const r = revisiones[Number(tarjeta.dataset.revision)];
-      const elegida = tarjeta.querySelector('input:checked');
-      if (!elegida) return;
-      
-      btn.disabled = true;
-      try {
-        const quien = await conRevisor(); if (!quien) { btn.disabled = false; return; }
-        await api('/api/reasociacion/resolver', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({decision_id: r.decision_id, accion: elegida.value, quien})
-        });
-        await vReasociaciones();
-      } catch (err) { toast(err.message); btn.disabled = false; }
-    }
-  });
+  ]);
 }
 
 function htmlActualizacion(plan, revisiones) {
@@ -4057,11 +4167,47 @@ function htmlActualizacion(plan, revisiones) {
     ${!plan.vigente && !sinMaterial ? '<button class="boton" id="b-actualizar">Actualizar an\u00e1lisis</button>' : ''}`;
 }
 
+function htmlActualizacion(plan, revisiones) {
+  const nombres = new Map(plan.etapas.map(e => [e.clave, e.nombre]));
+  const etiqueta = clave => ({paginas_ocr: 'Fojas de OCR', lecturas: 'Lecturas guardadas',
+    indice: 'Índice de búsqueda', archivos: 'Archivos', documentos: 'Documentos',
+    total: 'Total', preservadas: 'Preservadas',
+    requieren_reasociacion: 'Necesitan reasociación'}[clave] || clave.replaceAll('_', ' '));
+  const cuentas = datos => `<dl class="lista-definiciones">${Object.entries(datos).map(([k, v]) =>
+    `<div><dt>${esc(etiqueta(k))}</dt><dd>${typeof v === 'boolean' ? (v ? 'Sí' : 'No') : esc(fmtNum.format(v))}</dd></div>`).join('')}</dl>`;
+  const sinMaterial = plan.etapas.filter(e => e.alcance !== 'legajo').every(e => e.total === 0);
+  return `<h2>Actualizar análisis</h2>
+    <p class="prosa">${sinMaterial ? 'No hay material cargado para actualizar.' : plan.vigente
+      ? 'El análisis está vigente. No hay nada que actualizar.'
+      : 'Mirá qué se aprovecha y qué hace falta recalcular antes de empezar.'}</p>
+    <div class="actualizacion-cuentas">
+      <section><h3>Se reutiliza</h3>${cuentas(plan.reutiliza)}</section>
+      <section><h3>Se recalcula</h3>${cuentas(plan.recalcula)}</section>
+    </div>
+    <p class="prosa nota">Las cuentas de OCR indican las fojas que se aprovechan y las que se vuelven a leer. Las etapas se registran por separado, pero algunas se ejecutan juntas por archivo.</p>
+    <h3>Etapas</h3><div class="actualizacion-etapas">${plan.etapas.map(e => `<article class="tarjeta-etapa">
+      <h4>${esc(e.nombre)} <span class="sello ${e.estado === 'desactualizada' || e.estado === 'nunca' ? 'atencion' : 'neutro'}">${esc(e.estado)}</span></h4>
+      ${e.explica ? `<p>${esc(e.explica)}</p>` : ''}
+      ${e.motivo ? `<p>${esc(e.motivo)}</p>` : ''}
+      ${e.estado === 'heredada' || e.heredados > 0 ? '<p>Hay resultados heredados aprovechables: se adoptó lo que ya estaba sin volver a leerlo; no se comprobó que coincida.</p>' : ''}
+      <p>Aprovechables: ${esc(fmtNum.format(e.vigentes))} &middot; Desactualizados: ${esc(fmtNum.format(e.desactualizados))} &middot; Total: ${esc(fmtNum.format(e.total))} &middot; Costo: ${esc(e.cuesta)}</p>
+    </article>`).join('')}</div>
+    <h3>Trabajo de las personas</h3>${cuentas(plan.revisiones)}
+    <p class="prosa">Las revisiones que necesitan reasociación se conservan. No se aplican solas porque no es seguro a qué pieza corresponden. Necesitan que una persona las mire; no son trabajo perdido.</p>
+    ${revisiones.length ? '<p><a href="#/reasociaciones" class="boton secundario">Resolver las revisiones desplazadas</a></p>' : ''}
+    ${revisiones.map(r => `<article class="actualizacion-revision"><h4 class="mono">${esc(r.archivo)}</h4>
+      <p>${esc(r.campo)}: ${r.valor == null ? '<span class="nulo" title="sin valor">—</span>' : esc(r.valor)}</p>
+      <p>${esc(r.quien)} &middot; ${esc(r.cuando)}</p><p>${esc(r.motivo)}</p></article>`).join('')}
+    ${plan.archivos.length ? `<h3>Archivos alcanzados</h3><ul class="lista-archivos">${plan.archivos.map(a =>
+      `<li><span class="mono">${esc(a.nombre)}</span> &middot; Fojas: ${esc(fmtNum.format(a.paginas))} &middot; ${a.desactualizadas.map(k => esc(nombres.get(k) || k)).join(', ')}</li>`).join('')}</ul>` : ''}
+    ${!plan.vigente && !sinMaterial ? '<button class="boton principal" id="b-actualizar">Actualizar análisis</button>' : ''}`;
+}
+
 async function vActualizacion() {
   const [plan, pendientes, t] = await Promise.all([
     api('/api/actualizacion'), api('/api/reasociaciones'), api('/api/trabajo')]);
   if (location.hash !== '#/actualizacion') return;
-  vista.innerHTML = bloque('ACT', 'An\u00e1lisis',
+  vista.innerHTML = bloque('ACT', 'Análisis',
     `<div id="plan-actualizacion">${htmlActualizacion(plan, pendientes.revisiones)}</div><div id="progreso" aria-live="polite"></div>`);
   const b = $('#b-actualizar');
   if (b) {
@@ -4079,6 +4225,7 @@ async function vActualizacion() {
   pintarTrabajo(t);
   if (t.estado === 'corriendo') seguirTrabajo();
 }
+
 
 async function vIngesta() {
   // El control de arriba ya corta la ruta, pero la carga es la única pantalla que
@@ -4457,30 +4604,23 @@ async function vAcerca() {
         </div>
         ${fiscales.length ? `<div class="fiscales">
           <div class="rotulo">${esc(fiscales.length > 1 ? d.rotulo_fiscales : 'Fiscal')}</div>
-          <ul>${fiscales.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+          <ul class="lista-fiscales">${fiscales.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
         </div>` : ''}
       </div>
-      <p class="prosa">Estos nombres son los que salen impresos en la portada de cada
-        planilla y de cada informe que genera el sistema. Se cambian en un solo lugar
-        —<span class="mono">ufil/identidad.py</span>, o un archivo
-        <span class="mono">identidad.json</span> en la carpeta de datos— y cambian en
-        todas partes a la vez.</p>`) +
+      <p class="prosa">Estos nombres son los que salen impresos en la portada de cada planilla y de cada informe que genera el sistema. Se cambian en un solo lugar —<span class="mono">ufil/identidad.py</span>, o un archivo <span class="mono">identidad.json</span> en la carpeta de datos— y cambian en todas partes a la vez.</p>`) +
     bloque('f. 0000', 'Versión', `
       <h2>Qué versión estás usando</h2>
-      <table class="salud"><tbody>
+      <table class="tabla-estandar"><tbody>
         <tr><td>${sello('neutro', 'Interfaz')}</td>
             <td class="mono">${esc(VERSION_CARGADA || c.version || '—')}</td>
-            <td>La huella del archivo de la interfaz que cargó esta pestaña. Si el
-              servidor pasa a servir otra, aparece un aviso arriba.</td></tr>
+            <td>La huella del archivo de la interfaz que cargó esta pestaña. Si el servidor pasa a servir otra, aparece un aviso arriba.</td></tr>
         <tr><td>${sello('neutro', 'Legajo abierto')}</td>
             <td class="mono">${esc(c.legajo ? c.legajo.numero : 'ninguno')}</td>
-            <td>${c.legajo ? esc(c.legajo.caratula)
-              : 'Cada legajo es una base separada. <a href="#/legajos">Elegir uno</a>.'}</td></tr>
+            <td>${c.legajo ? esc(c.legajo.caratula) : 'Cada legajo es una base separada. <a href="#/legajos">Elegir uno</a>.'}</td></tr>
       </tbody></table>
-      <p class="prosa">Lo que hace y lo que <strong>no</strong> hace el sistema está
-        contado en <a href="#/como-funciona">Cómo funciona</a>. Si algo no anda,
-        <a href="#/salud">Estado del sistema</a> dice qué falta y cómo se arregla.</p>`);
+      <p class="prosa">Lo que hace y lo que <strong>no</strong> hace el sistema está contado en <a href="#/como-funciona">Cómo funciona</a>. Si algo no anda, <a href="#/salud">Estado del sistema</a> dice qué falta y cómo se arregla.</p>`);
 }
+
 
 /* ── Cómo funciona ─────────────────────────────────────────────────────── */
 /* La pantalla que contesta lo que pregunta cualquiera que ve esto por primera vez:
@@ -4493,10 +4633,6 @@ async function vSalud() {
   const simbolos = {ok: 'ok', aviso: 'Aviso', falla: 'Falta'};
   const clase = {ok: 'ok', aviso: 'atencion', falla: 'alerta'};
 
-  // Qué versión se está viendo. Existe porque hubo que averiguarlo a mano: se
-  // desplegó una versión nueva, el servidor la estaba sirviendo, y desde afuera no
-  // había forma de saber si lo que aparecía en pantalla era esa o una guardada en el
-  // navegador. Con este número la pregunta se contesta mirando.
   const version = `<p class="version-app">
     Versión de la interfaz <span class="mono">${esc(s.version)}</span> ·
     esquema de la base <span class="mono">v${esc(s.esquema)}</span>${
@@ -4509,21 +4645,10 @@ async function vSalud() {
          <span class="sello ${s.avisos ? 'atencion' : 'ok'}">Listo</span>
          <span>El equipo tiene todo lo necesario para trabajar${
            s.avisos ? `, con ${s.avisos} aviso${s.avisos > 1 ? 's' : ''} que conviene mirar` : ''}.</span></div>`
-    : `<div class="aviso"><span class="sello alerta">Falta</span>
+    : `<div class="aviso info"><span class="sello alerta">Falta</span>
          <span>Todavía no se puede trabajar: faltan ${s.fallas} cosa${s.fallas > 1 ? 's' : ''}.
          Abajo está cada una con lo que hay que instalar.</span></div>`;
 
-  /* Lo que anda mal, arriba.
-
-     Diecisiete renglones con el mismo recuadro al costado y la única diferencia en la
-     palabra de adentro: quien abre esta pantalla ve diecisiete verdes y no encuentra
-     el único que no lo es. Y el que importa —si lo que se guarda sobrevive a un
-     reinicio— es el número doce.
-
-     El orden dentro de cada grupo NO se toca: `sort` de JavaScript es estable, así que
-     lo que está en verde queda como venía y sólo suben las fallas y los avisos. Un
-     orden que se reacomoda entero cada vez que algo cambia de estado obliga a
-     releerlo entero. */
   const PESO = {falla: 0, aviso: 1, ok: 2};
   const ordenados = [...s.chequeos].sort(
     (a, b) => (PESO[a.estado] ?? 2) - (PESO[b.estado] ?? 2));
@@ -4538,48 +4663,34 @@ async function vSalud() {
   const inv = s.invariantes.length
     ? `<ul class="fallas">${s.invariantes.map(f => `<li>${esc(f)}</li>`).join('')}</ul>`
     : `<div class="aviso bien"><span class="sello ok">Cumple</span>
-         <span>Las reglas del pliego se siguen cumpliendo sobre los datos cargados:
-         ningún campo con valor sin ubicación en la imagen, ninguna interpretación sin
-         documento que la sostenga, ninguna fusión de identidad aplicada sola.</span></div>`;
+         <span>Las reglas del pliego se siguen cumpliendo sobre los datos cargados: ninguna interpretación sin documento que la sostenga.</span></div>`;
 
   const i = s.integridad;
   const cobertura = i.total
     ? `<p class="prosa">De los <b>${i.total}</b> originales cargados,
-        <b>${i.verificados}</b> fueron rehasheados alguna vez y siguen idénticos a como
-        entraron.${i.total > i.verificados
-          ? ` Faltan ${i.total - i.verificados}: cada comprobación toma un lote empezando
-              por los que hace más tiempo que no se miran, así que corriéndola seguido el
-              acervo entero queda cubierto.`
+        <b>${i.verificados}</b> fueron rehasheados alguna vez y siguen idénticos a como entraron.${i.total > i.verificados
+          ? ` Faltan ${i.total - i.verificados}: cada comprobación toma un lote empezando por los que hace más tiempo que no se miran.`
           : ' El acervo entero está cubierto.'}
-        ${i.mas_viejo ? ` La verificación más antigua es del
-          <span class="mono">${esc(String(i.mas_viejo).slice(0, 16).replace('T', ' '))}</span>.` : ''}</p>
-       <p class="prosa nota">Rehashear originales lee del disco archivo
-         por archivo, así que no se hace al abrir esta pantalla: se pide.</p>
-       <button class="boton" id="b-verificar">Comprobar los originales ahora</button>
+        ${i.mas_viejo ? ` La verificación más antigua es del <span class="mono">${esc(String(i.mas_viejo).slice(0, 16).replace('T', ' '))}</span>.` : ''}</p>
+       <p class="prosa nota">Rehashear originales lee del disco archivo por archivo, así que no se hace al abrir esta pantalla: se pide.</p>
+       <button class="boton principal" id="b-verificar">Comprobar originales ahora</button>
        <div id="r-verificar"></div>`
-    : `<p class="prosa">Todavía no hay documentos cargados, así que no hay nada que verificar.</p>`;
+    : `<p class="estado-vacio">Todavía no hay documentos cargados, así que no hay nada que verificar.</p>`;
 
   vista.innerHTML =
     bloque('f. 0900', 'Equipo', `
       <h2>Estado del sistema</h2>
-      <p class="prosa">Esta pantalla contesta dos preguntas distintas. Arriba: si esta
-        computadora tiene instalado todo lo que hace falta. Abajo: si lo que ya está cargado
-        sigue cumpliendo las reglas con las que se cargó.</p>
+      <p class="prosa">Esta pantalla contesta dos preguntas. Arriba: si esta computadora tiene instalado todo lo necesario. Abajo: si lo que ya está cargado sigue cumpliendo las reglas con las que se cargó.</p>
       ${veredicto}
-    ${version}
-      <div class="tabla-env"><table class="salud"><tbody>${filas}</tbody></table></div>`) +
-
+      ${version}
+      <div class="tabla-env"><table class="tabla-estandar"><tbody>${filas}</tbody></table></div>`) +
     bloque('f. 0901', 'Reglas', `
       <h2>Las reglas siguen valiendo</h2>
-      <p class="prosa">No es una promesa del instructivo: se vuelve a comprobar contra la
-        base cada vez que se abre esta pantalla.</p>
+      <p class="prosa">No es una promesa del instructivo: se vuelve a comprobar contra la base cada vez que se abre esta pantalla.</p>
       ${inv}`) +
-
     bloque('f. 0902', 'Originales', `
       <h2>Los originales no cambiaron</h2>
-      <p class="prosa">El sistema guarda el hash de cada archivo tal como entró y lo vuelve a
-        calcular cada tanto. Si alguien —con permisos de administrador, que es el único que
-        puede— tocara un original, esto lo detecta.</p>
+      <p class="prosa">El sistema guarda el hash de cada archivo tal como entró y lo vuelve a calcular cada tanto.</p>
       ${cobertura}`);
 
   const boton = $('#b-verificar');
@@ -4594,15 +4705,14 @@ async function vSalud() {
              <span>${r.fallas.map(esc).join('<br>')}</span></div>`
         : `<div class="aviso bien sep-corta">
              <span class="sello ok">Intactos</span>
-             <span>Se rehashearon <b>${r.revisados}</b> originales y los
-             <b>${r.ok}</b> coinciden con el hash con el que entraron.
-             Cubiertos hasta ahora: ${r.cubiertos} de ${r.total}.</span></div>`;
+             <span>Se rehashearon <b>${r.revisados}</b> originales y los <b>${r.ok}</b> coinciden con el hash con el que entraron. Cubiertos hasta ahora: ${r.cubiertos} de ${r.total}.</span></div>`;
     } finally {
       boton.disabled = false;
       boton.textContent = 'Comprobar los originales otra vez';
     }
   };
 }
+
 
 /* Qué entró y no salió. Sin esta pantalla, subir trescientos PDF y que doce no den
    ningún contrato es invisible: el panel muestra 288 y nadie sabe que faltan doce.
@@ -5196,35 +5306,65 @@ function htmlFoliatura(d) {
       <td>${h.foliaturas.map(marcaDeOrigen).join(' ')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
+async function fetchFoliatura(sha) {
+  return await api('/api/foliatura?sha=' + encodeURIComponent(sha));
+}
+async function fetchArchivos() {
+  return await api('/api/archivos');
+}
+
 async function vFoliatura(sha) {
-  const d = await api('/api/archivos');
   if (location.hash.indexOf('#/foliatura') !== 0) return;
+  const d = await fetchArchivos();
   const archivos = d.archivos || [];
+  
   if (!archivos.length) {
     vista.innerHTML = bloque('', 'Documentos', '<p class="prosa">No hay archivos cargados todavía.</p>');
     return;
   }
+  
   const elegido = sha || archivos[0].sha256;
-  const f = await api('/api/foliatura?sha=' + encodeURIComponent(elegido));
+  const f = await fetchFoliatura(elegido);
   if (location.hash.indexOf('#/foliatura') !== 0) return;
   
-  const conAlgo = f.fojas.filter(h => h.foliaturas.length).length;
-  vista.innerHTML = bloque('', 'Documentos', selectorArchivo(archivos, elegido) + `
-    <p class="prosa">${esc(conAlgo)} de ${esc(f.fojas.length)} fojas tienen foliatura anotada.</p>
-    ${f.saltos.length ? `<h3>Saltos de foliatura</h3><ul>${f.saltos.map(x => `<li><span class="sello atencion">${esc(x.clase)}</span> ${esc(x.detalle)}</li>`).join('')}</ul>` : ''}
+  const conAlgo = f.fojas && f.fojas.filter ? f.fojas.filter(h => h.foliaturas && h.foliaturas.length).length : 0;
+  
+  vista.innerHTML = bloque('', 'Documentos', `
+    <div class="encabezado-vista">
+      <h2>Foliatura del papel</h2>
+      <p class="prosa">${esc(conAlgo)} de ${esc(f.total || (f.fojas && f.fojas.length) || 0)} fojas tienen foliatura anotada.</p>
+    </div>
+    
+    <div class="controles-tabla">
+      <div class="filtros-fila">
+        ${selectorArchivo(archivos, elegido)}
+      </div>
+    </div>
+    
+    ${f.saltos && f.saltos.length ? `<h3>Saltos de foliatura</h3><ul>${f.saltos.map(x => `<li><span class="sello atencion">${esc(x.clase)}</span> ${esc(x.detalle)}</li>`).join('')}</ul>` : ''}
+    
     <h3>Foja por foja</h3>
-    <div id="lista-foliatura"></div>
+    <div id="lista-foliatura-paginada"></div>
   `);
-
-  tablaBuscable($('#lista-foliatura'), [
-    {t: 'Página del PDF', c: 'mono', r: h => esc(h.pagina_pdf), b: h => h.pagina_pdf},
-    {t: 'Foliatura del papel', r: h => h.foliaturas.length ? h.foliaturas.map(x => `<span class="mono">${esc(x.nro)}</span>`).join(' o ') : '<span class="nulo">sin lectura</span>'},
-    {t: 'De dónde sale', r: h => h.foliaturas.length ? h.foliaturas.map(x => `<a href="#/foja/${x.sha256}/${h.pagina_pdf}" class="chip">${esc(x.texto)}</a>`).join(' ') : '—'}
-  ], f.fojas);
 
   const sel = $('#sel-archivo');
   if (sel) sel.onchange = () => { location.hash = '#/foliatura/' + sel.value; };
+
+  tablaServidor($('#lista-foliatura-paginada'), '/api/foliatura?sha=' + encodeURIComponent(elegido), 'fojas', [
+    {t: 'Página del PDF', r: h => esc(h.pagina_pdf || h.foja), c: 'mono', o: 'id'},
+    {t: 'Foliatura del papel', r: h => h.foliaturas && h.foliaturas.length ? h.foliaturas.map(x => `<span class="mono">${esc(x.nro)}</span>`).join(' o ') : ausente('Sin lectura')},
+    {t: 'De dónde sale', r: h => h.foliaturas && h.foliaturas.length ? h.foliaturas.map(x => `<span class="chip">${esc(x.texto)}</span>`).join(' ') : '—'}
+  ], {
+    placeholder: 'Buscar foja...',
+    vacio: 'No se encontraron fojas.',
+    alClic: h => {
+        if (h.foliaturas && h.foliaturas.length) {
+            location.hash = '#/foja/' + encodeURIComponent(h.foliaturas[0].sha256) + '/' + (h.pagina_pdf || h.foja);
+        }
+    }
+  });
 }
+
 
 /* -- Las tablas, como tablas y no como texto -------------------------------
    Una planilla dice lo que dice por renglon. Mostrarla aplanada pierde justamente lo
@@ -5254,36 +5394,75 @@ function htmlTabla(t) {
     <div data-destino="${esc(t.id)}"></div></article>`;
 }
 
-async function vTablas(sha) {
+// new_vTablas.js
+async function obtenerTablasData(sha) {
   const d = await api('/api/archivos');
-  if (location.hash.indexOf('#/tablas') !== 0) return;
   const archivos = d.archivos || [];
+  if (!archivos.length) return { archivos: [], tablas: [], elegido: null };
+  const elegido = sha || archivos[0].sha256;
+  const t = await api('/api/tablas?sha=' + encodeURIComponent(elegido));
+  return { archivos, tablas: t.tablas || [], elegido };
+}
+
+async function vTablas(sha) {
+  if (location.hash.indexOf('#/tablas') !== 0) return;
+  const { archivos, tablas, elegido } = await obtenerTablasData(sha);
+  if (location.hash.indexOf('#/tablas') !== 0) return;
+
   if (!archivos.length) {
     vista.innerHTML = bloque('', 'Documentos', '<p class="prosa">No hay archivos cargados todavía.</p>');
     return;
   }
-  const elegido = sha || archivos[0].sha256;
-  const t = await api('/api/tablas?sha=' + encodeURIComponent(elegido));
-  if (location.hash.indexOf('#/tablas') !== 0) return;
-  
-  vista.innerHTML = bloque('', 'Documentos', selectorArchivo(archivos, elegido) +
-    (t.tablas.length
-      ? `<p class="prosa">Se detectaron <strong>${t.tablas.length} tablas</strong>. Elegí una para ver sus renglones.</p><div id="lista-tablas"></div>`
-      : `<p class="prosa">No se reconoció ninguna tabla en este archivo.</p>`));
 
-  if (t.tablas.length) {
-    tablaBuscable($('#lista-tablas'), [
-      {t: 'Foja', c: 'num', r: a => esc(a.pagina_nro), b: a => a.pagina_nro},
-      {t: 'Tamaño', r: a => `${esc(a.filas)} filas × ${esc(a.columnas)} cols`},
-      {t: 'Confianza', r: a => barraConf(a.confianza) + ' ' + fmtPct(a.confianza * 100)},
-      {t: 'Continuación', r: a => a.continua_de ? (a.union_quien ? `Sí (por ${esc(a.union_quien)})` : 'Propuesta') : 'No'},
-      {t: 'Acción', r: a => `<a class="boton" href="#/tabla-renglones-${a.id}">Ver renglones</a>`}
-    ], t.tablas);
-  }
+  let pagina = 0;
+  const porPagina = 50;
 
-  const sel = $('#sel-archivo');
-  if (sel) sel.onchange = () => { location.hash = '#/tablas/' + sel.value; };
+  const render = () => {
+    const total = tablas.length;
+    const inicio = pagina * porPagina;
+    const fin = inicio + porPagina;
+    const muestra = tablas.slice(inicio, fin);
+
+    let contenido = selectorArchivo(archivos, elegido);
+    if (!total) {
+      contenido += `<p class="prosa">No se reconoció ninguna tabla en este archivo.</p>`;
+      vista.innerHTML = bloque('', 'Documentos', contenido);
+    } else {
+      contenido += `<p class="prosa">Se detectaron <strong>${total} tablas</strong>. Elegí una para ver sus renglones.</p>`;
+      
+      const htmlTabla = tabla([
+        {t: 'Foja', c: 'num', r: a => esc(a.pagina_nro)},
+        {t: 'Tamaño', r: a => `${esc(a.filas)} filas × ${esc(a.columnas)} cols`},
+        {t: 'Confianza', r: a => barraConf(a.confianza) + ' ' + fmtPct(a.confianza * 100)},
+        {t: 'Continuación', r: a => a.continua_de ? (a.union_quien ? `Sí (por ${esc(a.union_quien)})` : 'Propuesta') : '—'}
+      ], muestra, { alClic: true, lista: 'tablas' });
+
+      const controles = total > porPagina ? `<div class="paginacion">
+        <button class="boton gris" id="btn-ant" ${pagina === 0 ? 'disabled' : ''}>Anterior</button>
+        <span class="paginacion-info">${inicio + 1}–${Math.min(fin, total)} de ${fmtNum.format(total)}</span>
+        <button class="boton gris" id="btn-sig" ${fin >= total ? 'disabled' : ''}>Siguiente</button>
+      </div>` : '';
+
+      vista.innerHTML = bloque('', 'Documentos', contenido + htmlTabla + controles);
+
+      vista.querySelectorAll('.tabla-env tbody tr').forEach((tr, i) => {
+        tr.onclick = () => {
+          const t = muestra[i];
+          location.hash = `#/tabla-renglones-${t.id}`;
+        };
+      });
+
+      if (pagina > 0) $('#btn-ant').onclick = () => { pagina--; render(); };
+      if (fin < total) $('#btn-sig').onclick = () => { pagina++; render(); };
+    }
+
+    const sel = $('#sel-archivo');
+    if (sel) sel.onchange = () => { location.hash = '#/tablas/' + sel.value; };
+  };
+
+  render();
 }
+
 
 /* -- La cronologia, que no es el orden de las fojas ------------------------
    Un expediente se arma por incorporacion: lo que se agrega ultimo puede relatar lo que
@@ -5431,14 +5610,48 @@ async function vEntidades() {
 
 async function vEntidad(id) {
   const hash = location.hash, e = await api('/api/entidad?id=' + id);
-  if (hash === location.hash) {
-    vista.innerHTML = bloque('', 'Entidad', `<h2>${esc(e.nombre)}</h2><p>${esc(e.clase)} · Clave fuerte: <span class="mono">${esc(e.clave_fuerte || ' sin clave')}</span></p><p>${e.quien ? `Afirmado por ${esc(e.quien)}` : (e.clave_fuerte ? 'Resuelto por el sistema por clave fuerte' : ' autor de resolución no informado')}</p><h3>Todas las formas que dice el papel</h3><div id="entidad-menciones"></div>`);
-    tablaBuscable($('#entidad-menciones'), [
-      {t: 'Mención', c: 'mono', r: m => esc(m.literal)},
-      {t: 'Fuente', r: m => fuenteMencion(m)}
-    ], e.menciones);
+  if (hash !== location.hash) return;
+  
+  const docsCount = e.documentos ? e.documentos.length : (e.menciones ? new Set(e.menciones.map(m => m.documento_id)).size : 0);
+  const mencionesCount = e.menciones ? e.menciones.length : 0;
+  const contratacionesCount = e.contrataciones ? e.contrataciones.length : 0;
+
+  const ausente = (motivo) => `<span class="nulo" title="${esc(motivo)}">—</span>`;
+
+  vista.innerHTML = bloque('e. ' + String(id).padStart(4,'0'), 'Proveedor', `
+    <div class="cabecera-ficha">
+      <h2>${esc(e.nombre)}</h2>
+      <div class="identificadores">
+        <span class="etiqueta">${esc(e.clase)}</span>
+        <span class="mono">${e.clave_fuerte ? esc(e.clave_fuerte) : ausente('Sin clave fuerte registrada')}</span>
+      </div>
+    </div>
+    
+    <div class="cifras sep-corta">
+      <div class="cifra"><b>${docsCount}</b><span>documentos</span></div>
+      <div class="cifra"><b>${contratacionesCount}</b><span>contrataciones</span></div>
+      <div class="cifra"><b>${mencionesCount}</b><span>menciones</span></div>
+    </div>
+
+    <p class="prosa nota">
+      ${e.quien ? `Ficha revisada y confirmada por <strong>${esc(e.quien)}</strong>.` : (e.clave_fuerte ? 'Entidad consolidada automáticamente por el sistema coincidiendo su clave fuerte.' : 'Entidad sin validación humana informada.')}
+    </p>
+
+    <h3>Apariciones en los documentos</h3>
+    <p class="prosa">Cómo aparece escrito el nombre en los distintos papeles originales.</p>
+    <div id="entidad-menciones"></div>
+  `);
+  
+  if (e.menciones && e.menciones.length) {
+      tablaBuscable($('#entidad-menciones'), [
+        {t: 'Mención literal', c: 'mono', r: m => esc(m.literal)},
+        {t: 'Fuente', r: m => fuenteMencion(m) || ausente('Sin fuente')}
+      ], e.menciones);
+  } else {
+      $('#entidad-menciones').innerHTML = '<div class="vacio">No hay menciones registradas.</div>';
   }
 }
+
 function enlazarDecisionesRelacion(host, refrescar) {
   host.querySelectorAll('[data-relacion]').forEach(b => b.onclick = () => accionInterfaz(b, async () => {
     const quien = await conRevisor(); if (!quien) return;
@@ -5455,23 +5668,68 @@ async function vRelaciones() {
     `<option value="${c.documento_id}">${esc(c.nombre_literal || c.documento_literal || c.archivo || 'Desconocido')} (f. ${c.pagina_desde || '?'})</option>`
   ).join('');
 
-  vista.innerHTML = bloque('', 'Relaciones', `<h2>Relaciones pendientes</h2>
-  <p>Son propuestas del sistema. Rechazar no borra: conserva la decisión para que no se vuelva a proponer lo descartado.</p>
-  <h3>Anotar una relación entre documentos</h3>
-  <form id="anotar-relacion">
-    <datalist id="lista-docs">${opciones}</datalist>
-    <label>Documento del que sale (identificador) <input name="desde" list="lista-docs" autocomplete="off" required></label>
-    <label>Documento al que llega (identificador) <input name="hasta" list="lista-docs" autocomplete="off" required></label>
-    <label>Nota de respaldo <textarea name="nota"></textarea></label>
-    <button class="boton">Registrar mi afirmación</button>
-  </form>`);
-  enlazarDecisionesRelacion(vista, vRelaciones);
-  $('#anotar-relacion').onsubmit = e => { e.preventDefault(); const f = e.currentTarget; accionInterfaz(f.querySelector('button'), async () => {
-    const quien = await conRevisor(); if (!quien) return;
-    await guardarNucleo('/api/relacion/anotar', {tipo:f.elements.tipo.value, desde_doc:Number(f.elements.desde.value), hasta_doc:Number(f.elements.hasta.value), nota:f.elements.nota.value, quien});
-    await vRelaciones();
-  }); };
+  vista.innerHTML = bloque('', 'Relaciones', `
+  <div class="cabecera-seccion">
+    <h2>Relaciones entre documentos</h2>
+    <p class="prosa">Las relaciones permiten conectar documentos que se referencian mutuamente.</p>
+  </div>
+  
+  <div class="paneles-dobles">
+    <div class="panel">
+      <h3>Propuestas pendientes</h3>
+      <p class="prosa nota">Son propuestas detectadas por el sistema. Rechazar conserva la decisión para no volver a proponerla.</p>
+      <div id="relaciones-pendientes" class="lista-relaciones">
+        ${typeof htmlRelaciones === 'function' ? (d && d.length ? htmlRelaciones(d) : '<div class="vacio">No hay relaciones propuestas pendientes.</div>') : (d && d.length ? `<div class="vacio">Hay ${d.length} propuestas.</div>` : '<div class="vacio">No hay propuestas.</div>')}
+      </div>
+    </div>
+    
+    <div class="panel panel-formulario">
+      <h3>Anotar relación manual</h3>
+      <form id="anotar-relacion" class="formulario-estilizado">
+        <datalist id="lista-docs">${opciones}</datalist>
+        
+        <div class="campo">
+          <label for="desde">Documento origen</label>
+          <input id="desde" name="desde" list="lista-docs" autocomplete="off" placeholder="Escribí para buscar documento..." required>
+        </div>
+        
+        <div class="campo">
+          <label for="hasta">Documento destino</label>
+          <input id="hasta" name="hasta" list="lista-docs" autocomplete="off" placeholder="Escribí para buscar documento..." required>
+        </div>
+        
+        <div class="campo">
+          <label for="nota">Nota de respaldo (opcional)</label>
+          <textarea id="nota" name="nota" placeholder="Por qué están relacionados..." rows="3"></textarea>
+        </div>
+        
+        <button type="submit" class="boton primario">Registrar relación</button>
+      </form>
+    </div>
+  </div>
+  `);
+  
+  if (typeof enlazarDecisionesRelacion === 'function') {
+      enlazarDecisionesRelacion(vista, vRelaciones);
+  }
+  
+  $('#anotar-relacion').onsubmit = e => { 
+      e.preventDefault(); 
+      const f = e.currentTarget; 
+      accionInterfaz(f.querySelector('button'), async () => {
+          const quien = await conRevisor(); if (!quien) return;
+          await guardarNucleo('/api/relacion/anotar', {
+              tipo: f.elements.tipo ? f.elements.tipo.value : 'referencia', 
+              desde_doc: Number(f.elements.desde.value), 
+              hasta_doc: Number(f.elements.hasta.value), 
+              nota: f.elements.nota.value, 
+              quien
+          });
+          await vRelaciones();
+      }); 
+  };
 }
+
 
 async function cargarRelacionesDocumento(id) {
   const host = $('#relaciones-documento');
