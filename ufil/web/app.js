@@ -5342,7 +5342,7 @@ async function vTablas(sha) {
     let encabezado = `
       <h1>Tablas</h1>
       <p class="prosa">Revisión de las tablas extraídas de los documentos.</p>
-      <label>Archivo: ${selectorArchivo(archivos, elegido)}</label>
+      ${selectorArchivo(archivos, elegido)}
     `;
     let contenido = encabezado;
 
