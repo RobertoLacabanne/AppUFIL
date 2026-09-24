@@ -180,3 +180,29 @@ class BackendFinal(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class LaPaginacionNoSacaClaves(unittest.TestCase):
+    """
+    Del barrido del legajo real: /api/archivos paginado perdió los totales (la pantalla
+    de carga decía «NaN fojas») y /api/consulta perdió el texto de la consulta (la
+    pantalla de Consultas rompía). La paginación agrega claves; no saca.
+    """
+
+    def test_archivos_y_consulta_conservan_lo_que_traian(self):
+        import tempfile
+        from pathlib import Path
+        from ufil import db, servidor, listas_api as la
+        with tempfile.TemporaryDirectory() as d:
+            cx = db.abrir(Path(d) / 'ufil.sqlite')
+            try:
+                r = servidor.api_archivos(cx, filtros={})
+                for k in ('resumen', 'fojas', 'falta_leer', 'sin_extraer', 'total'):
+                    self.assertIn(k, r)
+                from ufil import capa4_analisis as c4
+                primera = c4.catalogo()[0]['id']
+                r = la.resolver(cx, '/api/consulta', {'id': primera})
+                self.assertIn('sql', r)
+                self.assertIn('ruta', r)
+            finally:
+                cx.close()

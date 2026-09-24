@@ -267,7 +267,9 @@ def resolver(cx, ruta, f):
         sql=consulta['sql'].strip().rstrip(';')
         columnas=[d[0] for d in cx.execute('SELECT * FROM ('+sql+') LIMIT 0').description]
         r=pg.consultar(cx,'filas',sql,filtros=f,ordenes={k:'"'+k+'"' for k in columnas},defecto=columnas[0],aplicados={'id':f['id']})
-        r.update(id=f['id'],columnas=columnas,n=r['total'])
+        # El texto de la consulta y su archivo iban en la respuesta y la pantalla los
+        # muestra: la paginación agrega claves, no saca.
+        r.update(id=f['id'],columnas=columnas,n=r['total'],sql=consulta['sql'],ruta=consulta.get('ruta'))
         return r
     simples = {
         '/api/excepciones': ('excepciones', "SELECT * FROM excepcion WHERE estado='abierta'", 'id'),

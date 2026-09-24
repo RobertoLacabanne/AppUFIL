@@ -462,7 +462,19 @@ def api_archivos(cx, *, procesando=False, filtros=None) -> dict:
     for f in filas:
         resumen[f["estado"]] = resumen.get(f["estado"], 0) + 1
     if pagina is not None:
-        return {**pagina, 'archivos': filas}
+        # Los totales son del legajo entero, no de la página: la pantalla de carga dice
+        # «11 archivos · 1.628 fojas» y con sólo la página decía «NaN fojas».
+        tot = {"fojas": 0, "falta_leer": 0, "sin_extraer": 0}
+        resumen_total = {}
+        for a in cx.execute(sql_archivos):
+            fo, le, cl_ = a["fojas"] or 0, a["leidas"] or 0, a["clasificadas"] or 0
+            est = ("sin_leer" if le == 0 else "a_medio_leer" if le < fo
+                   else "sin_extraer" if cl_ == 0 else "listo")
+            resumen_total[est] = resumen_total.get(est, 0) + 1
+            tot["fojas"] += fo
+            tot["falta_leer"] += max(fo - le, 0)
+            tot["sin_extraer"] += est == "sin_extraer"
+        return {**pagina, 'archivos': filas, 'resumen': resumen_total, **tot}
     return {"archivos": filas, "resumen": resumen,
             "fojas": sum(f["fojas"] or 0 for f in filas),
             "falta_leer": sum(f["falta_leer"] for f in filas),
